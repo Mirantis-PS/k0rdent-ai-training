@@ -1,0 +1,143 @@
+#cloud-config
+# KubeVirt Lab Worker Cloud-Init Configuration
+# Sets up k0s worker node for running VMs
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - qemu-kvm
+  - libvirt-daemon-system
+  - libvirt-clients
+  - jq
+  - curl
+  - wget
+  - htop
+  - tmux
+  - vim
+  - awscli
+  - net-tools
+
+groups:
+  - docker
+  - libvirt
+  - kvm
+
+users:
+  - default
+
+write_files:
+  - path: /etc/sysctl.d/99-k0rdent.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+    permissions: '0644'
+
+  - path: /opt/k0rdent/config/worker-info.env
+    content: |
+      ENGINEER_ID=${engineer_id}
+      K0S_VERSION=${k0s_version}
+      CONTROLLER_IP=${controller_ip}
+      WORKER_INDEX=${worker_index}
+      AWS_REGION=${region}
+      NODE_ROLE=${node_role}
+    permissions: '0644'
+
+  - path: /opt/k0rdent/scripts/setup-k0s-worker.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/worker-info.env
+
+      echo "=== Installing k0s $K0S_VERSION (Worker $WORKER_INDEX) ==="
+
+      # Download k0s
+      curl -sSLf https://get.k0s.sh | sudo K0S_VERSION=$K0S_VERSION sh
+
+      # Wait for controller to generate token
+      echo "Waiting for join token from controller..."
+      MAX_RETRIES=60
+      RETRY_COUNT=0
+      TOKEN_FILE="/tmp/worker.token"
+
+      while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        # Try to fetch token from controller
+        if scp -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
+           ubuntu@$CONTROLLER_IP:/opt/k0rdent/tokens/worker-$WORKER_INDEX.token $TOKEN_FILE 2>/dev/null; then
+          echo "Token received!"
+          break
+        fi
+
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        echo "Waiting for token... ($RETRY_COUNT/$MAX_RETRIES)"
+        sleep 30
+      done
+
+      if [ ! -f "$TOKEN_FILE" ]; then
+        echo "ERROR: Could not retrieve join token from controller"
+        exit 1
+      fi
+
+      # Join cluster
+      sudo k0s install worker --token-file $TOKEN_FILE
+      sudo k0s start
+
+      echo "=== k0s worker $WORKER_INDEX joined cluster ==="
+
+  - path: /opt/k0rdent/scripts/init-worker.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      LOG_FILE="/var/log/k0rdent-init.log"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+
+      echo "=========================================="
+      echo "k0rdent KubeVirt Worker Initialization"
+      echo "Worker Index: ${worker_index}"
+      echo "Started at: $(date)"
+      echo "=========================================="
+
+      cd /opt/k0rdent/scripts
+
+      echo "[1/1] Joining k0s cluster..."
+      ./setup-k0s-worker.sh
+
+      echo "=========================================="
+      echo "Worker initialization complete!"
+      echo "Finished at: $(date)"
+      echo "=========================================="
+
+      touch /opt/k0rdent/.init-complete
+
+runcmd:
+  - sysctl --system
+  - modprobe br_netfilter || true
+  - modprobe kvm || true
+  - modprobe kvm_intel || modprobe kvm_amd || true
+  - usermod -aG docker ubuntu
+  - usermod -aG libvirt ubuntu
+  - usermod -aG kvm ubuntu
+  - mkdir -p /opt/k0rdent/{config,scripts}
+  - chown -R ubuntu:ubuntu /opt/k0rdent
+  # Format and mount additional storage for VM images
+  - mkfs.ext4 /dev/nvme1n1 || mkfs.ext4 /dev/xvdb || true
+  - mkdir -p /var/lib/kubelet
+  - mount /dev/nvme1n1 /var/lib/kubelet || mount /dev/xvdb /var/lib/kubelet || true
+  - echo '/dev/nvme1n1 /var/lib/kubelet ext4 defaults 0 2' >> /etc/fstab || true
+  # Run initialization (delayed to allow controller to start first)
+  - sleep 120
+  - nohup /opt/k0rdent/scripts/init-worker.sh > /var/log/k0rdent-init-bg.log 2>&1 &
+
+final_message: |
+  k0rdent KubeVirt Lab Worker ${worker_index}
+  Engineer ID: ${engineer_id}
+  Controller: ${controller_ip}
+
+  Cloud-init complete. Worker initialization running in background.
+  Check progress: tail -f /var/log/k0rdent-init.log

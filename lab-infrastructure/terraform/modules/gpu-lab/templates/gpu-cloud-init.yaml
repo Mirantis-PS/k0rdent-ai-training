@@ -1,0 +1,408 @@
+#cloud-config
+# GPU Lab Cloud-Init Configuration
+# Sets up shared GPU instance with k0s, NVIDIA GPU Operator, and multi-user support
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - jq
+  - curl
+  - wget
+  - git
+  - htop
+  - tmux
+  - vim
+  - unzip
+  - awscli
+  - net-tools
+  - nvtop
+  - pciutils
+
+groups:
+  - docker
+
+users:
+  - default
+
+write_files:
+  - path: /etc/sysctl.d/99-k0rdent-gpu.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+      # GPU memory settings
+      vm.swappiness = 10
+    permissions: '0644'
+
+  - path: /opt/k0rdent/config/gpu-lab-info.env
+    content: |
+      LAB_SESSION_ID=${lab_session_id}
+      K0S_VERSION=${k0s_version}
+      GPU_OPERATOR_VERSION=${gpu_operator_version}
+      NVIDIA_DRIVER_VERSION=${nvidia_driver_version}
+      CUDA_VERSION=${cuda_version}
+      ARTIFACTS_BUCKET=${artifacts_bucket}
+      IMAGES_BUCKET=${images_bucket}
+      AWS_REGION=${region}
+      INSTANCE_TYPE=${instance_type}
+      USE_NVIDIA_AMI=${use_nvidia_ami}
+      ENGINEER_SLOTS=${engineer_slots}
+    permissions: '0644'
+
+  - path: /opt/k0rdent/scripts/setup-nvidia-drivers.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/gpu-lab-info.env
+
+      echo "=== Setting up NVIDIA Drivers ==="
+
+      if [ "$USE_NVIDIA_AMI" == "true" ]; then
+        echo "Using NVIDIA Deep Learning AMI - drivers pre-installed"
+        nvidia-smi
+        return 0
+      fi
+
+      # Install NVIDIA drivers manually
+      echo "Installing NVIDIA drivers..."
+
+      # Add NVIDIA package repository
+      curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+      curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+        sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+      sudo apt-get update
+      sudo apt-get install -y nvidia-driver-$NVIDIA_DRIVER_VERSION nvidia-container-toolkit
+
+      # Configure Docker to use NVIDIA runtime
+      sudo nvidia-ctk runtime configure --runtime=docker
+      sudo systemctl restart docker
+
+      echo "=== NVIDIA drivers installed ==="
+      nvidia-smi
+
+  - path: /opt/k0rdent/scripts/setup-k0s.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/gpu-lab-info.env
+
+      echo "=== Installing k0s $K0S_VERSION ==="
+
+      # Download k0s
+      curl -sSLf https://get.k0s.sh | sudo K0S_VERSION=$K0S_VERSION sh
+
+      NODE_IP=$(hostname -I | awk '{print $1}')
+
+      # Create k0s configuration with GPU support
+      mkdir -p /etc/k0s
+      cat > /etc/k0s/k0s.yaml <<EOF
+      apiVersion: k0s.k0sproject.io/v1beta1
+      kind: ClusterConfig
+      metadata:
+        name: k0rdent-gpu-lab
+      spec:
+        api:
+          address: $NODE_IP
+          sans:
+            - $NODE_IP
+            - localhost
+            - 127.0.0.1
+        network:
+          provider: calico
+          calico:
+            mode: vxlan
+        extensions:
+          helm:
+            repositories:
+              - name: nvidia
+                url: https://helm.ngc.nvidia.com/nvidia
+              - name: runai
+                url: https://run-ai.github.io/public-helm-charts
+            charts:
+              - name: gpu-operator
+                chartname: nvidia/gpu-operator
+                namespace: gpu-operator
+                version: "$GPU_OPERATOR_VERSION"
+                values: |
+                  driver:
+                    enabled: false
+                  toolkit:
+                    enabled: true
+                  devicePlugin:
+                    enabled: true
+                  dcgm:
+                    enabled: true
+                  dcgmExporter:
+                    enabled: true
+                  mig:
+                    strategy: single
+      EOF
+
+      # Install k0s as single node (controller + worker)
+      sudo k0s install controller --config /etc/k0s/k0s.yaml --enable-worker
+      sudo k0s start
+
+      # Wait for k0s to be ready
+      echo "Waiting for k0s to be ready..."
+      sleep 60
+
+      # Get kubeconfig
+      mkdir -p ~/.kube /home/ubuntu/.kube
+      sudo k0s kubeconfig admin > ~/.kube/config
+      cp ~/.kube/config /home/ubuntu/.kube/config
+      chmod 600 ~/.kube/config /home/ubuntu/.kube/config
+      chown ubuntu:ubuntu /home/ubuntu/.kube/config
+
+      # Install kubectl
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      chmod +x kubectl
+      sudo mv kubectl /usr/local/bin/
+
+      # Wait for node to be ready
+      until kubectl get nodes | grep -q "Ready"; do
+        echo "Waiting for node..."
+        sleep 10
+      done
+
+      echo "=== k0s installation complete ==="
+
+  - path: /opt/k0rdent/scripts/setup-gpu-operator.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/gpu-lab-info.env
+
+      echo "=== Verifying GPU Operator installation ==="
+
+      # Wait for GPU operator namespace
+      until kubectl get namespace gpu-operator 2>/dev/null; do
+        echo "Waiting for GPU operator namespace..."
+        sleep 10
+      done
+
+      # Wait for GPU operator pods
+      echo "Waiting for GPU operator pods to be ready..."
+      kubectl wait --for=condition=Ready pods --all -n gpu-operator --timeout=600s || true
+
+      # Verify GPUs are available
+      echo "Checking GPU availability..."
+      kubectl get nodes -o=custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
+
+      # Label node for GPU workloads
+      kubectl label nodes $(hostname) nvidia.com/gpu.present=true --overwrite || true
+      kubectl label nodes $(hostname) k0rdent.io/gpu-lab=true --overwrite || true
+
+      echo "=== GPU Operator setup complete ==="
+
+  - path: /opt/k0rdent/scripts/setup-multi-user.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/gpu-lab-info.env
+
+      echo "=== Setting up multi-user environment ==="
+
+      # Create namespaces for each engineer slot
+      for i in $(seq 1 $ENGINEER_SLOTS); do
+        NS="engineer-$(printf '%02d' $i)"
+
+        kubectl create namespace $NS || true
+
+        # Set resource quota per engineer (1 GPU, limited CPU/memory)
+        cat <<EOF | kubectl apply -f -
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: engineer-quota
+        namespace: $NS
+      spec:
+        hard:
+          requests.nvidia.com/gpu: "1"
+          limits.nvidia.com/gpu: "1"
+          requests.cpu: "4"
+          limits.cpu: "8"
+          requests.memory: 16Gi
+          limits.memory: 32Gi
+          pods: "10"
+      EOF
+
+        # Create network policy
+        cat <<EOF | kubectl apply -f -
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+        namespace: $NS
+      spec:
+        podSelector: {}
+        policyTypes:
+          - Ingress
+        ingress:
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    name: $NS
+      EOF
+      done
+
+      echo "=== Multi-user environment ready ==="
+      echo "Namespaces created: engineer-01 through engineer-$(printf '%02d' $ENGINEER_SLOTS)"
+
+  - path: /opt/k0rdent/scripts/setup-vllm.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "=== Setting up vLLM for inference labs ==="
+
+      # Create vLLM namespace
+      kubectl create namespace vllm-system || true
+
+      # Create vLLM deployment template
+      cat > /opt/k0rdent/manifests/vllm-deployment.yaml <<'EOF'
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: vllm-inference
+        namespace: vllm-system
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: vllm
+        template:
+          metadata:
+            labels:
+              app: vllm
+          spec:
+            containers:
+              - name: vllm
+                image: vllm/vllm-openai:v0.11.2
+                ports:
+                  - containerPort: 8000
+                resources:
+                  limits:
+                    nvidia.com/gpu: 1
+                env:
+                  - name: MODEL
+                    value: "facebook/opt-125m"
+                args:
+                  - "--model"
+                  - "$(MODEL)"
+                  - "--port"
+                  - "8000"
+                volumeMounts:
+                  - name: model-cache
+                    mountPath: /root/.cache/huggingface
+            volumes:
+              - name: model-cache
+                emptyDir:
+                  sizeLimit: 50Gi
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: vllm-service
+        namespace: vllm-system
+      spec:
+        selector:
+          app: vllm
+        ports:
+          - port: 8000
+            targetPort: 8000
+        type: ClusterIP
+      EOF
+
+      echo "vLLM template created at /opt/k0rdent/manifests/vllm-deployment.yaml"
+      echo "Deploy with: kubectl apply -f /opt/k0rdent/manifests/vllm-deployment.yaml"
+
+  - path: /opt/k0rdent/scripts/init-gpu-lab.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      LOG_FILE="/var/log/k0rdent-gpu-init.log"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+
+      echo "=========================================="
+      echo "k0rdent GPU Lab Initialization"
+      echo "Lab Session: ${lab_session_id}"
+      echo "Started at: $(date)"
+      echo "=========================================="
+
+      cd /opt/k0rdent/scripts
+
+      echo "[1/5] Setting up NVIDIA drivers..."
+      ./setup-nvidia-drivers.sh
+
+      echo "[2/5] Setting up k0s cluster..."
+      ./setup-k0s.sh
+
+      echo "[3/5] Verifying GPU Operator..."
+      ./setup-gpu-operator.sh
+
+      echo "[4/5] Setting up multi-user environment..."
+      ./setup-multi-user.sh
+
+      echo "[5/5] Setting up vLLM templates..."
+      ./setup-vllm.sh
+
+      echo "=========================================="
+      echo "GPU Lab initialization complete!"
+      echo "Finished at: $(date)"
+      echo "=========================================="
+
+      # Show GPU status
+      nvidia-smi
+
+      # Create completion marker
+      touch /opt/k0rdent/.init-complete
+
+      # Upload log to S3
+      source /opt/k0rdent/config/gpu-lab-info.env
+      aws s3 cp "$LOG_FILE" "s3://$ARTIFACTS_BUCKET/logs/$LAB_SESSION_ID/gpu-init-$(date +%Y%m%d-%H%M%S).log" || true
+
+runcmd:
+  - sysctl --system
+  - modprobe br_netfilter || true
+  - usermod -aG docker ubuntu
+  - mkdir -p /opt/k0rdent/{config,scripts,manifests}
+  - chown -R ubuntu:ubuntu /opt/k0rdent
+  # Format and mount additional storage
+  - mkfs.ext4 /dev/nvme1n1 || mkfs.ext4 /dev/xvdb || true
+  - mkdir -p /var/lib/models
+  - mount /dev/nvme1n1 /var/lib/models || mount /dev/xvdb /var/lib/models || true
+  - echo '/dev/nvme1n1 /var/lib/models ext4 defaults 0 2' >> /etc/fstab || true
+  - chown -R ubuntu:ubuntu /var/lib/models
+  # Run initialization
+  - nohup /opt/k0rdent/scripts/init-gpu-lab.sh > /var/log/k0rdent-gpu-init-bg.log 2>&1 &
+
+final_message: |
+  k0rdent GPU Lab - Shared Instance
+  Lab Session: ${lab_session_id}
+  Instance Type: ${instance_type}
+  Engineer Slots: ${engineer_slots}
+
+  Cloud-init complete. Lab initialization running in background.
+  Check progress: tail -f /var/log/k0rdent-gpu-init.log
+
+  Once complete:
+    nvidia-smi                    # Check GPU status
+    kubectl get nodes             # Verify cluster
+    kubectl get pods -n gpu-operator  # Check GPU operator
+
+  Engineer namespaces: engineer-01 through engineer-${engineer_slots}

@@ -1,0 +1,70 @@
+#cloud-config
+# Metal3 Controller Cloud-Init (Simplified for validation)
+# Full setup scripts are downloaded from S3 post-boot
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - docker.io
+  - curl
+  - jq
+  - git
+  - awscli
+
+groups:
+  - docker
+
+users:
+  - default
+  - name: k0rdent
+    groups: [docker, sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+write_files:
+  - path: /opt/k0rdent/config/engineer-info.env
+    content: |
+      ENGINEER_ID=${engineer_id}
+      K0S_VERSION=${k0s_version}
+      METAL3_VERSION=${metal3_version}
+      ARTIFACTS_BUCKET=${artifacts_bucket}
+      IMAGES_BUCKET=${images_bucket}
+      AWS_REGION=${region}
+      WORKER_COUNT=${worker_count}
+    permissions: '0644'
+
+  - path: /opt/k0rdent/scripts/bootstrap.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      echo "=== k0rdent Metal3 Lab Bootstrap ==="
+      echo "Engineer: ${engineer_id}"
+      echo "k0s Version: ${k0s_version}"
+      echo "Metal3 Version: ${metal3_version}"
+
+      # Download full setup scripts from S3 (future enhancement)
+      # aws s3 cp s3://${artifacts_bucket}/scripts/ /opt/k0rdent/scripts/ --recursive
+
+      echo "=== Bootstrap complete ==="
+      echo "Instance is ready for manual Metal3 setup or script deployment"
+      touch /opt/k0rdent/.bootstrap-complete
+
+runcmd:
+  - usermod -aG docker ubuntu
+  - mkdir -p /opt/k0rdent/{config,scripts}
+  - chown -R ubuntu:ubuntu /opt/k0rdent
+  - su - ubuntu -c "/opt/k0rdent/scripts/bootstrap.sh > /var/log/k0rdent-bootstrap.log 2>&1"
+
+final_message: |
+  k0rdent Metal3 Lab Controller (Validation)
+  Engineer ID: ${engineer_id}
+
+  Instance ready. For full Metal3 setup:
+  1. SSH to instance
+  2. Run setup scripts or deploy from S3
+
+  Check bootstrap log: cat /var/log/k0rdent-bootstrap.log
