@@ -139,9 +139,14 @@ provision_shared() {
     local apply_args=""
     [[ "$AUTO_APPROVE" == "true" ]] && apply_args="-auto-approve"
 
-    terraform apply $apply_args \
-        -var="region=${REGION}" \
-        -var="allowed_ssh_cidrs=${ALLOWED_SSH_CIDRS:-[]}"
+    # Use terraform.tfvars if it exists, otherwise use CLI vars
+    if [[ -f "terraform.tfvars" ]]; then
+        terraform apply $apply_args -var-file="terraform.tfvars"
+    else
+        terraform apply $apply_args \
+            -var="region=${REGION}" \
+            -var="allowed_ssh_cidrs=${ALLOWED_SSH_CIDRS:-[]}"
+    fi
 
     log_success "Shared infrastructure provisioned!"
     log_info "VPC ID: $(terraform output -raw vpc_id)"

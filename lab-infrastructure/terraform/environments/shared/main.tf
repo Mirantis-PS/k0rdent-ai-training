@@ -24,8 +24,10 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project   = "k0rdent-training"
-      ManagedBy = "terraform"
+      Project     = "k0rdent-training"
+      ManagedBy   = "terraform"
+      Owner       = var.owner
+      Environment = "shared"
     }
   }
 }

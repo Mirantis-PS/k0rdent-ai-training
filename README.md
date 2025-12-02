@@ -168,11 +168,21 @@ Per-Engineer Environments
 - **SSH client**
 
 ```bash
-# Verify
+# 1. Verify tools are installed
 terraform version    # >= 1.5.0
 aws --version        # v2.x
+
+# 2. Configure AWS credentials
+aws configure
+# Enter: Access Key ID, Secret Key
+# Region: Choose your preferred region (e.g., eu-west-1, us-east-1, us-west-2)
+# Output format: json
+
+# 3. Verify credentials
 aws sts get-caller-identity  # Should show your account
 ```
+
+> **Note:** Choose a region with GPU instance availability if you plan to run GPU labs. Update `region` and `gpu_az` in `terraform.tfvars` to match your chosen region.
 
 ## Key Documents
 

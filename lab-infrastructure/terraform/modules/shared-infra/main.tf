@@ -168,29 +168,10 @@ resource "aws_route_table_association" "gpu" {
 #------------------------------------------------------------------------------
 # S3 Buckets
 #------------------------------------------------------------------------------
-resource "aws_s3_bucket" "tfstate" {
+# NOTE: tfstate bucket is created by lab-provision.sh script before terraform runs
+# We reference it as a data source to avoid conflicts
+data "aws_s3_bucket" "tfstate" {
   bucket = "${var.project_name}-tfstate-${data.aws_caller_identity.current.account_id}"
-
-  tags = merge(local.common_tags, {
-    Name = "${var.project_name}-tfstate"
-  })
-}
-
-resource "aws_s3_bucket_versioning" "tfstate" {
-  bucket = aws_s3_bucket.tfstate.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
-  bucket = aws_s3_bucket.tfstate.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
 }
 
 resource "aws_s3_bucket" "images" {

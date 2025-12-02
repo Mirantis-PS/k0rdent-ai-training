@@ -47,7 +47,7 @@ output "gpu_lab_security_group_id" {
 
 output "tfstate_bucket" {
   description = "S3 bucket for Terraform state"
-  value       = aws_s3_bucket.tfstate.id
+  value       = data.aws_s3_bucket.tfstate.id
 }
 
 output "images_bucket" {

@@ -3,7 +3,7 @@
 variable "region" {
   description = "AWS region"
   type        = string
-  default     = "us-east-1"
+  default     = "eu-west-1"
 }
 
 variable "project_name" {
@@ -21,7 +21,7 @@ variable "vpc_cidr" {
 variable "gpu_az" {
   description = "Availability zone with GPU instance capacity"
   type        = string
-  default     = "us-east-1a"
+  default     = "eu-west-1a"
 }
 
 variable "allowed_ssh_cidrs" {
@@ -53,4 +53,10 @@ variable "bastion_additional_ssh_keys" {
   description = "Additional SSH public keys for bastion access"
   type        = list(string)
   default     = []
+}
+
+variable "owner" {
+  description = "Owner of this infrastructure (for tagging)"
+  type        = string
+  default     = "admin"
 }

@@ -65,14 +65,17 @@ aws sts get-caller-identity
 Option 1: AWS CLI Profile (Recommended)
 ```bash
 aws configure
-# Enter: Access Key ID, Secret Key, Region (eu-west-1)
+# AWS Access Key ID: <your-access-key>
+# AWS Secret Access Key: <your-secret-key>
+# Default region name: <your-preferred-region>  (e.g., eu-west-1, us-east-1, us-west-2)
+# Default output format: json
 ```
 
 Option 2: Environment Variables
 ```bash
 export AWS_ACCESS_KEY_ID="your-key-id"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="eu-west-1"
+export AWS_DEFAULT_REGION="your-region"  # Must match terraform.tfvars region
 ```
 
 Option 3: AWS SSO
@@ -80,6 +83,32 @@ Option 3: AWS SSO
 aws sso login --profile your-sso-profile
 export AWS_PROFILE=your-sso-profile
 ```
+
+### Configuring Your Region
+
+Update `terraform.tfvars` in the shared environment to use your preferred region:
+
+```bash
+cd lab-infrastructure/terraform/environments/shared
+cp terraform.tfvars.example terraform.tfvars
+vim terraform.tfvars
+```
+
+Set your region and a valid availability zone:
+```hcl
+region  = "us-east-1"      # Your preferred region
+gpu_az  = "us-east-1a"     # Must be a valid AZ in that region
+```
+
+**Common region/AZ combinations:**
+| Region | GPU AZ | Notes |
+|--------|--------|-------|
+| `us-east-1` | `us-east-1a` | N. Virginia - good GPU availability |
+| `us-west-2` | `us-west-2a` | Oregon - good GPU availability |
+| `eu-west-1` | `eu-west-1a` | Ireland |
+| `ap-northeast-1` | `ap-northeast-1a` | Tokyo |
+
+> **Note:** GPU instances (P3, P4) are only available in specific regions/AZs. Check [AWS GPU instance availability](https://aws.amazon.com/ec2/instance-types/p3/) when planning GPU labs.
 
 ## Quick Start (For Engineers)
 

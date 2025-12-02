@@ -23,8 +23,10 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project   = "k0rdent-training"
-      ManagedBy = "terraform"
+      Project     = "k0rdent-training"
+      ManagedBy   = "terraform"
+      Owner       = var.engineer_id
+      Environment = "kubevirt-lab"
     }
   }
 }

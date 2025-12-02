@@ -15,7 +15,7 @@ variable "vpc_cidr" {
 variable "gpu_az" {
   description = "Availability zone with GPU instance capacity (P3/P4)"
   type        = string
-  default     = "us-east-1a"
+  default     = "eu-west-1a"
 }
 
 variable "allowed_ssh_cidrs" {
