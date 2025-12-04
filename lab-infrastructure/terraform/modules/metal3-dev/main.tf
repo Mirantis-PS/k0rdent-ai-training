@@ -213,11 +213,70 @@ resource "aws_spot_instance_request" "controller_spot" {
 
   user_data_base64 = local.controller_user_data
 
+  # Tags for the spot request itself
   tags = merge(local.common_tags, {
-    Name       = "${var.project_name}-metal3-controller-spot-${var.engineer_id}"
+    Name       = "${var.project_name}-metal3-controller-${var.engineer_id}"
     Role       = "controller"
     EngineerID = var.engineer_id
+    Owner      = var.engineer_id
   })
+}
+
+# Tags for the actual EC2 instance created by spot request
+resource "aws_ec2_tag" "controller_spot_name" {
+  count       = var.use_spot_instances ? 1 : 0
+  resource_id = aws_spot_instance_request.controller_spot[0].spot_instance_id
+  key         = "Name"
+  value       = "${var.project_name}-metal3-controller-${var.engineer_id}"
+}
+
+resource "aws_ec2_tag" "controller_spot_owner" {
+  count       = var.use_spot_instances ? 1 : 0
+  resource_id = aws_spot_instance_request.controller_spot[0].spot_instance_id
+  key         = "Owner"
+  value       = var.engineer_id
+}
+
+resource "aws_ec2_tag" "controller_spot_engineer_id" {
+  count       = var.use_spot_instances ? 1 : 0
+  resource_id = aws_spot_instance_request.controller_spot[0].spot_instance_id
+  key         = "EngineerID"
+  value       = var.engineer_id
+}
+
+resource "aws_ec2_tag" "controller_spot_project" {
+  count       = var.use_spot_instances ? 1 : 0
+  resource_id = aws_spot_instance_request.controller_spot[0].spot_instance_id
+  key         = "Project"
+  value       = var.project_name
+}
+
+resource "aws_ec2_tag" "controller_spot_role" {
+  count       = var.use_spot_instances ? 1 : 0
+  resource_id = aws_spot_instance_request.controller_spot[0].spot_instance_id
+  key         = "Role"
+  value       = "controller"
+}
+
+resource "aws_ec2_tag" "controller_spot_labtype" {
+  count       = var.use_spot_instances ? 1 : 0
+  resource_id = aws_spot_instance_request.controller_spot[0].spot_instance_id
+  key         = "LabType"
+  value       = "metal3-dev"
+}
+
+resource "aws_ec2_tag" "controller_spot_environment" {
+  count       = var.use_spot_instances ? 1 : 0
+  resource_id = aws_spot_instance_request.controller_spot[0].spot_instance_id
+  key         = "Environment"
+  value       = "metal3-dev"
+}
+
+resource "aws_ec2_tag" "controller_spot_managed_by" {
+  count       = var.use_spot_instances ? 1 : 0
+  resource_id = aws_spot_instance_request.controller_spot[0].spot_instance_id
+  key         = "ManagedBy"
+  value       = "terraform"
 }
 
 #------------------------------------------------------------------------------

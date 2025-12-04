@@ -83,8 +83,8 @@ resource "aws_iam_role_policy" "lab_provisioner" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.tfstate.arn,
-          "${aws_s3_bucket.tfstate.arn}/*",
+          data.aws_s3_bucket.tfstate.arn,
+          "${data.aws_s3_bucket.tfstate.arn}/*",
           aws_s3_bucket.images.arn,
           "${aws_s3_bucket.images.arn}/*",
           aws_s3_bucket.artifacts.arn,
@@ -282,8 +282,8 @@ resource "aws_iam_role_policy" "lab_admin" {
           "s3:*"
         ]
         Resource = [
-          aws_s3_bucket.tfstate.arn,
-          "${aws_s3_bucket.tfstate.arn}/*",
+          data.aws_s3_bucket.tfstate.arn,
+          "${data.aws_s3_bucket.tfstate.arn}/*",
           aws_s3_bucket.images.arn,
           "${aws_s3_bucket.images.arn}/*",
           aws_s3_bucket.artifacts.arn,
