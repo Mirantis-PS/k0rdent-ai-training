@@ -2,35 +2,56 @@
 
 ## Overview
 
-Each engineer receives on-demand cloud environments for hands-on labs. This guide explains how to provision, use, and manage your lab environments using the CLI-based provisioning system.
+Each engineer receives on-demand cloud environments for hands-on labs. This guide explains how to provision, use, and manage your lab environments.
 
-## Multi-Tenant Architecture
+## Quick Start (TL;DR)
+
+```bash
+# 1. Install prerequisites
+terraform version   # >= 1.5.0
+aws --version       # v2.x
+
+# 2. Configure AWS
+aws configure
+
+# 3. Provision your lab
+cd lab-infrastructure
+./scripts/lab-provision.sh metal3 your-name --auto-approve
+
+# 4. Connect
+./scripts/lab-connect.sh metal3 your-name
+
+# 5. Destroy when done
+./scripts/lab-destroy.sh metal3 your-name --auto-approve
+```
+
+> **Note:** The script automatically creates all shared infrastructure (VPC, bastion, S3) on first run.
+
+## How It Works
 
 The lab infrastructure supports **multiple engineers running simultaneously** with complete isolation:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    SHARED INFRASTRUCTURE                     │
-│  (VPC, Bastion, S3 Buckets, IAM Roles - deployed ONCE)      │
+│           SHARED INFRASTRUCTURE (auto-created)               │
+│         VPC, Bastion, S3 Buckets, IAM Roles                 │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │ engineer-01 │  │ engineer-02 │  │ engineer-03 │   ...   │
+│  │  john-doe   │  │  jane-doe   │  │  bob-smith  │   ...   │
 │  │   Metal3    │  │   Metal3    │  │  KubeVirt   │         │
 │  │ 10.0.8.x    │  │ 10.0.8.y    │  │ 10.0.8.z    │         │
 │  └─────────────┘  └─────────────┘  └─────────────┘         │
 │                                                             │
-│  State: metal3-dev/engineer-01/terraform.tfstate            │
-│  State: metal3-dev/engineer-02/terraform.tfstate            │
-│  State: kubevirt-lab/engineer-03/terraform.tfstate          │
+│  Each engineer has isolated state and resources             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Key Points:**
-- Shared infrastructure is deployed **once** per AWS account
-- Each engineer uses a unique `engineer_id` (e.g., `john-doe`, `engineer-01`)
-- Running the same command with different IDs creates **completely isolated** environments
-- State files are stored separately: `<lab-type>/<engineer-id>/terraform.tfstate`
+- Shared infrastructure is created **automatically** on first run
+- Each engineer uses a unique name (e.g., `john-doe`, `jane-doe`)
+- Running the same command with different names creates **completely isolated** environments
+- State files are stored separately: `<lab-type>/<your-name>/terraform.tfstate`
 
 ## Environment Types
 
@@ -110,65 +131,51 @@ gpu_az  = "us-east-1a"     # Must be a valid AZ in that region
 
 > **Note:** GPU instances (P3, P4) are only available in specific regions/AZs. Check [AWS GPU instance availability](https://aws.amazon.com/ec2/instance-types/p3/) when planning GPU labs.
 
-## Quick Start (For Engineers)
+## First-Time Setup
 
-If shared infrastructure is already deployed, you can immediately provision your own lab:
+### Step 1: Install Prerequisites
+
+```bash
+# Check Terraform (>= 1.5.0 required)
+terraform version
+
+# Check AWS CLI (v2 required)
+aws --version
+```
+
+### Step 2: Configure AWS Credentials
+
+```bash
+aws configure
+# AWS Access Key ID: <your-access-key>
+# AWS Secret Access Key: <your-secret-key>
+# Default region name: us-east-1  (or your preferred region)
+# Default output format: json
+
+# Verify it works
+aws sts get-caller-identity
+```
+
+### Step 3: Provision Your Lab
 
 ```bash
 cd lab-infrastructure
 
-# Provision your Metal3 environment (use your unique ID)
+# This single command does everything:
+# - Creates S3 bucket for Terraform state
+# - Creates shared infrastructure (VPC, bastion, S3, IAM) if needed
+# - Creates your personal Metal3 lab environment
+# - Saves SSH keys to config/keys/
 ./scripts/lab-provision.sh metal3 your-name --auto-approve
+```
 
-# Connect to your lab
+### Step 4: Connect
+
+```bash
 ./scripts/lab-connect.sh metal3 your-name
-
-# When done, destroy your environment
-./scripts/lab-destroy.sh metal3 your-name --auto-approve
 ```
 
-## Initial Setup (Admin/First-Time)
-
-### Step 1: Configure terraform.tfvars
-
-```bash
-cd lab-infrastructure/terraform/environments/shared
-
-# Copy the example
-cp terraform.tfvars.example terraform.tfvars
-
-# Get your public IP
-curl ifconfig.me
-
-# Edit terraform.tfvars and set your IP in allowed_ssh_cidrs
-```
-
-### Step 2: Deploy Shared Infrastructure
-
-The provisioning script auto-creates the S3 state bucket if needed:
-
-```bash
-cd lab-infrastructure
-
-# Deploy shared infrastructure (VPC, bastion, S3, IAM)
-# The script auto-creates the S3 state bucket with versioning & encryption
-./scripts/lab-provision.sh shared --auto-approve
-```
-
-### Step 3: Save Bastion SSH Key
-
-```bash
-cd lab-infrastructure/terraform/environments/shared
-
-# Save bastion SSH key
-mkdir -p ../../config/keys
-terraform output -raw bastion_ssh_private_key > ../../config/keys/bastion.pem
-chmod 600 ../../config/keys/bastion.pem
-
-# Test bastion connection
-BASTION_IP=$(terraform output -raw bastion_public_ip)
-ssh -i ../../config/keys/bastion.pem ec2-user@${BASTION_IP} 'echo "Connected!"'
-```
+That's it! You're ready to start the labs.
 
 ## Provisioning Lab Environments
 
@@ -528,22 +535,17 @@ VPC: 10.0.0.0/16
 ## Quick Reference
 
 ```bash
-# Common Commands
-
-# Bootstrap (first time only)
-./scripts/lab-provision.sh shared
-
-# Provision lab for yourself
-./scripts/lab-provision.sh metal3 $(whoami)
+# Provision your lab (auto-creates shared infra if needed)
+./scripts/lab-provision.sh metal3 your-name --auto-approve
 
 # Connect to your lab
-./scripts/lab-connect.sh metal3 $(whoami)
+./scripts/lab-connect.sh metal3 your-name
 
 # Check what's running
 ./scripts/lab-status.sh all
 
 # Clean up when done
-./scripts/lab-destroy.sh metal3 $(whoami)
+./scripts/lab-destroy.sh metal3 your-name --auto-approve
 
 # On lab instance - common k8s commands
 kubectl get nodes

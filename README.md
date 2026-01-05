@@ -9,19 +9,18 @@ A comprehensive 6-week training program for engineers to master k0rdent implemen
 git clone git@github.com:mgueye01/k0rdent-ai-training.git
 cd k0rdent-ai-training
 
-# 2. Set up your lab environment (one-time admin setup)
-cd lab-infrastructure
-./scripts/lab-provision.sh shared --auto-approve
+# 2. Configure AWS credentials
+aws configure
 
-# 3. Provision your personal lab (use your unique ID)
+# 3. Provision your lab (everything is automatic!)
+cd lab-infrastructure
 ./scripts/lab-provision.sh metal3 your-name --auto-approve
 
-# 4. Connect to your lab
+# 4. Connect and start learning
 ./scripts/lab-connect.sh metal3 your-name
-
-# 5. Start with Week 1
-# Open: curriculum/week-1-foundations/
 ```
+
+> **That's it!** The script automatically creates all required infrastructure (VPC, bastion, S3, etc.) on first run.
 
 ## Repository Structure
 
@@ -50,12 +49,14 @@ k0rdent-ai-training/
 
 ### Phase 1: Setup (Day 1)
 
-| Step | Action | Guide |
-|------|--------|-------|
-| 1 | Install prerequisites (Terraform, AWS CLI) | [Lab Guide](curriculum/lab-environment/provisioning-guide.md) |
-| 2 | Configure AWS credentials | [Lab Guide](curriculum/lab-environment/provisioning-guide.md#aws-credentials-setup) |
-| 3 | Deploy shared infrastructure (admin) | `./scripts/lab-provision.sh shared` |
-| 4 | Provision your personal lab | `./scripts/lab-provision.sh metal3 <your-id>` |
+| Step | Action | Command |
+|------|--------|---------|
+| 1 | Install prerequisites | `terraform version && aws --version` |
+| 2 | Configure AWS | `aws configure` |
+| 3 | Provision your lab | `./scripts/lab-provision.sh metal3 your-name --auto-approve` |
+| 4 | Connect & verify | `./scripts/lab-connect.sh metal3 your-name` |
+
+> The provisioning script automatically creates shared infrastructure (VPC, bastion, S3) if it doesn't exist.
 
 ### Phase 2: Weekly Curriculum (Weeks 1-6)
 
@@ -120,45 +121,24 @@ cd lab-infrastructure
 | 4-5 | GPU Lab | `./scripts/lab-provision.sh gpu <session-id>` |
 | 6 | Full Stack | Multi-node cluster |
 
-## For Admins
+## How It Works
 
-### Initial Deployment
-
-```bash
-cd lab-infrastructure/terraform/environments/shared
-
-# Create config from template
-cp terraform.tfvars.example terraform.tfvars
-
-# Edit with your IP: vim terraform.tfvars
-
-# Deploy shared infrastructure
-cd ../../..
-./scripts/lab-provision.sh shared --auto-approve
-
-# Save bastion key
-cd terraform/environments/shared
-terraform output -raw bastion_ssh_private_key > ../../config/keys/bastion.pem
-chmod 600 ../../config/keys/bastion.pem
-```
-
-### Multi-Tenant Architecture
-
-Each engineer gets isolated infrastructure:
+The lab infrastructure uses a multi-tenant architecture with automatic setup:
 
 ```
-Shared Infrastructure (deployed once)
+First Run: Script auto-creates shared infrastructure
 ├── VPC: 10.0.0.0/16
 ├── Bastion Host (SSH jump)
-├── S3 Buckets (state, artifacts, images)
+├── S3 Buckets (state, artifacts)
 └── IAM Roles
 
-Per-Engineer Environments
-├── metal3-dev/engineer-01/  → State: s3://.../metal3-dev/engineer-01/terraform.tfstate
-├── metal3-dev/engineer-02/  → State: s3://.../metal3-dev/engineer-02/terraform.tfstate
-├── kubevirt-lab/engineer-03/ → State: s3://.../kubevirt-lab/engineer-03/terraform.tfstate
+Then: Creates your isolated environment
+├── metal3-dev/your-name/  → Your personal Metal3 lab
+├── kubevirt/your-name/    → Your personal KubeVirt lab
 └── ...
 ```
+
+Each engineer gets completely isolated resources with separate Terraform state.
 
 ## Prerequisites
 
