@@ -1,6 +1,6 @@
 # k0rdent AI Infrastructure Training
 
-A comprehensive 6-week training program for engineers to master k0rdent implementation, enabling them to build AI infrastructure products: BMaaS, VMaaS, KaaS, and MaaS.
+A comprehensive 6-week training program for engineers to master k0rdent Enterprise implementation, enabling them to build AI infrastructure products: BMaaS, VMaaS, KaaS, and MaaS.
 
 ## Quick Start
 
@@ -12,12 +12,12 @@ cd k0rdent-ai-training
 # 2. Configure AWS credentials
 aws configure
 
-# 3. Provision your lab (everything is automatic!)
+# 3. Provision your k0rdent management cluster (everything is automatic!)
 cd lab-infrastructure
-./scripts/lab-provision.sh metal3 your-name --auto-approve
+./scripts/lab-provision.sh k0rdent your-name --auto-approve
 
 # 4. Connect and start learning
-./scripts/lab-connect.sh metal3 your-name
+./scripts/lab-connect.sh k0rdent your-name
 ```
 
 > **That's it!** The script automatically creates all required infrastructure (VPC, bastion, S3, etc.) on first run.
@@ -29,7 +29,7 @@ k0rdent-ai-training/
 ├── README.md                    # You are here
 ├── curriculum/                  # Training content
 │   ├── overview/               # Program introduction
-│   ├── week-1-foundations/     # k0rdent, GPU hardware, BMC
+│   ├── week-1-foundations/     # k0rdent Enterprise installation & config
 │   ├── week-2-bmaas/          # Metal3, Ironic, bare metal provisioning
 │   ├── week-3-vmaas/          # KubeVirt, GPU passthrough
 │   ├── week-4-kaas/           # Cluster API, GPU operator
@@ -53,20 +53,20 @@ k0rdent-ai-training/
 |------|--------|---------|
 | 1 | Install prerequisites | `terraform version && aws --version` |
 | 2 | Configure AWS | `aws configure` |
-| 3 | Provision your lab | `./scripts/lab-provision.sh metal3 your-name --auto-approve` |
-| 4 | Connect & verify | `./scripts/lab-connect.sh metal3 your-name` |
+| 3 | Provision k0rdent | `./scripts/lab-provision.sh k0rdent your-name --auto-approve` |
+| 4 | Connect & verify | `./scripts/lab-connect.sh k0rdent your-name` |
 
 > The provisioning script automatically creates shared infrastructure (VPC, bastion, S3) if it doesn't exist.
 
 ### Phase 2: Weekly Curriculum (Weeks 1-6)
 
 ```
-Week 1: Foundations          Week 2: BMaaS              Week 3: VMaaS
+Week 1: k0rdent Enterprise     Week 2: BMaaS              Week 3: VMaaS
 ┌────────────────────┐      ┌────────────────────┐      ┌────────────────────┐
-│ • k0rdent arch     │      │ • Metal3 operator  │      │ • KubeVirt basics  │
-│ • GPU hardware     │  ──▶ │ • Ironic setup     │  ──▶ │ • GPU passthrough  │
-│ • BMC/Redfish      │      │ • BM provisioning  │      │ • NVLink topology  │
-│ • Lab: 10.5 hrs    │      │ • Lab: 10.5 hrs    │      │ • Lab: 10.5 hrs    │
+│ • k0rdent install  │      │ • Metal3 operator  │      │ • KubeVirt basics  │
+│ • KCM, KSM, KOF    │  ──▶ │ • Ironic setup     │  ──▶ │ • GPU passthrough  │
+│ • AWS provider     │      │ • BM provisioning  │      │ • NVLink topology  │
+│ • Production config│      │ • Lab: 10.5 hrs    │      │ • Lab: 10.5 hrs    │
 └────────────────────┘      └────────────────────┘      └────────────────────┘
          │                           │                           │
          ▼                           ▼                           ▼
@@ -83,7 +83,7 @@ Week 4: KaaS                 Week 5: AI Workloads       Week 6: Capstone
 
 ```bash
 # Destroy your personal lab when done
-./scripts/lab-destroy.sh metal3 <your-id> --auto-approve
+./scripts/lab-destroy.sh k0rdent <your-id> --auto-approve
 ```
 
 ## For Engineers
@@ -93,17 +93,17 @@ Week 4: KaaS                 Week 5: AI Workloads       Week 6: Capstone
 ```bash
 cd lab-infrastructure
 
-# Provision (creates isolated environment with your ID)
-./scripts/lab-provision.sh metal3 john-doe --auto-approve
+# Week 1: Provision k0rdent management cluster
+./scripts/lab-provision.sh k0rdent john-doe --auto-approve
 
 # Connect via SSH
-./scripts/lab-connect.sh metal3 john-doe
+./scripts/lab-connect.sh k0rdent john-doe
 
 # Check status
-./scripts/lab-status.sh metal3 john-doe
+./scripts/lab-status.sh all john-doe
 
 # Destroy when done
-./scripts/lab-destroy.sh metal3 john-doe --auto-approve
+./scripts/lab-destroy.sh k0rdent john-doe --auto-approve
 ```
 
 ### Each Week
@@ -116,7 +116,8 @@ cd lab-infrastructure
 
 | Week | Lab Environment | Command |
 |------|----------------|---------|
-| 1-2 | Metal3 Dev | `./scripts/lab-provision.sh metal3 <id>` |
+| 1 | k0rdent Management | `./scripts/lab-provision.sh k0rdent <id>` |
+| 2 | Metal3 Dev | `./scripts/lab-provision.sh metal3 <id>` |
 | 3 | KubeVirt | `./scripts/lab-provision.sh kubevirt <id>` |
 | 4-5 | GPU Lab | `./scripts/lab-provision.sh gpu <session-id>` |
 | 6 | Full Stack | Multi-node cluster |
@@ -133,12 +134,27 @@ First Run: Script auto-creates shared infrastructure
 └── IAM Roles
 
 Then: Creates your isolated environment
-├── metal3-dev/your-name/  → Your personal Metal3 lab
-├── kubevirt/your-name/    → Your personal KubeVirt lab
+├── k0rdent/your-name/    → Your k0rdent management cluster
+├── metal3-dev/your-name/ → Your personal Metal3 lab
+├── kubevirt/your-name/   → Your personal KubeVirt lab
 └── ...
 ```
 
 Each engineer gets completely isolated resources with separate Terraform state.
+
+## What Gets Installed
+
+### k0rdent Management Cluster (Week 1)
+
+When you provision a k0rdent environment, you get:
+
+- **k0s** - Lightweight Kubernetes distribution (v1.32.4)
+- **k0rdent Enterprise** - Platform engineering solution (v1.2.1)
+  - **KCM** - Cluster Manager for multi-cluster management
+  - **KSM** - State Manager for service installation
+  - **KOF** - Observability & FinOps
+- **Cluster API** - Kubernetes cluster provisioning
+- **k0rdent UI** - Web interface for management
 
 ## Prerequisites
 
@@ -162,7 +178,7 @@ aws configure
 aws sts get-caller-identity  # Should show your account
 ```
 
-> **Note:** Choose a region with GPU instance availability if you plan to run GPU labs. Update `region` and `gpu_az` in `terraform.tfvars` to match your chosen region.
+> **Note:** Choose a region with GPU instance availability if you plan to run GPU labs.
 
 ## Key Documents
 
@@ -171,13 +187,14 @@ aws sts get-caller-identity  # Should show your account
 | Full Curriculum | [curriculum/k0rdent-ai-infrastructure-training-curriculum.md](curriculum/k0rdent-ai-infrastructure-training-curriculum.md) | Complete training syllabus |
 | Lab Provisioning | [curriculum/lab-environment/provisioning-guide.md](curriculum/lab-environment/provisioning-guide.md) | Detailed lab setup |
 | Week 1 Start | [curriculum/week-1-foundations/](curriculum/week-1-foundations/) | First week content |
+| k0rdent Docs | [docs.mirantis.com/k0rdent-enterprise](https://docs.mirantis.com/k0rdent-enterprise/latest/) | Official documentation |
 
 ## Cost Awareness
 
 | Resource | Cost (Spot) | Cost (On-Demand) |
 |----------|-------------|------------------|
 | Shared Infra (NAT) | ~$35/month | ~$35/month |
-| Metal3 Lab (t3.medium) | ~$0.02/hr | ~$0.04/hr |
+| k0rdent Mgmt (t3.xlarge) | ~$0.06/hr | ~$0.17/hr |
 | Metal3 Lab (m5.2xlarge) | ~$0.15/hr | ~$0.38/hr |
 | GPU Lab (p3.8xlarge) | ~$4.50/hr | ~$12.24/hr |
 
@@ -191,4 +208,4 @@ aws sts get-caller-identity  # Should show your account
 
 ---
 
-**Version:** 1.0 | **Last Updated:** December 2025
+**Version:** 2.0 | **Last Updated:** January 2026

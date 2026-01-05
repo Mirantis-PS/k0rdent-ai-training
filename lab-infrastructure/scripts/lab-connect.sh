@@ -27,6 +27,7 @@ k0rdent Training Lab Connection Script
 Usage: $0 <lab-type> <identifier> [options]
 
 Lab Types:
+  k0rdent <engineer-id>       Connect to k0rdent management cluster
   metal3 <engineer-id>        Connect to Metal3 dev environment
   kubevirt <engineer-id>      Connect to KubeVirt lab controller
   gpu <session-id>            Connect to GPU lab instance
@@ -41,12 +42,11 @@ Options:
   --help                      Show this help message
 
 Examples:
+  $0 k0rdent engineer-01
+  $0 k0rdent engineer-01 --tunnel 8080:80   # For k0rdent UI access
   $0 metal3 engineer-01
   $0 kubevirt engineer-01 --worker 0
   $0 gpu cohort-2024-q1
-  $0 gpu cohort-2024-q1 --advanced
-  $0 kubevirt engineer-01 --tunnel 6443:6443
-  $0 metal3 engineer-01 --copy-kubeconfig
 
 EOF
     exit 1
@@ -56,6 +56,19 @@ get_tfstate_bucket() {
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
     echo "k0rdent-training-tfstate-${account_id}"
+}
+
+get_bastion_ip() {
+    local env_dir="$TERRAFORM_DIR/environments/shared"
+    local tfstate_bucket
+    tfstate_bucket=$(get_tfstate_bucket)
+
+    cd "$env_dir"
+    terraform init -backend-config="bucket=${tfstate_bucket}" \
+        -backend-config="key=shared/terraform.tfstate" \
+        -backend-config="region=${REGION}" &>/dev/null
+
+    terraform output -raw bastion_public_ip 2>/dev/null || echo ""
 }
 
 get_ssh_key() {
@@ -75,6 +88,10 @@ get_ssh_key() {
     local state_key
 
     case $lab_type in
+        k0rdent-mgmt|k0rdent)
+            state_key="k0rdent/${identifier}/terraform.tfstate"
+            env_dir="$TERRAFORM_DIR/environments/k0rdent"
+            ;;
         metal3-dev|metal3)
             state_key="metal3-dev/${identifier}/terraform.tfstate"
             env_dir="$TERRAFORM_DIR/environments/metal3-dev"
@@ -115,6 +132,10 @@ get_instance_ip() {
     local state_key
 
     case $lab_type in
+        k0rdent-mgmt|k0rdent)
+            state_key="k0rdent/${identifier}/terraform.tfstate"
+            env_dir="$TERRAFORM_DIR/environments/k0rdent"
+            ;;
         metal3-dev|metal3)
             state_key="metal3-dev/${identifier}/terraform.tfstate"
             env_dir="$TERRAFORM_DIR/environments/metal3-dev"
@@ -136,7 +157,12 @@ get_instance_ip() {
 
     case $target in
         controller)
-            terraform output -raw controller_private_ip 2>/dev/null
+            # k0rdent uses different output name
+            if [[ "$lab_type" =~ ^k0rdent ]]; then
+                terraform output -raw primary_node_private_ip 2>/dev/null
+            else
+                terraform output -raw controller_private_ip 2>/dev/null
+            fi
             ;;
         worker-*)
             local worker_index="${target#worker-}"
@@ -159,19 +185,21 @@ connect_ssh() {
     local tunnel="${5:-}"
 
     local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    local bastion_key="$CONFIG_DIR/keys/bastion.pem"
 
     if [[ -n "$bastion" ]]; then
-        ssh_opts="$ssh_opts -o ProxyJump=${user}@${bastion}"
+        # Use ProxyCommand with bastion key for the jump host
+        ssh_opts="$ssh_opts -o ProxyCommand=\"ssh -i $bastion_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ec2-user@${bastion}\""
     fi
 
     if [[ -n "$tunnel" ]]; then
         local local_port="${tunnel%%:*}"
         local remote_port="${tunnel##*:}"
         log_info "Creating SSH tunnel: localhost:$local_port -> $ip:$remote_port"
-        ssh $ssh_opts -i "$key_file" -L "${local_port}:localhost:${remote_port}" "${user}@${ip}"
+        eval ssh $ssh_opts -i "$key_file" -L "${local_port}:localhost:${remote_port}" "${user}@${ip}"
     else
-        log_info "Connecting to $ip..."
-        ssh $ssh_opts -i "$key_file" "${user}@${ip}"
+        log_info "Connecting to $ip via bastion $bastion..."
+        eval ssh $ssh_opts -i "$key_file" "${user}@${ip}"
     fi
 }
 
@@ -219,8 +247,17 @@ copy_kubeconfig() {
     echo "  kubectl get nodes"
 }
 
-# Default values
-REGION="${AWS_REGION:-us-east-1}"
+# Load config if exists (created by lab-provision.sh)
+load_config() {
+    if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
+        source "$CONFIG_DIR/lab-config.env"
+    fi
+}
+
+load_config
+
+# Default values - prefer LAB_REGION from config, then AWS_REGION env var, then default
+REGION="${LAB_REGION:-${AWS_REGION:-eu-west-1}}"
 BASTION=""
 WORKER_INDEX=""
 ADVANCED="false"
@@ -234,7 +271,7 @@ IDENTIFIER=""
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        metal3|kubevirt|gpu)
+        k0rdent|metal3|kubevirt|gpu)
             LAB_TYPE="$1"
             shift
             if [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; then
@@ -306,6 +343,17 @@ IP=$(get_instance_ip "$LAB_TYPE" "$IDENTIFIER" "$TARGET")
 if [[ -z "$IP" ]] || [[ "$IP" == "null" ]]; then
     log_error "Could not determine target IP. Is the environment provisioned?"
     exit 1
+fi
+
+# Auto-detect bastion for private IPs (10.x.x.x)
+if [[ -z "$BASTION" ]] && [[ "$IP" =~ ^10\. ]]; then
+    log_info "Target is a private IP, auto-detecting bastion..."
+    BASTION=$(get_bastion_ip)
+    if [[ -z "$BASTION" ]]; then
+        log_error "Could not determine bastion IP. Is shared infrastructure provisioned?"
+        exit 1
+    fi
+    log_info "Using bastion: $BASTION"
 fi
 
 log_info "Target: $IP"

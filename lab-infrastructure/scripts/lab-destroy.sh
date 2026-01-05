@@ -28,6 +28,7 @@ Usage: $0 <lab-type> <identifier> [options]
 
 Lab Types:
   shared                      Destroy shared infrastructure (CAUTION!)
+  k0rdent <engineer-id>       Destroy k0rdent management cluster
   metal3 <engineer-id>        Destroy Metal3 dev environment
   kubevirt <engineer-id>      Destroy KubeVirt lab environment
   gpu <session-id>            Destroy GPU lab environment
@@ -41,6 +42,7 @@ Options:
   --help                      Show this help message
 
 Examples:
+  $0 k0rdent engineer-01
   $0 metal3 engineer-01
   $0 kubevirt engineer-01 --auto-approve
   $0 gpu cohort-2024-q1
@@ -125,6 +127,13 @@ destroy_environment() {
 
     # Get required variables
     case $lab_type in
+        k0rdent)
+            terraform destroy $destroy_args \
+                -var="engineer_id=${identifier}" \
+                -var="tfstate_bucket=${tfstate_bucket}" \
+                -var="region=${REGION}"
+            cleanup_local_files "$identifier" "k0rdent"
+            ;;
         metal3-dev)
             terraform destroy $destroy_args \
                 -var="engineer_id=${identifier}" \
@@ -178,6 +187,12 @@ destroy_shared() {
     destroy_environment "shared" "shared" "shared/terraform.tfstate"
 }
 
+destroy_k0rdent() {
+    local engineer_id="$1"
+    confirm_destroy "k0rdent management cluster for $engineer_id"
+    destroy_environment "k0rdent" "$engineer_id" "k0rdent/${engineer_id}/terraform.tfstate"
+}
+
 destroy_metal3() {
     local engineer_id="$1"
     confirm_destroy "Metal3 dev environment for $engineer_id"
@@ -202,6 +217,10 @@ destroy_all_engineer() {
     confirm_destroy "ALL environments for $engineer_id"
 
     log_info "Destroying all environments for $engineer_id..."
+
+    # Destroy k0rdent management cluster
+    log_info "Checking k0rdent environment..."
+    destroy_environment "k0rdent" "$engineer_id" "k0rdent/${engineer_id}/terraform.tfstate" || true
 
     # Destroy Metal3
     log_info "Checking Metal3 environment..."
@@ -238,7 +257,7 @@ IDENTIFIER=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        shared|metal3|kubevirt|gpu|all-engineer|all-session)
+        shared|k0rdent|metal3|kubevirt|gpu|all-engineer|all-session)
             COMMAND="$1"
             shift
             if [[ "$COMMAND" != "shared" ]] && [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; then
@@ -283,6 +302,9 @@ fi
 case $COMMAND in
     shared)
         destroy_shared
+        ;;
+    k0rdent)
+        destroy_k0rdent "$IDENTIFIER"
         ;;
     metal3)
         destroy_metal3 "$IDENTIFIER"

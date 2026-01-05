@@ -31,7 +31,7 @@ aws configure
 Enter your AWS credentials when prompted:
 - AWS Access Key ID
 - AWS Secret Access Key
-- Default region (e.g., `us-east-1`)
+- Default region (e.g., `us-east-1`, `eu-west-1`)
 - Output format: `json`
 
 **Verify it works:**
@@ -41,32 +41,62 @@ aws sts get-caller-identity
 
 ---
 
-## Step 3: Launch Your Lab
+## Step 3: Launch Your k0rdent Management Cluster
 
 ```bash
 cd lab-infrastructure
 
 # Replace 'your-name' with your name (e.g., john-doe)
-./scripts/lab-provision.sh metal3 your-name --auto-approve
+./scripts/lab-provision.sh k0rdent your-name --auto-approve
 ```
 
 This command automatically:
 1. Creates S3 bucket for Terraform state
 2. Creates shared infrastructure (VPC, bastion host)
-3. Creates your personal Metal3 lab environment
+3. Creates your k0rdent management cluster with:
+   - k0s Kubernetes (v1.32.4)
+   - k0rdent Enterprise (v1.2.1)
+   - k0rdent UI
 4. Saves SSH keys to `config/keys/`
 
-**Wait 5-10 minutes** for the infrastructure to be ready.
+**Wait 15-20 minutes** for k0rdent to fully initialize.
 
 ---
 
 ## Connect to Your Lab
 
 ```bash
-./scripts/lab-connect.sh metal3 your-name
+./scripts/lab-connect.sh k0rdent your-name
 ```
 
-You're now connected! Start with [Week 1](curriculum/week-1-foundations/).
+Once connected, check k0rdent status:
+```bash
+# View installation progress
+tail -f /var/log/k0rdent-setup.log
+
+# Check pods
+sudo k0s kubectl get pods -n kcm-system
+```
+
+You're now connected! Start with [Week 1 Labs](curriculum/week-1-foundations/).
+
+---
+
+## Access k0rdent UI
+
+From your management cluster SSH session:
+```bash
+sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+```
+
+From your local machine:
+```bash
+./scripts/lab-connect.sh k0rdent your-name --tunnel 8080:8080
+```
+
+Open browser: `http://localhost:8080`
+- Username: admin
+- Password: k0rdent-lab-2024
 
 ---
 
@@ -75,7 +105,7 @@ You're now connected! Start with [Week 1](curriculum/week-1-foundations/).
 Always destroy your lab to avoid costs:
 
 ```bash
-./scripts/lab-destroy.sh metal3 your-name --auto-approve
+./scripts/lab-destroy.sh k0rdent your-name --auto-approve
 ```
 
 ---
@@ -84,10 +114,10 @@ Always destroy your lab to avoid costs:
 
 | Action | Command |
 |--------|---------|
-| Provision lab | `./scripts/lab-provision.sh metal3 your-name --auto-approve` |
-| Connect | `./scripts/lab-connect.sh metal3 your-name` |
-| Check status | `./scripts/lab-status.sh metal3 your-name` |
-| Destroy | `./scripts/lab-destroy.sh metal3 your-name --auto-approve` |
+| Provision k0rdent | `./scripts/lab-provision.sh k0rdent your-name --auto-approve` |
+| Connect | `./scripts/lab-connect.sh k0rdent your-name` |
+| Check status | `./scripts/lab-status.sh all your-name` |
+| Destroy | `./scripts/lab-destroy.sh k0rdent your-name --auto-approve` |
 
 ---
 
@@ -95,7 +125,8 @@ Always destroy your lab to avoid costs:
 
 | Week | Lab Type | Command |
 |------|----------|---------|
-| 1-2 | Metal3 (BMaaS) | `./scripts/lab-provision.sh metal3 your-name` |
+| 1 | k0rdent Enterprise | `./scripts/lab-provision.sh k0rdent your-name` |
+| 2 | Metal3 (BMaaS) | `./scripts/lab-provision.sh metal3 your-name` |
 | 3 | KubeVirt (VMaaS) | `./scripts/lab-provision.sh kubevirt your-name` |
 | 4-5 | GPU Lab | `./scripts/lab-provision.sh gpu session-name` |
 
@@ -105,4 +136,5 @@ Always destroy your lab to avoid costs:
 
 - [Full Provisioning Guide](curriculum/lab-environment/provisioning-guide.md)
 - [Training Curriculum](curriculum/k0rdent-ai-infrastructure-training-curriculum.md)
+- [k0rdent Documentation](https://docs.mirantis.com/k0rdent-enterprise/latest/)
 - Slack: #k0rdent-training

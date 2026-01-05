@@ -27,6 +27,9 @@ write_files:
       GatewayPorts no
       ClientAliveInterval 300
       ClientAliveCountMax 2
+      # Speed up SSH connections
+      UseDNS no
+      GSSAPIAuthentication no
     permissions: '0644'
 
   - path: /etc/motd
@@ -76,10 +79,6 @@ runcmd:
   - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
   - chmod +x kubectl
   - mv kubectl /usr/local/bin/
-  # Set up session logging
-  - echo 'script -q /var/log/bastion-sessions/$(date +%Y%m%d-%H%M%S)-$USER-$$.log' >> /etc/profile.d/session-logging.sh
-  - mkdir -p /var/log/bastion-sessions
-  - chmod 1777 /var/log/bastion-sessions
 
 final_message: |
   k0rdent Training Bastion Host Ready

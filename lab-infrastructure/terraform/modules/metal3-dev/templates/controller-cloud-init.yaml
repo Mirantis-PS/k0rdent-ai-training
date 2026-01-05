@@ -27,6 +27,7 @@ packages:
   - python3-pip
   - ipmitool
   - net-tools
+  - snapd
 
 groups:
   - docker
@@ -127,6 +128,19 @@ write_files:
       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
       chmod +x kubectl
       sudo mv kubectl /usr/local/bin/
+
+      # Install helm
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      # Add helm repos
+      helm repo add metal3 https://metal3.github.io/metal3-helm
+      helm repo add jetstack https://charts.jetstack.io
+      helm repo update
+
+      # Remove master taint for single-node cluster (allows workloads to schedule)
+      echo "Waiting for node to be ready before removing taint..."
+      sleep 30
+      kubectl taint nodes --all node-role.kubernetes.io/master- || true
 
       echo "=== k0s installation complete ==="
 
@@ -416,15 +430,17 @@ runcmd:
   - usermod -aG docker ubuntu
   - usermod -aG libvirt ubuntu
   - usermod -aG kvm ubuntu
-  - mkdir -p /opt/k0rdent/{config,scripts,manifests}
+  - mkdir -p /opt/k0rdent/config /opt/k0rdent/scripts /opt/k0rdent/manifests
   - chown -R ubuntu:ubuntu /opt/k0rdent
   # Format and mount additional storage
   - mkfs.ext4 /dev/nvme1n1 || mkfs.ext4 /dev/xvdb || true
   - mkdir -p /var/lib/libvirt/images
   - mount /dev/nvme1n1 /var/lib/libvirt/images || mount /dev/xvdb /var/lib/libvirt/images || true
   - echo '/dev/nvme1n1 /var/lib/libvirt/images ext4 defaults 0 2' >> /etc/fstab || true
-  # Run initialization as ubuntu user (delayed to allow cloud-init to complete)
-  - su - ubuntu -c "nohup /opt/k0rdent/scripts/init-lab.sh > /var/log/k0rdent-init-bg.log 2>&1 &"
+  # Create log file with proper permissions for ubuntu user
+  - touch /var/log/k0rdent-init.log && chown ubuntu:ubuntu /var/log/k0rdent-init.log
+  # Run initialization as root (scripts require sudo anyway)
+  - nohup /opt/k0rdent/scripts/init-lab.sh > /var/log/k0rdent-init.log 2>&1 &
 
 final_message: |
   k0rdent Metal3 Lab Controller

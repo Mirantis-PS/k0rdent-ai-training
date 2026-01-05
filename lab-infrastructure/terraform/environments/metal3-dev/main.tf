@@ -65,6 +65,8 @@ module "metal3_dev" {
   artifacts_bucket = data.terraform_remote_state.shared.outputs.artifacts_bucket
   images_bucket    = data.terraform_remote_state.shared.outputs.images_bucket
 
+  use_simple_cloud_init = var.use_simple_cloud_init
+
   tags = var.tags
 }
 

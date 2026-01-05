@@ -19,7 +19,7 @@ variable "security_group_id" {
 variable "instance_type" {
   description = "Instance type for bastion"
   type        = string
-  default     = "t3.small"  # t3.micro is too resource-constrained for SSH tunneling
+  default     = "t3.medium"  # t3.micro/small are too resource-constrained for SSH tunneling
 }
 
 variable "use_elastic_ip" {

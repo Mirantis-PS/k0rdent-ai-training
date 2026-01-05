@@ -14,15 +14,15 @@ aws --version       # v2.x
 # 2. Configure AWS
 aws configure
 
-# 3. Provision your lab
+# 3. Provision your k0rdent management cluster (Week 1)
 cd lab-infrastructure
-./scripts/lab-provision.sh metal3 your-name --auto-approve
+./scripts/lab-provision.sh k0rdent your-name --auto-approve
 
 # 4. Connect
-./scripts/lab-connect.sh metal3 your-name
+./scripts/lab-connect.sh k0rdent your-name
 
 # 5. Destroy when done
-./scripts/lab-destroy.sh metal3 your-name --auto-approve
+./scripts/lab-destroy.sh k0rdent your-name --auto-approve
 ```
 
 > **Note:** The script automatically creates all shared infrastructure (VPC, bastion, S3) on first run.
@@ -58,10 +58,11 @@ The lab infrastructure supports **multiple engineers running simultaneously** wi
 | Type | Use Case | Weeks | Instance Type | Est. Cost/hr (Spot) |
 |------|----------|-------|---------------|---------------------|
 | **Shared Infra** | Foundation (VPC, S3, IAM) | All | N/A | ~$0.05 (NAT only) |
-| **Metal3 Dev** | BMaaS labs | 1-2 | m5.2xlarge (8 vCPU, 32GB) | ~$0.15 |
+| **k0rdent Mgmt** | k0rdent Enterprise installation | 1 | t3.xlarge (4 vCPU, 16GB) | ~$0.06 |
+| **Metal3 Dev** | BMaaS labs | 2 | m5.2xlarge (8 vCPU, 32GB) | ~$0.15 |
 | **KubeVirt Lab** | VMaaS (non-GPU) | 3 | m5.xlarge + m5.2xlarge workers | ~$0.25 |
-| **GPU Lab** | VMaaS/KaaS/AI | 3-5 | p3.8xlarge (4x V100) | ~$4.50 |
-| **GPU Advanced** | NVLink topology | 3-5 | p4d.24xlarge (8x A100) | ~$15.00 |
+| **GPU Lab** | VMaaS/KaaS/AI | 4-5 | p3.8xlarge (4x V100) | ~$4.50 |
+| **GPU Advanced** | NVLink topology | 4-5 | p4d.24xlarge (8x A100) | ~$15.00 |
 | **Full Stack** | Capstone | 6 | Multi-node cluster | ~$5.00 |
 
 > **Note:** For validation/testing, use smaller instances (t3.medium) before deploying production sizes.
@@ -156,7 +157,7 @@ aws configure
 aws sts get-caller-identity
 ```
 
-### Step 3: Provision Your Lab
+### Step 3: Provision Your k0rdent Management Cluster
 
 ```bash
 cd lab-infrastructure
@@ -164,15 +165,31 @@ cd lab-infrastructure
 # This single command does everything:
 # - Creates S3 bucket for Terraform state
 # - Creates shared infrastructure (VPC, bastion, S3, IAM) if needed
-# - Creates your personal Metal3 lab environment
+# - Creates your k0rdent management cluster with:
+#   - k0s Kubernetes (v1.32.4)
+#   - k0rdent Enterprise (v1.2.1)
+#   - k0rdent UI
 # - Saves SSH keys to config/keys/
-./scripts/lab-provision.sh metal3 your-name --auto-approve
+./scripts/lab-provision.sh k0rdent your-name --auto-approve
 ```
 
 ### Step 4: Connect
 
 ```bash
-./scripts/lab-connect.sh metal3 your-name
+./scripts/lab-connect.sh k0rdent your-name
+```
+
+### Step 5: Verify k0rdent Installation
+
+```bash
+# Check installation progress (runs in background)
+tail -f /var/log/k0rdent-setup.log
+
+# Or check if complete
+cat /var/log/k0rdent-setup-complete
+
+# Verify k0rdent pods
+sudo k0s kubectl get pods -n kcm-system
 ```
 
 That's it! You're ready to start the labs.
@@ -308,9 +325,40 @@ cd lab-infrastructure
 
 ## Environment-Specific Instructions
 
+### k0rdent Management Cluster
+
+**Purpose:** Week 1 - k0rdent Enterprise installation and configuration
+
+**Includes:**
+- k0s Kubernetes distribution (v1.32.4)
+- k0rdent Enterprise (v1.2.1) with:
+  - KCM (Cluster Manager)
+  - KSM (State Manager)
+  - KOF (Observability & FinOps)
+- k0rdent UI (web interface)
+- Cluster API providers
+
+**Getting Started:**
+```bash
+# Provision (15-20 min for k0rdent to fully initialize)
+./scripts/lab-provision.sh k0rdent your-name --auto-approve
+
+# Connect
+./scripts/lab-connect.sh k0rdent your-name
+
+# On the lab instance - verify installation
+tail -f /var/log/k0rdent-setup.log  # Watch progress
+sudo k0s kubectl get pods -n kcm-system  # Should show Running
+
+# Access k0rdent UI
+sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+# Then from local machine: ./scripts/lab-connect.sh k0rdent your-name --tunnel 8080:8080
+# Open http://localhost:8080 (admin / k0rdent-lab-2024)
+```
+
 ### Metal3 Dev Environment
 
-**Purpose:** Weeks 1-2 BMaaS labs
+**Purpose:** Week 2 BMaaS labs
 
 **Includes:**
 - Ubuntu VM with nested virtualization support
@@ -535,22 +583,35 @@ VPC: 10.0.0.0/16
 ## Quick Reference
 
 ```bash
-# Provision your lab (auto-creates shared infra if needed)
+# Week 1: Provision k0rdent management cluster
+./scripts/lab-provision.sh k0rdent your-name --auto-approve
+
+# Connect to k0rdent
+./scripts/lab-connect.sh k0rdent your-name
+
+# Verify k0rdent installation
+sudo k0s kubectl get pods -n kcm-system
+
+# Access k0rdent UI (from management cluster)
+sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+
+# Week 2: Provision Metal3 lab
 ./scripts/lab-provision.sh metal3 your-name --auto-approve
 
-# Connect to your lab
+# Connect to Metal3
 ./scripts/lab-connect.sh metal3 your-name
 
 # Check what's running
 ./scripts/lab-status.sh all
 
 # Clean up when done
+./scripts/lab-destroy.sh k0rdent your-name --auto-approve
 ./scripts/lab-destroy.sh metal3 your-name --auto-approve
 
 # On lab instance - common k8s commands
-kubectl get nodes
-kubectl get pods -A
-kubectl get pods -n kubevirt
+sudo k0s kubectl get nodes
+sudo k0s kubectl get pods -A
+sudo k0s kubectl get clusters -A
 
 # On GPU lab
 nvidia-smi

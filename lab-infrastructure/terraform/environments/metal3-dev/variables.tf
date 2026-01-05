@@ -57,3 +57,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "use_simple_cloud_init" {
+  description = "Use simplified cloud-init (for validation/testing)"
+  type        = bool
+  default     = false
+}

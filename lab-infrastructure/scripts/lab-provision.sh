@@ -81,34 +81,36 @@ k0rdent Training Lab Provisioning Script
 Usage: $0 <lab-type> <your-name> [options]
 
 Lab Types:
-  metal3 <your-name>          Provision Metal3 dev environment (Week 1-2: BMaaS)
+  k0rdent <your-name>         Provision k0rdent Enterprise management cluster (Week 1)
+  metal3 <your-name>          Provision Metal3 dev environment (Week 2: BMaaS)
   kubevirt <your-name>        Provision KubeVirt lab environment (Week 3: VMaaS)
-  gpu <session-id>            Provision GPU lab environment (Week 3-5: AI workloads)
-  gpu-advanced <session-id>   Provision advanced GPU lab (8x A100) for Lab 3.3
+  gpu <session-id>            Provision GPU lab environment (Week 4-5: AI workloads)
+  gpu-advanced <session-id>   Provision advanced GPU lab (8x A100)
 
 Options:
   --region <region>           AWS region (default: us-east-1)
   --spot                      Use spot instances for cost savings
   --no-spot                   Use on-demand instances (default, more reliable)
   --workers <n>               Number of workers (kubevirt only, default: 2)
+  --nodes <n>                 Number of nodes (k0rdent only, default: 1)
   --auto-approve              Skip confirmation prompts
   --plan-only                 Only show Terraform plan, don't apply
   --help                      Show this help message
 
-Quick Start (first time):
-  $0 metal3 john-doe --auto-approve
+Quick Start (Week 1 - k0rdent Enterprise):
+  $0 k0rdent john-doe --auto-approve
 
   This will automatically:
     1. Create S3 bucket for Terraform state
     2. Provision shared infrastructure (VPC, bastion) if not exists
-    3. Provision your personal Metal3 lab environment
+    3. Provision k0s + k0rdent Enterprise management cluster
     4. Save SSH keys to config/keys/
 
 Examples:
-  $0 metal3 john-doe                    # Week 1-2 lab
-  $0 kubevirt john-doe --workers 3      # Week 3 lab
-  $0 gpu cohort-2024-q1                 # Shared GPU lab
-  $0 gpu-advanced cohort-2024-q1        # Advanced GPU lab
+  $0 k0rdent john-doe                   # Week 1: k0rdent management cluster
+  $0 metal3 john-doe                    # Week 2: Metal3/BMaaS lab
+  $0 kubevirt john-doe --workers 3      # Week 3: KubeVirt/VMaaS lab
+  $0 gpu cohort-2024-q1                 # Week 4-5: Shared GPU lab
 
 EOF
     exit 1
@@ -458,10 +460,70 @@ provision_gpu() {
     log_info "SSH key saved to: $key_dir/${session_id}-gpu.pem"
 }
 
+provision_k0rdent() {
+    local engineer_id="$1"
+    log_info "Provisioning k0rdent Enterprise management cluster for $engineer_id..."
+
+    ensure_tfstate_bucket
+    ensure_shared_infrastructure
+
+    local env_dir="$TERRAFORM_DIR/environments/k0rdent"
+    local tfstate_bucket
+    tfstate_bucket=$(get_tfstate_bucket)
+
+    cd "$env_dir"
+
+    terraform init -reconfigure \
+        -backend-config="bucket=${tfstate_bucket}" \
+        -backend-config="key=k0rdent/${engineer_id}/terraform.tfstate" \
+        -backend-config="region=${REGION}"
+
+    if [[ "$PLAN_ONLY" == "true" ]]; then
+        terraform plan \
+            -var="engineer_id=${engineer_id}" \
+            -var="tfstate_bucket=${tfstate_bucket}" \
+            -var="region=${REGION}" \
+            -var="node_count=${NODE_COUNT}"
+        return 0
+    fi
+
+    local apply_args=""
+    [[ "$AUTO_APPROVE" == "true" ]] && apply_args="-auto-approve"
+
+    terraform apply $apply_args \
+        -var="engineer_id=${engineer_id}" \
+        -var="tfstate_bucket=${tfstate_bucket}" \
+        -var="region=${REGION}" \
+        -var="node_count=${NODE_COUNT}"
+
+    # Get instance ID and wait for it to be ready
+    local instance_id
+    instance_id=$(terraform output -json mgmt_node_ids 2>/dev/null | jq -r '.[0]' || echo "")
+    if [[ -n "$instance_id" && "$instance_id" != "null" ]]; then
+        wait_for_instance "$instance_id" 600  # 10 min for k0rdent setup
+    fi
+
+    # Save SSH key
+    local key_dir="$CONFIG_DIR/keys"
+    mkdir -p "$key_dir"
+    terraform output -raw ssh_private_key > "$key_dir/${engineer_id}-k0rdent.pem"
+    chmod 600 "$key_dir/${engineer_id}-k0rdent.pem"
+
+    log_success "k0rdent Enterprise management cluster provisioned for $engineer_id!"
+    log_info "Primary node IP: $(terraform output -raw primary_node_private_ip)"
+    log_info "SSH key saved to: $key_dir/${engineer_id}-k0rdent.pem"
+    log_info "Connect via: ./lab-connect.sh k0rdent $engineer_id"
+    echo ""
+    log_info "k0rdent initialization is running in the background."
+    log_info "After connecting, check progress with: tail -f /var/log/k0rdent-init.log"
+    log_info "Once complete, access k0rdent UI via port-forward."
+}
+
 # Default values
 REGION="${AWS_REGION:-eu-west-1}"
 USE_SPOT="false"
 WORKER_COUNT="2"
+NODE_COUNT="1"
 AUTO_APPROVE="false"
 PLAN_ONLY="false"
 
@@ -473,7 +535,7 @@ IDENTIFIER=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        shared|metal3|kubevirt|gpu|gpu-advanced)
+        shared|k0rdent|metal3|kubevirt|gpu|gpu-advanced)
             # Note: 'shared' is kept for manual/advanced use but auto-provisioned when needed
             COMMAND="$1"
             shift
@@ -496,6 +558,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --workers)
             WORKER_COUNT="$2"
+            shift 2
+            ;;
+        --nodes)
+            NODE_COUNT="$2"
             shift 2
             ;;
         --auto-approve)
@@ -534,6 +600,9 @@ load_config
 case $COMMAND in
     shared)
         provision_shared
+        ;;
+    k0rdent)
+        provision_k0rdent "$IDENTIFIER"
         ;;
     metal3)
         provision_metal3 "$IDENTIFIER"

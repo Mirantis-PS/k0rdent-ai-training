@@ -1,45 +1,55 @@
-# Week 1: Foundations
+# Week 1: k0rdent Enterprise Installation & Configuration
 
 **Duration:** 15 hours
-**Focus:** k0rdent architecture, GPU hardware landscape, out-of-band management
+**Focus:** k0rdent Enterprise deployment, architecture understanding, production-ready configuration
 
 ## Learning Objectives
 
 By the end of this week, you will be able to:
 
-- [ ] Describe k0rdent's architecture and the 5 core products
-- [ ] Identify NVIDIA GPU platforms (H100, H200, B100, B200, B300, GB200)
-- [ ] Explain NVLink generations, NVSwitch topology, and HGX baseboard design
-- [ ] Differentiate between Redfish and IPMI protocols
-- [ ] Use Redfish API to query BMC endpoints and control server power state
-- [ ] Diagnose common BMC registration and connectivity failures
+- [ ] Describe k0rdent Enterprise architecture (KCM, KSM, KOF)
+- [ ] Deploy k0rdent Enterprise on a k0s Kubernetes cluster
+- [ ] Configure k0rdent Enterprise for production readiness
+- [ ] Navigate the k0rdent UI and understand key concepts
+- [ ] Set up infrastructure providers (AWS, Azure, vSphere)
+- [ ] Configure credential management and RBAC
+- [ ] Understand cluster templates and management clusters
 
 ## Schedule
 
 | Day | Content | Duration | Type |
 |-----|---------|----------|------|
-| 1 | Theory: k0rdent Architecture | 2h | Video/Reading |
-| 1 | Lab 1.1: Explore k0rdent Sandbox | 3h | Hands-on |
-| 2 | Theory: GPU Hardware Landscape | 2h | Video/Reading |
-| 2 | Theory: Out-of-Band Management | 1.5h | Video/Reading |
-| 3 | Lab 1.2: BMC Discovery with Redfish | 4h | Hands-on |
-| 4 | Lab 1.3: Troubleshooting BMC Connectivity | 2.5h | Hands-on |
+| 1 | Theory: k0rdent Architecture Deep Dive | 2h | Video/Reading |
+| 1 | Lab 1.1: Provision k0rdent Management Cluster | 3h | Hands-on |
+| 2 | Theory: k0rdent Components (KCM, KSM, KOF) | 2h | Video/Reading |
+| 2 | Lab 1.2: Explore k0rdent UI and Configuration | 2h | Hands-on |
+| 3 | Theory: Infrastructure Providers and Cluster API | 1.5h | Video/Reading |
+| 3 | Lab 1.3: Configure AWS Infrastructure Provider | 3h | Hands-on |
+| 4 | Lab 1.4: Production Configuration and RBAC | 3h | Hands-on |
 | 5 | Week 1 Assessment | 0.5h | Quiz |
 
 ## Theory Content
 
-- [1.1 k0rdent Architecture Deep Dive](theory/1.1-k0rdent-architecture.md)
-- [1.2 NVIDIA GPU Hardware Landscape](theory/1.2-nvidia-gpu-hardware.md)
-- [1.3 Out-of-Band Management](theory/1.3-oob-management.md)
+- [1.1 k0rdent Enterprise Architecture](theory/1.1-k0rdent-architecture.md)
+- [1.2 k0rdent Components Deep Dive](theory/1.2-k0rdent-components.md)
+- [1.3 Infrastructure Providers and CAPI](theory/1.3-infrastructure-providers.md)
 
 ## Lab Exercises
 
-- [Lab 1.1 - Explore k0rdent Sandbox](labs/lab-1.1-explore-sandbox.md)
-- [Lab 1.2 - BMC Discovery with Redfish](labs/lab-1.2-bmc-discovery.md)
-- [Lab 1.3 - Troubleshooting BMC Connectivity](labs/lab-1.3-troubleshooting-bmc.md)
+- [Lab 1.1 - Provision k0rdent Management Cluster](labs/lab-1.1-provision-k0rdent.md)
+- [Lab 1.2 - Explore k0rdent UI](labs/lab-1.2-explore-k0rdent-ui.md)
+- [Lab 1.3 - Configure AWS Provider](labs/lab-1.3-configure-aws-provider.md)
+- [Lab 1.4 - Production Configuration](labs/lab-1.4-production-configuration.md)
+
+## Prerequisites
+
+- AWS Account with appropriate permissions
+- Basic Kubernetes knowledge
+- Familiarity with Terraform
 
 ## Resources
 
+- [k0rdent Enterprise Documentation](https://docs.mirantis.com/k0rdent-enterprise/latest/)
 - [Reference Links](resources/reference-links.md)
 - [Cheat Sheets](resources/cheat-sheets.md)
 
