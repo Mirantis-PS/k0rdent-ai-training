@@ -41,7 +41,7 @@ Open your browser to: `http://localhost:8080`
 
 Login with:
 - **Username:** admin
-- **Password:** k0rdent-lab-2024
+- **Password:** Run `cd lab-infrastructure/terraform/environments/k0rdent && terraform output -raw ui_password`
 
 ## Part 2: Dashboard Overview
 

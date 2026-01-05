@@ -85,3 +85,9 @@ output "cluster_name" {
   description = "k0s cluster name"
   value       = "k0rdent-mgmt-${var.engineer_id}"
 }
+
+output "ui_password" {
+  description = "k0rdent UI password (generated or provided)"
+  value       = local.effective_ui_password
+  sensitive   = true
+}

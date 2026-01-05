@@ -66,10 +66,10 @@ variable "k0rdent_version" {
 }
 
 variable "ui_password" {
-  description = "k0rdent UI password"
+  description = "k0rdent UI password. If empty, a random password will be generated."
   type        = string
   sensitive   = true
-  default     = "k0rdent-lab-2024"
+  default     = ""
 }
 
 variable "flux_version" {

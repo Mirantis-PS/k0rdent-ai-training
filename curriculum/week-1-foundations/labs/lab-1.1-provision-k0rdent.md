@@ -158,9 +158,9 @@ Then, from your local machine, create an SSH tunnel:
 
 Open your browser to: `http://localhost:8080`
 
-**Default credentials:**
+**Credentials:**
 - Username: admin
-- Password: k0rdent-lab-2024
+- Password: Retrieve with `cd lab-infrastructure/terraform/environments/k0rdent && terraform output -raw ui_password`
 
 ## Part 8: Explore k0rdent Resources
 

@@ -96,7 +96,7 @@ From your local machine:
 
 Open browser: `http://localhost:8080`
 - Username: admin
-- Password: k0rdent-lab-2024
+- Password: Run `terraform output -raw ui_password` in the k0rdent environment directory
 
 ---
 

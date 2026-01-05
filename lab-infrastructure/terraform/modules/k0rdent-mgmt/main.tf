@@ -12,7 +12,20 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
+}
+
+#------------------------------------------------------------------------------
+# Generate random UI password if not provided
+#------------------------------------------------------------------------------
+resource "random_password" "ui_password" {
+  length           = 24
+  special          = true
+  override_special = "!@#$%&*"
 }
 
 locals {
@@ -28,6 +41,9 @@ locals {
     AutoStop    = "true"
   })
 
+  # Use provided password or generate random one
+  effective_ui_password = var.ui_password != "" ? var.ui_password : random_password.ui_password.result
+
   # Generate node names
   node_names = [for i in range(var.node_count) : "${var.project_name}-mgmt-${var.engineer_id}-${i}"]
 
@@ -36,7 +52,7 @@ locals {
     engineer_id      = var.engineer_id
     k0s_version      = var.k0s_version
     k0rdent_version  = var.k0rdent_version
-    ui_password      = var.ui_password
+    ui_password      = local.effective_ui_password
     flux_version     = var.flux_version
     artifacts_bucket = var.artifacts_bucket
     region           = var.region

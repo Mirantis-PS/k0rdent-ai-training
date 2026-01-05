@@ -115,6 +115,12 @@ output "k0rdent_ui_info" {
     1. Connect to management node: ./lab-connect.sh k0rdent ${var.engineer_id}
     2. Run: kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80
     3. Open: http://localhost:8080
-    4. Login with configured password
+    4. Run: terraform output ui_password
   EOT
+}
+
+output "ui_password" {
+  description = "k0rdent UI password"
+  value       = module.k0rdent_mgmt.ui_password
+  sensitive   = true
 }

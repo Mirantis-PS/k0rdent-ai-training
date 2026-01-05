@@ -353,7 +353,7 @@ sudo k0s kubectl get pods -n kcm-system  # Should show Running
 # Access k0rdent UI
 sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
 # Then from local machine: ./scripts/lab-connect.sh k0rdent your-name --tunnel 8080:8080
-# Open http://localhost:8080 (admin / k0rdent-lab-2024)
+# Open http://localhost:8080 (admin / run: terraform output -raw ui_password)
 ```
 
 ### Metal3 Dev Environment
