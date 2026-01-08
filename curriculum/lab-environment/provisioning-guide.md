@@ -351,7 +351,7 @@ tail -f /var/log/k0rdent-init.log  # Watch progress
 kubectl get pods -n kcm-system  # Should show Running
 
 # Access k0rdent UI
-kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0 &
 # Then from local machine: ./scripts/lab-connect.sh k0rdent your-name --tunnel 8080:8080
 # Open http://localhost:8080 (admin / run: terraform output -raw ui_password)
 ```
@@ -593,7 +593,7 @@ VPC: 10.0.0.0/16
 kubectl get pods -n kcm-system
 
 # Access k0rdent UI (from management cluster)
-kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0 &
 
 # Week 2: Provision Metal3 lab
 ./scripts/lab-provision.sh metal3 your-name --auto-approve

@@ -173,7 +173,7 @@ Terminal 1 (SSH to management cluster):
 ```bash
 ./scripts/lab-connect.sh k0rdent <your-engineer-id>
 # Then start port-forward:
-kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0
+kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0
 ```
 
 Terminal 2 (local machine - create tunnel):
@@ -185,7 +185,7 @@ Terminal 2 (local machine - create tunnel):
 
 From your SSH session on the management cluster:
 ```bash
-kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0 &
 ```
 
 Then open a new local terminal:

@@ -26,7 +26,7 @@ From your management cluster (SSH session):
 
 ```bash
 # Enable port forwarding for the UI
-kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0 &
 ```
 
 From your local machine, create the SSH tunnel:

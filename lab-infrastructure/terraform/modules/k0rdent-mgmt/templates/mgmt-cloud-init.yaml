@@ -306,7 +306,7 @@ write_files:
 
       echo "=== k0rdent UI Access ==="
       echo "The k0rdent UI is available via port-forward:"
-      echo "  kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80"
+      echo "  kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000"
       echo "  Then open: http://localhost:8080"
       echo ""
 
@@ -408,7 +408,7 @@ write_files:
         echo "  kubectl get clusterdeployment  - List deployed clusters"
         echo ""
         echo "k0rdent UI:"
-        echo "  kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80"
+        echo "  kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000"
         echo ""
       else
         echo "================================================"
@@ -435,7 +435,7 @@ write_files:
 
       2. **Access k0rdent UI:**
          ```bash
-         kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80
+         kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000
          ```
          Then open http://localhost:8080
 

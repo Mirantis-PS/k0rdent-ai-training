@@ -196,7 +196,7 @@ k0rdent's service catalog provides:
 
 1. **Access k0rdent UI**
    ```bash
-   kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 &
+   kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 &
    ```
    - Open: `http://localhost:8080`
 

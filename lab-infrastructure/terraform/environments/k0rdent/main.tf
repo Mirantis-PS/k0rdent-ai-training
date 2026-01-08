@@ -113,7 +113,7 @@ output "k0rdent_ui_info" {
   value = <<-EOT
     k0rdent Enterprise UI:
     1. Connect to management node: ./lab-connect.sh k0rdent ${var.engineer_id}
-    2. Run: kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80
+    2. Run: kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000
     3. Open: http://localhost:8080
     4. Run: terraform output ui_password
   EOT
