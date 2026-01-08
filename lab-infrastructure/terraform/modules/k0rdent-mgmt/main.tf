@@ -23,9 +23,8 @@ terraform {
 # Generate random UI password if not provided
 #------------------------------------------------------------------------------
 resource "random_password" "ui_password" {
-  length           = 24
-  special          = true
-  override_special = "!@#$%&*"
+  length  = 32
+  special = false  # Avoid special chars that break YAML/shell escaping in Helm
 }
 
 locals {

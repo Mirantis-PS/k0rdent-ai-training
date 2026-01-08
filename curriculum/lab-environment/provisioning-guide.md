@@ -183,13 +183,13 @@ cd lab-infrastructure
 
 ```bash
 # Check installation progress (runs in background)
-tail -f /var/log/k0rdent-setup.log
+tail -f /var/log/k0rdent-init.log
 
 # Or check if complete
-cat /var/log/k0rdent-setup-complete
+ls /opt/k0rdent-lab/.init-complete
 
 # Verify k0rdent pods
-sudo k0s kubectl get pods -n kcm-system
+kubectl get pods -n kcm-system
 ```
 
 That's it! You're ready to start the labs.
@@ -347,11 +347,11 @@ cd lab-infrastructure
 ./scripts/lab-connect.sh k0rdent your-name
 
 # On the lab instance - verify installation
-tail -f /var/log/k0rdent-setup.log  # Watch progress
-sudo k0s kubectl get pods -n kcm-system  # Should show Running
+tail -f /var/log/k0rdent-init.log  # Watch progress
+kubectl get pods -n kcm-system  # Should show Running
 
 # Access k0rdent UI
-sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
 # Then from local machine: ./scripts/lab-connect.sh k0rdent your-name --tunnel 8080:8080
 # Open http://localhost:8080 (admin / run: terraform output -raw ui_password)
 ```
