@@ -270,10 +270,10 @@ brew install hashicorp/tap/terraform
 **Pods not starting:**
 ```bash
 # Check pod events
-sudo k0s kubectl describe pod <pod-name> -n kcm-system
+kubectl describe pod <pod-name> -n kcm-system
 
 # Check logs
-sudo k0s kubectl logs <pod-name> -n kcm-system
+kubectl logs <pod-name> -n kcm-system
 ```
 
 **Installation still running:**

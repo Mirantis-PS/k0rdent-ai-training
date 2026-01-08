@@ -590,10 +590,10 @@ VPC: 10.0.0.0/16
 ./scripts/lab-connect.sh k0rdent your-name
 
 # Verify k0rdent installation
-sudo k0s kubectl get pods -n kcm-system
+kubectl get pods -n kcm-system
 
 # Access k0rdent UI (from management cluster)
-sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
 
 # Week 2: Provision Metal3 lab
 ./scripts/lab-provision.sh metal3 your-name --auto-approve
@@ -609,9 +609,9 @@ sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0
 ./scripts/lab-destroy.sh metal3 your-name --auto-approve
 
 # On lab instance - common k8s commands
-sudo k0s kubectl get nodes
-sudo k0s kubectl get pods -A
-sudo k0s kubectl get clusters -A
+kubectl get nodes
+kubectl get pods -A
+kubectl get clusters -A
 
 # On GPU lab
 nvidia-smi

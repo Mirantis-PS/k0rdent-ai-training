@@ -72,10 +72,10 @@ This command automatically:
 Once connected, check k0rdent status:
 ```bash
 # View installation progress
-tail -f /var/log/k0rdent-setup.log
+tail -f /var/log/k0rdent-init.log
 
 # Check pods
-sudo k0s kubectl get pods -n kcm-system
+kubectl get pods -n kcm-system
 ```
 
 You're now connected! Start with [Week 1 Labs](curriculum/week-1-foundations/).
@@ -86,7 +86,7 @@ You're now connected! Start with [Week 1 Labs](curriculum/week-1-foundations/).
 
 From your management cluster SSH session:
 ```bash
-sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
 ```
 
 From your local machine:
