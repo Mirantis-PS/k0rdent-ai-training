@@ -41,6 +41,12 @@ locals {
     AutoStop    = "true"
   })
 
+  # Minimal tags for S3 objects (AWS S3 has 10-tag limit, provider default_tags count toward this)
+  s3_object_tags = {
+    EngineerID = var.engineer_id
+    LabType    = "k0rdent-mgmt"
+  }
+
   # Use provided password or generate random one
   effective_ui_password = var.ui_password != "" ? var.ui_password : random_password.ui_password.result
 
@@ -255,7 +261,7 @@ resource "aws_s3_object" "ssh_private_key" {
 
   server_side_encryption = "AES256"
 
-  tags = merge(local.common_tags, {
+  tags = merge(local.s3_object_tags, {
     Name = "ssh-key-${var.engineer_id}-mgmt"
   })
 }
@@ -266,7 +272,7 @@ resource "aws_s3_object" "ssh_public_key" {
   content      = tls_private_key.mgmt.public_key_openssh
   content_type = "text/plain"
 
-  tags = merge(local.common_tags, {
+  tags = merge(local.s3_object_tags, {
     Name = "ssh-pubkey-${var.engineer_id}-mgmt"
   })
 }
@@ -280,7 +286,7 @@ resource "aws_s3_object" "k0sctl_config" {
   content      = local.k0sctl_yaml
   content_type = "text/yaml"
 
-  tags = merge(local.common_tags, {
+  tags = merge(local.s3_object_tags, {
     Name = "k0sctl-${var.engineer_id}"
   })
 }
