@@ -37,13 +37,15 @@ Options:
   --bastion <ip>              Bastion host IP for jump connection
   --worker <n>                Connect to specific worker (kubevirt)
   --advanced                  Connect to advanced GPU (8x A100)
-  --tunnel <local:remote>     Create SSH tunnel (e.g., 8080:80)
+  --tunnel <local:remote>     Create SSH tunnel (e.g., 8080:8080)
   --copy-kubeconfig           Copy kubeconfig to local machine
+  --show-password             Show k0rdent UI password (k0rdent only)
   --help                      Show this help message
 
 Examples:
   $0 k0rdent engineer-01
-  $0 k0rdent engineer-01 --tunnel 8080:80   # For k0rdent UI access
+  $0 k0rdent engineer-01 --tunnel 8080:8080   # For k0rdent UI access
+  $0 k0rdent engineer-01 --show-password      # Get UI password
   $0 metal3 engineer-01
   $0 kubevirt engineer-01 --worker 0
   $0 gpu cohort-2024-q1
@@ -251,6 +253,7 @@ WORKER_INDEX=""
 ADVANCED="false"
 TUNNEL=""
 COPY_KUBECONFIG="false"
+SHOW_PASSWORD="false"
 
 # Global vars for copy_kubeconfig
 LAB_TYPE=""
@@ -289,6 +292,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --copy-kubeconfig)
             COPY_KUBECONFIG="true"
+            shift
+            ;;
+        --show-password)
+            SHOW_PASSWORD="true"
             shift
             ;;
         --help|-h)
@@ -346,6 +353,30 @@ fi
 
 log_info "Target: $IP"
 log_info "SSH Key: $KEY_FILE"
+
+# Show password and exit if requested
+if [[ "$SHOW_PASSWORD" == "true" ]]; then
+    if [[ ! "$LAB_TYPE" =~ ^k0rdent ]]; then
+        log_error "--show-password is only available for k0rdent environments"
+        exit 1
+    fi
+    TFSTATE_BUCKET=$(get_tfstate_bucket)
+    UI_PASSWORD=$(get_state_output "$TFSTATE_BUCKET" "k0rdent/${IDENTIFIER}/terraform.tfstate" "ui_password")
+    if [[ -n "$UI_PASSWORD" ]]; then
+        echo ""
+        log_success "k0rdent UI Password: $UI_PASSWORD"
+        echo ""
+        echo "UI Access:"
+        echo "  1. Run: ./scripts/lab-connect.sh k0rdent $IDENTIFIER --tunnel 8080:8080"
+        echo "  2. On server: kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0 &"
+        echo "  3. Open: http://localhost:8080"
+        echo "  4. Login: admin / $UI_PASSWORD"
+    else
+        log_error "Could not retrieve UI password"
+        exit 1
+    fi
+    exit 0
+fi
 
 if [[ "$COPY_KUBECONFIG" == "true" ]]; then
     copy_kubeconfig "$IP" "$KEY_FILE" "ubuntu" "$BASTION" "$IDENTIFIER"
