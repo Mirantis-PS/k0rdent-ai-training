@@ -69,7 +69,7 @@ k0rdent's service catalog provides:
 
 3. **Understand Template Structure**
    ```yaml
-   apiVersion: k0rdent.mirantis.com/v1alpha1
+   apiVersion: k0rdent.mirantis.com/v1beta1
    kind: ServiceTemplate
    metadata:
      name: vllm
@@ -126,7 +126,7 @@ k0rdent's service catalog provides:
 2. **Create Service Deployment**
    ```yaml
    # Save as vllm-service-deployment.yaml
-   apiVersion: k0rdent.mirantis.com/v1alpha1
+   apiVersion: k0rdent.mirantis.com/v1beta1
    kind: ServiceDeployment
    metadata:
      name: vllm-inference
@@ -226,7 +226,7 @@ k0rdent's service catalog provides:
 2. **Create Custom Configuration**
    ```yaml
    # Save as custom-vllm-deployment.yaml
-   apiVersion: k0rdent.mirantis.com/v1alpha1
+   apiVersion: k0rdent.mirantis.com/v1beta1
    kind: ServiceDeployment
    metadata:
      name: vllm-custom
