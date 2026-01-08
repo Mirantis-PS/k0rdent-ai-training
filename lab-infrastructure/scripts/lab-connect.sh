@@ -58,17 +58,20 @@ get_tfstate_bucket() {
     echo "k0rdent-training-tfstate-${account_id}"
 }
 
+# Read terraform output from S3 state directly (bypasses terraform credential issues)
+get_state_output() {
+    local bucket="$1"
+    local key="$2"
+    local output_name="$3"
+
+    aws s3 cp "s3://${bucket}/${key}" - 2>/dev/null | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
+}
+
 get_bastion_ip() {
-    local env_dir="$TERRAFORM_DIR/environments/shared"
     local tfstate_bucket
     tfstate_bucket=$(get_tfstate_bucket)
 
-    cd "$env_dir"
-    terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=shared/terraform.tfstate" \
-        -backend-config="region=${REGION}" &>/dev/null
-
-    terraform output -raw bastion_public_ip 2>/dev/null || echo ""
+    get_state_output "$tfstate_bucket" "shared/terraform.tfstate" "bastion_public_ip"
 }
 
 get_ssh_key() {
@@ -76,13 +79,12 @@ get_ssh_key() {
     local identifier="$2"
     local key_file="$CONFIG_DIR/keys/${identifier}-${lab_type}.pem"
 
-    if [[ -f "$key_file" ]]; then
+    if [[ -f "$key_file" ]] && [[ -s "$key_file" ]]; then
         echo "$key_file"
         return 0
     fi
 
-    # Try to extract from Terraform state
-    local env_dir="$TERRAFORM_DIR/environments/${lab_type}"
+    # Extract from S3 state directly
     local tfstate_bucket
     tfstate_bucket=$(get_tfstate_bucket)
     local state_key
@@ -90,32 +92,28 @@ get_ssh_key() {
     case $lab_type in
         k0rdent-mgmt|k0rdent)
             state_key="k0rdent/${identifier}/terraform.tfstate"
-            env_dir="$TERRAFORM_DIR/environments/k0rdent"
             ;;
         metal3-dev|metal3)
             state_key="metal3-dev/${identifier}/terraform.tfstate"
-            env_dir="$TERRAFORM_DIR/environments/metal3-dev"
             ;;
         kubevirt-lab|kubevirt)
             state_key="kubevirt-lab/${identifier}/terraform.tfstate"
-            env_dir="$TERRAFORM_DIR/environments/kubevirt-lab"
             ;;
         gpu-lab|gpu)
             state_key="gpu-lab/${identifier}/terraform.tfstate"
-            env_dir="$TERRAFORM_DIR/environments/gpu-lab"
             ;;
     esac
 
-    cd "$env_dir"
-    terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${state_key}" \
-        -backend-config="region=${REGION}" &>/dev/null
-
     mkdir -p "$CONFIG_DIR/keys"
-    terraform output -raw ssh_private_key > "$key_file" 2>/dev/null || {
+    local ssh_key
+    ssh_key=$(get_state_output "$tfstate_bucket" "$state_key" "ssh_private_key")
+
+    if [[ -z "$ssh_key" ]]; then
         log_error "Could not retrieve SSH key. Is the environment provisioned?"
         return 1
-    }
+    fi
+
+    echo "$ssh_key" > "$key_file"
     chmod 600 "$key_file"
 
     echo "$key_file"
@@ -126,7 +124,6 @@ get_instance_ip() {
     local identifier="$2"
     local target="${3:-controller}"
 
-    local env_dir="$TERRAFORM_DIR/environments/${lab_type}"
     local tfstate_bucket
     tfstate_bucket=$(get_tfstate_bucket)
     local state_key
@@ -134,45 +131,36 @@ get_instance_ip() {
     case $lab_type in
         k0rdent-mgmt|k0rdent)
             state_key="k0rdent/${identifier}/terraform.tfstate"
-            env_dir="$TERRAFORM_DIR/environments/k0rdent"
             ;;
         metal3-dev|metal3)
             state_key="metal3-dev/${identifier}/terraform.tfstate"
-            env_dir="$TERRAFORM_DIR/environments/metal3-dev"
             ;;
         kubevirt-lab|kubevirt)
             state_key="kubevirt-lab/${identifier}/terraform.tfstate"
-            env_dir="$TERRAFORM_DIR/environments/kubevirt-lab"
             ;;
         gpu-lab|gpu)
             state_key="gpu-lab/${identifier}/terraform.tfstate"
-            env_dir="$TERRAFORM_DIR/environments/gpu-lab"
             ;;
     esac
-
-    cd "$env_dir"
-    terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${state_key}" \
-        -backend-config="region=${REGION}" &>/dev/null
 
     case $target in
         controller)
             # k0rdent uses different output name
             if [[ "$lab_type" =~ ^k0rdent ]]; then
-                terraform output -raw primary_node_private_ip 2>/dev/null
+                get_state_output "$tfstate_bucket" "$state_key" "primary_node_private_ip"
             else
-                terraform output -raw controller_private_ip 2>/dev/null
+                get_state_output "$tfstate_bucket" "$state_key" "controller_private_ip"
             fi
             ;;
         worker-*)
             local worker_index="${target#worker-}"
-            terraform output -json worker_private_ips 2>/dev/null | jq -r ".[$worker_index]"
+            aws s3 cp "s3://${tfstate_bucket}/${state_key}" - 2>/dev/null | jq -r ".outputs.worker_private_ips.value[${worker_index}] // empty" 2>/dev/null
             ;;
         shared)
-            terraform output -raw shared_gpu_private_ip 2>/dev/null
+            get_state_output "$tfstate_bucket" "$state_key" "shared_gpu_private_ip"
             ;;
         advanced)
-            terraform output -raw advanced_gpu_private_ip 2>/dev/null
+            get_state_output "$tfstate_bucket" "$state_key" "advanced_gpu_private_ip"
             ;;
     esac
 }
