@@ -213,11 +213,11 @@ Beyond the UI, kubectl provides powerful access to k0rdent resources.
 ### Essential Commands
 
 ```bash
-# View all k0rdent custom resources (CRDs use kcm.mirantis.com domain)
-kubectl api-resources | grep kcm.mirantis.com
+# View all k0rdent custom resources (CRDs use k0rdent.mirantis.com domain)
+kubectl api-resources | grep k0rdent.mirantis.com
 
 # List all k0rdent CRDs
-kubectl get crds | grep kcm.mirantis.com
+kubectl get crds | grep k0rdent.mirantis.com
 
 # List cluster deployments (or use alias: kgcd)
 kubectl get clusterdeployments -A

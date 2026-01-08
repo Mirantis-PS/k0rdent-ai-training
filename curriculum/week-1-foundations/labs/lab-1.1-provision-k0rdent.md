@@ -147,8 +147,8 @@ k0rdent-ui-xxx                            1/1     Running   0          5m
 ```
 
 ```bash
-# Check k0rdent CRDs (they use kcm.mirantis.com domain)
-kubectl get crds | grep kcm.mirantis.com
+# Check k0rdent CRDs (they use k0rdent.mirantis.com domain)
+kubectl get crds | grep k0rdent.mirantis.com
 
 # Check available cluster templates (using alias: kgct)
 kubectl get clustertemplates -A
@@ -158,10 +158,10 @@ kubectl get credentials -A
 ```
 
 **Expected CRDs include:**
-- `managements.kcm.mirantis.com`
-- `clusterdeployments.kcm.mirantis.com`
-- `clustertemplates.kcm.mirantis.com`
-- `credentials.kcm.mirantis.com`
+- `managements.k0rdent.mirantis.com`
+- `clusterdeployments.k0rdent.mirantis.com`
+- `clustertemplates.k0rdent.mirantis.com`
+- `credentials.k0rdent.mirantis.com`
 
 ## Part 7: Access the k0rdent UI
 

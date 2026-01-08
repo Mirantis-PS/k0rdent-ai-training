@@ -70,9 +70,9 @@ kubectl create namespace team-ml
 kubectl create namespace team-data
 
 # Label namespaces for k0rdent
-kubectl label namespace team-platform kcm.mirantis.com/project=platform
-kubectl label namespace team-ml kcm.mirantis.com/project=ml-team
-kubectl label namespace team-data kcm.mirantis.com/project=data-team
+kubectl label namespace team-platform k0rdent.mirantis.com/project=platform
+kubectl label namespace team-ml k0rdent.mirantis.com/project=ml-team
+kubectl label namespace team-data k0rdent.mirantis.com/project=data-team
 ```
 
 ### Create Cluster Roles
@@ -85,7 +85,7 @@ kind: ClusterRole
 metadata:
   name: k0rdent-cluster-admin
 rules:
-- apiGroups: ["kcm.mirantis.com"]
+- apiGroups: ["k0rdent.mirantis.com"]
   resources: ["*"]
   verbs: ["*"]
 - apiGroups: ["cluster.x-k8s.io"]
@@ -103,7 +103,7 @@ kind: ClusterRole
 metadata:
   name: k0rdent-cluster-viewer
 rules:
-- apiGroups: ["kcm.mirantis.com"]
+- apiGroups: ["k0rdent.mirantis.com"]
   resources: ["*"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["cluster.x-k8s.io"]
@@ -119,7 +119,7 @@ metadata:
   name: k0rdent-project-admin
   namespace: team-platform
 rules:
-- apiGroups: ["kcm.mirantis.com"]
+- apiGroups: ["k0rdent.mirantis.com"]
   resources: ["managedclusters", "clusterdeployments"]
   verbs: ["*"]
 - apiGroups: [""]
@@ -156,7 +156,7 @@ rules:
   # Log all k0rdent operations at RequestResponse level
   - level: RequestResponse
     resources:
-    - group: "kcm.mirantis.com"
+    - group: "k0rdent.mirantis.com"
       resources: ["*"]
 
   # Log cluster operations

@@ -69,7 +69,7 @@ k0rdent's service catalog provides:
 
 3. **Understand Template Structure**
    ```yaml
-   apiVersion: kcm.mirantis.com/v1alpha1
+   apiVersion: k0rdent.mirantis.com/v1alpha1
    kind: ServiceTemplate
    metadata:
      name: vllm
@@ -120,13 +120,13 @@ k0rdent's service catalog provides:
 1. **Create Target Namespace**
    ```bash
    kubectl create namespace ml-services
-   kubectl label namespace ml-services kcm.mirantis.com/managed=true
+   kubectl label namespace ml-services k0rdent.mirantis.com/managed=true
    ```
 
 2. **Create Service Deployment**
    ```yaml
    # Save as vllm-service-deployment.yaml
-   apiVersion: kcm.mirantis.com/v1alpha1
+   apiVersion: k0rdent.mirantis.com/v1alpha1
    kind: ServiceDeployment
    metadata:
      name: vllm-inference
@@ -180,7 +180,7 @@ k0rdent's service catalog provides:
 4. **Verify Created Resources**
    ```bash
    # Check all resources created by the service
-   kubectl get all -n ml-services -l kcm.mirantis.com/service=vllm-inference
+   kubectl get all -n ml-services -l k0rdent.mirantis.com/service=vllm-inference
 
    # Check ingress
    kubectl get ingress -n ml-services
@@ -226,7 +226,7 @@ k0rdent's service catalog provides:
 2. **Create Custom Configuration**
    ```yaml
    # Save as custom-vllm-deployment.yaml
-   apiVersion: kcm.mirantis.com/v1alpha1
+   apiVersion: k0rdent.mirantis.com/v1alpha1
    kind: ServiceDeployment
    metadata:
      name: vllm-custom

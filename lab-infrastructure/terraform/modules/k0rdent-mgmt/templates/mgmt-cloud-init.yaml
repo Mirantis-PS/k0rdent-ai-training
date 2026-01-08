@@ -247,7 +247,7 @@ write_files:
 
       # Wait for CRDs to be available
       echo "Waiting for k0rdent CRDs..."
-      until kubectl get crd managements.kcm.mirantis.com &>/dev/null; do
+      until kubectl get crd managements.k0rdent.mirantis.com &>/dev/null; do
         echo "  Waiting for Management CRD..."
         sleep 10
       done

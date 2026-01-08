@@ -150,7 +150,7 @@ EOF
 
 ```bash
 cat << 'EOF' | kubectl apply -f -
-apiVersion: kcm.mirantis.com/v1alpha1
+apiVersion: k0rdent.mirantis.com/v1alpha1
 kind: Credential
 metadata:
   name: aws-credential
