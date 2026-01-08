@@ -121,7 +121,7 @@ export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
 export AWS_REGION="us-east-1"
 
 # Create the secret
-sudo k0s kubectl create secret generic aws-cluster-identity-secret \
+kubectl create secret generic aws-cluster-identity-secret \
   --from-literal=AccessKeyID="${AWS_ACCESS_KEY_ID}" \
   --from-literal=SecretAccessKey="${AWS_SECRET_ACCESS_KEY}" \
   -n kcm-system
@@ -132,7 +132,7 @@ sudo k0s kubectl create secret generic aws-cluster-identity-secret \
 Create a YAML file for the identity:
 
 ```bash
-cat << 'EOF' | sudo k0s kubectl apply -f -
+cat << 'EOF' | kubectl apply -f -
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
 kind: AWSClusterStaticIdentity
 metadata:
@@ -149,8 +149,8 @@ EOF
 ### Step 3: Create k0rdent Credential Object
 
 ```bash
-cat << 'EOF' | sudo k0s kubectl apply -f -
-apiVersion: k0rdent.mirantis.com/v1alpha1
+cat << 'EOF' | kubectl apply -f -
+apiVersion: kcm.mirantis.com/v1alpha1
 kind: Credential
 metadata:
   name: aws-credential
@@ -170,23 +170,27 @@ EOF
 
 ```bash
 # Verify the secret exists
-sudo k0s kubectl get secret aws-cluster-identity-secret -n kcm-system
+kubectl get secret aws-cluster-identity-secret -n kcm-system
 
 # Check the identity
-sudo k0s kubectl get awsclusterstaticidentity -n kcm-system
+kubectl get awsclusterstaticidentity -n kcm-system
 
-# Verify the credential
-sudo k0s kubectl get credential aws-credential -n kcm-system
+# Verify the credential (or use alias: kgcred)
+kubectl get credential aws-credential -n kcm-system
 ```
 
 ### Verify AWS Provider Controller
 
 ```bash
 # Check CAPA (Cluster API Provider AWS) controller
-sudo k0s kubectl get pods -n capa-system
+# Note: In k0rdent Enterprise, CAPA runs in kcm-system namespace
+kubectl get pods -n kcm-system | grep capa
+
+# If no pods found in kcm-system, check capa-system
+kubectl get pods -n capa-system 2>/dev/null || echo "CAPA pods are in kcm-system"
 
 # View controller logs
-sudo k0s kubectl logs -n capa-system -l control-plane=capa-controller-manager --tail=50
+kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tail=50
 ```
 
 ## Part 5: Test Provider Connectivity
@@ -213,8 +217,8 @@ aws ec2 describe-images \
 Set the default region for cluster provisioning:
 
 ```bash
-# Create a ConfigMap for AWS defaults
-cat << 'EOF' | sudo k0s kubectl apply -f -
+# Create a ConfigMap for AWS defaults (optional reference)
+cat << 'EOF' | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -225,6 +229,8 @@ data:
   AWS_SSH_KEY_NAME: "k0rdent-clusters"
 EOF
 ```
+
+> **Note:** This ConfigMap is for reference. Actual cluster configuration is done via ClusterDeployment specs.
 
 ## Part 7: Create SSH Key Pair for Clusters
 
@@ -249,12 +255,14 @@ aws ec2 describe-key-pairs --key-names k0rdent-clusters --region us-east-1
 With the AWS provider configured, review templates available for AWS:
 
 ```bash
-# List AWS cluster templates
-sudo k0s kubectl get clustertemplate -n kcm-system | grep -i aws
+# List AWS cluster templates (or use alias: kgct)
+kubectl get clustertemplates -n kcm-system | grep -i aws
 
-# View a specific template
-sudo k0s kubectl get clustertemplate aws-standalone-cp-0-30-0 -n kcm-system -o yaml
+# View details of an AWS template
+kubectl get clustertemplate -n kcm-system -l provider=aws -o yaml | head -100
 ```
+
+> **Note:** Template names vary by k0rdent version. Use `kubectl get clustertemplates -A` to see available templates.
 
 ### Template Parameters
 
@@ -276,15 +284,15 @@ Note the configurable parameters:
 
 ```bash
 # To rotate credentials:
-# 1. Create new AWS access key
+# 1. Create new AWS access key in AWS Console
 # 2. Update the secret
-sudo k0s kubectl create secret generic aws-cluster-identity-secret \
+kubectl create secret generic aws-cluster-identity-secret \
   --from-literal=AccessKeyID="${NEW_ACCESS_KEY_ID}" \
   --from-literal=SecretAccessKey="${NEW_SECRET_ACCESS_KEY}" \
   -n kcm-system \
-  --dry-run=client -o yaml | sudo k0s kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f -
 
-# 3. Delete old AWS access key
+# 3. Delete old AWS access key from AWS Console
 ```
 
 ### Multi-Account Access
@@ -331,11 +339,11 @@ Before completing this lab, verify:
 ### Provider Controller Issues
 
 ```bash
-# Check controller logs
-sudo k0s kubectl logs -n capa-system deployment/capa-controller-manager
+# Check controller logs (CAPA runs in kcm-system in k0rdent Enterprise)
+kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tail=100
 
 # Check events
-sudo k0s kubectl get events -n capa-system
+kubectl get events -n kcm-system --sort-by='.lastTimestamp' | tail -20
 ```
 
 ## Summary

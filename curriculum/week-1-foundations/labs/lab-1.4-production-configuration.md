@@ -33,7 +33,7 @@ In this lab, you will:
 
 ```bash
 # Check current node count
-sudo k0s kubectl get nodes
+kubectl get nodes
 
 # For production, you would deploy 3 nodes
 # This lab focuses on single-node configuration hardening
@@ -65,27 +65,27 @@ k0rdent extends Kubernetes RBAC with project-based isolation:
 
 ```bash
 # Create team namespaces
-sudo k0s kubectl create namespace team-platform
-sudo k0s kubectl create namespace team-ml
-sudo k0s kubectl create namespace team-data
+kubectl create namespace team-platform
+kubectl create namespace team-ml
+kubectl create namespace team-data
 
 # Label namespaces for k0rdent
-sudo k0s kubectl label namespace team-platform k0rdent.mirantis.com/project=platform
-sudo k0s kubectl label namespace team-ml k0rdent.mirantis.com/project=ml-team
-sudo k0s kubectl label namespace team-data k0rdent.mirantis.com/project=data-team
+kubectl label namespace team-platform kcm.mirantis.com/project=platform
+kubectl label namespace team-ml kcm.mirantis.com/project=ml-team
+kubectl label namespace team-data kcm.mirantis.com/project=data-team
 ```
 
 ### Create Cluster Roles
 
 ```bash
 # Cluster Admin - Full access
-cat << 'EOF' | sudo k0s kubectl apply -f -
+cat << 'EOF' | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: k0rdent-cluster-admin
 rules:
-- apiGroups: ["k0rdent.mirantis.com"]
+- apiGroups: ["kcm.mirantis.com"]
   resources: ["*"]
   verbs: ["*"]
 - apiGroups: ["cluster.x-k8s.io"]
@@ -97,13 +97,13 @@ rules:
 EOF
 
 # Cluster Viewer - Read-only access
-cat << 'EOF' | sudo k0s kubectl apply -f -
+cat << 'EOF' | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: k0rdent-cluster-viewer
 rules:
-- apiGroups: ["k0rdent.mirantis.com"]
+- apiGroups: ["kcm.mirantis.com"]
   resources: ["*"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["cluster.x-k8s.io"]
@@ -112,14 +112,14 @@ rules:
 EOF
 
 # Project Admin - Manage clusters within a project
-cat << 'EOF' | sudo k0s kubectl apply -f -
+cat << 'EOF' | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: k0rdent-project-admin
   namespace: team-platform
 rules:
-- apiGroups: ["k0rdent.mirantis.com"]
+- apiGroups: ["kcm.mirantis.com"]
   resources: ["managedclusters", "clusterdeployments"]
   verbs: ["*"]
 - apiGroups: [""]
@@ -132,12 +132,12 @@ EOF
 
 ```bash
 # Create service accounts for teams
-sudo k0s kubectl create serviceaccount platform-admin -n team-platform
-sudo k0s kubectl create serviceaccount ml-admin -n team-ml
-sudo k0s kubectl create serviceaccount ml-viewer -n team-ml
+kubectl create serviceaccount platform-admin -n team-platform
+kubectl create serviceaccount ml-admin -n team-ml
+kubectl create serviceaccount ml-viewer -n team-ml
 
 # Bind roles
-sudo k0s kubectl create rolebinding platform-admin-binding \
+kubectl create rolebinding platform-admin-binding \
   --role=k0rdent-project-admin \
   --serviceaccount=team-platform:platform-admin \
   -n team-platform
@@ -156,7 +156,7 @@ rules:
   # Log all k0rdent operations at RequestResponse level
   - level: RequestResponse
     resources:
-    - group: "k0rdent.mirantis.com"
+    - group: "kcm.mirantis.com"
       resources: ["*"]
 
   # Log cluster operations
@@ -235,11 +235,11 @@ echo "0 2 * * * root /usr/local/bin/etcd-backup.sh >> /var/log/etcd-backup.log 2
 
 ```bash
 # Export all k0rdent resources
-sudo k0s kubectl get management,credential,clustertemplate,servicetemplate \
+kubectl get management,credential,clustertemplate,servicetemplate \
   -A -o yaml > k0rdent-resources-backup.yaml
 
 # Export cluster configurations
-sudo k0s kubectl get clusters,machines,machinedeployments \
+kubectl get clusters,machines,machinedeployments \
   -A -o yaml > cluster-resources-backup.yaml
 ```
 
@@ -249,20 +249,20 @@ sudo k0s kubectl get clusters,machines,machinedeployments \
 
 ```bash
 # KOF (k0rdent Observability & FinOps) provides monitoring
-sudo k0s kubectl get pods -n kof-system 2>/dev/null || echo "KOF not installed"
+kubectl get pods -n kof-system 2>/dev/null || echo "KOF not installed"
 
 # List KOF components if available
-sudo k0s kubectl get servicetemplates -n kcm-system | grep -i observ
+kubectl get servicetemplates -n kcm-system | grep -i observ
 ```
 
 ### Configure Basic Monitoring
 
 ```bash
 # Create monitoring namespace
-sudo k0s kubectl create namespace monitoring
+kubectl create namespace monitoring
 
 # Deploy a basic metrics collection ConfigMap
-cat << 'EOF' | sudo k0s kubectl apply -f -
+cat << 'EOF' | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -287,23 +287,24 @@ echo "Timestamp: $(date)"
 echo ""
 
 echo "--- Node Status ---"
-sudo k0s kubectl get nodes
+kubectl get nodes
 
 echo ""
 echo "--- k0rdent System Pods ---"
-sudo k0s kubectl get pods -n kcm-system
+kubectl get pods -n kcm-system
 
 echo ""
 echo "--- CAPI Pods ---"
-sudo k0s kubectl get pods -n capi-system
+# Note: In k0rdent Enterprise, CAPI components run in kcm-system
+kubectl get pods -n kcm-system | grep -E 'capi|capa|capv|capz'
 
 echo ""
 echo "--- Recent Events ---"
-sudo k0s kubectl get events -n kcm-system --sort-by='.lastTimestamp' | tail -10
+kubectl get events -n kcm-system --sort-by='.lastTimestamp' | tail -10
 
 echo ""
 echo "--- Cluster Resources ---"
-sudo k0s kubectl get clusters -A 2>/dev/null || echo "No clusters deployed"
+kubectl get clusters -A 2>/dev/null || echo "No clusters deployed"
 
 echo ""
 echo "=== Health Check Complete ==="
@@ -321,7 +322,7 @@ sudo /usr/local/bin/k0rdent-health-check.sh
 
 ```bash
 # Restrict traffic in kcm-system namespace
-cat << 'EOF' | sudo k0s kubectl apply -f -
+cat << 'EOF' | kubectl apply -f -
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -353,11 +354,11 @@ EOF
 
 ```bash
 # Apply Pod Security Standards to namespaces
-sudo k0s kubectl label namespace team-platform \
+kubectl label namespace team-platform \
   pod-security.kubernetes.io/enforce=restricted \
   pod-security.kubernetes.io/warn=restricted
 
-sudo k0s kubectl label namespace team-ml \
+kubectl label namespace team-ml \
   pod-security.kubernetes.io/enforce=baseline \
   pod-security.kubernetes.io/warn=restricted
 ```
@@ -366,7 +367,7 @@ sudo k0s kubectl label namespace team-ml \
 
 ```bash
 # View k0s encryption configuration (if enabled)
-sudo k0s kubectl get secret -n kube-system | grep encryption
+kubectl get secret -n kube-system | grep encryption
 
 # Note: At-rest encryption requires k0s configuration
 # For production, enable encryption at rest
@@ -378,7 +379,7 @@ sudo k0s kubectl get secret -n kube-system | grep encryption
 
 ```bash
 # Set quotas for team namespaces
-cat << 'EOF' | sudo k0s kubectl apply -f -
+cat << 'EOF' | kubectl apply -f -
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -432,13 +433,14 @@ check() {
 }
 
 # Core Components
-check "sudo k0s kubectl get pods -n kcm-system | grep -q Running" "KCM pods running"
-check "sudo k0s kubectl get pods -n capi-system | grep -q Running" "CAPI pods running"
-check "sudo k0s kubectl get credential -n kcm-system | grep -q aws" "AWS credentials configured"
+check "kubectl get pods -n kcm-system | grep -q Running" "KCM pods running"
+# Note: In k0rdent Enterprise, CAPI components run in kcm-system
+check "kubectl get pods -n kcm-system | grep -E 'capi|capa' | grep -q Running" "CAPI pods running"
+check "kubectl get credential -n kcm-system | grep -q aws" "AWS credentials configured"
 
 # RBAC
-check "sudo k0s kubectl get clusterrole k0rdent-cluster-admin" "Cluster admin role exists"
-check "sudo k0s kubectl get clusterrole k0rdent-cluster-viewer" "Cluster viewer role exists"
+check "kubectl get clusterrole k0rdent-cluster-admin" "Cluster admin role exists"
+check "kubectl get clusterrole k0rdent-cluster-viewer" "Cluster viewer role exists"
 
 # Backup
 check "test -x /usr/local/bin/etcd-backup.sh" "Backup script exists"
@@ -448,7 +450,7 @@ check "test -f /etc/cron.d/etcd-backup" "Backup cron configured"
 check "test -x /usr/local/bin/k0rdent-health-check.sh" "Health check script exists"
 
 # Security
-check "sudo k0s kubectl get networkpolicy -n kcm-system | grep -q deny" "Network policies configured"
+check "kubectl get networkpolicy -n kcm-system | grep -q deny" "Network policies configured"
 
 echo ""
 echo "=== Results ==="

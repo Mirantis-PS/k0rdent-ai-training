@@ -26,7 +26,7 @@ From your management cluster (SSH session):
 
 ```bash
 # Enable port forwarding for the UI
-sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
 ```
 
 From your local machine, create the SSH tunnel:
@@ -93,12 +93,14 @@ Each cluster template includes:
 Find and examine an AWS cluster template:
 
 ```bash
-# From SSH session, view templates via kubectl
-sudo k0s kubectl get clustertemplate -A
+# From SSH session, view templates via kubectl (or use alias: kgct)
+kubectl get clustertemplates -A
 
 # Get details of a specific template
-sudo k0s kubectl get clustertemplate aws-standalone-cp-0-30-0 -n kcm-system -o yaml
+kubectl get clustertemplate -n kcm-system -o yaml | head -100
 ```
+
+> **Note:** Template names vary by k0rdent version. Use `kubectl get clustertemplates -A` to see available templates.
 
 Questions to answer:
 - [ ] What Kubernetes version does it deploy?
@@ -125,10 +127,10 @@ Service templates define applications and services that can be deployed to manag
 
 ```bash
 # List service templates
-sudo k0s kubectl get servicetemplate -A
+kubectl get servicetemplates -A
 
-# View details
-sudo k0s kubectl get servicetemplate -n kcm-system -o yaml | head -100
+# View details of a specific service template
+kubectl get servicetemplate -n kcm-system -o yaml | head -100
 ```
 
 ## Part 5: Management Cluster Configuration
@@ -138,11 +140,11 @@ The management cluster is the control plane for all k0rdent operations.
 ### View Management Configuration
 
 ```bash
-# Get management cluster object
-sudo k0s kubectl get management -A
+# Get management cluster object (or use alias: kgm)
+kubectl get management -A
 
 # View detailed configuration
-sudo k0s kubectl get management kcm -n kcm-system -o yaml
+kubectl get management kcm -n kcm-system -o yaml
 ```
 
 ### Key Configuration Elements
@@ -183,11 +185,11 @@ k0rdent manages credentials for accessing infrastructure providers securely.
 ### View Existing Credentials
 
 ```bash
-# List credential objects
-sudo k0s kubectl get credentials -A
+# List credential objects (or use alias: kgcred)
+kubectl get credentials -A
 
 # List related secrets
-sudo k0s kubectl get secrets -n kcm-system | grep credential
+kubectl get secrets -n kcm-system | grep credential
 ```
 
 ### Credential Types
@@ -211,35 +213,45 @@ Beyond the UI, kubectl provides powerful access to k0rdent resources.
 ### Essential Commands
 
 ```bash
-# View all k0rdent custom resources
-sudo k0s kubectl api-resources | grep k0rdent
+# View all k0rdent custom resources (CRDs use kcm.mirantis.com domain)
+kubectl api-resources | grep kcm.mirantis.com
 
-# List all clusters
-sudo k0s kubectl get clusters -A
+# List all k0rdent CRDs
+kubectl get crds | grep kcm.mirantis.com
 
-# View cluster details
-sudo k0s kubectl describe cluster <cluster-name> -n <namespace>
+# List cluster deployments (or use alias: kgcd)
+kubectl get clusterdeployments -A
 
-# Check cluster status
-sudo k0s kubectl get cluster <cluster-name> -n <namespace> -o jsonpath='{.status}'
+# View cluster deployment details
+kubectl describe clusterdeployment <cluster-name> -n <namespace>
+
+# Check cluster deployment status
+kubectl get clusterdeployment <cluster-name> -n <namespace> -o jsonpath='{.status}'
 ```
 
-### Exercise: Create kubectl Aliases
+### Pre-configured Aliases
 
-Add these aliases to your shell for easier access:
+Your lab environment includes helpful aliases (defined in `/etc/profile.d/k0rdent-lab.sh`):
+
+| Alias | Command | Description |
+|-------|---------|-------------|
+| `k` | `kubectl` | Short kubectl |
+| `kgp` | `kubectl get pods` | List pods |
+| `kgn` | `kubectl get nodes` | List nodes |
+| `kgaa` | `kubectl get all -A` | All resources, all namespaces |
+| `kgm` | `kubectl get management -A` | k0rdent management objects |
+| `kgcd` | `kubectl get clusterdeployment -A` | Cluster deployments |
+| `kgct` | `kubectl get clustertemplates -A` | Cluster templates |
+| `kgcred` | `kubectl get credentials -A` | Credentials |
 
 ```bash
-# Add to ~/.bashrc
-alias kk='sudo k0s kubectl'
-alias kkn='sudo k0s kubectl -n kcm-system'
-
-# Reload
-source ~/.bashrc
-
-# Use aliases
-kk get pods -A
-kkn get management
+# Try the aliases
+kgm          # Get management objects
+kgct         # Get cluster templates
+kgcred       # Get credentials
 ```
+
+> **Tip:** Type `alias` to see all available aliases.
 
 ## Part 8: Configuration Best Practices
 

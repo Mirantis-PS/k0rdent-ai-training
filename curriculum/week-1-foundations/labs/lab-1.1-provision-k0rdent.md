@@ -16,8 +16,10 @@ In this lab, you will:
 
 - AWS CLI configured with valid credentials
 - Terraform >= 1.5.0 installed
-- Git access to the training repository
+- Your own copy of this training repository (fork or template)
 - Basic terminal/shell knowledge
+
+> **Setup Note:** You should have either forked this repository or used "Use this template" on GitHub to create your own copy, then cloned it locally.
 
 ## Lab Environment
 
@@ -28,13 +30,12 @@ In this lab, you will:
 | Kubernetes | k0s v1.32.4 |
 | k0rdent | Enterprise v1.2.1 |
 
-## Part 1: Clone the Training Repository
+## Part 1: Navigate to Lab Infrastructure
 
-If you haven't already, clone the training repository:
+From the root of your cloned training repository:
 
 ```bash
-git clone https://github.com/your-org/k0rdent-ai-training.git
-cd k0rdent-ai-training/lab-infrastructure
+cd lab-infrastructure
 ```
 
 ## Part 2: Verify Prerequisites
@@ -64,10 +65,12 @@ The provisioning script automates the entire setup process including:
 Run the provisioning command:
 
 ```bash
-./scripts/lab-provision.sh k0rdent <your-engineer-id>
+./scripts/lab-provision.sh k0rdent <your-engineer-id> --auto-approve
 ```
 
 Replace `<your-engineer-id>` with your unique identifier (e.g., `engineer-01`, `john-doe`).
+
+> **Example:** `./scripts/lab-provision.sh k0rdent john-doe --auto-approve`
 
 ### Understanding the Output
 
@@ -94,14 +97,16 @@ This establishes an SSH connection through the bastion host.
 Once connected, check the installation status:
 
 ```bash
-# Check k0rdent installation log
-tail -f /var/log/k0rdent-setup.log
+# Check k0rdent installation log (live progress)
+tail -f /var/log/k0rdent-init.log
 
-# Or check the summary
-cat /var/log/k0rdent-setup-complete
+# Or check if installation is complete
+ls /opt/k0rdent-lab/.init-complete && echo "Installation complete!"
 ```
 
 The installation runs in the background and may take 10-15 minutes after the instance is available.
+
+> **Tip:** The lab environment includes helpful aliases. Type `alias` to see them all.
 
 ## Part 5: Verify k0s Cluster
 
@@ -111,72 +116,121 @@ Check that the k0s cluster is running:
 # Check k0s status
 sudo k0s status
 
-# Get cluster nodes
-sudo k0s kubectl get nodes
+# Get cluster nodes (using alias: kgn)
+kubectl get nodes
 
-# Check system pods
-sudo k0s kubectl get pods -A
+# Check system pods (using alias: kgaa)
+kubectl get pods -A
 ```
 
-Expected output should show the node as Ready and system pods running.
+**Expected output:**
+```
+NAME                   STATUS   ROLES           AGE   VERSION
+ip-10-0-xxx-xxx        Ready    control-plane   10m   v1.32.4+k0s
+```
 
 ## Part 6: Verify k0rdent Enterprise Installation
 
 Check k0rdent components:
 
 ```bash
-# Check k0rdent namespace
-sudo k0s kubectl get pods -n kcm-system
-
-# Expected pods:
-# - kcm-controller-manager
-# - kcm-cert-manager
-# - k0rdent-ui (if enabled)
-
-# Check k0rdent CRDs
-sudo k0s kubectl get crds | grep k0rdent
-
-# Check provider templates
-sudo k0s kubectl get clustertemplate -A
-sudo k0s kubectl get servicetemplate -A
+# Check k0rdent namespace (using alias: kgp -n kcm-system)
+kubectl get pods -n kcm-system
 ```
+
+**Expected output:**
+```
+NAME                                      READY   STATUS    RESTARTS   AGE
+kcm-controller-manager-xxx                1/1     Running   0          5m
+kcm-cert-manager-xxx                      1/1     Running   0          5m
+k0rdent-ui-xxx                            1/1     Running   0          5m
+```
+
+```bash
+# Check k0rdent CRDs (they use kcm.mirantis.com domain)
+kubectl get crds | grep kcm.mirantis.com
+
+# Check available cluster templates (using alias: kgct)
+kubectl get clustertemplates -A
+
+# Check credentials (using alias: kgcred)
+kubectl get credentials -A
+```
+
+**Expected CRDs include:**
+- `managements.kcm.mirantis.com`
+- `clusterdeployments.kcm.mirantis.com`
+- `clustertemplates.kcm.mirantis.com`
+- `credentials.kcm.mirantis.com`
 
 ## Part 7: Access the k0rdent UI
 
-The k0rdent UI is accessible via port-forwarding. From your management cluster SSH session:
+The k0rdent UI is accessible via port-forwarding.
 
+**Option A: Two-terminal approach**
+
+Terminal 1 (SSH to management cluster):
 ```bash
-# Start port-forward in background
-sudo k0s kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+./scripts/lab-connect.sh k0rdent <your-engineer-id>
+# Then start port-forward:
+kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0
 ```
 
-Then, from your local machine, create an SSH tunnel:
-
+Terminal 2 (local machine - create tunnel):
 ```bash
 ./scripts/lab-connect.sh k0rdent <your-engineer-id> --tunnel 8080:8080
 ```
 
+**Option B: Single command with background port-forward**
+
+From your SSH session on the management cluster:
+```bash
+kubectl port-forward svc/k0rdent-ui -n kcm-system 8080:80 --address 0.0.0.0 &
+```
+
+Then open a new local terminal:
+```bash
+./scripts/lab-connect.sh k0rdent <your-engineer-id> --tunnel 8080:8080
+```
+
+**Access the UI:**
+
 Open your browser to: `http://localhost:8080`
 
 **Credentials:**
-- Username: admin
-- Password: Retrieve with `cd lab-infrastructure/terraform/environments/k0rdent && terraform output -raw ui_password`
+- **Username:** `admin`
+- **Password:** From your local machine, run:
+  ```bash
+  cd lab-infrastructure/terraform/environments/k0rdent && terraform output -raw ui_password
+  ```
 
 ## Part 8: Explore k0rdent Resources
 
-Using kubectl, explore the k0rdent resources:
+Using kubectl (or the pre-configured aliases), explore the k0rdent resources:
 
 ```bash
-# List management clusters
-sudo k0s kubectl get management -A
+# List management objects (using alias: kgm)
+kubectl get management -A
 
-# List available templates
-sudo k0s kubectl get clustertemplate -A
-sudo k0s kubectl get servicetemplate -A
+# List available cluster templates (using alias: kgct)
+kubectl get clustertemplates -A
 
-# View k0rdent configuration
-sudo k0s kubectl get management kcm -n kcm-system -o yaml
+# List cluster deployments (using alias: kgcd)
+kubectl get clusterdeployments -A
+
+# List configured credentials (using alias: kgcred)
+kubectl get credentials -A
+
+# View the Management object configuration
+kubectl get management -n kcm-system -o yaml
 ```
+
+**Understanding the Output:**
+
+- **Management**: The core k0rdent configuration object
+- **ClusterTemplates**: Pre-defined cluster configurations (AWS, Azure, vSphere, etc.)
+- **ClusterDeployments**: Actual deployed clusters (none yet - you'll create these in later labs)
+- **Credentials**: Cloud provider credentials for provisioning
 
 ## Validation Checklist
 
@@ -225,7 +279,10 @@ sudo k0s kubectl logs <pod-name> -n kcm-system
 **Installation still running:**
 ```bash
 # Check progress
-tail -f /var/log/k0rdent-setup.log
+tail -f /var/log/k0rdent-init.log
+
+# Check if complete
+ls /opt/k0rdent-lab/.init-complete
 
 # Installation typically takes 10-15 minutes
 ```
@@ -235,10 +292,10 @@ tail -f /var/log/k0rdent-setup.log
 When finished with the lab, you can destroy the environment:
 
 ```bash
-./scripts/lab-destroy.sh k0rdent <your-engineer-id>
+./scripts/lab-destroy.sh k0rdent <your-engineer-id> --auto-approve
 ```
 
-**Note:** Only destroy if you're done with all Week 1 labs, as subsequent labs build on this environment.
+> **Important:** Only destroy if you're done with **all Week 1 labs**, as subsequent labs build on this environment.
 
 ## Summary
 
@@ -247,6 +304,21 @@ In this lab, you:
 - Connected to the cluster via SSH through a bastion host
 - Verified k0s and k0rdent Enterprise installation
 - Explored the k0rdent UI and Kubernetes resources
+
+## Quick Reference: Aliases
+
+Your lab environment includes these helpful aliases:
+
+| Alias | Command | Description |
+|-------|---------|-------------|
+| `k` | `kubectl` | Short kubectl |
+| `kgp` | `kubectl get pods` | List pods |
+| `kgn` | `kubectl get nodes` | List nodes |
+| `kgaa` | `kubectl get all -A` | All resources, all namespaces |
+| `kgm` | `kubectl get management -A` | k0rdent management objects |
+| `kgcd` | `kubectl get clusterdeployment -A` | Cluster deployments |
+| `kgct` | `kubectl get clustertemplates -A` | Cluster templates |
+| `kgcred` | `kubectl get credentials -A` | Credentials |
 
 ## Next Lab
 
