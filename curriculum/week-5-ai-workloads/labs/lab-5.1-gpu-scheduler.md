@@ -1,12 +1,12 @@
 # Lab 5.1 - GPU Scheduler Deployment
 
-**Duration:** 3 hours
+**Duration:** 3.5 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab
 
 ## Objective
 
-Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, enabling features like gang scheduling, fractional GPU allocation, and priority queues that the default Kubernetes scheduler lacks.
+Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, enabling features like gang scheduling, fractional GPU allocation, priority queues, and topology-aware NCCL optimization that the default Kubernetes scheduler lacks.
 
 ## Prerequisites
 
@@ -15,9 +15,60 @@ Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, e
 - At least 2 GPU nodes for scheduling demonstrations
 - kubectl access with cluster-admin privileges
 
-## Background
+---
 
-### Why Advanced GPU Schedulers?
+## Background: GPU Communication Architecture
+
+### Understanding GPU Interconnects
+
+Before deploying a GPU scheduler, it's essential to understand the hardware topology that influences scheduling decisions:
+
+```
+Multi-GPU Node Architecture (e.g., p4d.24xlarge, ND A100 v4):
+┌─────────────────────────────────────────────────────────────────┐
+│                        8-GPU Node                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│    ┌─────┐   NVSwitch    ┌─────┐   NVSwitch    ┌─────┐         │
+│    │GPU 0│◄─────┬───────►│GPU 1│◄─────┬───────►│GPU 2│         │
+│    └──┬──┘      │        └──┬──┘      │        └──┬──┘         │
+│       │    600 GB/s        │    600 GB/s        │              │
+│    ┌──▼──┐      │        ┌──▼──┐      │        ┌──▼──┐         │
+│    │GPU 3│◄─────┴───────►│GPU 4│◄─────┴───────►│GPU 5│         │
+│    └──┬──┘               └──┬──┘               └──┬──┘         │
+│       │                     │                     │             │
+│    ┌──▼──┐               ┌──▼──┐               ┌──▼──┐         │
+│    │GPU 6│◄─────────────►│GPU 7│               │ ... │         │
+│    └─────┘   NVSwitch    └─────┘               └─────┘         │
+│                                                                 │
+│    All GPUs connected via NVSwitch at 600-900 GB/s             │
+│    (vs PCIe at 64 GB/s - 10x difference!)                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### What is NCCL?
+
+**NVIDIA Collective Communications Library (NCCL)** is the standard for GPU-to-GPU communication in distributed AI workloads. It automatically detects and utilizes:
+- **NVLink/NVSwitch** for intra-node communication (600-900 GB/s)
+- **RDMA/InfiniBand/EFA** for inter-node communication (200-400 Gb/s)
+- **PCIe** as fallback (64 GB/s - avoid for AI workloads)
+
+### Why NCCL Configuration Matters
+
+| Communication Type | Bandwidth | Latency | Use Case |
+|-------------------|-----------|---------|----------|
+| NVLink (A100) | 600 GB/s | <1 us | Tensor parallelism |
+| NVSwitch (H100) | 900 GB/s | <1 us | All-reduce within node |
+| InfiniBand | 400 Gb/s | ~2 us | Pipeline parallelism |
+| EFA (AWS) | 400 Gb/s | ~5 us | Data parallelism |
+| PCIe 5.0 | 64 GB/s | ~10 us | **Avoid for multi-GPU** |
+| TCP/Ethernet | 12.5 GB/s | ~50 us | **Never use for AI** |
+
+**Key Insight:** A topology-unaware scheduler might place GPUs across PCIe instead of NVLink, reducing performance by 10x.
+
+---
+
+## Why Advanced GPU Schedulers?
 
 The default Kubernetes scheduler has limitations for AI/ML workloads:
 
@@ -475,7 +526,194 @@ If your cluster supports GPU time-slicing or MIG:
    # Should show 4x the physical GPU count
    ```
 
-### Task 7: Monitor Scheduler Metrics (15 min)
+### Task 7: Configure Enterprise NCCL Settings (30 min)
+
+Proper NCCL configuration is critical for multi-GPU workloads. This task creates a standardized configuration for AI workloads.
+
+1. **Verify GPU Topology**
+
+   Before configuring NCCL, understand your node's topology:
+
+   ```bash
+   # SSH to a GPU node or exec into a GPU pod
+   nvidia-smi topo -m
+   ```
+
+   **Expected output for 8-GPU NVSwitch node:**
+   ```
+           GPU0  GPU1  GPU2  GPU3  GPU4  GPU5  GPU6  GPU7  NIC0  CPU
+   GPU0     X    NV12  NV12  NV12  NV12  NV12  NV12  NV12  SYS   SYS
+   GPU1    NV12   X    NV12  NV12  NV12  NV12  NV12  NV12  SYS   SYS
+   ...
+   ```
+
+   **Legend:**
+   - `NV#` = NVLink connection (NV12 = 12 NVLinks = NVSwitch full-mesh)
+   - `SYS` = System/PCIe connection (avoid for multi-GPU)
+   - `PHB` = PCIe Host Bridge
+
+2. **Create NCCL Configuration ConfigMap**
+
+   ```yaml
+   # Save as nccl-enterprise-config.yaml
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: nccl-enterprise-config
+     namespace: default
+   data:
+     # ===== Core NCCL Settings =====
+     # Debug level (WARN for production, INFO for troubleshooting)
+     NCCL_DEBUG: "WARN"
+
+     # Enable all debug subsystems when troubleshooting
+     # NCCL_DEBUG_SUBSYS: "INIT,COLL,P2P,NET,GRAPH,TUNING"
+
+     # ===== P2P (Peer-to-Peer) Configuration =====
+     # Force NVLink usage for P2P communication
+     NCCL_P2P_LEVEL: "NVL"
+
+     # Disable P2P entirely (use only if NVLink causing issues)
+     # NCCL_P2P_DISABLE: "0"
+
+     # ===== RDMA/GPUDirect Configuration =====
+     # Enable GPUDirect RDMA (0=disable, 5=full)
+     NCCL_NET_GDR_LEVEL: "5"
+
+     # For AWS EFA
+     # FI_EFA_USE_DEVICE_RDMA: "1"
+     # FI_PROVIDER: "efa"
+
+     # For Azure InfiniBand
+     NCCL_IB_DISABLE: "0"
+     NCCL_IB_HCA: "mlx5"
+
+     # ===== Performance Tuning =====
+     # Buffer size for NCCL operations (default 4MB, increase for large models)
+     NCCL_BUFFSIZE: "8388608"
+
+     # Number of CUDA threads for NCCL kernels
+     NCCL_NTHREADS: "512"
+
+     # Socket threads for TCP fallback (not usually needed with RDMA)
+     NCCL_SOCKET_NTHREADS: "4"
+     NCCL_NSOCKS_PERTHREAD: "4"
+
+     # ===== Algorithm Selection =====
+     # Tree algorithm threshold (0 = always use tree, good for many nodes)
+     NCCL_TREE_THRESHOLD: "0"
+
+     # Minimum rings for ring algorithm
+     NCCL_MIN_NRINGS: "4"
+
+     # ===== CUDA Optimization =====
+     # Max CUDA streams (1 for Megatron async, higher for other frameworks)
+     CUDA_DEVICE_MAX_CONNECTIONS: "1"
+   ```
+
+   ```bash
+   kubectl apply -f nccl-enterprise-config.yaml
+   ```
+
+3. **Create NCCL Test Deployment**
+
+   Test the NCCL configuration with a multi-GPU workload:
+
+   ```yaml
+   # Save as nccl-config-test.yaml
+   apiVersion: v1
+   kind: Pod
+   metadata:
+     name: nccl-config-test
+     namespace: default
+   spec:
+     restartPolicy: Never
+     containers:
+       - name: nccl-test
+         image: nvcr.io/nvidia/pytorch:24.12-py3
+         command: ["bash", "-c"]
+         args:
+           - |
+             echo "=== NCCL Environment Variables ==="
+             env | grep -E "^NCCL|^FI_|^CUDA" | sort
+
+             echo ""
+             echo "=== GPU Topology ==="
+             nvidia-smi topo -m
+
+             echo ""
+             echo "=== Running NCCL All-Reduce Test ==="
+             cd /opt/nccl-tests/build
+             ./all_reduce_perf -b 1M -e 1G -f 2 -g 4
+
+             echo ""
+             echo "=== Test Complete ==="
+         envFrom:
+           - configMapRef:
+               name: nccl-enterprise-config
+         resources:
+           limits:
+             nvidia.com/gpu: 4
+           requests:
+             nvidia.com/gpu: 4
+         securityContext:
+           capabilities:
+             add: ["IPC_LOCK"]
+         volumeMounts:
+           - name: shm
+             mountPath: /dev/shm
+     volumes:
+       - name: shm
+         emptyDir:
+           medium: Memory
+           sizeLimit: 16Gi
+     tolerations:
+       - key: nvidia.com/gpu
+         operator: Exists
+         effect: NoSchedule
+   ```
+
+   ```bash
+   kubectl apply -f nccl-config-test.yaml
+
+   # Watch the test
+   kubectl logs -f nccl-config-test
+   ```
+
+4. **Interpret NCCL Test Results**
+
+   Look for these indicators in the output:
+
+   ```
+   # Good - NVLink being used:
+   NCCL INFO P2P using NVLINK
+
+   # Good - High bus bandwidth (600+ GB/s for 4 GPUs):
+   #       busbw: 650.23 GB/s
+
+   # Bad - PCIe fallback:
+   NCCL WARN P2P not available between GPU 0 and GPU 1
+
+   # Bad - TCP fallback:
+   NCCL INFO NET/Socket : Using [0]eth0
+   ```
+
+5. **NCCL Configuration for Different Scenarios**
+
+   | Scenario | Key Settings |
+   |----------|--------------|
+   | **Single-node, NVLink** | `NCCL_P2P_LEVEL=NVL` |
+   | **Multi-node, InfiniBand** | `NCCL_IB_DISABLE=0`, `NCCL_NET_GDR_LEVEL=5` |
+   | **Multi-node, AWS EFA** | `FI_EFA_USE_DEVICE_RDMA=1`, `FI_PROVIDER=efa` |
+   | **Debugging connectivity** | `NCCL_DEBUG=INFO`, `NCCL_DEBUG_SUBSYS=INIT,NET` |
+   | **Maximum performance** | `NCCL_BUFFSIZE=8388608`, `NCCL_NTHREADS=512` |
+
+6. **Clean Up Test Pod**
+   ```bash
+   kubectl delete pod nccl-config-test
+   ```
+
+### Task 8: Monitor Scheduler Metrics (15 min)
 
 1. **Access Scheduler Metrics**
    ```bash
@@ -513,21 +751,36 @@ If your cluster supports GPU time-slicing or MIG:
 
 ## Deliverables
 
+### Basic Deliverables
 - [ ] **Screenshot** of KAI scheduler pods running
 - [ ] **Queue configuration** YAML files
 - [ ] **Gang scheduling test results** showing both pods scheduled together
 - [ ] **Preemption demo** showing high priority preempting low priority
 - [ ] **Scheduler metrics output** from `/metrics` endpoint
-- [ ] **Notes** on observed scheduling behavior
+
+### NCCL Configuration Deliverables
+- [ ] **GPU topology output** (`nvidia-smi topo -m`)
+- [ ] **NCCL enterprise ConfigMap** deployed
+- [ ] **NCCL test results** showing NVLink utilization
+- [ ] **Bus bandwidth measurement** (should be 500+ GB/s for 4 GPUs)
+- [ ] **Documentation** of NCCL settings for your environment
 
 ## Verification Checklist
 
+### Scheduler
 - [ ] KAI scheduler deployed and running
 - [ ] Priority classes created
 - [ ] Resource queues configured
 - [ ] Gang scheduling working correctly
 - [ ] Priority preemption functioning
 - [ ] Scheduler metrics accessible
+
+### NCCL/GPU Communication
+- [ ] GPU topology verified (NVLink connections visible)
+- [ ] NCCL ConfigMap applied correctly
+- [ ] NCCL test shows `P2P using NVLINK` (not PCIe)
+- [ ] Bus bandwidth >500 GB/s (4 GPUs) or >800 GB/s (8 GPUs)
+- [ ] No TCP fallback warnings in NCCL output
 
 ## Troubleshooting
 
@@ -580,13 +833,40 @@ kubectl get priorityclass high-priority-gpu -o yaml
 
 ## Key Takeaways
 
+### GPU Scheduling
 1. **Default Kubernetes scheduler lacks GPU-aware features** needed for AI/ML workloads
 2. **Gang scheduling prevents partial job starts** that waste resources in distributed training
 3. **Priority classes and queues enable fair resource sharing** across teams
 4. **Preemption ensures critical workloads get resources** when needed
 5. **Fractional GPU sharing** maximizes utilization for small workloads
-6. **Always pin scheduler versions** in production for stability
-7. **Monitor scheduler metrics** to understand resource utilization patterns
+
+### NCCL and GPU Communication
+6. **NVLink provides 10x bandwidth over PCIe** - topology-aware scheduling is essential
+7. **NCCL environment variables control GPU communication paths** - misconfiguration causes 10x performance loss
+8. **Always verify GPU topology** before deploying multi-GPU workloads
+9. **RDMA/GPUDirect configuration differs by platform** - AWS EFA vs Azure InfiniBand have different settings
+10. **Test NCCL before production** - bus bandwidth should be 500+ GB/s for 4 GPUs
+
+### Operations
+11. **Always pin scheduler versions** in production for stability
+12. **Monitor scheduler metrics** to understand resource utilization patterns
+13. **Use NCCL_DEBUG=INFO** when troubleshooting communication issues
+
+---
+
+## References
+
+### NVIDIA
+- [NCCL Environment Variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)
+- [GPU Operator Documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/)
+- [NCCL Tests GitHub](https://github.com/NVIDIA/nccl-tests)
+
+### Kubernetes
+- [KAI Scheduler](https://github.com/project-codeflare/kai-scheduler)
+- [Volcano Scheduler](https://volcano.sh/)
+- [Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+
+---
 
 ## Next Lab
 
