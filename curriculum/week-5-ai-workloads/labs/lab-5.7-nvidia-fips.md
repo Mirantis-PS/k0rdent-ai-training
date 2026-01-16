@@ -1,5 +1,35 @@
 # Lab 5.7 - NVIDIA FIPS Configuration
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Compliance & Templates | Recommended | 2 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                    YOU ARE HERE
+━━━━━━━━━━━━━━━━━━━━                         ↓
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6      COMPLIANCE
+                                        ━━━━━━━━━━━
+                                        [5.7] ➔ 5.8
+                                              ↓
+                         ┌────────────────────┴────────────────────┐
+                         ▼                                         ▼
+                    ML PLATFORMS                              ADVANCED
+                    ━━━━━━━━━━━━                              ━━━━━━━━
+                    5.9 ➔ 5.10 ➔ 5.11 ➔ 5.12           5.13 ➔ 5.14 ➔ 5.15
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.6 - Troubleshooting](lab-5.6-troubleshooting-gpu.md) | **Lab 5.7 - NVIDIA FIPS** | [Lab 5.8 - Cluster Templates](lab-5.8-cluster-templates.md) |
+
+---
+
 **Duration:** 2 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab

@@ -1,5 +1,29 @@
 # Lab 5.4 - Jupyter Notebook Stack
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Foundation | Required | 1.5 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                         CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ [5.4] ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
+                    ↑                         Compliance (5.7-5.8)
+               YOU ARE HERE                   Advanced (5.13-5.15)
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.3 - Vector Database](lab-5.3-vector-database.md) | **Lab 5.4 - Jupyter Notebooks** | [Lab 5.5 - Service Catalog](lab-5.5-service-catalog.md) |
+
+---
+
 **Duration:** 1.5 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab

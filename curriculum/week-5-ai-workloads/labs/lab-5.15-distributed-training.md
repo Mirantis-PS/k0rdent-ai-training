@@ -1,5 +1,39 @@
 # Lab 5.15 - Multi-Node Distributed Training
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Advanced Optimization | Optional | 4.5 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                         ADVANCED OPTIMIZATION
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.13 TensorRT-LLM
+                                                  ↓
+                                              5.14 Multi-Cloud RDMA
+                                                  ↓
+                                             YOU ARE HERE
+                                                  ↓
+                                             [5.15] Distributed Training
+                                                  ↓
+                                              WEEK 5 COMPLETE!
+
+After this lab:
+• ML Platforms Track (5.9-5.12) for MLOps
+• Week 6: Multi-tenancy
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.14 - Multi-Cloud RDMA](lab-5.14-rdma-multi-cloud.md) | **Lab 5.15 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multi-tenancy/README.md) |
+
+---
+
 **Duration:** 4.5 hours
 **Type:** Hands-on Technical (Advanced)
 **Environment:** 2+ GPU nodes (p4d.24xlarge or ND A100 v4)

@@ -1,5 +1,35 @@
 # Lab 5.13 - TensorRT-LLM Inference Optimization
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Advanced Optimization | Optional | 3.5 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                         ADVANCED OPTIMIZATION
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6         YOU ARE HERE
+                                                  ↓
+                                             [5.13] TensorRT-LLM
+                                                  ↓
+                                              5.14 Multi-Cloud RDMA
+                                                  ↓
+                                              5.15 Distributed Training
+                                                  ↓
+                                             END (or ML Platforms)
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.6 - Troubleshooting](lab-5.6-troubleshooting-gpu.md) | **Lab 5.13 - TensorRT-LLM** | [Lab 5.14 - Multi-Cloud RDMA](lab-5.14-rdma-multi-cloud.md) |
+
+---
+
 **Duration:** 3.5 hours
 **Type:** Hands-on Technical (Advanced)
 **Environment:** GPU Lab (A100/H100 recommended)

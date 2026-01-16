@@ -1,5 +1,29 @@
 # Lab 5.3 - Vector Database Deployment
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Foundation | Required | 2 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                         CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ [5.3] ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
+              ↑                               Compliance (5.7-5.8)
+         YOU ARE HERE                         Advanced (5.13-5.15)
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.2 - vLLM Inference](lab-5.2-vllm-inference.md) | **Lab 5.3 - Vector Database** | [Lab 5.4 - Jupyter Notebooks](lab-5.4-jupyter-notebooks.md) |
+
+---
+
 **Duration:** 2 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab (GPU optional but recommended for embedding generation)

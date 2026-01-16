@@ -1,5 +1,29 @@
 # Lab 5.2 - Deploy vLLM Inference Service
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Foundation | Required | 4 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                         CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
+5.1 ➔ [5.2] ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
+       ↑                                      Compliance (5.7-5.8)
+  YOU ARE HERE                                Advanced (5.13-5.15)
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.1 - GPU Scheduler](lab-5.1-gpu-scheduler.md) | **Lab 5.2 - vLLM Inference** | [Lab 5.3 - Vector Database](lab-5.3-vector-database.md) |
+
+---
+
 **Duration:** 4 hours (includes advanced topics)
 **Type:** Hands-on Technical
 **Environment:** GPU Lab

@@ -1,5 +1,35 @@
 # Lab 5.14 - Multi-Cloud RDMA Deep Dive: AWS EFA vs Azure InfiniBand
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Advanced Optimization | Optional | 4 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                         ADVANCED OPTIMIZATION
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.13 TensorRT-LLM
+                                                  ↓
+                                             YOU ARE HERE
+                                                  ↓
+                                             [5.14] Multi-Cloud RDMA
+                                                  ↓
+                                              5.15 Distributed Training
+                                                  ↓
+                                             END (or ML Platforms)
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) | **Lab 5.14 - Multi-Cloud RDMA** | [Lab 5.15 - Distributed Training](lab-5.15-distributed-training.md) |
+
+---
+
 **Duration:** 4 hours
 **Type:** Hands-on Technical (Advanced)
 **Environment:** AWS p4d.24xlarge or Azure ND A100 v4

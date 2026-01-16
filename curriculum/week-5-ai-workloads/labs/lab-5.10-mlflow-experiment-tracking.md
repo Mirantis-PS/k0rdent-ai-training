@@ -1,5 +1,35 @@
 # Lab 5.10 - MLflow Experiment Tracking
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| ML Platforms | Recommended | 2.5 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                         ML PLATFORMS
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.9 Kubeflow
+                                                  ↓
+                                             YOU ARE HERE
+                                                  ↓
+                                             [5.10] MLflow
+                                                  ↓
+                                              5.11 Run:AI
+                                                  ↓
+                                              5.12 Slurm ➔ Week 6
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) | **Lab 5.10 - MLflow** | [Lab 5.11 - Run:AI](lab-5.11-runai-gpu-orchestration.md) |
+
+---
+
 **Duration:** 2.5 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab

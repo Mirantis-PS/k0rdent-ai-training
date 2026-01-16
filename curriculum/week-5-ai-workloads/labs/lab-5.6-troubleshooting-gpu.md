@@ -1,5 +1,39 @@
 # Lab 5.6 - Troubleshooting GPU Scheduling
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Foundation | Required | 2 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required) ─ COMPLETE!             CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ [5.6]
+                                ↑
+                           YOU ARE HERE
+                                │
+         ┌──────────────────────┼──────────────────────┐
+         ▼                      ▼                      ▼
+    ML PLATFORMS           COMPLIANCE             ADVANCED
+    (Recommended)        (If Required)           (Optional)
+    ━━━━━━━━━━━━         ━━━━━━━━━━━━           ━━━━━━━━
+    5.9 Kubeflow         5.7 FIPS               5.13 TensorRT-LLM
+    5.10 MLflow          5.8 Templates          5.14 RDMA
+    5.11 Run:AI                                 5.15 Distributed
+    5.12 Slurm
+```
+
+| Previous | Current | Next (Choose One) |
+|----------|---------|-------------------|
+| [Lab 5.5 - Service Catalog](lab-5.5-service-catalog.md) | **Lab 5.6 - Troubleshooting** | [5.7 FIPS](lab-5.7-nvidia-fips.md) / [5.9 Kubeflow](lab-5.9-kubeflow-ml-platform.md) / [5.13 TensorRT](lab-5.13-tensorrt-llm.md) |
+
+---
+
 **Duration:** 2 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab
@@ -598,6 +632,24 @@ GPU Not Detected?
 6. **Startup probes** are essential for ML workloads with long initialization
 7. **Document common issues** for team knowledge sharing
 
-## Next Lab
+## Next Steps - Choose Your Path
 
-Proceed to [Lab 5.7 - NVIDIA FIPS Configuration](lab-5.7-nvidia-fips.md)
+You have completed the **Foundation Track**! Choose your next learning path:
+
+### ML Platforms Track (Recommended)
+Build end-to-end ML workflows:
+- [Lab 5.9 - Kubeflow ML Platform](lab-5.9-kubeflow-ml-platform.md) - Pipelines, training operators, Katib
+- [Lab 5.10 - MLflow Experiment Tracking](lab-5.10-mlflow-experiment-tracking.md) - Model registry, artifacts
+- [Lab 5.11 - Run:AI GPU Orchestration](lab-5.11-runai-gpu-orchestration.md) - Quotas, fractional GPU
+- [Lab 5.12 - Slurm Operator for HPC](lab-5.12-slurm-operator-hpc.md) - Traditional HPC integration
+
+### Compliance & Templates Track (If Required)
+For regulated environments:
+- [Lab 5.7 - NVIDIA FIPS Configuration](lab-5.7-nvidia-fips.md) - FIPS 140-2 compliance
+- [Lab 5.8 - Cluster Templates for AI](lab-5.8-cluster-templates.md) - k0rdent ClusterTemplates
+
+### Advanced Optimization Track (Optional)
+For maximum performance:
+- [Lab 5.13 - TensorRT-LLM Optimization](lab-5.13-tensorrt-llm.md) - Advanced inference
+- [Lab 5.14 - Multi-Cloud RDMA](lab-5.14-rdma-multi-cloud.md) - EFA vs InfiniBand
+- [Lab 5.15 - Distributed Training](lab-5.15-distributed-training.md) - Multi-node training

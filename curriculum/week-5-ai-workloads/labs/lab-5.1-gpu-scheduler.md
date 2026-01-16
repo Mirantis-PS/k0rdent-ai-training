@@ -1,5 +1,31 @@
 # Lab 5.1 - GPU Scheduler Deployment
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| Foundation | Required | 3.5 hours |
+
+### Week 5 Learning Paths
+
+```
+YOU ARE HERE
+     ↓
+FOUNDATION (Required)                         CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
+[5.1] ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
+                                              Compliance (5.7-5.8)
+                                              Advanced (5.13-5.15)
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Week 5 Overview](../README.md) | **Lab 5.1 - GPU Scheduler** | [Lab 5.2 - vLLM Inference](lab-5.2-vllm-inference.md) |
+
+---
+
 **Duration:** 3.5 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab

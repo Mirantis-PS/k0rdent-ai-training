@@ -1,5 +1,35 @@
 # Lab 5.11 - Run:AI GPU Orchestration
 
+---
+
+## Lab Navigation
+
+| Track | Tier | Duration |
+|-------|------|----------|
+| ML Platforms | Recommended | 3 hours |
+
+### Week 5 Learning Paths
+
+```
+FOUNDATION (Required)                         ML PLATFORMS
+━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.9 Kubeflow
+                                                  ↓
+                                              5.10 MLflow
+                                                  ↓
+                                             YOU ARE HERE
+                                                  ↓
+                                             [5.11] Run:AI
+                                                  ↓
+                                              5.12 Slurm ➔ Week 6
+```
+
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.10 - MLflow](lab-5.10-mlflow-experiment-tracking.md) | **Lab 5.11 - Run:AI** | [Lab 5.12 - Slurm](lab-5.12-slurm-operator-hpc.md) |
+
+---
+
 **Duration:** 3 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab
