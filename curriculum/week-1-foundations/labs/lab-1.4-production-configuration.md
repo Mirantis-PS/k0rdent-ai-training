@@ -493,14 +493,6 @@ In this lab, you:
 - Applied security hardening measures
 - Created production readiness assessment
 
-## Week 1 Complete!
+## Next Lab
 
-Congratulations on completing Week 1! You have:
-- Deployed a k0rdent Enterprise management cluster
-- Explored the k0rdent UI and configuration
-- Configured AWS infrastructure provider
-- Hardened the setup for production use
-
-## Next Week
-
-Proceed to [Week 2: Bare Metal as a Service](../../week-2-bmaas/README.md) to learn how to manage bare metal infrastructure with k0rdent.
+Continue to [Lab 1.5: Provision Your First Managed Cluster](lab-1.5-provision-managed-cluster.md)

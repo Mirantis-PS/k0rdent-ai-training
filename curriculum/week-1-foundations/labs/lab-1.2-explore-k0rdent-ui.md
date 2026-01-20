@@ -8,7 +8,8 @@
 In this lab, you will:
 - Navigate the k0rdent Enterprise UI
 - Understand the dashboard and key metrics
-- Explore cluster templates and service templates
+- Explore cluster templates
+- Understand the external Service Catalog model
 - Review management cluster configuration
 - Understand credential management concepts
 
@@ -107,31 +108,104 @@ Questions to answer:
 - [ ] What is the default instance type for control plane nodes?
 - [ ] What CNI is configured?
 
-## Part 4: Explore Service Templates
+## Part 4: Understanding the Service Catalog
 
-Service templates define applications and services that can be deployed to managed clusters.
+k0rdent Enterprise uses an **external Service Catalog** model for deploying applications and services to managed clusters. ServiceTemplates still exist as Kubernetes CRDs, but the templates themselves are hosted externally and installed on-demand.
 
-### Navigate to Service Templates
+### The Service Catalog Architecture
 
-1. In the UI, go to **Templates** > **Service Templates**
-2. Review available services
+```
++-------------------------+     +---------------------------+
+|   catalog.k0rdent.io    |     |   k0rdent Management      |
+|   (External Catalog)    |     |   Cluster                 |
++------------+------------+     +-------------+-------------+
+             |                                |
+             | helm install                   |
+             +--------------->----------------+
+                                              |
+                              +---------------v---------------+
+                              |  ServiceTemplate CRD          |
+                              |  (installed in kcm-system)    |
+                              +---------------+---------------+
+                                              |
+                              +---------------v---------------+
+                              |  MultiClusterService          |
+                              |  (deploys to managed clusters)|
+                              +-------------------------------+
+```
 
-### Common Service Templates
+### Browse the Service Catalog
 
-- **Ingress Controllers** (nginx, traefik)
-- **Monitoring** (Prometheus, Grafana)
-- **Logging** (Fluentd, Loki)
-- **Storage** (CSI drivers)
+Open your browser to: **https://catalog.k0rdent.io/**
 
-### Exercise: Examine Service Template
+The catalog provides **150+ validated services** across categories:
+
+| Category | Example Services |
+|----------|-----------------|
+| **AI/Machine Learning** | NVIDIA GPU Operator, KubeRay, KServe, MLflow |
+| **Networking** | ingress-nginx, Cilium, Istio, MetalLB, cert-manager |
+| **Security** | Kyverno, External Secrets, Falco, Gatekeeper |
+| **Storage & Databases** | PostgreSQL Operator, MinIO, Milvus (vector DB) |
+| **Monitoring** | Grafana, kube-prometheus-stack, VictoriaMetrics, OpenCost |
+| **CI/CD** | Argo CD, GitLab, Harbor |
+
+> **Enterprise Services:** Some services are marked as "Enterprise-only" (e.g., Ceph, StackLight, MSR). These are available exclusively with k0rdent Enterprise.
+
+### Exercise: Explore the Catalog
+
+Take 10 minutes to browse the catalog:
+- [ ] Find the ingress-nginx service and note its available versions
+- [ ] Locate the AI/Machine Learning category
+- [ ] Identify at least one Enterprise-only service
+
+### Check Currently Installed ServiceTemplates
 
 ```bash
-# List service templates
+# List any ServiceTemplates already installed
 kubectl get servicetemplates -A
 
-# View details of a specific service template
-kubectl get servicetemplate -n kcm-system -o yaml | head -100
+# You may see minimal or no templates - this is expected!
+# Templates are installed from the catalog as needed
 ```
+
+### Install a ServiceTemplate from the Catalog
+
+To use a service, you first install its ServiceTemplate from the catalog:
+
+```bash
+# Example: Install the ingress-nginx ServiceTemplate
+helm install ingress-nginx-service-template \
+  oci://ghcr.io/k0rdent/catalog/charts/ingress-nginx-service-template \
+  --version 4.11.0 \
+  -n kcm-system
+
+# Verify it's now available
+kubectl get servicetemplates -n kcm-system
+```
+
+> **Note:** We'll cover deploying services to managed clusters in detail in **Lab 1.7: Multi-Cluster Service Deployment**.
+
+### ServiceTemplate Structure
+
+Once installed, examine a ServiceTemplate:
+
+```bash
+# View the installed ServiceTemplate
+kubectl get servicetemplate ingress-nginx-4-11-0 -n kcm-system -o yaml
+```
+
+Key fields:
+- **spec.helm.chartSpec**: References the Helm chart to deploy
+- **spec.helm.chartSpec.sourceRef**: Points to the HelmRepository
+
+### Why External Catalog?
+
+| Aspect | Bundled Templates (Old) | External Catalog (Current) |
+|--------|------------------------|---------------------------|
+| **Updates** | Tied to k0rdent releases | Updated independently |
+| **Selection** | Limited set | 150+ services |
+| **Customization** | Difficult | Easy version selection |
+| **Enterprise** | Mixed | Clear Enterprise-only marking |
 
 ## Part 5: Management Cluster Configuration
 
@@ -303,7 +377,8 @@ Before completing this lab, verify:
 - [ ] Successfully logged into k0rdent UI
 - [ ] Explored dashboard and understood key metrics
 - [ ] Reviewed at least one cluster template
-- [ ] Reviewed at least one service template
+- [ ] Browsed the Service Catalog at catalog.k0rdent.io
+- [ ] Understood the external catalog model for ServiceTemplates
 - [ ] Understood management cluster configuration
 - [ ] Learned credential management concepts
 - [ ] Practiced kubectl commands for k0rdent resources
@@ -312,7 +387,8 @@ Before completing this lab, verify:
 
 In this lab, you:
 - Navigated the k0rdent Enterprise UI
-- Explored cluster and service templates
+- Explored cluster templates
+- Learned about the external Service Catalog model (catalog.k0rdent.io)
 - Reviewed management cluster configuration
 - Understood credential management flow
 - Practiced kubectl commands for k0rdent
