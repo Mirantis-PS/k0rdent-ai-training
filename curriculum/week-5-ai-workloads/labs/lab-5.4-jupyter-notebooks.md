@@ -414,8 +414,13 @@ JupyterHub provides multi-user Jupyter notebook environments:
 
 2. **Check GPU Allocation**
    ```bash
-   # View GPU usage in user pod
-   kubectl exec -n jupyter jupyter-admin -- nvidia-smi
+   # View GPU usage in a user pod (replace POD_NAME with actual pod name)
+   # First, get the pod name:
+   kubectl get pods -n jupyter -l component=singleuser-server
+
+   # Then exec into it (example: jupyter-admin becomes pod jupyter-admin)
+   POD_NAME=$(kubectl get pods -n jupyter -l component=singleuser-server -o jsonpath='{.items[0].metadata.name}')
+   kubectl exec -n jupyter $POD_NAME -- nvidia-smi
    ```
 
 3. **View Hub Metrics**

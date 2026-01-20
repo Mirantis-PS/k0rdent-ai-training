@@ -1,211 +1,141 @@
 # k0rdent AI Infrastructure Training
 
-A comprehensive 6-week training program for engineers to master k0rdent Enterprise implementation, enabling them to build AI infrastructure products: BMaaS, VMaaS, KaaS, and MaaS.
+A comprehensive 6-week training program (~90 hours) for engineers to master k0rdent Enterprise, enabling them to build AI infrastructure products: **BMaaS**, **VMaaS**, **KaaS**, and **MaaS**.
 
-## Quick Start
+## Quick Start (3 Steps)
 
 ```bash
-# 1. Clone the repository
+# 1. Clone and enter the repository
 git clone git@github.com:mgueye01/k0rdent-ai-training.git
 cd k0rdent-ai-training
 
 # 2. Configure AWS credentials
 aws configure
 
-# 3. Provision your k0rdent management cluster (everything is automatic!)
-cd lab-infrastructure
-./scripts/lab-provision.sh k0rdent your-name --auto-approve
-
-# 4. Connect and start learning
-./scripts/lab-connect.sh k0rdent your-name
+# 3. Start Lab 1.1
+# Follow: curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md
 ```
 
-> **That's it!** The script automatically creates all required infrastructure (VPC, bastion, S3, etc.) on first run.
+**That's it.** Lab 1.1 walks you through everything: provisioning, connecting, and verifying your k0rdent management cluster.
+
+## Program Overview
+
+| Attribute | Value |
+|-----------|-------|
+| **Target Audience** | Engineers proficient in Kubernetes |
+| **Format** | Self-paced online with cloud-based labs |
+| **Duration** | 6 weeks (~15 hours/week, ~90 total hours) |
+| **Lab Ratio** | 70% hands-on / 30% theory |
+| **Primary Outcome** | Implement k0rdent for customer deployments |
+
+## Products Covered
+
+| Product | Week(s) | Description |
+|---------|---------|-------------|
+| **BMaaS** | 1-2 | Bare Metal Hardware Rental/Utilization |
+| **VMaaS** | 3 | Virtual Machine Provisioning |
+| **KaaS** | 4 | Bare Metal & Instance-based Kubernetes Clusters |
+| **MaaS** | 5 | Models as a Service (Endpoints, API Keys) |
+| **AI Tools** | 5-6 | Vector DBs, Notebooks, Gateways, Routers |
+
+## Learning Path
+
+```
+Week 1          Week 2          Week 3          Week 4          Week 5          Week 6
+┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+│Foundations│──▶│  BMaaS  │──▶│  VMaaS  │──▶│  KaaS   │──▶│AI Workloads│──▶│Capstone │
+│         │    │         │    │         │    │         │    │         │    │         │
+│• k0rdent│    │• Metal3 │    │• KubeVirt│   │• CAPI   │    │• Run:AI │    │• Tenancy│
+│• GPU HW │    │• Ironic │    │• GPU Pass│   │• GPU Op │    │• vLLM   │    │• RBAC   │
+│• BMC    │    │• Provisi│    │• NVLink │    │• CNI/CSI│    │• Catalog│    │• Audit  │
+└─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
+     │              │              │              │              │              │
+     └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┘
+                              Metal-to-Model Journey
+```
+
+## Prerequisites
+
+**Required Experience:**
+- 2+ years Kubernetes experience (deployments, services, storage, networking)
+- Familiarity with Linux system administration
+- Basic understanding of virtualization concepts
+- Experience with Infrastructure as Code (Terraform, Helm)
+
+**Software Versions:**
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| k0s | v1.32.4+k0s.0 | Kubernetes 1.32 |
+| k0rdent Enterprise | v1.2.1 | Management platform |
+| KubeVirt | v1.6.3 | VM workloads |
+| NVIDIA GPU Operator | v25.10.0 | GPU management |
+| Cluster API | v1.11 | API v1beta2 |
+| Metal3 CAPM3 | v1.8.0 | Bare metal provider |
+| Cilium | v1.18.4 | CNI |
+| vLLM | v0.11.2 | LLM inference |
+| Terraform | >= 1.8.0 | IaC |
+
+**Tools to Install:**
+
+| Tool | Version | Install |
+|------|---------|---------|
+| Terraform | >= 1.5.0 | [hashicorp.com](https://developer.hashicorp.com/terraform/install) |
+| AWS CLI | v2 | [aws.amazon.com](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) |
+| AWS credentials | configured | `aws configure` |
 
 ## Repository Structure
 
 ```
 k0rdent-ai-training/
-├── README.md                    # You are here
 ├── curriculum/                  # Training content
-│   ├── overview/               # Program introduction
-│   ├── week-1-foundations/     # k0rdent Enterprise installation & config
-│   ├── week-2-bmaas/          # Metal3, Ironic, bare metal provisioning
-│   ├── week-3-vmaas/          # KubeVirt, GPU passthrough
-│   ├── week-4-kaas/           # Cluster API, GPU operator
-│   ├── week-5-ai-workloads/   # vLLM, Run:AI, service catalog
-│   ├── week-6-multitenancy/   # RBAC, tenancy, capstone project
-│   ├── lab-environment/       # Lab provisioning guide
-│   └── appendix/              # Reference materials
-└── lab-infrastructure/         # Terraform + scripts for labs
-    ├── scripts/               # Provisioning scripts
-    ├── terraform/             # Infrastructure as Code
-    │   ├── environments/      # Deployment configurations
-    │   └── modules/           # Reusable Terraform modules
-    └── config/                # Local configuration (gitignored)
+│   ├── week-1-foundations/     # START HERE → labs/lab-1.1-provision-k0rdent.md
+│   ├── week-2-bmaas/           # Metal3, Ironic, bare metal provisioning
+│   ├── week-3-vmaas/           # KubeVirt, GPU passthrough
+│   ├── week-4-kaas/            # Cluster API, GPU operator
+│   ├── week-5-ai-workloads/    # vLLM, Run:AI, service catalog
+│   └── week-6-multitenancy/    # RBAC, tenancy, capstone project
+└── lab-infrastructure/          # Terraform + scripts
+    ├── scripts/                 # lab-provision.sh, lab-connect.sh, etc.
+    ├── terraform/               # Infrastructure as Code
+    └── docs/                    # Technical references
 ```
 
-## Training Flow
+## Key Documents
 
-### Phase 1: Setup (Day 1)
+| Document | Purpose |
+|----------|---------|
+| [Lab 1.1: Provision k0rdent](curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md) | **Start here** - First lab |
+| [Week 1 Theory](curriculum/week-1-foundations/theory/) | Architecture, components, providers |
+| [Lab Infrastructure Reference](lab-infrastructure/README.md) | Scripts, costs, technical details |
+| [Troubleshooting Guide](lab-infrastructure/docs/troubleshooting.md) | Common issues and solutions |
+| [Full Curriculum](curriculum/k0rdent-ai-infrastructure-training-curriculum.md) | Complete syllabus |
 
-| Step | Action | Command |
-|------|--------|---------|
-| 1 | Install prerequisites | `terraform version && aws --version` |
-| 2 | Configure AWS | `aws configure` |
-| 3 | Provision k0rdent | `./scripts/lab-provision.sh k0rdent your-name --auto-approve` |
-| 4 | Connect & verify | `./scripts/lab-connect.sh k0rdent your-name` |
+## What Gets Installed (Week 1)
 
-> The provisioning script automatically creates shared infrastructure (VPC, bastion, S3) if it doesn't exist.
-
-### Phase 2: Weekly Curriculum (Weeks 1-6)
-
-```
-Week 1: k0rdent Enterprise     Week 2: BMaaS              Week 3: VMaaS
-┌────────────────────┐      ┌────────────────────┐      ┌────────────────────┐
-│ • k0rdent install  │      │ • Metal3 operator  │      │ • KubeVirt basics  │
-│ • KCM, KSM, KOF    │  ──▶ │ • Ironic setup     │  ──▶ │ • GPU passthrough  │
-│ • AWS provider     │      │ • BM provisioning  │      │ • NVLink topology  │
-│ • Production config│      │ • Lab: 10.5 hrs    │      │ • Lab: 10.5 hrs    │
-└────────────────────┘      └────────────────────┘      └────────────────────┘
-         │                           │                           │
-         ▼                           ▼                           ▼
-Week 4: KaaS                 Week 5: AI Workloads       Week 6: Capstone
-┌────────────────────┐      ┌────────────────────┐      ┌────────────────────┐
-│ • Cluster API      │      │ • vLLM inference   │      │ • Multi-tenancy    │
-│ • GPU operator     │  ──▶ │ • Run:AI           │  ──▶ │ • RBAC & policies  │
-│ • CNI/CSI          │      │ • Service catalog  │      │ • Final project    │
-│ • Lab: 10.5 hrs    │      │ • Lab: 10.5 hrs    │      │ • Lab: 10.5 hrs    │
-└────────────────────┘      └────────────────────┘      └────────────────────┘
-```
-
-### Phase 3: Cleanup
-
-```bash
-# Destroy your personal lab when done
-./scripts/lab-destroy.sh k0rdent <your-id> --auto-approve
-```
-
-## For Engineers
-
-### Starting Your Lab
-
-```bash
-cd lab-infrastructure
-
-# Week 1: Provision k0rdent management cluster
-./scripts/lab-provision.sh k0rdent john-doe --auto-approve
-
-# Connect via SSH
-./scripts/lab-connect.sh k0rdent john-doe
-
-# Check status
-./scripts/lab-status.sh all john-doe
-
-# Destroy when done
-./scripts/lab-destroy.sh k0rdent john-doe --auto-approve
-```
-
-### Each Week
-
-1. **Read theory** → `curriculum/week-X-*/theory/`
-2. **Do labs** → `curriculum/week-X-*/labs/`
-3. **Check resources** → `curriculum/week-X-*/resources/`
-
-### Lab Types by Week
-
-| Week | Lab Environment | Command |
-|------|----------------|---------|
-| 1 | k0rdent Management | `./scripts/lab-provision.sh k0rdent <id>` |
-| 2 | Metal3 Dev | `./scripts/lab-provision.sh metal3 <id>` |
-| 3 | KubeVirt | `./scripts/lab-provision.sh kubevirt <id>` |
-| 4-5 | GPU Lab | `./scripts/lab-provision.sh gpu <session-id>` |
-| 6 | Full Stack | Multi-node cluster |
-
-## How It Works
-
-The lab infrastructure uses a multi-tenant architecture with automatic setup:
-
-```
-First Run: Script auto-creates shared infrastructure
-├── VPC: 10.0.0.0/16
-├── Bastion Host (SSH jump)
-├── S3 Buckets (state, artifacts)
-└── IAM Roles
-
-Then: Creates your isolated environment
-├── k0rdent/your-name/    → Your k0rdent management cluster
-├── metal3-dev/your-name/ → Your personal Metal3 lab
-├── kubevirt/your-name/   → Your personal KubeVirt lab
-└── ...
-```
-
-Each engineer gets completely isolated resources with separate Terraform state.
-
-## What Gets Installed
-
-### k0rdent Management Cluster (Week 1)
-
-When you provision a k0rdent environment, you get:
+When you complete Lab 1.1, you'll have:
 
 - **k0s** - Lightweight Kubernetes distribution (v1.32.4)
-- **k0rdent Enterprise** - Platform engineering solution (v1.2.1)
+- **k0rdent Enterprise** (v1.2.1)
   - **KCM** - Cluster Manager for multi-cluster management
   - **KSM** - State Manager for service installation
   - **KOF** - Observability & FinOps
 - **Cluster API** - Kubernetes cluster provisioning
 - **k0rdent UI** - Web interface for management
 
-## Prerequisites
+## Assessment
 
-- **Terraform** >= 1.5.0
-- **AWS CLI** v2
-- **AWS credentials** configured
-- **SSH client**
-
-```bash
-# 1. Verify tools are installed
-terraform version    # >= 1.5.0
-aws --version        # v2.x
-
-# 2. Configure AWS credentials
-aws configure
-# Enter: Access Key ID, Secret Key
-# Region: Choose your preferred region (e.g., eu-west-1, us-east-1, us-west-2)
-# Output format: json
-
-# 3. Verify credentials
-aws sts get-caller-identity  # Should show your account
-```
-
-> **Note:** Choose a region with GPU instance availability if you plan to run GPU labs.
-
-## Key Documents
-
-| Document | Location | Purpose |
-|----------|----------|---------|
-| Full Curriculum | [curriculum/k0rdent-ai-infrastructure-training-curriculum.md](curriculum/k0rdent-ai-infrastructure-training-curriculum.md) | Complete training syllabus |
-| Lab Provisioning | [curriculum/lab-environment/provisioning-guide.md](curriculum/lab-environment/provisioning-guide.md) | Detailed lab setup |
-| Week 1 Start | [curriculum/week-1-foundations/](curriculum/week-1-foundations/) | First week content |
-| k0rdent Docs | [docs.mirantis.com/k0rdent-enterprise](https://docs.mirantis.com/k0rdent-enterprise/latest/) | Official documentation |
-
-## Cost Awareness
-
-| Resource | Cost (Spot) | Cost (On-Demand) |
-|----------|-------------|------------------|
-| Shared Infra (NAT) | ~$35/month | ~$35/month |
-| k0rdent Mgmt (t3.xlarge) | ~$0.06/hr | ~$0.17/hr |
-| Metal3 Lab (m5.2xlarge) | ~$0.15/hr | ~$0.38/hr |
-| GPU Lab (p3.8xlarge) | ~$4.50/hr | ~$12.24/hr |
-
-**Always destroy labs when not in use!**
+- Weekly quizzes (80% passing required)
+- Lab completion with verification
+- Week 6 capstone project
+- Overall 85% score required for certification
 
 ## Support
 
 - **Slack:** #k0rdent-training
 - **Issues:** Create GitHub issue
-- **Instructor:** During scheduled sessions
+- **Docs:** [docs.mirantis.com/k0rdent-enterprise](https://docs.mirantis.com/k0rdent-enterprise/latest/)
 
 ---
 
-**Version:** 2.0 | **Last Updated:** January 2026
+**Version:** 2.2 | **Last Updated:** January 2026

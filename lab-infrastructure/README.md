@@ -152,35 +152,56 @@ lab-infrastructure/
 
 ## Cost Management
 
+This is the single reference for lab infrastructure costs.
+
+### Environment Costs
+
+| Environment | Instance Type | Spot $/hr | On-Demand $/hr | Weekly Use Case |
+|-------------|--------------|-----------|----------------|-----------------|
+| Shared Infra | NAT Gateway | ~$0.05 | ~$0.05 | All weeks |
+| k0rdent Mgmt | t3.xlarge (4 vCPU, 16GB) | ~$0.06 | ~$0.17 | Week 1 |
+| Metal3 Dev | m5.2xlarge (8 vCPU, 32GB) | ~$0.15 | ~$0.38 | Week 2 |
+| KubeVirt | m5.xlarge + workers | ~$0.25 | ~$0.60 | Week 3 |
+| GPU Lab | p3.8xlarge (4x V100) | ~$4.50 | ~$12.24 | Weeks 4-5 |
+| GPU Advanced | p4d.24xlarge (8x A100) | ~$15.00 | ~$33.00 | Week 5 (advanced) |
+
+### Cost Examples
+
+| Scenario | Estimated Cost |
+|----------|---------------|
+| Shared infra running 24/7 | ~$35/month |
+| Metal3 Dev - 8 hour session | ~$1.20 (spot) |
+| KubeVirt Lab - 8 hour session | ~$2.00 (spot) |
+| GPU Lab - 4 hour session | ~$18.00 (spot) |
+| **Forgotten GPU Lab - 24 hours** | **~$108 (spot) / ~$294 (on-demand)** |
+
 ### Spot Instances (Default)
+
 All labs use spot instances by default for ~60-70% cost savings.
 
-Use `--no-spot` for critical sessions or when spot availability is low.
+```bash
+# Use on-demand if spot unavailable
+./scripts/lab-provision.sh metal3 your-name --no-spot
+```
 
-### GPU Cost Optimization
-- Shared p3.8xlarge (4x V100) for most labs: ~$12/hour
-- On-demand p4d.24xlarge (8x A100) only for Lab 3.3: ~$33/hour
-- Estimated cohort cost: ~$2,300 for 15 engineers over 6 weeks
+### Best Practices
 
-### Auto-Shutdown
-Environments include CloudWatch alarms for low utilization.
-Destroy unused environments promptly with `lab-destroy.sh`.
+- **Always destroy** environments when not in use
+- Check `./scripts/lab-status.sh all` regularly for forgotten environments
+- Use `--plan-only` flag before major changes
+- Never leave GPU environments running overnight
 
 ## Troubleshooting
 
-### SSH Connection Issues
-1. Check instance status: `./scripts/lab-status.sh <type> <id>`
-2. Verify security groups allow SSH from your IP
-3. Use bastion host if in private subnet: `--bastion <ip>`
+For quick diagnostics:
 
-### Terraform State Issues
-State is stored in S3: `k0rdent-training-tfstate-<account-id>`
-List all states: `./scripts/lab-status.sh list`
+```bash
+./scripts/lab-status.sh all          # Check all environments
+./scripts/lab-status.sh k0rdent your-name  # Check specific environment
+./scripts/lab-status.sh list         # List all state files
+```
 
-### GPU Not Detected
-1. Check NVIDIA drivers: `nvidia-smi`
-2. Check GPU Operator: `kubectl get pods -n gpu-operator`
-3. Check node labels: `kubectl get nodes -o yaml | grep nvidia`
+For comprehensive troubleshooting (AWS credentials, SSH issues, Terraform state, GPU problems), see the **[Troubleshooting Guide](docs/troubleshooting.md)**.
 
 ## Security Notes
 

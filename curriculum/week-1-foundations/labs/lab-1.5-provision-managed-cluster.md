@@ -37,7 +37,7 @@ Before provisioning, ensure your AWS credentials and templates are ready.
 kubectl get credentials -n kcm-system
 
 # Expected output should include:
-# aws-cluster-identity-cred
+# aws-credential
 ```
 
 ### Check AWS Identity
@@ -102,7 +102,7 @@ metadata:
     owner: lab-user
 spec:
   template: aws-standalone-cp-0-1-0
-  credential: aws-cluster-identity-cred
+  credential: aws-credential
   dryRun: false
   cleanupOnDeletion: true
   config:

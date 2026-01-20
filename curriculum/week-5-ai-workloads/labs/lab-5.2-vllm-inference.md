@@ -662,6 +662,18 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
            - key: nvidia.com/gpu
              operator: Exists
              effect: NoSchedule
+   ---
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: vllm-llama70b
+     namespace: vllm-inference
+   spec:
+     selector:
+       app: vllm-llama70b
+     ports:
+       - port: 8000
+         targetPort: 8000
    ```
 
 4. **Deploy and Verify**

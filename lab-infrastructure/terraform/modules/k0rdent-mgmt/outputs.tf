@@ -17,7 +17,7 @@ output "primary_node_ip" {
 
 output "ssh_private_key" {
   description = "SSH private key for accessing instances"
-  value       = tls_private_key.mgmt.private_key_openssh
+  value       = tls_private_key.mgmt.private_key_pem
   sensitive   = true
 }
 

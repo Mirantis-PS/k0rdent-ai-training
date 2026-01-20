@@ -520,7 +520,7 @@ provision_k0rdent() {
 }
 
 # Default values
-REGION="${AWS_REGION:-eu-west-1}"
+REGION="${AWS_REGION:-us-east-1}"
 USE_SPOT="false"
 WORKER_COUNT="2"
 NODE_COUNT="1"

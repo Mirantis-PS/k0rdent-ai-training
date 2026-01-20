@@ -179,7 +179,7 @@ connect_ssh() {
 
     if [[ -n "$bastion" ]]; then
         # Use ProxyCommand with bastion key for the jump host
-        ssh_opts="$ssh_opts -o ProxyCommand=\"ssh -i $bastion_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ec2-user@${bastion}\""
+        ssh_opts="$ssh_opts -o ProxyCommand=\"ssh -i $bastion_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ubuntu@${bastion}\""
     fi
 
     if [[ -n "$tunnel" ]]; then
@@ -247,7 +247,7 @@ load_config() {
 load_config
 
 # Default values - prefer LAB_REGION from config, then AWS_REGION env var, then default
-REGION="${LAB_REGION:-${AWS_REGION:-eu-west-1}}"
+REGION="${LAB_REGION:-${AWS_REGION:-us-east-1}}"
 BASTION=""
 WORKER_INDEX=""
 ADVANCED="false"

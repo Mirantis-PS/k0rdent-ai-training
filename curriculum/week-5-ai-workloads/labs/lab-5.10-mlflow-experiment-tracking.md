@@ -326,16 +326,15 @@ MLflow is an open-source platform for managing the end-to-end machine learning l
                  memory: 4Gi
              readinessProbe:
                httpGet:
-                 path: /health
+                 path: /api/2.0/mlflow/experiments/search
                  port: 5000
-               initialDelaySeconds: 10
-               periodSeconds: 5
+               initialDelaySeconds: 15
+               periodSeconds: 10
              livenessProbe:
-               httpGet:
-                 path: /health
+               tcpSocket:
                  port: 5000
                initialDelaySeconds: 30
-               periodSeconds: 10
+               periodSeconds: 15
    ---
    apiVersion: v1
    kind: Service

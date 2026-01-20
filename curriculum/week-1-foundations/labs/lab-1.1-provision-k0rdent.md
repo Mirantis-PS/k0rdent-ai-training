@@ -14,12 +14,88 @@ In this lab, you will:
 
 ## Prerequisites
 
-- AWS CLI configured with valid credentials
+- AWS CLI v2 installed
 - Terraform >= 1.5.0 installed
 - Your own copy of this training repository (fork or template)
 - Basic terminal/shell knowledge
 
 > **Setup Note:** You should have either forked this repository or used "Use this template" on GitHub to create your own copy, then cloned it locally.
+
+## How the Lab Infrastructure Works
+
+Before provisioning, understand the multi-tenant architecture:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           SHARED INFRASTRUCTURE (auto-created)               │
+│         VPC, Bastion, S3 Buckets, IAM Roles                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │  john-doe   │  │  jane-doe   │  │  bob-smith  │   ...   │
+│  │   k0rdent   │  │   k0rdent   │  │   k0rdent   │         │
+│  │ 10.0.8.x    │  │ 10.0.8.y    │  │ 10.0.8.z    │         │
+│  └─────────────┘  └─────────────┘  └─────────────┘         │
+│                                                             │
+│  Each engineer has isolated state and resources             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Points:**
+- Shared infrastructure is created **automatically** on first run
+- Each engineer uses a unique ID (e.g., `john-doe`, `jane-doe`)
+- Running with different IDs creates **completely isolated** environments
+- State files are stored separately: `k0rdent/<your-id>/terraform.tfstate`
+
+## Part 1: Configure AWS Credentials
+
+Choose ONE of these methods:
+
+### Option A: AWS CLI Profile (Recommended)
+
+```bash
+aws configure
+# AWS Access Key ID: <your-access-key>
+# AWS Secret Access Key: <your-secret-key>
+# Default region name: us-east-1  (or your preferred region)
+# Default output format: json
+
+# Verify it works
+aws sts get-caller-identity
+```
+
+### Option B: Environment Variables
+
+```bash
+export AWS_ACCESS_KEY_ID="your-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_DEFAULT_REGION="us-east-1"
+
+# Verify
+aws sts get-caller-identity
+```
+
+### Option C: AWS SSO
+
+```bash
+aws sso login --profile your-sso-profile
+export AWS_PROFILE=your-sso-profile
+
+# Verify
+aws sts get-caller-identity
+```
+
+### Region Selection
+
+Choose a region with good availability. Common choices:
+
+| Region | Location | Notes |
+|--------|----------|-------|
+| `us-east-1` | N. Virginia | Good GPU availability |
+| `us-west-2` | Oregon | Good GPU availability |
+| `eu-west-1` | Ireland | European option |
+
+> **Note:** For GPU labs (Weeks 4-5), check [AWS GPU instance availability](https://aws.amazon.com/ec2/instance-types/p3/) in your region.
 
 ## Lab Environment
 
@@ -30,27 +106,20 @@ In this lab, you will:
 | Kubernetes | k0s v1.32.4 |
 | k0rdent | Enterprise v1.2.1 |
 
-## Part 1: Navigate to Lab Infrastructure
+## Part 2: Verify Prerequisites
 
 From the root of your cloned training repository:
 
 ```bash
 cd lab-infrastructure
-```
 
-## Part 2: Verify Prerequisites
-
-Check that required tools are installed:
-
-```bash
-# Check Terraform version
+# Check Terraform version (>= 1.5.0 required)
 terraform --version
-# Should be >= 1.5.0
 
-# Check AWS CLI
+# Check AWS CLI (v2 required)
 aws --version
 
-# Verify AWS credentials
+# Verify AWS credentials (should show your account)
 aws sts get-caller-identity
 ```
 
@@ -245,47 +314,26 @@ Before completing this lab, verify:
 
 ## Troubleshooting
 
-### Provisioning Issues
+For quick diagnostics:
 
-**Error: AWS credentials not found**
 ```bash
-# Configure AWS CLI
-aws configure
-# Or export credentials
-export AWS_ACCESS_KEY_ID=<your-key>
-export AWS_SECRET_ACCESS_KEY=<your-secret>
-export AWS_REGION=us-east-1
-```
+# Check environment status
+./scripts/lab-status.sh k0rdent your-name
 
-**Error: Terraform version too old**
-```bash
-# Install newer Terraform
-# macOS:
-brew tap hashicorp/tap
-brew install hashicorp/tap/terraform
-```
-
-### k0rdent Installation Issues
-
-**Pods not starting:**
-```bash
-# Check pod events
-kubectl describe pod <pod-name> -n kcm-system
-
-# Check logs
-kubectl logs <pod-name> -n kcm-system
-```
-
-**Installation still running:**
-```bash
-# Check progress
+# Check k0rdent installation progress (on the lab instance)
 tail -f /var/log/k0rdent-init.log
 
-# Check if complete
-ls /opt/k0rdent-lab/.init-complete
-
-# Installation typically takes 10-15 minutes
+# Check if installation complete
+ls /opt/k0rdent-lab/.init-complete && echo "Done!"
 ```
+
+**Common issues:**
+- **AWS credentials:** Re-run `aws configure` or check `aws sts get-caller-identity`
+- **Terraform errors:** Check version with `terraform --version` (needs >= 1.5.0)
+- **SSH connection:** Ensure correct key permissions (`chmod 600 config/keys/*.pem`)
+- **Pods not starting:** Check with `kubectl describe pod <name> -n kcm-system`
+
+For comprehensive troubleshooting, see the [Troubleshooting Guide](../../../lab-infrastructure/docs/troubleshooting.md).
 
 ## Clean Up
 
