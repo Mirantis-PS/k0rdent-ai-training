@@ -67,14 +67,19 @@ Note the available AWS template names. Common templates include:
 
 ### Verify SSH Key Pair
 
+> **Important:** The SSH key pair must exist in the **same region** where you'll provision the cluster.
+
 ```bash
+# Set your target region (must match ClusterDeployment config.region)
+export AWS_REGION="us-east-1"
+
 # Check if your SSH key pair exists in AWS
-aws ec2 describe-key-pairs --key-names k0rdent-clusters --region us-east-1
+aws ec2 describe-key-pairs --key-names k0rdent-clusters --region $AWS_REGION
 
 # If not found, create it (from Lab 1.3):
 # ssh-keygen -t ed25519 -f ~/.ssh/k0rdent-clusters -N ""
 # aws ec2 import-key-pair --key-name k0rdent-clusters \
-#   --public-key-material fileb://~/.ssh/k0rdent-clusters.pub --region us-east-1
+#   --public-key-material fileb://~/.ssh/k0rdent-clusters.pub --region $AWS_REGION
 ```
 
 ## Part 2: Create the ClusterDeployment
@@ -90,8 +95,22 @@ A ClusterDeployment defines:
 
 Create a file `managed-cluster-01.yaml`:
 
+First, find the exact template name for your k0rdent version:
+
 ```bash
-cat << 'EOF' > /tmp/managed-cluster-01.yaml
+# Find the AWS standalone control plane template
+kubectl get clustertemplates -n kcm-system | grep aws-standalone-cp
+
+# Note the exact name (e.g., aws-standalone-cp-1-0-20)
+```
+
+Then create the ClusterDeployment with the correct template name:
+
+```bash
+# Replace TEMPLATE_NAME with the actual template name from above
+TEMPLATE_NAME="aws-standalone-cp-1-0-20"  # Adjust based on your output
+
+cat << EOF > /tmp/managed-cluster-01.yaml
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ClusterDeployment
 metadata:
@@ -101,7 +120,7 @@ metadata:
     environment: training
     owner: lab-user
 spec:
-  template: aws-standalone-cp-0-1-0
+  template: ${TEMPLATE_NAME}
   credential: aws-credential
   dryRun: false
   cleanupOnDeletion: true
@@ -116,12 +135,20 @@ spec:
     worker:
       instanceType: t3.medium
       rootVolumeSize: 50
+    sshKeyName: k0rdent-clusters
+    clusterIdentity:
+      name: aws-cluster-identity
+      namespace: kcm-system
     clusterLabels:
       environment: training
 EOF
 ```
 
-> **Note:** The `template` name may vary based on your k0rdent version. Use `kubectl get clustertemplates -n kcm-system` to find the exact name.
+> **Important Configuration Notes:**
+> - **template**: Must match an available ClusterTemplate. Run `kubectl get clustertemplates -n kcm-system | grep aws` to find it.
+> - **region**: Must match the region where you created your SSH key pair (Lab 1.3).
+> - **sshKeyName**: Must match the key pair name you imported to AWS (Lab 1.3).
+> - **clusterIdentity**: References your AWSClusterStaticIdentity created in Lab 1.3.
 
 ### Apply the ClusterDeployment
 
@@ -228,9 +255,21 @@ kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tai
 ```
 
 Common issues:
-- **Insufficient IAM permissions**: Check AWS credential has required permissions
+
+- **Insufficient IAM permissions**: Check AWS credential has required permissions (see Lab 1.3)
 - **Instance type unavailable**: Try a different instance type or region
-- **SSH key not found**: Ensure key pair exists in the target region
+- **SSH key not found**: Ensure key pair exists in the target region (must match `config.region`)
+- **"Namespace is not permitted to use AWSClusterStaticIdentity"**: Your identity's `allowedNamespaces` must include `kcm-system`. Patch with:
+  ```bash
+  kubectl patch awsclusterstaticidentity aws-cluster-identity -n kcm-system --type=merge \
+    -p '{"spec":{"allowedNamespaces":{"list":["kcm-system"]}}}'
+  ```
+- **"AWS was not able to validate the provided access credentials"**: If using AWS SSO, ensure your secret includes `SessionToken`. Refresh credentials and update the secret (see Lab 1.3 SSO section)
+- **Webhook timeout errors**: If you applied network policies in Lab 1.4, they may block webhooks. Delete them:
+  ```bash
+  kubectl delete networkpolicy -n kcm-system --all
+  ```
+- **Missing clusterIdentity error**: Ensure your ClusterDeployment config includes the `clusterIdentity` section with `name` and `namespace`
 
 ## Part 4: Access the Managed Cluster
 

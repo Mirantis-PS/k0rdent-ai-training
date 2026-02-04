@@ -97,11 +97,11 @@ Find and examine an AWS cluster template:
 # From SSH session, view templates via kubectl (or use alias: kgct)
 kubectl get clustertemplates -A
 
-# Get details of a specific template
-kubectl get clustertemplate -n kcm-system -o yaml | head -100
+# Get details of a specific template (choose one from the list above)
+kubectl get clustertemplate aws-standalone-cp-1-0-20 -n kcm-system -o yaml | head -100
 ```
 
-> **Note:** Template names vary by k0rdent version. Use `kubectl get clustertemplates -A` to see available templates.
+> **Note:** Template names include version numbers (e.g., `aws-standalone-cp-1-0-20`). Use `kubectl get clustertemplates -A` to see available templates in your installation.
 
 Questions to answer:
 - [ ] What Kubernetes version does it deploy?

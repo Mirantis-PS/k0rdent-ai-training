@@ -9,7 +9,6 @@ In this lab, you will:
 - Configure k0rdent for production readiness
 - Set up RBAC policies for multi-team access
 - Configure backup and disaster recovery
-- Enable monitoring and alerting
 - Implement security hardening
 
 ## Prerequisites
@@ -243,96 +242,23 @@ kubectl get clusters,machines,machinedeployments \
   -A -o yaml > cluster-resources-backup.yaml
 ```
 
-## Part 5: Enable Monitoring with KOF
-
-### Check KOF Status
-
-```bash
-# KOF (k0rdent Observability & FinOps) provides monitoring
-kubectl get pods -n kof-system 2>/dev/null || echo "KOF not installed"
-
-# List KOF components if available
-kubectl get servicetemplates -n kcm-system | grep -i observ
-```
-
-### Configure Basic Monitoring
-
-```bash
-# Create monitoring namespace
-kubectl create namespace monitoring
-
-# Deploy a basic metrics collection ConfigMap
-cat << 'EOF' | kubectl apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: k0rdent-monitoring-config
-  namespace: monitoring
-data:
-  scrape-interval: "30s"
-  metrics-retention: "7d"
-  alert-email: "platform-team@example.com"
-EOF
-```
-
-### Health Check Script
-
-```bash
-# Create health check script
-cat << 'EOF' | sudo tee /usr/local/bin/k0rdent-health-check.sh
-#!/bin/bash
-
-echo "=== k0rdent Health Check ==="
-echo "Timestamp: $(date)"
-echo ""
-
-echo "--- Node Status ---"
-kubectl get nodes
-
-echo ""
-echo "--- k0rdent System Pods ---"
-kubectl get pods -n kcm-system
-
-echo ""
-echo "--- CAPI Pods ---"
-# Note: In k0rdent Enterprise, CAPI components run in kcm-system
-kubectl get pods -n kcm-system | grep -E 'capi|capa|capv|capz'
-
-echo ""
-echo "--- Recent Events ---"
-kubectl get events -n kcm-system --sort-by='.lastTimestamp' | tail -10
-
-echo ""
-echo "--- Cluster Resources ---"
-kubectl get clusters -A 2>/dev/null || echo "No clusters deployed"
-
-echo ""
-echo "=== Health Check Complete ==="
-EOF
-
-sudo chmod +x /usr/local/bin/k0rdent-health-check.sh
-
-# Run health check
-sudo /usr/local/bin/k0rdent-health-check.sh
-```
-
-## Part 6: Security Hardening
+## Part 5: Security Hardening
 
 ### Network Policies
 
+> **Warning for Training Environments:** The network policies below are for **production reference only**. In this training environment, applying restrictive network policies to `kcm-system` can block k0rdent webhooks and prevent cluster provisioning in Lab 1.5. **Skip this section** if you plan to continue with Labs 1.5-1.7, or delete the policies before proceeding.
+
+For production environments, network policies should allow:
+- Internal kcm-system pod-to-pod communication
+- Kubernetes API server to webhook services
+- Ingress from managed clusters for status updates
+
 ```bash
-# Restrict traffic in kcm-system namespace
+# PRODUCTION ONLY - First, label the namespace
+kubectl label namespace kcm-system name=kcm-system --overwrite
+
+# Create network policies that allow required traffic
 cat << 'EOF' | kubectl apply -f -
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny-ingress
-  namespace: kcm-system
-spec:
-  podSelector: {}
-  policyTypes:
-  - Ingress
----
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -343,12 +269,24 @@ spec:
   policyTypes:
   - Ingress
   ingress:
+  # Allow traffic from within kcm-system
   - from:
     - namespaceSelector:
         matchLabels:
           name: kcm-system
+  # Allow traffic from kube-system (for API server webhooks)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+  # Allow all traffic to webhook ports
+  - ports:
+    - port: 9443
+      protocol: TCP
 EOF
 ```
+
+> **Note:** For this training lab, we recommend **skipping network policies** to avoid blocking k0rdent operations. Apply them only after completing all cluster provisioning labs.
 
 ### Pod Security Standards
 
@@ -373,7 +311,7 @@ kubectl get secret -n kube-system | grep encryption
 # For production, enable encryption at rest
 ```
 
-## Part 7: Configure Resource Quotas
+## Part 6: Configure Resource Quotas
 
 ### Set Namespace Quotas
 
@@ -408,7 +346,7 @@ spec:
 EOF
 ```
 
-## Part 8: Production Readiness Checklist
+## Part 7: Production Readiness Checklist
 
 ### Create Assessment Script
 
@@ -423,12 +361,14 @@ PASS=0
 FAIL=0
 
 check() {
-    if $1 &>/dev/null; then
-        echo "[PASS] $2"
-        ((PASS++))
+    local cmd="$1"
+    local desc="$2"
+    if eval "$cmd" >/dev/null 2>&1; then
+        echo "[PASS] $desc"
+        PASS=$((PASS + 1))
     else
-        echo "[FAIL] $2"
-        ((FAIL++))
+        echo "[FAIL] $desc"
+        FAIL=$((FAIL + 1))
     fi
 }
 
@@ -446,11 +386,10 @@ check "kubectl get clusterrole k0rdent-cluster-viewer" "Cluster viewer role exis
 check "test -x /usr/local/bin/etcd-backup.sh" "Backup script exists"
 check "test -f /etc/cron.d/etcd-backup" "Backup cron configured"
 
-# Monitoring
-check "test -x /usr/local/bin/k0rdent-health-check.sh" "Health check script exists"
-
-# Security
-check "kubectl get networkpolicy -n kcm-system | grep -q deny" "Network policies configured"
+# Security (optional for training - network policies can block webhooks)
+# Uncomment for production:
+# check "kubectl get networkpolicy -n kcm-system | grep -q allow" "Network policies configured"
+echo "[SKIP] Network policies (optional for training)"
 
 echo ""
 echo "=== Results ==="
@@ -458,7 +397,7 @@ echo "Passed: $PASS"
 echo "Failed: $FAIL"
 echo ""
 
-if [ $FAIL -eq 0 ]; then
+if [ "$FAIL" -eq 0 ]; then
     echo "Production readiness: READY"
 else
     echo "Production readiness: NOT READY - Address failures above"
@@ -479,8 +418,7 @@ Before completing this lab, verify:
 - [ ] Configured RBAC roles and bindings
 - [ ] Set up etcd backup script
 - [ ] Configured automated backup schedule
-- [ ] Created health check script
-- [ ] Applied network policies
+- [ ] (Optional) Applied network policies - skip for training environments
 - [ ] Set resource quotas for namespaces
 - [ ] Ran production readiness assessment
 
@@ -489,7 +427,6 @@ Before completing this lab, verify:
 In this lab, you:
 - Configured multi-team RBAC policies
 - Set up backup and disaster recovery procedures
-- Enabled monitoring and health checks
 - Applied security hardening measures
 - Created production readiness assessment
 

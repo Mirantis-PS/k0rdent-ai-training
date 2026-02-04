@@ -97,6 +97,8 @@ Choose a region with good availability. Common choices:
 
 > **Note:** For GPU labs (Weeks 4-5), check [AWS GPU instance availability](https://aws.amazon.com/ec2/instance-types/p3/) in your region.
 
+> **AWS SSO Users:** If you use AWS SSO for authentication, see the [Troubleshooting](#troubleshooting) section for required workarounds before running the provisioning script.
+
 ## Lab Environment
 
 | Component | Specification |
@@ -320,6 +322,49 @@ For quick diagnostics:
 # Check environment status
 ./scripts/lab-status.sh k0rdent your-name
 
+**Error: Terraform version too old**
+```bash
+# Install newer Terraform
+# macOS:
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+```
+
+**Error: AWS SSO profile not working with Terraform**
+
+If you use AWS SSO and see an error like:
+```
+Error: profile "xxx" is configured to use SSO but is missing required configuration: sso_region, sso_start_url
+```
+
+This happens because Terraform's S3 backend doesn't fully support AWS SSO profiles. Use this workaround:
+
+```bash
+# First, ensure you're logged in to SSO
+aws sso login --profile your-profile-name
+
+# Export SSO credentials as environment variables
+eval "$(aws configure export-credentials --format env --profile your-profile-name)"
+
+# Now run the provisioning script (credentials are in environment)
+./scripts/lab-provision.sh k0rdent <your-engineer-id> --auto-approve
+```
+
+> **Note:** The exported credentials are temporary session tokens. If your session expires, run the `aws sso login` and `eval` commands again.
+
+### k0rdent Installation Issues
+
+**Pods not starting:**
+```bash
+# Check pod events
+kubectl describe pod <pod-name> -n kcm-system
+
+# Check logs
+kubectl logs <pod-name> -n kcm-system
+```
+
+**Installation still running:**
+```bash
 # Check k0rdent installation progress (on the lab instance)
 tail -f /var/log/k0rdent-init.log
 

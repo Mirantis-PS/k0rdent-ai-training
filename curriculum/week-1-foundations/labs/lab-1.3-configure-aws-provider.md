@@ -112,13 +112,14 @@ aws iam get-user
 
 ### Step 1: Create AWS Secret
 
-SSH to your management cluster and create the credentials secret:
+SSH to your management cluster and create the credentials secret.
+
+#### Option A: Using IAM User Credentials (Recommended for Training)
 
 ```bash
 # Set your AWS credentials
 export AWS_ACCESS_KEY_ID="your-access-key-id"
 export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
-export AWS_REGION="us-east-1"
 
 # Create the secret
 kubectl create secret generic aws-cluster-identity-secret \
@@ -126,6 +127,27 @@ kubectl create secret generic aws-cluster-identity-secret \
   --from-literal=SecretAccessKey="${AWS_SECRET_ACCESS_KEY}" \
   -n kcm-system
 ```
+
+#### Option B: Using AWS SSO Credentials
+
+If you're using AWS SSO, you must include the session token:
+
+```bash
+# First, ensure you're logged in to SSO
+aws sso login --profile your-sso-profile
+
+# Export credentials including session token
+eval "$(aws configure export-credentials --format env --profile your-sso-profile)"
+
+# Create the secret with session token
+kubectl create secret generic aws-cluster-identity-secret \
+  --from-literal=AccessKeyID="${AWS_ACCESS_KEY_ID}" \
+  --from-literal=SecretAccessKey="${AWS_SECRET_ACCESS_KEY}" \
+  --from-literal=SessionToken="${AWS_SESSION_TOKEN}" \
+  -n kcm-system
+```
+
+> **Warning:** SSO session tokens expire (typically after 1-12 hours). For long-running cluster operations, IAM user credentials (Option A) are more reliable. If you use SSO and your session expires during cluster provisioning, you'll need to refresh the secret with new credentials.
 
 ### Step 2: Create AWSClusterStaticIdentity
 
@@ -137,14 +159,17 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
 kind: AWSClusterStaticIdentity
 metadata:
   name: aws-cluster-identity
-  namespace: kcm-system
 spec:
   secretRef: aws-cluster-identity-secret
   allowedNamespaces:
+    list:
+      - kcm-system
     selector:
       matchLabels: {}
 EOF
 ```
+
+> **Important:** The `allowedNamespaces.list` must include `kcm-system` to allow ClusterDeployments in that namespace to use this identity.
 
 ### Step 3: Create k0rdent Credential Object
 
