@@ -511,17 +511,80 @@ For child clusters to send telemetry to the management/regional cluster:
 | **TLS** | Required for public endpoints; optional for private networks |
 | **Ports** | 8480 (vminsert), 9481 (logs), 4318 (traces) |
 
+#### Understanding the Cross-VPC Challenge
+
+When CAPA (Cluster API for AWS) provisions managed clusters, it creates a **new VPC** for each cluster. This means:
+
+1. **Internal service DNS doesn't work across VPCs** - `vminsert-cluster.kof.svc.cluster.local` only resolves within the management cluster
+2. **Private IPs aren't routable** - The management cluster's pod/service IPs (10.x.x.x) aren't reachable from the managed cluster's VPC
+3. **Network connectivity must be explicitly configured** - Unlike pods within a cluster, cross-VPC traffic requires infrastructure changes
+
+#### Production Solutions
+
+| Solution | Complexity | Cost | Best For |
+|----------|------------|------|----------|
+| **VPC Peering** | Medium | Free | Same-region clusters |
+| **Transit Gateway** | Medium | ~$0.05/GB | Multi-VPC hub-spoke |
+| **LoadBalancer + CCM** | Low-Medium | ~$16/month per NLB | Quick setup |
+| **AWS PrivateLink** | High | Per-endpoint cost | Enterprise security |
+| **Same-VPC Deployment** | Low | Free | Simplified networking |
+
+##### Option A: LoadBalancer Approach (Requires AWS CCM)
+
+To expose KOF services via AWS Network Load Balancers:
+
+```bash
+# 1. Install AWS Cloud Controller Manager (required for LoadBalancer type)
+#    Note: k0s doesn't include CCM by default
+#    See: https://kubernetes.github.io/cloud-provider-aws/
+
+# 2. Patch services to LoadBalancer type
+kubectl patch svc vminsert-cluster -n kof -p '{"spec": {"type": "LoadBalancer"}}'
+kubectl patch svc kof-storage-victoria-logs-cluster-vlinsert -n kof -p '{"spec": {"type": "LoadBalancer"}}'
+kubectl patch svc kof-storage-jaeger-collector -n kof -p '{"spec": {"type": "LoadBalancer"}}'
+
+# 3. Wait for AWS to provision NLBs (1-2 minutes)
+kubectl get svc -n kof -w
+
+# 4. Update ConfigMap with LoadBalancer DNS names
+VMINSERT_LB=$(kubectl get svc vminsert-cluster -n kof -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+# ... update kof-cluster-config-<cluster> ConfigMap
+```
+
+> **Important:** Without AWS Cloud Controller Manager installed, `type: LoadBalancer` services will stay in `<pending>` state indefinitely.
+
+##### Option B: VPC Peering
+
+```bash
+# 1. Get VPC IDs
+MGMT_VPC=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=*k0rdent*" --query 'Vpcs[0].VpcId' --output text)
+MANAGED_VPC=$(aws ec2 describe-vpcs --filters "Name=tag:sigs.k8s.io/cluster-api-provider-aws/cluster/managed-cluster-01,Values=owned" --query 'Vpcs[0].VpcId' --output text)
+
+# 2. Create peering connection
+PEERING_ID=$(aws ec2 create-vpc-peering-connection --vpc-id $MGMT_VPC --peer-vpc-id $MANAGED_VPC --query 'VpcPeeringConnection.VpcPeeringConnectionId' --output text)
+aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $PEERING_ID
+
+# 3. Update route tables in both VPCs (add routes for each CIDR)
+# 4. Update security groups to allow cross-VPC traffic on ports 8480, 9481, 4318
+```
+
 #### Training Environment Limitation
 
-> **Training Environment Note:** In this training setup, the managed cluster runs in a separate AWS VPC and cannot directly reach the management cluster's internal services.
+> **Training Environment Note:** In this training setup, the managed cluster runs in a separate AWS VPC created by CAPA. The management cluster uses k0s which doesn't include AWS Cloud Controller Manager by default.
 >
-> **To enable cross-cluster telemetry, you would need one of:**
-> 1. **VPC Peering** - Connect the VPCs for private communication
-> 2. **LoadBalancer + TLS** - Expose vminsert/vlinsert with authentication
-> 3. **Service Mesh** - Use Istio for secure cross-cluster mTLS
-> 4. **AWS PrivateLink** - Create private endpoints between VPCs
+> **What you'll observe:**
+> - Collectors deploy successfully on the child cluster
+> - Pods show `Running` status
+> - Collector logs show connection errors to management cluster endpoints
 >
-> **For this lab**, we complete the labeling steps to understand the pattern. In production, networking would be configured appropriately.
+> **This is expected behavior** - the collectors are correctly configured, but network connectivity isn't established.
+>
+> **For this lab**, we complete the labeling and configuration steps to understand the pattern. The key learning objectives are:
+> 1. How to label clusters for automatic KOF deployment
+> 2. How MultiClusterService distributes workloads
+> 3. What configuration is needed for telemetry endpoints
+>
+> In production, you would implement one of the networking solutions above.
 
 ### Verify Child Cluster Collectors
 
