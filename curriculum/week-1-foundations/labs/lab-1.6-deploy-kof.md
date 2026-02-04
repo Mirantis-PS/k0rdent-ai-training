@@ -246,7 +246,7 @@ kubectl get storageclass
 kubectl describe pvc -n kof
 ```
 
-## Part 4: Deploy KOF on Child Clusters
+## Part 3: Deploy KOF on Child Clusters
 
 KOF supports multiple deployment patterns for child clusters. This section covers all options from simple to production-grade.
 
@@ -463,7 +463,7 @@ KUBECONFIG=/tmp/managed-cluster-01.kubeconfig kubectl logs -n kof -l app.kuberne
 | **kof-regional** | Regional clusters | Storage + aggregation for a region |
 | **vmauth credentials** | Auto-distributed | Authentication for remote write |
 
-## Part 5: Access Grafana Dashboards
+## Part 4: Access Grafana Dashboards
 
 Grafana provides visualization for all observability data.
 
@@ -547,7 +547,7 @@ Spend 15 minutes exploring:
 - [ ] Explore `cluster-api` to see CAPI controller activity
 - [ ] Look at `kps-etcd` to monitor etcd health
 
-## Part 6: Verify Telemetry Flow
+## Part 5: Verify Telemetry Flow
 
 Ensure metrics and logs are flowing into the KOF stack.
 
@@ -589,7 +589,7 @@ curl -s "http://localhost:9090/allocation/compute?window=1h&aggregate=namespace"
 
 > **Note:** OpenCost may take a few minutes to start showing allocation data after initial deployment.
 
-## Part 7: Create Custom Dashboard (Optional)
+## Part 6: Create Custom Dashboard (Optional)
 
 Create a simple custom dashboard for your training environment.
 
@@ -651,7 +651,7 @@ curl -X POST -H "Content-Type: application/json" \
   http://${GRAFANA_USER}:${GRAFANA_PASS}@localhost:3000/api/dashboards/db
 ```
 
-## Part 8: Understanding KOF Components
+## Part 7: Understanding KOF Components
 
 ### Component Deep Dive
 
