@@ -279,17 +279,62 @@ The simplest approach uses labels on ClusterDeployment. The `kof-child` chart on
 
 #### Step 1: Label the Managed Cluster
 
+Two labels are required:
+- `kof-cluster-role=child` - Marks cluster for collector deployment
+- `kof-storage-secrets=true` - Enables credential distribution for authentication
+
 ```bash
 # Label the cluster with KOF child role
 kubectl label clusterdeployment managed-cluster-01 \
   k0rdent.mirantis.com/kof-cluster-role=child \
   -n kcm-system
 
-# Verify label was applied
+# Label for secret distribution (required for collector authentication)
+kubectl label clusterdeployment managed-cluster-01 \
+  k0rdent.mirantis.com/kof-storage-secrets=true \
+  -n kcm-system
+
+# Verify labels were applied
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system --show-labels
 ```
 
-#### Step 2: Install kof-child on Management Cluster
+#### Step 2: Create Cluster Configuration
+
+The child cluster needs to know where to send telemetry. Create a ConfigMap with the storage endpoints:
+
+```bash
+# Create cluster configuration with storage endpoints
+cat << 'EOF' | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kof-cluster-config-managed-cluster-01
+  namespace: kcm-system
+  labels:
+    k0rdent.mirantis.com/kof-cluster-role: child
+data:
+  # Regional/storage cluster info
+  regional_cluster_name: management
+  regional_cluster_namespace: kcm-system
+  regional_cluster_cloud: aws
+  aws_region: eu-west-1
+
+  # Metrics endpoints (VictoriaMetrics)
+  write_metrics_endpoint: "http://vminsert-cluster.kof.svc.cluster.local:8480/insert/0/prometheus/api/v1/write"
+  read_metrics_endpoint: "http://vmselect-cluster.kof.svc.cluster.local:8481/select/0/prometheus"
+
+  # Logs endpoint (VictoriaLogs)
+  write_logs_endpoint: "http://kof-storage-victoria-logs-cluster-vlinsert.kof.svc.cluster.local:9481/insert/opentelemetry/v1/logs"
+  read_logs_endpoint: "http://kof-storage-victoria-logs-cluster-vlselect.kof.svc.cluster.local:9471"
+
+  # Traces endpoint (Jaeger)
+  write_traces_endpoint: "http://kof-storage-jaeger-collector.kof.svc.cluster.local:4318"
+EOF
+```
+
+> **Note:** The ConfigMap name must follow the pattern `kof-cluster-config-<cluster-name>`. The endpoints above use internal service names which require network connectivity from child to management cluster.
+
+#### Step 3: Install kof-child on Management Cluster
 
 The `kof-child` chart creates MultiClusterService resources that automatically deploy collectors to all clusters with the `child` label:
 
@@ -300,16 +345,59 @@ helm upgrade -i --reset-values --wait -n kof kof-child \
   --version 1.5.0
 ```
 
-This will automatically deploy `kof-collectors` to any ClusterDeployment with label `k0rdent.mirantis.com/kof-cluster-role=child`.
+This will automatically deploy:
+- **cert-manager** - For TLS certificates
+- **kof-operators** - OpenTelemetry operator (Grafana operator disabled on child)
+- **kof-collectors** - OpenTelemetry collectors, kube-state-metrics, node-exporter, OpenCost
 
-#### Step 3: Verify Automatic Deployment
+#### Step 4: Verify Automatic Deployment
 
 ```bash
 # Check MultiClusterService was created
-kubectl get multiclusterservice -n kcm-system
+kubectl get multiclusterservice -A
 
-# Check if collectors are deploying to child cluster
-kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o yaml | grep -A 20 "serviceSpec"
+# Check ClusterDeployment services status
+kubectl get clusterdeployment managed-cluster-01 -n kcm-system
+
+# Should show: SERVICES 4/4 (nginx + cert-manager + kof-operators + kof-collectors)
+```
+
+#### Step 5: Verify Collectors on Child Cluster
+
+```bash
+# Get kubeconfig for managed cluster
+kubectl get secret managed-cluster-01-kubeconfig -n kcm-system \
+  -o jsonpath='{.data.value}' | base64 -d > /tmp/managed.kubeconfig
+
+# Check KOF pods on managed cluster
+KUBECONFIG=/tmp/managed.kubeconfig kubectl get pods -n kof
+
+# Expected pods (all should be Running):
+# - cert-manager-xxx (3 pods)
+# - kof-collectors-cluster-stats-collector-xxx
+# - kof-collectors-daemon-collector-xxx (DaemonSet, one per node)
+# - kof-collectors-kube-state-metrics-xxx
+# - kof-collectors-prometheus-node-exporter-xxx (DaemonSet)
+# - kof-collectors-opencost-xxx
+# - kof-collectors-ta-daemon-collector-xxx (DaemonSet)
+# - kof-collectors-ta-daemon-targetallocator-xxx
+# - kof-operators-opentelemetry-operator-xxx
+```
+
+#### Troubleshooting Option 1
+
+If pods show `CreateContainerConfigError`:
+```bash
+# Check if secrets were distributed
+KUBECONFIG=/tmp/managed.kubeconfig kubectl get secrets -n kof | grep -E "vmuser|jaeger"
+
+# Should see:
+# - storage-vmuser-credentials
+# - jaeger-admin-credentials
+# - jaeger-admin-htpasswd
+
+# If missing, verify the kof-storage-secrets label is set
+kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o jsonpath='{.metadata.labels}' | jq .
 ```
 
 ### Option 2: Regional Architecture (Production)
