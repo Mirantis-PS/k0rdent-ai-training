@@ -246,88 +246,222 @@ kubectl get storageclass
 kubectl describe pvc -n kof
 ```
 
-## Part 4: Configure Managed Cluster for KOF
+## Part 4: Deploy KOF on Child Clusters
 
-Now configure your managed cluster to send telemetry to the management cluster.
+KOF supports multiple deployment patterns for child clusters. This section covers all options from simple to production-grade.
 
-> **Training Environment Note:** In this training setup, the managed cluster runs in a separate AWS VPC and cannot directly reach the management cluster's internal services. For full cross-cluster telemetry, you would need:
-> - VPC peering between management and managed cluster VPCs
-> - Or expose VictoriaMetrics via LoadBalancer/Ingress with authentication
-> - Or use a service mesh for cross-cluster connectivity
->
-> **For this lab**, we'll complete the labeling steps and verify the mothership works. In production, the networking would be configured appropriately.
+### Understanding Child Cluster Telemetry Flow
 
-### Label the Managed Cluster
+```
++-------------------+     +-------------------+     +-------------------+
+| Child Cluster 1   |     | Child Cluster 2   |     | Child Cluster N   |
+| - kof-collectors  |     | - kof-collectors  |     | - kof-collectors  |
+| - OpenTelemetry   |     | - OpenTelemetry   |     | - OpenTelemetry   |
+| - OpenCost        |     | - OpenCost        |     | - OpenCost        |
++--------+----------+     +--------+----------+     +--------+----------+
+         |                         |                         |
+         |    metrics/logs/traces  |                         |
+         +------------+------------+-------------------------+
+                      |
+                      v
+         +------------------------+          +------------------------+
+         | Regional Cluster       |    OR    | Management Cluster     |
+         | (optional aggregation) |          | (direct storage)       |
+         | - VictoriaMetrics      |          | - VictoriaMetrics      |
+         | - VictoriaLogs         |          | - VictoriaLogs         |
+         | - Jaeger               |          | - Grafana              |
+         +------------------------+          +------------------------+
+```
+
+### Option 1: Automatic Deployment via Labels (Recommended)
+
+The simplest approach uses labels on ClusterDeployment. The `kof-child` chart on the management cluster automatically deploys collectors to labeled clusters via **MultiClusterService**.
+
+#### Step 1: Label the Managed Cluster
 
 ```bash
-# Label the cluster with KOF role
+# Label the cluster with KOF child role
 kubectl label clusterdeployment managed-cluster-01 \
   k0rdent.mirantis.com/kof-cluster-role=child \
   -n kcm-system
 
-# Optionally add storage secrets label if using cloud storage
-kubectl label clusterdeployment managed-cluster-01 \
-  k0rdent.mirantis.com/kof-storage-secrets=true \
-  -n kcm-system
-
-# Verify labels
+# Verify label was applied
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system --show-labels
 ```
 
-### Create KOF Child Configuration
+#### Step 2: Install kof-child on Management Cluster
 
-For the managed cluster to send metrics, we need to create a configuration:
+The `kof-child` chart creates MultiClusterService resources that automatically deploy collectors to all clusters with the `child` label:
 
 ```bash
-cat << 'EOF' > /tmp/kof-child-config.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: kof-child-config
-  namespace: kof
-data:
-  # Management cluster's VictoriaMetrics endpoint
-  METRICS_REMOTE_WRITE_URL: "http://victoriametrics-vmsingle.kof.svc:8428/api/v1/write"
-  # Management cluster's VictoriaLogs endpoint
-  LOGS_REMOTE_WRITE_URL: "http://victorialogs.kof.svc:9428/insert/loki/api/v1/push"
-EOF
-
-kubectl apply -f /tmp/kof-child-config.yaml
+# Install kof-child on management cluster (not on the child cluster!)
+helm upgrade -i --reset-values --wait -n kof kof-child \
+  oci://ghcr.io/k0rdent/kof/charts/kof-child \
+  --version 1.5.0
 ```
 
-### Install KOF Child Components on Managed Cluster
+This will automatically deploy `kof-collectors` to any ClusterDeployment with label `k0rdent.mirantis.com/kof-cluster-role=child`.
 
-> **Skip this step in training** if cross-VPC connectivity is not configured. The KOF child installation requires network access from managed cluster to management cluster's VictoriaMetrics endpoint.
+#### Step 3: Verify Automatic Deployment
+
+```bash
+# Check MultiClusterService was created
+kubectl get multiclusterservice -n kcm-system
+
+# Check if collectors are deploying to child cluster
+kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o yaml | grep -A 20 "serviceSpec"
+```
+
+### Option 2: Regional Architecture (Production)
+
+For large-scale deployments, use regional clusters as aggregation points to reduce cross-region traffic.
+
+#### Regional Cluster Labels
+
+When creating a regional cluster:
+
+```yaml
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ClusterDeployment
+metadata:
+  name: regional-us-east-1
+  namespace: kcm-system
+  labels:
+    k0rdent.mirantis.com/kof-cluster-role: regional
+    k0rdent.mirantis.com/kof-storage-secrets: "true"
+  annotations:
+    k0rdent.mirantis.com/kof-regional-domain: kof.us-east-1.example.com
+    k0rdent.mirantis.com/kof-cert-email: admin@example.com
+spec:
+  template: aws-standalone-cp-1-0-20
+  credential: aws-credential
+  config:
+    region: us-east-1
+    # ... rest of config
+```
+
+#### Child Clusters Point to Regional
+
+Child clusters in the same region automatically discover and send telemetry to the regional cluster.
+
+### Option 3: Custom Endpoints via Annotations
+
+Configure child clusters to send telemetry to custom endpoints:
+
+```yaml
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ClusterDeployment
+metadata:
+  name: managed-cluster-01
+  namespace: kcm-system
+  labels:
+    k0rdent.mirantis.com/kof-cluster-role: child
+  annotations:
+    # Custom write endpoints
+    k0rdent.mirantis.com/kof-write-metrics-endpoint: "https://vmauth.example.com/vm/insert/0/prometheus/api/v1/write"
+    k0rdent.mirantis.com/kof-write-logs-endpoint: "https://vmauth.example.com/vli/insert/opentelemetry/v1/logs"
+    k0rdent.mirantis.com/kof-write-traces-endpoint: "https://jaeger.example.com/collector"
+    # Custom read endpoints (for OpenCost)
+    k0rdent.mirantis.com/kof-read-metrics-endpoint: "https://vmauth.example.com/vm/select/0/prometheus"
+spec:
+  template: aws-standalone-cp-1-0-20
+  # ... rest of config
+```
+
+### Option 4: Manual Helm Install (Development/Testing)
+
+For testing or when automatic deployment isn't suitable:
 
 ```bash
 # Get kubeconfig for managed cluster
 kubectl get secret managed-cluster-01-kubeconfig -n kcm-system \
   -o jsonpath='{.data.value}' | base64 -d > /tmp/managed-cluster-01.kubeconfig
 
-# Install KOF child components on the managed cluster
-# NOTE: This requires network connectivity to management cluster
+# Create collectors values for the child cluster
+cat << 'EOF' > /tmp/child-collectors-values.yaml
+kcm:
+  monitoring: true
+opentelemetry-kube-stack:
+  clusterName: managed-cluster-01
+  defaultCRConfig:
+    config:
+      processors:
+        resource/k8sclustername:
+          attributes:
+            - action: insert
+              key: k8s.cluster.name
+              value: managed-cluster-01
+            - action: insert
+              key: k8s.cluster.namespace
+              value: kcm-system
+      exporters:
+        prometheusremotewrite:
+          endpoint: http://<MANAGEMENT_VMINSERT_ENDPOINT>:8480/insert/0/prometheus/api/v1/write
+          external_labels:
+            cluster: managed-cluster-01
+            clusterNamespace: kcm-system
+EOF
+
+# Install collectors on the child cluster
 KUBECONFIG=/tmp/managed-cluster-01.kubeconfig \
-helm upgrade -i --wait --create-namespace -n kof kof-child \
-  oci://ghcr.io/k0rdent/kof/charts/kof-child \
-  --version 1.6.0 \
-  --set "remoteWrite.url=http://<management-cluster-ip>:8428/api/v1/write"
+helm upgrade -i --reset-values --wait --create-namespace -n kof kof-collectors \
+  -f /tmp/child-collectors-values.yaml \
+  oci://ghcr.io/k0rdent/kof/charts/kof-collectors \
+  --version 1.5.0
 ```
 
-> **Note:** Replace `<management-cluster-ip>` with your management cluster's IP or use internal DNS if clusters can communicate. In production, this would typically use:
-> - A LoadBalancer service with TLS and authentication
-> - VPC peering for private connectivity
-> - Or a service mesh like Istio for secure cross-cluster communication
+> **Note:** Replace `<MANAGEMENT_VMINSERT_ENDPOINT>` with a reachable endpoint. See networking requirements below.
 
-### Verify Collectors on Managed Cluster
+### Networking Requirements
+
+For child clusters to send telemetry to the management/regional cluster:
+
+| Requirement | Options |
+|-------------|---------|
+| **Network Path** | VPC peering, Transit Gateway, VPN, or public endpoint |
+| **Authentication** | vmauth credentials (auto-distributed via `kof-storage-secrets` label) |
+| **TLS** | Required for public endpoints; optional for private networks |
+| **Ports** | 8480 (vminsert), 9481 (logs), 4318 (traces) |
+
+#### Training Environment Limitation
+
+> **Training Environment Note:** In this training setup, the managed cluster runs in a separate AWS VPC and cannot directly reach the management cluster's internal services.
+>
+> **To enable cross-cluster telemetry, you would need one of:**
+> 1. **VPC Peering** - Connect the VPCs for private communication
+> 2. **LoadBalancer + TLS** - Expose vminsert/vlinsert with authentication
+> 3. **Service Mesh** - Use Istio for secure cross-cluster mTLS
+> 4. **AWS PrivateLink** - Create private endpoints between VPCs
+>
+> **For this lab**, we complete the labeling steps to understand the pattern. In production, networking would be configured appropriately.
+
+### Verify Child Cluster Collectors
+
+Once networking is configured and collectors are deployed:
 
 ```bash
-# Check KOF components on managed cluster
+# Check KOF pods on managed cluster
 KUBECONFIG=/tmp/managed-cluster-01.kubeconfig kubectl get pods -n kof
 
-# Expected:
-# - opentelemetry-collector-xxx (DaemonSet for node metrics)
-# - opencost-xxx (cost allocation)
+# Expected pods:
+# - kof-collectors-cluster-stats-collector-xxx
+# - kof-collectors-daemon-collector-xxx (DaemonSet)
+# - kof-collectors-kube-state-metrics-xxx
+# - kof-collectors-prometheus-node-exporter-xxx
+# - kof-collectors-opencost-xxx
+
+# Check if metrics are being exported (look for no errors)
+KUBECONFIG=/tmp/managed-cluster-01.kubeconfig kubectl logs -n kof -l app.kubernetes.io/name=opentelemetry-collector --tail=20
 ```
+
+### Component Summary
+
+| Component | Deployed On | Purpose |
+|-----------|-------------|---------|
+| **kof-child** | Management cluster | Creates MultiClusterService to auto-deploy collectors |
+| **kof-collectors** | Child clusters | OpenTelemetry, kube-state-metrics, node-exporter, OpenCost |
+| **kof-regional** | Regional clusters | Storage + aggregation for a region |
+| **vmauth credentials** | Auto-distributed | Authentication for remote write |
 
 ## Part 5: Access Grafana Dashboards
 
