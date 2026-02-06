@@ -7,8 +7,6 @@
 ehthumbs.db
 Thumbs.db
 
-# Claude Code context files
-CLAUDE.md
 
 # IDE and editor files
 .idea/
