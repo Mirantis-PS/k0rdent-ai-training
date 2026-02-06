@@ -36,16 +36,16 @@ FOUNDATION (Required)                         ADVANCED OPTIMIZATION
 
 ## Objective
 
-Understand and configure Remote Direct Memory Access (RDMA) for GPU-accelerated AI workloads across AWS and Azure cloud platforms. This lab demonstrates k0rdent's multi-cloud capabilities by deploying identical GPU workloads on both EFA (AWS) and InfiniBand (Azure) infrastructure.
+Understand and configure Remote Direct Memory Access (RDMA) for GPU-accelerated AI workloads across AWS and Azure cloud platforms. This lab uses k0rdent's multi-cloud capabilities — ClusterDeployment, ServiceTemplate, and MultiClusterService — to deploy GPU networking infrastructure on both EFA (AWS) and InfiniBand (Azure) clusters from a single management plane.
 
 ## Prerequisites
 
 - Completed Lab 5.2 (vLLM Inference Service)
-- Completed Lab 5.13 (TensorRT-LLM) recommended
+- Completed Lab 5.3 (GPU Communication) recommended
 - Access to either:
   - AWS: p4d.24xlarge instances with EFA enabled
   - Azure: ND A100 v4 or ND H100 v5 VMSS with InfiniBand
-- NVIDIA GPU Operator and Network Operator installed
+- NVIDIA GPU Operator deployed (via k0rdent catalog `gpu-operator-25-10-0`)
 - Basic understanding of Kubernetes networking
 
 ---
@@ -80,20 +80,20 @@ With RDMA + GPUDirect:
       │                                                  │
       └──────────── Direct memory transfer ──────────────┘
 
-                    Latency: <2 microseconds
+                    Latency: ~2-5 microseconds
                     Throughput: Up to 3200 Gbps (H100)
 ```
 
 ### The Impact on Distributed Training
 
-In distributed training, GPUs must synchronize gradients after each batch using collective operations like **all-reduce**. For a 70B parameter model:
+In distributed training, GPUs must synchronize gradients after each batch using collective operations like **all-reduce**. Network bandwidth directly determines how fast this synchronization completes:
 
-| Network Type | All-Reduce Time | Total Training Impact |
-|--------------|-----------------|----------------------|
-| Standard TCP (1 Gbps) | ~56 seconds | Unusable |
-| TCP (100 Gbps) | ~560 ms | Very slow |
-| EFA/RDMA (400 Gbps) | ~140 ms | Acceptable |
-| InfiniBand (3200 Gbps) | ~17.5 ms | Optimal |
+| Network Type | Relative Speed | Practical Impact |
+|--------------|----------------|------------------|
+| Standard TCP (1 Gbps) | Baseline | Unusable for large models |
+| TCP (100 Gbps) | ~100x faster | Still bottlenecked by CPU copies |
+| EFA/RDMA (400 Gbps) | ~400x faster | Practical for multi-node training |
+| InfiniBand (3200 Gbps) | ~3200x faster | Near-optimal for large-scale training |
 
 **Key Insight:** The difference between standard networking and RDMA can be the difference between a training run taking weeks vs days.
 
@@ -101,45 +101,178 @@ In distributed training, GPUs must synchronize gradients after each batch using 
 
 ## Part 1: Understanding RDMA Technologies
 
-### 1.1 What is RDMA?
+### Task 1: RDMA Fundamentals (15 min)
 
 **Remote Direct Memory Access (RDMA)** is a technology that enables:
 - Direct memory-to-memory transfers between machines
 - Bypassing the operating system kernel
 - CPU-free data movement
-- Sub-microsecond latencies
+- Sub-microsecond to low-microsecond latencies
 
-### 1.2 RDMA Protocol Comparison
+#### RDMA Protocol Comparison
 
 | Protocol | Full Name | Hardware | Use Case |
 |----------|-----------|----------|----------|
-| **InfiniBand** | Native InfiniBand | Mellanox HCAs | HPC, AI training (on-prem, Azure) |
-| **RoCE** | RDMA over Converged Ethernet | Mellanox NICs | Data centers with lossless Ethernet |
+| **InfiniBand** | Native InfiniBand | Mellanox/NVIDIA HCAs | HPC, AI training (on-prem, Azure) |
+| **RoCE** | RDMA over Converged Ethernet | Mellanox/NVIDIA NICs | Data centers with lossless Ethernet |
 | **iWARP** | Internet Wide Area RDMA Protocol | Various NICs | Longer distances, lossy networks |
-| **EFA** | Elastic Fabric Adapter | AWS custom | AWS-specific RDMA implementation |
+| **EFA** | Elastic Fabric Adapter | AWS custom | AWS-specific RDMA (SRD protocol) |
 
-### 1.3 AWS EFA vs Azure InfiniBand
+#### AWS EFA vs Azure InfiniBand
 
 | Feature | AWS EFA | Azure InfiniBand |
 |---------|---------|------------------|
-| **Technology Base** | Proprietary over Ethernet | True InfiniBand (Mellanox) |
+| **Technology Base** | Scalable Reliable Datagram (SRD) over Ethernet | True InfiniBand (NVIDIA ConnectX) |
 | **Protocol** | Libfabric (SRD) | Native IB verbs |
-| **Max Bandwidth** | 3200 Gbps (P5, 32 NICs) | 3200 Gbps (ND H100 v5) |
-| **GPUDirect Support** | Yes | Yes |
-| **Standards Compliant** | Partial (AWS-specific) | Full InfiniBand standard |
+| **Max Bandwidth** | 3,200 Gbps (P5, 32 NICs) | 3,200 Gbps (ND H100 v5, 8x 400G) |
+| **GPUDirect Support** | Yes (via nvidia-peermem) | Yes (via nvidia-peermem) |
+| **Standards Compliant** | AWS-specific (SRD) | Full InfiniBand standard |
 | **On-Prem Equivalent** | No direct equivalent | Same as NVIDIA DGX |
-| **NCCL Support** | Via AWS OFI plugin | Native |
+| **NCCL Transport** | Via aws-ofi-nccl plugin | Native IB transport |
 
-**Why This Matters for Training:**
+**Why This Matters:**
 
 - **AWS EFA:** Great for cloud-native workloads, excellent AWS integration, but skills don't transfer to on-premises InfiniBand
 - **Azure InfiniBand:** Industry-standard technology, skills transfer to NVIDIA DGX, Supermicro, and other HPC systems
 
 ---
 
-## Part 2: AWS EFA Configuration
+## Part 2: k0rdent Multi-Cloud GPU Infrastructure
 
-### Task 1: Understand EFA Architecture (15 min)
+### Task 2: Provision GPU Clusters via k0rdent (30 min)
+
+k0rdent's core value for RDMA workloads is managing GPU clusters across cloud providers from a single management plane. Each provider requires different infrastructure (EFA vs InfiniBand), but k0rdent abstracts the provisioning.
+
+1. **Review AWS GPU ClusterDeployment**
+
+   The AWS cluster uses p4d/p5 instances with EFA enabled:
+   ```yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: ClusterDeployment
+   metadata:
+     name: aws-gpu-cluster
+     namespace: gpu-training
+     labels:
+       workload-type: gpu-training
+       cloud-provider: aws
+       rdma-type: efa
+   spec:
+     template: aws-standalone-cp-0-1-0
+     credential: aws-cluster-identity-cred
+     config:
+       region: us-west-2
+       controlPlane:
+         instanceType: m5.xlarge
+       worker:
+         instanceType: p4d.24xlarge
+       workersNumber: 2
+       # EFA requires a placement group for lowest latency
+       # Configured via the ClusterTemplate Helm chart values
+     serviceSpec:
+       services:
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+           values: |
+             toolkit:
+               env:
+                 - name: CONTAINERD_CONFIG
+                   value: /etc/k0s/containerd.d/nvidia.toml
+                 - name: CONTAINERD_SOCKET
+                   value: /run/k0s/containerd.sock
+             driver:
+               rdma:
+                 enabled: true
+                 useHostMofed: false
+   ```
+
+2. **Review Azure GPU ClusterDeployment**
+
+   The Azure cluster uses ND-series VMs with InfiniBand:
+   ```yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: ClusterDeployment
+   metadata:
+     name: azure-gpu-cluster
+     namespace: gpu-training
+     labels:
+       workload-type: gpu-training
+       cloud-provider: azure
+       rdma-type: infiniband
+   spec:
+     template: azure-standalone-cp-0-1-0
+     credential: azure-cluster-identity-cred
+     config:
+       location: westus2
+       subscriptionID: "<subscription-id>"
+       controlPlane:
+         vmSize: Standard_D4s_v3
+       worker:
+         vmSize: Standard_ND96isr_H100_v5  # 'r' suffix = RDMA-capable
+       workersNumber: 2
+       # InfiniBand requires single_placement_group = true in VMSS
+     serviceSpec:
+       services:
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+           values: |
+             toolkit:
+               env:
+                 - name: CONTAINERD_CONFIG
+                   value: /etc/k0s/containerd.d/nvidia.toml
+                 - name: CONTAINERD_SOCKET
+                   value: /run/k0s/containerd.sock
+             driver:
+               rdma:
+                 enabled: true
+                 useHostMofed: true  # Azure pre-installs MOFED drivers
+   ```
+
+3. **Deploy the Network Operator via MultiClusterService**
+
+   The NVIDIA Network Operator manages RDMA device plugins across all GPU clusters:
+   ```yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: network-operator
+     namespace: kcm-system
+   spec:
+     clusterSelector:
+       matchLabels:
+         workload-type: gpu-training
+     serviceSpec:
+       services:
+         - template: nvidia-network-operator-25-10-0
+           name: network-operator
+           namespace: nvidia-network-operator
+           values: |
+             nfd:
+               enabled: false
+             ofedDriver:
+               deploy: false
+             rdmaSharedDevicePlugin:
+               deploy: true
+             secondaryNetwork:
+               deploy: false
+   ```
+
+   ```bash
+   # Apply from the management cluster
+   kubectl apply -f aws-gpu-cluster.yaml
+   kubectl apply -f azure-gpu-cluster.yaml
+   kubectl apply -f network-operator-mcs.yaml
+
+   # Monitor provisioning
+   kubectl get clusterdeployments -n gpu-training -w
+   ```
+
+---
+
+## Part 3: AWS EFA Configuration
+
+### Task 3: Verify EFA Prerequisites (20 min)
 
 AWS EFA provides RDMA capabilities through the **Scalable Reliable Datagram (SRD)** protocol:
 
@@ -162,147 +295,69 @@ AWS EFA Architecture:
 │  │  └────────────┘  │         │  └────────────┘  │              │
 │  └──────────────────┘         └──────────────────┘              │
 │                                                                 │
-│  P5 instances: 32x EFA interfaces (3200 Gbps total)             │
+│  P5 instances: 32x EFA interfaces (3,200 Gbps total)           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**P4d.24xlarge EFA Configuration:**
-- 4x EFA interfaces (100 Gbps each = 400 Gbps total)
-- Each EFA interface attached to a different subnet
-- Requires placement group for lowest latency
+**Instance EFA Specifications:**
 
-**P5.48xlarge EFA Configuration:**
-- 32x EFA interfaces (100 Gbps each = 3200 Gbps total)
-- 8x H100 GPUs with NVSwitch
-- State-of-the-art for AWS ML training
+| Instance | GPUs | EFA Interfaces | Total Bandwidth |
+|----------|------|---------------|-----------------|
+| p4d.24xlarge | 8x A100 | 4 | 400 Gbps |
+| p5.48xlarge | 8x H100 | 32 | 3,200 Gbps |
 
-### Task 2: Verify EFA Prerequisites (20 min)
-
-1. **Check Instance Type and EFA Interfaces**
-
-   SSH into your GPU node:
+1. **Switch to the AWS GPU cluster context**
    ```bash
-   # Verify instance metadata
+   # Get kubeconfig from k0rdent
+   kubectl get secret -n gpu-training aws-gpu-cluster-kubeconfig \
+     -o jsonpath='{.data.value}' | base64 -d > /tmp/aws-gpu.kubeconfig
+   export KUBECONFIG=/tmp/aws-gpu.kubeconfig
+   ```
+
+2. **Verify EFA on Worker Nodes**
+
+   SSH into a GPU worker node:
+   ```bash
+   # Verify instance type
    curl -s http://169.254.169.254/latest/meta-data/instance-type
    # Expected: p4d.24xlarge or p5.48xlarge
-
-   # List network interfaces
-   ip link show
-   # Look for: eth0, eth1, eth2, eth3 (EFA interfaces)
 
    # Check EFA device
    fi_info -p efa
    # Should show EFA provider information
-   ```
 
-2. **Verify Placement Group**
-   ```bash
-   # Check instance placement
-   curl -s http://169.254.169.254/latest/meta-data/placement/group-name
-   # Should show your cluster placement group name
-   ```
-
-3. **Verify EFA Driver**
-   ```bash
    # Check EFA module loaded
    lsmod | grep efa
    # Expected: efa module loaded
 
-   # Check EFA device files
-   ls -la /dev/infiniband/
-   # Should show uverbs devices
+   # Verify placement group
+   curl -s http://169.254.169.254/latest/meta-data/placement/group-name
    ```
 
-### Task 3: Install AWS EFA Kubernetes Device Plugin (30 min)
+### Task 4: Deploy AWS EFA Device Plugin (20 min)
 
-The EFA device plugin exposes EFA interfaces to Kubernetes pods.
+The EFA device plugin exposes EFA interfaces as Kubernetes resources.
 
-1. **Deploy EFA Device Plugin**
-   ```yaml
-   # Save as efa-device-plugin.yaml
-   apiVersion: apps/v1
-   kind: DaemonSet
-   metadata:
-     name: aws-efa-k8s-device-plugin-daemonset
-     namespace: kube-system
-   spec:
-     selector:
-       matchLabels:
-         name: aws-efa-k8s-device-plugin
-     template:
-       metadata:
-         labels:
-           name: aws-efa-k8s-device-plugin
-       spec:
-         tolerations:
-           - key: nvidia.com/gpu
-             operator: Exists
-             effect: NoSchedule
-         hostNetwork: true
-         containers:
-           - name: aws-efa-k8s-device-plugin
-             image: 602401143452.dkr.ecr.us-west-2.amazonaws.com/eks/aws-efa-k8s-device-plugin:v0.5.4
-             securityContext:
-               allowPrivilegeEscalation: false
-               capabilities:
-                 drop: ["ALL"]
-             volumeMounts:
-               - name: device-plugin
-                 mountPath: /var/lib/kubelet/device-plugins
-         volumes:
-           - name: device-plugin
-             hostPath:
-               path: /var/lib/kubelet/device-plugins
-   ```
-
+1. **Install via Helm (recommended)**
    ```bash
-   kubectl apply -f efa-device-plugin.yaml
+   helm repo add eks https://aws.github.io/eks-charts
+   helm repo update
 
-   # Verify deployment
-   kubectl get daemonset -n kube-system aws-efa-k8s-device-plugin-daemonset
+   helm install aws-efa-k8s-device-plugin eks/aws-efa-k8s-device-plugin \
+     --namespace kube-system \
+     --set tolerations[0].key=nvidia.com/gpu \
+     --set tolerations[0].operator=Exists \
+     --set tolerations[0].effect=NoSchedule
    ```
 
-2. **Verify EFA Resource Available**
+2. **Verify EFA Resources Available**
    ```bash
-   kubectl describe node <gpu-node-name> | grep -A10 Allocatable
+   # Check that EFA devices are registered
+   kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.allocatable.vpc\.amazonaws\.com/efa}{"\n"}{end}'
 
-   # Expected output should include:
-   # vpc.amazonaws.com/efa: 4    (for p4d)
-   # vpc.amazonaws.com/efa: 32   (for p5)
-   ```
-
-### Task 4: Configure NVIDIA GPU Operator for RDMA (30 min)
-
-1. **Update GPU Operator with RDMA Support**
-   ```bash
-   helm upgrade gpu-operator nvidia/gpu-operator \
-     --namespace gpu-operator \
-     --set driver.rdma.enabled=true \
-     --set driver.rdma.useHostMofed=false
-   ```
-
-2. **Deploy NVIDIA Network Operator**
-   ```bash
-   helm install network-operator nvidia/network-operator \
-     --namespace nvidia-network-operator \
-     --create-namespace \
-     --set nfd.enabled=false \
-     --set ofedDriver.deploy=false \
-     --set rdmaSharedDevicePlugin.deploy=true \
-     --set secondaryNetwork.deploy=false
-   ```
-
-3. **Verify nvidia-peermem Module**
-
-   The `nvidia-peermem` module enables GPUDirect RDMA:
-
-   ```bash
-   # Check on each GPU node
-   kubectl exec -it <gpu-pod> -- bash
-   lsmod | grep nvidia_peermem
-
-   # If not loaded:
-   modprobe nvidia-peermem
+   # Expected output:
+   # gpu-worker-1    4    (for p4d)
+   # gpu-worker-2    4
    ```
 
 ### Task 5: Test EFA with NCCL (30 min)
@@ -327,14 +382,14 @@ The EFA device plugin exposes EFA interfaces to Kubernetes pods.
              value: "INFO"
            - name: NCCL_DEBUG_SUBSYS
              value: "INIT,NET"
-           - name: FI_EFA_USE_DEVICE_RDMA
-             value: "1"
            - name: FI_PROVIDER
              value: "efa"
+           - name: FI_EFA_USE_DEVICE_RDMA
+             value: "1"
            - name: NCCL_NET_GDR_LEVEL
-             value: "5"
+             value: "SYS"
            - name: LD_LIBRARY_PATH
-             value: "/opt/amazon/efa/lib:$LD_LIBRARY_PATH"
+             value: "/opt/amazon/efa/lib:/usr/local/lib:$LD_LIBRARY_PATH"
          resources:
            limits:
              nvidia.com/gpu: 8
@@ -368,19 +423,16 @@ The EFA device plugin exposes EFA interfaces to Kubernetes pods.
    ```bash
    kubectl exec -it nccl-test-efa -- bash
 
-   # Inside the pod - run all-reduce performance test
+   # Single-node 8-GPU all-reduce benchmark
    cd /opt/nccl-tests/build
-
-   # Single-node 8-GPU test
    ./all_reduce_perf -b 1M -e 1G -f 2 -g 8
 
-   # Expected output (example):
-   #                                             out-of-place                       in-place
-   # size       count      type   redop    time   algbw   busbw  error     time   algbw   busbw  error
-   # 1048576    262144     float    sum    0.08   12.47   21.82  0e+00    0.08   12.52   21.91  0e+00
-   # 2097152    524288     float    sum    0.09   22.89   40.05  0e+00    0.09   22.95   40.16  0e+00
-   # ...
-   # 1073741824 268435456  float    sum    2.12  505.89  884.81  0e+00    2.11  508.23  889.40  0e+00
+   # Expected output columns:
+   #   size    count   type  redop   time   algbw  busbw  error
+   #
+   # For 8x A100 with NVSwitch, expect:
+   #   ~200-230 GB/s busbw for large messages (≥256MB)
+   #   This is the realistic NVSwitch all-reduce bandwidth.
    ```
 
 3. **Interpret NCCL Output**
@@ -389,16 +441,25 @@ The EFA device plugin exposes EFA interfaces to Kubernetes pods.
    |--------|---------|
    | size | Message size in bytes |
    | time | Time in milliseconds |
-   | algbw | Algorithm bandwidth (GB/s) |
-   | busbw | Bus bandwidth (GB/s) - actual NVLink usage |
+   | algbw | Algorithm bandwidth (GB/s) — data_size / time |
+   | busbw | Bus bandwidth (GB/s) — accounts for the ring/tree algorithm factor |
 
    **Expected Performance (8x A100 with NVSwitch):**
-   - Bus bandwidth: 800-900 GB/s for large messages
+   - Bus bandwidth: ~200-230 GB/s for large messages (≥256MB)
    - This confirms NVLink is being used within the node
+
+   > **Note:** The A100 NVLink spec is 600 GB/s bidirectional per GPU. The all-reduce busbw reflects the effective unidirectional throughput after accounting for the collective algorithm overhead, which is why ~200-230 GB/s is the expected realistic value.
+
+4. **Verify EFA Transport in Logs**
+   ```bash
+   # Look for EFA transport in NCCL debug output
+   # Expected: "NCCL INFO NET/AWS-EFA" or "NCCL INFO NET/OFI"
+   # If you see "NCCL INFO NET/Socket" — EFA is NOT being used (TCP fallback)
+   ```
 
 ---
 
-## Part 3: Azure InfiniBand Configuration
+## Part 4: Azure InfiniBand Configuration
 
 ### Task 6: Understand Azure InfiniBand Architecture (15 min)
 
@@ -436,16 +497,24 @@ Azure InfiniBand Architecture:
 
 ### Task 7: Verify Azure InfiniBand Prerequisites (20 min)
 
-1. **Verify VM is RDMA-Capable**
+1. **Switch to the Azure GPU cluster context**
+   ```bash
+   kubectl get secret -n gpu-training azure-gpu-cluster-kubeconfig \
+     -o jsonpath='{.data.value}' | base64 -d > /tmp/azure-gpu.kubeconfig
+   export KUBECONFIG=/tmp/azure-gpu.kubeconfig
+   ```
 
-   SSH into your Azure GPU node:
+2. **Verify VM is RDMA-Capable**
+
+   SSH into an Azure GPU worker node:
    ```bash
    # Check VM size (must have 'r' suffix for RDMA)
-   curl -H "Metadata:true" "http://169.254.169.254/metadata/instance/compute/vmSize?api-version=2021-02-01&format=text"
+   curl -H "Metadata:true" \
+     "http://169.254.169.254/metadata/instance/compute/vmSize?api-version=2021-02-01&format=text"
    # Expected: Standard_ND96isr_H100_v5 (note the 'r')
    ```
 
-2. **Verify InfiniBand Hardware**
+3. **Verify InfiniBand Hardware**
    ```bash
    # Check InfiniBand HCA (Host Channel Adapter)
    ibstat
@@ -458,80 +527,80 @@ Azure InfiniBand Architecture:
    #     State: Active
    #     Physical state: LinkUp
    #     Rate: 400 Gb/s
-   #     Base lid: 123
-   #     SM lid: 1
 
    # Check all InfiniBand devices
    ibv_devinfo
-   ```
 
-3. **Verify InfiniBand Network Connectivity**
-   ```bash
-   # Show InfiniBand ports and status
+   # Show InfiniBand port status
    ibstatus
-
-   # Check InfiniBand fabric topology (shows connected nodes)
-   iblinkinfo
    ```
 
-### Task 8: Configure k0s with InfiniBand on Azure (45 min)
-
-This task demonstrates k0rdent's capability to manage k0s clusters on Azure with InfiniBand.
-
-1. **Review VMSS Configuration**
-
-   Your Terraform should have configured:
-   ```hcl
-   resource "azurerm_orchestrated_virtual_machine_scale_set" "k0s_gpu" {
-     # ...
-
-     # CRITICAL for InfiniBand connectivity
-     single_placement_group      = true
-     platform_fault_domain_count = 1
-
-     # InfiniBand driver extension
-     extension {
-       name                 = "InfiniBandDriverLinux"
-       publisher            = "Microsoft.HpcCompute"
-       type                 = "InfiniBandDriverLinux"
-       type_handler_version = "1.2"
-     }
-   }
-   ```
-
-2. **Verify InfiniBand Driver Installation**
+4. **Verify MOFED Driver**
    ```bash
    # Check MOFED (Mellanox OpenFabrics Enterprise Distribution) version
    ofed_info -s
-   # Expected: MLNX_OFED_LINUX-5.x.x.x
+   # Expected: MLNX_OFED_LINUX-5.x.x.x or MLNX_OFED_LINUX-24.x
 
-   # Verify IB modules loaded
+   # Verify IB kernel modules
    lsmod | grep mlx5
    # Should show: mlx5_core, mlx5_ib
    ```
 
-3. **Install NVIDIA Network Operator for InfiniBand**
-   ```bash
-   helm install network-operator nvidia/network-operator \
-     --namespace nvidia-network-operator \
-     --create-namespace \
-     --set nfd.enabled=false \
-     --set ofedDriver.deploy=false \
-     --set rdmaSharedDevicePlugin.deploy=true \
-     --set rdmaSharedDevicePlugin.resources[0].name=rdma_shared_device_ib \
-     --set rdmaSharedDevicePlugin.resources[0].rdmaHcaMax=8 \
-     --set sriovDevicePlugin.deploy=false \
-     --set secondaryNetwork.deploy=false \
-     --set ibKubernetes.deploy=true
+### Task 8: Configure Network Operator for InfiniBand (30 min)
+
+For Azure InfiniBand, the Network Operator needs RDMA device plugin configuration via a values file (the `--set` flag does not support the JSON config structure).
+
+1. **Create Network Operator Values for Azure**
+   ```yaml
+   # Save as network-operator-azure-values.yaml
+   nfd:
+     enabled: false
+   ofedDriver:
+     deploy: false       # Azure pre-installs MOFED
+   rdmaSharedDevicePlugin:
+     deploy: true
+   sriovDevicePlugin:
+     deploy: false
+   secondaryNetwork:
+     deploy: false
+   deployCR: true
+   nicClusterPolicy:
+     rdmaSharedDevicePlugin:
+       config: |
+         {
+           "configList": [{
+             "resourceName": "rdma_shared_device_ib",
+             "rdmaHcaMax": 8,
+             "selectors": {
+               "ifNames": ["ib0", "ib1", "ib2", "ib3", "ib4", "ib5", "ib6", "ib7"]
+             }
+           }]
+         }
    ```
 
-4. **Verify InfiniBand Resources in Kubernetes**
+   > **Note:** The `rdmaSharedDevicePlugin.config` is a JSON string that configures the [k8s-rdma-shared-dev-plugin](https://github.com/Mellanox/k8s-rdma-shared-dev-plugin). The `rdmaHcaMax` value sets the maximum number of RDMA HCA devices a single pod can request. The `selectors.ifNames` lists the InfiniBand interface names.
+
+2. **Install Network Operator with Azure Values**
+
+   If not already deployed via the MultiClusterService in Task 2, install directly:
    ```bash
-   kubectl describe node <gpu-node> | grep -A15 Allocatable
+   helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+   helm repo update
+
+   helm install network-operator nvidia/network-operator \
+     --version v25.10.0 \
+     --namespace nvidia-network-operator \
+     --create-namespace \
+     -f network-operator-azure-values.yaml
+   ```
+
+3. **Verify InfiniBand Resources in Kubernetes**
+   ```bash
+   kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.allocatable.rdma/rdma_shared_device_ib}{"\n"}{end}'
 
    # Expected:
-   # nvidia.com/gpu:                8
-   # rdma/rdma_shared_device_ib:    8
+   # gpu-worker-1    8
+   # gpu-worker-2    8
    ```
 
 ### Task 9: Test InfiniBand with NCCL (30 min)
@@ -559,11 +628,9 @@ This task demonstrates k0rdent's capability to manage k0s clusters on Azure with
            - name: NCCL_IB_DISABLE
              value: "0"
            - name: NCCL_NET_GDR_LEVEL
-             value: "5"
+             value: "SYS"
            - name: NCCL_IB_HCA
              value: "mlx5"
-           - name: NCCL_IB_GID_INDEX
-             value: "3"
          resources:
            limits:
              nvidia.com/gpu: 8
@@ -588,6 +655,8 @@ This task demonstrates k0rdent's capability to manage k0s clusters on Azure with
          effect: NoSchedule
    ```
 
+   > **Note:** We omit `NCCL_IB_GID_INDEX` and let NCCL auto-detect (default behavior since NCCL 2.21+). If you encounter issues, set `NCCL_IB_GID_INDEX=3` for RoCE v2 or verify with `show_gids`.
+
    ```bash
    kubectl apply -f nccl-test-ib.yaml
    kubectl wait --for=condition=Ready pod/nccl-test-ib --timeout=300s
@@ -597,39 +666,44 @@ This task demonstrates k0rdent's capability to manage k0s clusters on Azure with
    ```bash
    kubectl exec -it nccl-test-ib -- bash
 
-   # Test InfiniBand bandwidth to another node
+   # Test raw InfiniBand bandwidth (between two nodes)
    # On node 1:
    ib_write_bw --all --report_gbits
 
    # On node 2 (separate terminal):
    ib_write_bw --all --report_gbits <node1-ib-ip>
 
-   # Expected: ~400 Gb/s per port
+   # Expected: ~390-400 Gb/s per port
    ```
 
 3. **Run NCCL All-Reduce Test**
    ```bash
    cd /opt/nccl-tests/build
 
+   # Single-node 8-GPU test
    ./all_reduce_perf -b 1M -e 1G -f 2 -g 8
 
-   # Check NCCL debug output for:
+   # For 8x A100 (ND A100 v4): expect ~200-230 GB/s busbw
+   # For 8x H100 (ND H100 v5): expect ~400-470 GB/s busbw
+
+   # Verify IB transport in NCCL output:
    # "NCCL INFO NET/IB : Using [0]mlx5_0:1/IB"
    # This confirms InfiniBand is being used
    ```
 
 ---
 
-## Part 4: Multi-Cloud Performance Comparison
+## Part 5: Multi-Cloud Performance Comparison
 
 ### Task 10: Benchmark Comparison (30 min)
 
-Create identical benchmarks on both platforms to compare performance:
+Create identical benchmarks on both platforms to compare performance.
 
 1. **Create Benchmark Script**
    ```bash
    # Save as benchmark-rdma.sh
    #!/bin/bash
+   set -e
 
    echo "=== RDMA Benchmark Results ==="
    echo "Platform: $(hostname)"
@@ -641,27 +715,25 @@ Create identical benchmarks on both platforms to compare performance:
    nvidia-smi topo -m
    echo ""
 
-   # NCCL All-Reduce (varying sizes)
+   # NCCL All-Reduce (varying message sizes)
    echo "=== NCCL All-Reduce Benchmark ==="
    cd /opt/nccl-tests/build
    ./all_reduce_perf -b 1M -e 4G -f 2 -g 8 -n 100 -w 10
-   echo ""
-
-   # Record key metrics
-   echo "=== Summary Metrics ==="
-   echo "Peak Bus Bandwidth (1GB message): $(./all_reduce_perf -b 1G -e 1G -g 8 -n 10 | tail -2 | head -1 | awk '{print $7}') GB/s"
    ```
 
-2. **Run on Both Platforms**
+2. **Expected Results**
 
-   | Test | AWS EFA (P4d) | Azure IB (ND A100 v4) | Notes |
-   |------|---------------|----------------------|-------|
-   | Single-node all-reduce (8 GPU) | ~880 GB/s | ~880 GB/s | NVLink-limited, equal |
-   | Cross-node all-reduce (16 GPU) | ~350 GB/s | ~380 GB/s | IB slightly faster |
-   | Latency (small message) | ~5 us | ~2 us | IB lower latency |
-   | GPUDirect efficiency | 90%+ | 95%+ | IB more efficient |
+   Single-node intra-node bandwidth depends on NVLink (same hardware on both platforms):
 
-3. **Document Results**
+   | Test | AWS EFA (P4d, 8x A100) | Azure IB (ND A100 v4) | Notes |
+   |------|------------------------|----------------------|-------|
+   | Single-node all-reduce busbw | ~200-230 GB/s | ~200-230 GB/s | NVSwitch-limited, equal |
+   | Cross-node latency (small msg) | ~5-10 us | ~2-5 us | IB lower latency |
+   | GPUDirect RDMA | Supported | Supported | Both via nvidia-peermem |
+
+   > **Important:** Single-node all-reduce performance is determined by NVLink/NVSwitch, not the inter-node network. EFA and InfiniBand only affect **cross-node** (multi-node) communication. Expect identical single-node numbers on both platforms when using the same GPU hardware.
+
+3. **Document Your Results**
 
    Create a comparison table for your deployment:
 
@@ -670,23 +742,67 @@ Create identical benchmarks on both platforms to compare performance:
 
    | Metric | AWS EFA | Azure InfiniBand | Winner |
    |--------|---------|------------------|--------|
-   | Single-node bandwidth | ___GB/s | ___GB/s | ___ |
-   | Multi-node bandwidth | ___GB/s | ___GB/s | ___ |
+   | Single-node busbw (8 GPU) | ___GB/s | ___GB/s | Tie (NVLink) |
+   | Multi-node busbw (16 GPU) | ___GB/s | ___GB/s | ___ |
    | Small message latency | ___us | ___us | ___ |
-   | GPUDirect utilization | ___% | ___% | ___ |
    ```
 
 ---
 
-## Part 5: k0rdent Multi-Cloud Deployment
+## Part 6: k0rdent Multi-Cloud Workload Deployment
 
-### Task 11: Demonstrate k0rdent Portability (20 min)
+### Task 11: Deploy vLLM via MultiClusterService (30 min)
 
-This task demonstrates how the same vLLM workload runs identically on both platforms.
+This task demonstrates k0rdent's ability to deploy the same application workload across both cloud providers using a single MultiClusterService declaration.
 
-1. **Create Platform-Agnostic vLLM Deployment**
+1. **Create a Custom ServiceTemplate for vLLM**
+
+   First, install the ServiceTemplate from the management cluster:
    ```yaml
-   # Save as vllm-multi-cloud.yaml
+   # Save as vllm-inference-template.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: ServiceTemplate
+   metadata:
+     name: vllm-inference-0-1-0
+     namespace: kcm-system
+   spec:
+     helm:
+       chartRef:
+         kind: HelmChart
+         name: vllm-inference
+         namespace: kcm-system
+   ```
+
+   > **Note:** In a production setup, you would package the vLLM deployment as a Helm chart in your chart repository. For this lab, we demonstrate the pattern using a standard Kubernetes Deployment.
+
+2. **Deploy vLLM Across Both Clouds**
+
+   Use MultiClusterService to target all GPU training clusters:
+   ```yaml
+   # Save as vllm-multi-cloud-mcs.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: vllm-inference
+     namespace: kcm-system
+   spec:
+     clusterSelector:
+       matchLabels:
+         workload-type: gpu-training
+     serviceSpec:
+       services:
+         - template: vllm-inference-0-1-0
+           name: vllm-llama
+           namespace: ai-inference
+           values: |
+             model: meta-llama/Llama-2-70b-chat-hf
+             tensorParallelSize: 8
+             maxModelLen: 4096
+   ```
+
+   Alternatively, deploy a platform-agnostic manifest directly on each cluster:
+   ```yaml
+   # Save as vllm-deployment.yaml
    apiVersion: apps/v1
    kind: Deployment
    metadata:
@@ -704,7 +820,7 @@ This task demonstrates how the same vLLM workload runs identically on both platf
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:latest
+             image: vllm/vllm-openai:v0.7.3
              args:
                - --model
                - meta-llama/Llama-2-70b-chat-hf
@@ -713,10 +829,7 @@ This task demonstrates how the same vLLM workload runs identically on both platf
                - --max-model-len
                - "4096"
              env:
-               # Platform-agnostic NCCL configuration
-               - name: NCCL_DEBUG
-                 value: "INFO"
-               # Let NCCL auto-detect best transport
+               # NCCL auto-detects the best transport (EFA or IB)
                - name: NCCL_P2P_LEVEL
                  value: "NVL"
              ports:
@@ -745,27 +858,22 @@ This task demonstrates how the same vLLM workload runs identically on both platf
              effect: NoSchedule
    ```
 
-2. **Deploy on Both Platforms**
-   ```bash
-   # AWS cluster
-   kubectl config use-context k0rdent-aws-gpu
-   kubectl apply -f vllm-multi-cloud.yaml
-
-   # Azure cluster
-   kubectl config use-context k0rdent-azure-gpu
-   kubectl apply -f vllm-multi-cloud.yaml
-   ```
-
 3. **Compare Inference Performance**
    ```bash
-   # Run identical benchmark on both
-   curl -X POST http://<service-ip>:8000/v1/completions \
+   # Test on AWS cluster
+   export KUBECONFIG=/tmp/aws-gpu.kubeconfig
+   SVC_IP=$(kubectl get svc -n ai-inference vllm-llama-70b -o jsonpath='{.spec.clusterIP}')
+   curl -s -X POST http://${SVC_IP}:8000/v1/completions \
      -H "Content-Type: application/json" \
      -d '{
        "model": "meta-llama/Llama-2-70b-chat-hf",
        "prompt": "Explain the concept of RDMA in simple terms.",
        "max_tokens": 200
-     }' | jq '.usage.total_time'
+     }' | jq '.usage'
+
+   # Repeat on Azure cluster
+   export KUBECONFIG=/tmp/azure-gpu.kubeconfig
+   # (same curl command)
    ```
 
 ### Task 12: NCCL Environment Variable Reference (15 min)
@@ -780,38 +888,40 @@ metadata:
   name: nccl-config
 data:
   # ===== Common Settings =====
-  NCCL_DEBUG: "INFO"           # Enable debugging
-  NCCL_P2P_LEVEL: "NVL"        # Use NVLink for P2P
-  NCCL_NET_GDR_LEVEL: "5"      # Enable GPUDirect RDMA
+  NCCL_DEBUG: "INFO"             # Enable debugging (use WARN in production)
+  NCCL_P2P_LEVEL: "NVL"          # Use NVLink for intra-node P2P
+  NCCL_NET_GDR_LEVEL: "SYS"      # Enable GPUDirect RDMA system-wide
 
   # ===== AWS EFA Specific =====
-  # FI_EFA_USE_DEVICE_RDMA: "1"  # Enable EFA RDMA
-  # FI_PROVIDER: "efa"           # Use EFA provider
-  # AWS_EFA_VERSION: "1.30.0"    # EFA version
+  # FI_PROVIDER: "efa"             # Force EFA provider
+  # FI_EFA_USE_DEVICE_RDMA: "1"    # Enable EFA RDMA (auto-detected on modern stacks)
 
   # ===== Azure InfiniBand Specific =====
-  # NCCL_IB_DISABLE: "0"         # Enable InfiniBand
-  # NCCL_IB_HCA: "mlx5"          # Use Mellanox HCA
-  # NCCL_IB_GID_INDEX: "3"       # RoCE v2 GID index
+  # NCCL_IB_DISABLE: "0"           # Ensure InfiniBand is enabled (default)
+  # NCCL_IB_HCA: "mlx5"            # Use Mellanox/NVIDIA HCA
 ```
+
+> **NCCL_NET_GDR_LEVEL values:** `LOC` (local GPU), `PIX` (same PCIe switch), `PXB` (same PCIe bus), `PHB` (same NUMA node), `SYS` (system-wide, crosses NUMA). Use `SYS` for GPUDirect RDMA across all topologies. Do **not** use numeric values — they are a legacy format.
 
 ---
 
 ## Deliverables
 
 ### Basic Deliverables (Either Platform)
-- [ ] EFA/InfiniBand driver verified and working
-- [ ] NCCL test showing 800+ GB/s intra-node bandwidth
-- [ ] GPU Operator configured with RDMA enabled
-- [ ] Network Operator deployed and functioning
-- [ ] NCCL debug output showing correct transport (EFA or IB)
+- [ ] GPU cluster provisioned via k0rdent ClusterDeployment
+- [ ] GPU Operator deployed with `driver.rdma.enabled=true`
+- [ ] Network Operator deployed with RDMA shared device plugin
+- [ ] EFA/InfiniBand driver verified and working on GPU nodes
+- [ ] NCCL test showing ~200-230 GB/s intra-node busbw (8x A100) or ~400-470 GB/s (8x H100)
+- [ ] NCCL debug output confirming correct transport (EFA or IB, not Socket/TCP)
 
 ### Advanced Deliverables (Both Platforms)
+- [ ] Both AWS and Azure clusters managed from same k0rdent management cluster
+- [ ] Network Operator deployed via MultiClusterService
 - [ ] Side-by-side performance comparison table
 - [ ] vLLM deployment running on both platforms
-- [ ] Documentation of NCCL configuration differences
-- [ ] Multi-node all-reduce benchmark results
-- [ ] Platform selection recommendations for different workloads
+- [ ] Documentation of NCCL configuration differences between EFA and IB
+- [ ] Platform selection recommendations for different workload types
 
 ---
 
@@ -819,19 +929,20 @@ data:
 
 ### AWS EFA
 - [ ] `fi_info -p efa` shows EFA provider
-- [ ] `vpc.amazonaws.com/efa` resource available in Kubernetes
-- [ ] NCCL logs show `NET/AWS-EFA` transport
-- [ ] All-reduce bandwidth > 800 GB/s (8 GPUs)
+- [ ] `vpc.amazonaws.com/efa` resource available in Kubernetes node allocatable
+- [ ] NCCL logs show `NET/AWS-EFA` or `NET/OFI` transport
+- [ ] All-reduce busbw ≥ 200 GB/s for 8x A100 (single-node, large messages)
 
 ### Azure InfiniBand
-- [ ] `ibstat` shows Active state
-- [ ] `rdma/rdma_shared_device_ib` resource available
+- [ ] `ibstat` shows Active state with 400 Gb/s rate
+- [ ] `rdma/rdma_shared_device_ib` resource available in Kubernetes node allocatable
 - [ ] NCCL logs show `NET/IB` transport
-- [ ] All-reduce bandwidth > 800 GB/s (8 GPUs)
+- [ ] All-reduce busbw ≥ 200 GB/s for 8x A100 (single-node, large messages)
 
 ### k0rdent Multi-Cloud
-- [ ] Same workload YAML deploys on both platforms
-- [ ] Performance within 10% between platforms (single-node)
+- [ ] Both ClusterDeployments show `Ready` status
+- [ ] MultiClusterService deployed Network Operator to both clusters
+- [ ] Same vLLM workload runs on both platforms
 - [ ] NCCL auto-detects correct transport on each platform
 
 ---
@@ -843,12 +954,12 @@ data:
 ```bash
 # Check EFA driver
 lsmod | grep efa
-# If missing, install:
-sudo yum install -y efa
+# If missing — the AMI may not include EFA drivers; check instance type supports EFA
 
 # Check security group allows EFA traffic
-aws ec2 describe-security-groups --group-ids <sg-id>
-# Must allow all traffic within security group
+# EFA requires a security group that allows ALL traffic from itself
+aws ec2 describe-security-groups --group-ids <sg-id> \
+  --query 'SecurityGroups[0].IpPermissions'
 ```
 
 ### InfiniBand Port Down (Azure)
@@ -860,7 +971,8 @@ ibstat
 
 # 1. VMSS single_placement_group must be true
 # 2. All VMs must be in same VMSS
-# 3. InfiniBand driver extension installed:
+# 3. VM size must have 'r' suffix (e.g., Standard_ND96isr_H100_v5)
+# 4. InfiniBand driver extension installed:
 az vmss extension list --resource-group <rg> --vmss-name <vmss>
 ```
 
@@ -868,13 +980,13 @@ az vmss extension list --resource-group <rg> --vmss-name <vmss>
 
 ```bash
 # Check NCCL debug output for:
-# "NCCL INFO NET/Socket" - indicates TCP fallback
+# "NCCL INFO NET/Socket" — indicates TCP fallback
 
-# For EFA:
-export FI_EFA_USE_DEVICE_RDMA=1
+# For EFA — verify provider and RDMA:
 export FI_PROVIDER=efa
+export FI_EFA_USE_DEVICE_RDMA=1
 
-# For InfiniBand:
+# For InfiniBand — verify IB is enabled:
 export NCCL_IB_DISABLE=0
 export NCCL_IB_HCA=mlx5
 ```
@@ -882,15 +994,15 @@ export NCCL_IB_HCA=mlx5
 ### GPUDirect RDMA Not Working
 
 ```bash
-# Verify nvidia-peermem module
+# Verify nvidia-peermem module (loaded by GPU Operator when driver.rdma.enabled=true)
 lsmod | grep nvidia_peermem
 
-# If missing:
-modprobe nvidia-peermem
+# If missing — check GPU Operator logs:
+kubectl logs -n gpu-operator -l app=nvidia-driver-daemonset --tail=50
 
-# Verify GPUDirect is used
-export NCCL_NET_GDR_LEVEL=5
-# Run NCCL test and look for "GDR" in debug output
+# Verify GPUDirect is used in NCCL output:
+# Look for "GDR" in debug output when running nccl-tests
+export NCCL_NET_GDR_LEVEL=SYS
 ```
 
 ---
@@ -901,34 +1013,34 @@ export NCCL_NET_GDR_LEVEL=5
 
 | Aspect | AWS EFA | Azure InfiniBand | Recommendation |
 |--------|---------|------------------|----------------|
-| **Performance** | Excellent | Excellent | Tie |
-| **Standards** | Proprietary | Industry Standard | Azure for skill transfer |
-| **Setup Complexity** | Medium | Medium-High | AWS slightly easier |
+| **Performance** | Excellent | Excellent | Tie for single-node; IB may edge on latency |
+| **Standards** | AWS-specific (SRD) | Industry Standard (IB) | Azure for skill transfer |
+| **Setup Complexity** | Medium (device plugin) | Medium (MOFED + device plugin) | Similar |
 | **On-Prem Equivalent** | None | NVIDIA DGX | Azure for hybrid |
-| **Cost** | Similar | Similar | Check spot pricing |
-| **Terraform** | Excellent | Good | AWS more mature |
+| **k0rdent Integration** | ClusterTemplate + EFA plugin | ClusterTemplate + Network Operator | Both via MultiClusterService |
 
 ### When to Use Each Platform
 
 **Choose AWS EFA when:**
 - Already invested in AWS ecosystem
-- Need simpler Terraform automation
 - Cloud-only deployment (no on-prem)
-- Cost optimization is priority (spot pricing)
+- Want simpler EFA device plugin setup
+- Cost optimization via spot instances
 
 **Choose Azure InfiniBand when:**
 - Need industry-standard RDMA skills
 - Planning hybrid cloud/on-prem deployment
+- Want same technology as NVIDIA DGX SuperPOD
 - Already using Azure services
-- Want same technology as NVIDIA DGX
 
 ### k0rdent Multi-Cloud Value
 
-This lab demonstrates k0rdent's core value proposition:
-- **Same workloads** run on AWS or Azure
-- **No vendor lock-in** - switch clouds as needed
-- **Consistent experience** - same kubectl commands
-- **Infrastructure flexibility** - best tool for each job
+This lab demonstrates k0rdent's core value for GPU infrastructure:
+- **ClusterDeployment** abstracts cloud-specific provisioning (EFA vs IB)
+- **MultiClusterService** deploys GPU and Network Operators identically across clouds
+- **ServiceTemplate** enables portable application workloads
+- **Label-based targeting** routes workloads to the right infrastructure
+- **Single management plane** for heterogeneous GPU clusters
 
 ---
 
@@ -937,21 +1049,23 @@ This lab demonstrates k0rdent's core value proposition:
 ### AWS
 - [AWS EFA Documentation](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html)
 - [EFA Kubernetes Device Plugin](https://github.com/aws/aws-efa-k8s-device-plugin)
-- [AWS EFA Best Practices](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa-working-with.html)
+- [aws-ofi-nccl Plugin](https://github.com/aws/aws-ofi-nccl)
 
 ### Azure
 - [Azure InfiniBand Setup](https://learn.microsoft.com/en-us/azure/virtual-machines/setup-infiniband)
 - [ND H100 v5 Series](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/gpu-accelerated/ndh100v5-series)
-- [Azure HPC/AI with InfiniBand](https://techcommunity.microsoft.com/blog/azurehighperformancecomputingblog/running-tightly-coupled-hpcai-workloads-with-infiniband-using-nvidia-network-ope/4117209)
+- [Azure HPC/AI with InfiniBand and Network Operator](https://techcommunity.microsoft.com/blog/azurehighperformancecomputingblog/running-tightly-coupled-hpcai-workloads-with-infiniband-using-nvidia-network-ope/4117209)
 
 ### NVIDIA
 - [NCCL Environment Variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)
 - [GPUDirect RDMA](https://docs.nvidia.com/cuda/gpudirect-rdma/index.html)
-- [Network Operator](https://docs.nvidia.com/networking/display/cokan10/network+operator)
+- [Network Operator Documentation](https://docs.nvidia.com/networking/display/kubernetes2570/)
+- [GPU Operator RDMA Configuration](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-operator-rdma.html)
 
 ### k0rdent
-- [k0s Project](https://k0sproject.io/)
 - [k0rdent Documentation](https://docs.k0rdent.io/)
+- [k0rdent Enterprise Documentation](https://docs.mirantis.com/k0rdent-enterprise/latest/)
+- [k0rdent Partner Validated with NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/partner-validated/latest/k0rdent.html)
 
 ---
 

@@ -36,7 +36,7 @@ Lab Types:
   all-session <session-id>    Destroy all session-based environments
 
 Options:
-  --region <region>           AWS region (default: us-east-1)
+  --region <region>           AWS region (or set AWS_REGION env var)
   --auto-approve              Skip confirmation prompts
   --keep-state                Keep Terraform state files
   --help                      Show this help message
@@ -246,8 +246,13 @@ destroy_all_session() {
     log_success "All environments for session $session_id destroyed!"
 }
 
-# Default values
-REGION="${AWS_REGION:-us-east-1}"
+# Load config if exists (created by lab-provision.sh)
+if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
+    source "$CONFIG_DIR/lab-config.env"
+fi
+
+# Default values - region resolved after arg parsing
+REGION=""
 AUTO_APPROVE="false"
 KEEP_STATE="false"
 
@@ -297,6 +302,25 @@ if [[ "$COMMAND" != "shared" ]] && [[ -z "$IDENTIFIER" ]]; then
     log_error "Identifier required"
     usage
 fi
+
+# Resolve region: --region flag > saved LAB_REGION > env vars > AWS CLI default
+if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
+    REGION="$LAB_REGION"
+fi
+if [[ -z "$REGION" ]]; then
+    REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
+fi
+if [[ -z "$REGION" ]]; then
+    REGION=$(aws configure get region 2>/dev/null || true)
+fi
+if [[ -z "$REGION" ]]; then
+    log_error "No AWS region specified. Use one of:"
+    log_error "  --region <region>              (e.g. --region eu-west-1)"
+    log_error "  export AWS_REGION=<region>     (environment variable)"
+    log_error "  aws configure set region <region>  (AWS CLI default)"
+    exit 1
+fi
+log_info "Using AWS region: $REGION"
 
 # Execute
 case $COMMAND in

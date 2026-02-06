@@ -1,4 +1,4 @@
-# Lab 5.12 - Slurm Operator for HPC
+# Lab 5.12 - Slurm on Kubernetes for HPC Workloads
 
 ---
 
@@ -17,7 +17,7 @@ FOUNDATION (Required)                         ML PLATFORMS
                                                   ↓
                                               5.10 MLflow
                                                   ↓
-                                              5.11 Run:AI
+                                              5.11 Run:ai
                                                   ↓
                                              YOU ARE HERE
                                                   ↓
@@ -28,7 +28,7 @@ FOUNDATION (Required)                         ML PLATFORMS
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.11 - Run:AI](lab-5.11-runai-gpu-orchestration.md) | **Lab 5.12 - Slurm** | [Week 6 - Multi-tenancy](../../week-6-multi-tenancy/README.md) |
+| [Lab 5.11 - Run:ai](lab-5.11-runai-gpu-orchestration.md) | **Lab 5.12 - Slurm on Kubernetes** | [Week 6 - Multi-tenancy](../../week-6-multi-tenancy/README.md) |
 
 ---
 
@@ -38,978 +38,801 @@ FOUNDATION (Required)                         ML PLATFORMS
 
 ## Objective
 
-Deploy and configure Slurm on Kubernetes using the Slinky Operator for HPC-style workload management, enabling traditional HPC users to submit jobs using familiar Slurm commands while leveraging Kubernetes infrastructure.
+Deploy Slurm on Kubernetes using the Slinky Operator (v1.0.1) to enable HPC-style workload management on k0rdent-managed clusters. You will install the operator via Helm, deploy a Slurm cluster using Slinky CRDs (NodeSet, LoginSet, Accounting), submit jobs using standard Slurm commands (`sbatch`, `srun`, `squeue`), configure accounting, and explore the Slurm REST API.
 
 ## Prerequisites
 
-- Completed Lab 5.1 (GPU Scheduler deployed)
-- Kubernetes cluster with 2+ GPU nodes
-- NVIDIA GPU Operator v25.10.0 installed
-- kubectl and helm installed
+- Completed Lab 5.1 (GPU Operator deployed via k0rdent catalog)
+- Kubernetes 1.29+ cluster with 2+ GPU nodes (k0rdent-managed)
+- NVIDIA GPU Operator v25.3+ installed
+- `kubectl` and `helm` (v3.14+) installed
+- cert-manager installed (required by Slinky operator)
+- ReadWriteMany storage available (NFS, EFS, or similar)
 - Basic understanding of Slurm concepts (partitions, nodes, jobs)
 
 ## Background
 
 ### What is Slurm?
 
-Slurm (Simple Linux Utility for Resource Management) is the dominant workload manager in HPC environments. It provides:
-- **Job Scheduling**: FIFO, fair-share, and priority-based scheduling
-- **Resource Management**: CPU, memory, GPU allocation
-- **Accounting**: Track resource usage per user/project
-- **Partitions**: Logical groupings of compute resources
+Slurm (Simple Linux Utility for Resource Management) is the dominant workload manager in HPC, running on more than half of the TOP500 supercomputers. It provides:
 
-### Slurm on Kubernetes Options
+- **Job Scheduling**: Backfill, fair-share, priority-based, and preemptive scheduling
+- **Resource Management**: CPU, memory, GPU (GRES) allocation with cgroup enforcement
+- **Accounting**: Track resource usage per user, account, and QOS
+- **Partitions**: Logical groupings of compute resources with different policies
+- **Array Jobs**: Submit thousands of parametric tasks in a single command
 
-| Solution | Provider | Status | Use Case |
-|----------|----------|--------|----------|
-| **Slinky** | SchedMD | Official | Production HPC on K8s |
-| **Soperator** | Nebius | Open Source | Managed Slurm clusters |
-| **SUNK** | CoreWeave | Enterprise | Large-scale AI/HPC |
+> **NVIDIA acquired SchedMD** (the company behind Slurm) on December 15, 2025. NVIDIA committed to continue developing Slurm as open-source, vendor-neutral software. This acquisition positions Slurm alongside Run:ai/KAI as part of NVIDIA's AI infrastructure stack.
 
-### Architecture Overview
+### Slurm on Kubernetes: The Landscape
+
+There are three main approaches to running Slurm on Kubernetes, plus a Kubernetes-native alternative:
+
+| Solution | Provider | Approach | k0rdent Catalog |
+|----------|----------|----------|-----------------|
+| **Slinky** | SchedMD / NVIDIA | Official operator + bridge | No |
+| **Soperator** | Nebius | `SlurmCluster` CRD | **Yes** (`helm-soperator-1-22-1`) |
+| **SUNK** | CoreWeave | Commercial, Slurm-as-K8s-scheduler | No |
+| **Kueue** | kubernetes-sigs | K8s-native job queueing (alternative) | No |
+
+This lab uses the **Slinky Operator** — the official, first-party project from SchedMD. Task 8 covers the k0rdent catalog integration using the Nebius Soperator.
+
+### Slinky Architecture
+
+The Slinky project has four sub-projects:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     Slinky Project (SchedMD)                      │
+├──────────────────────┬───────────────────────────────────────────┤
+│  slurm-operator      │  Run Slurm ON Kubernetes                  │
+│  (This lab)          │  Manages Slurm as K8s pods via CRDs       │
+│                      │  CRDs: NodeSet, LoginSet, Accounting      │
+├──────────────────────┼───────────────────────────────────────────┤
+│  slurm-bridge        │  Run Slurm AS a K8s scheduler             │
+│  (Advanced)          │  Translates K8s Jobs/Pods → Slurm allocs  │
+│                      │  K8s pods scheduled by Slurm              │
+├──────────────────────┼───────────────────────────────────────────┤
+│  slurm-client        │  Golang client for Slurm REST API         │
+├──────────────────────┼───────────────────────────────────────────┤
+│  containers          │  Slurm container images                    │
+└──────────────────────┴───────────────────────────────────────────┘
+```
+
+The **operator mode** (this lab) is the right approach for giving HPC users their familiar Slurm interface while running on Kubernetes infrastructure:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Kubernetes Cluster                            │
+│                    Kubernetes Cluster                             │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                  Slurm Control Plane                      │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐   │   │
-│  │  │ slurmctld│  │ slurmdbd │  │    slurm-operator    │   │   │
-│  │  │ (Sched)  │  │  (DB)    │  │  (Reconciler)        │   │   │
-│  │  └──────────┘  └──────────┘  └──────────────────────┘   │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                              ↓                                    │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                   Slurm Compute Nodes                     │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐               │   │
-│  │  │ slurmd-0 │  │ slurmd-1 │  │ slurmd-2 │  ...          │   │
-│  │  │ (GPU)    │  │ (GPU)    │  │ (GPU)    │               │   │
-│  │  └──────────┘  └──────────┘  └──────────┘               │   │
-│  └──────────────────────────────────────────────────────────┘   │
+│  namespace: slinky                                                │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │              Slinky Operator (Helm chart)                  │    │
+│  │  Watches: NodeSet, LoginSet, Accounting, RestAPI CRDs     │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│                                                                    │
+│  namespace: slurm                                                  │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │                  Slurm Cluster (Helm chart)                │    │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────────────┐  │    │
+│  │  │ slurmctld  │  │  slurmdbd  │  │  slurmrestd        │  │    │
+│  │  │ (scheduler)│  │ (accounting│  │  (REST API)        │  │    │
+│  │  │            │  │  + MariaDB)│  │                    │  │    │
+│  │  └────────────┘  └────────────┘  └────────────────────┘  │    │
+│  │                                                            │    │
+│  │  ┌────────────┐  ┌────────────┐                           │    │
+│  │  │ LoginSet   │  │  NodeSet   │ (slurmd compute nodes)   │    │
+│  │  │ (sbatch/   │  │ ┌────────┐ │                           │    │
+│  │  │  srun)     │  │ │slurmd-0│ │ (GPU)                    │    │
+│  │  └────────────┘  │ │slurmd-1│ │ (GPU)                    │    │
+│  │                   │ │slurmd-2│ │ (GPU)                    │    │
+│  │                   │ └────────┘ │                           │    │
+│  │                   └────────────┘                           │    │
+│  └──────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Kueue: The Kubernetes-Native Alternative
+
+For teams that don't need Slurm compatibility, **Kueue** (v0.16.1, kubernetes-sigs) provides Kubernetes-native job queueing:
+
+| | Slurm (via Slinky) | Kueue |
+|---|---|---|
+| **Users interact with** | `sbatch`, `srun`, `squeue` | `kubectl`, standard K8s Jobs |
+| **Scheduling** | Slurm scheduler (backfill, fair-share) | kube-scheduler (Kueue controls admission) |
+| **Quotas** | Slurm accounts + QOS | ClusterQueue + ResourceFlavor CRDs |
+| **Best for** | HPC teams migrating to K8s | Cloud-native teams |
+| **Gang scheduling** | Built-in | Suspend-based gang admission |
 
 ## Lab Environment
 
 **Cluster Requirements:**
-- Kubernetes 1.28+ with 2+ GPU nodes
-- NVIDIA GPU Operator v25.10.0 installed
-- 4+ GPUs total
-- Shared storage (NFS or PVC)
+- Kubernetes 1.29+ with 2+ GPU nodes
+- NVIDIA GPU Operator installed
+- cert-manager installed
+- ReadWriteMany StorageClass available
+- 4+ GPUs total across nodes
+- cgroup v2 enabled on nodes
+- Helm 3.14+
 
 ## Tasks
 
-### Task 1: Install Slinky Slurm Operator (30 min)
+### Task 1: Install the Slinky Operator (20 min)
 
-1. **Clone Slinky Repository**
+The Slinky operator is installed via three OCI-based Helm charts: CRDs, operator, and slurm cluster.
+
+1. **Verify Prerequisites**
+
    ```bash
-   git clone https://github.com/SlinkyProject/slurm-operator.git
-   cd slurm-operator
+   # cert-manager must be running (required by Slinky webhooks)
+   kubectl get pods -n cert-manager
+   # Expected: cert-manager, cert-manager-cainjector, cert-manager-webhook
+
+   # GPU Operator must be running
+   kubectl get pods -n gpu-operator -l app.kubernetes.io/managed-by=gpu-operator
+
+   # Verify cgroup v2 on a node
+   kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.containerRuntimeVersion}'
    ```
 
-2. **Create Namespace**
+   > If cert-manager is not installed:
+   > ```bash
+   > kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml
+   > kubectl wait --for=condition=Available deployment --all -n cert-manager --timeout=120s
+   > ```
+
+2. **Install Slinky CRDs**
+
    ```bash
-   kubectl create namespace slurm-system
+   helm install slurm-operator-crds \
+     oci://ghcr.io/slinkyproject/charts/slurm-operator-crds
    ```
 
-3. **Install CRDs**
+3. **Install the Slinky Operator**
+
    ```bash
-   kubectl apply -f config/crd/bases/
+   helm install slurm-operator \
+     oci://ghcr.io/slinkyproject/charts/slurm-operator \
+     --namespace slinky \
+     --create-namespace \
+     --version 1.0.1
    ```
 
-4. **Deploy Slurm Operator**
-   ```yaml
-   # Save as slurm-operator-deployment.yaml
-   apiVersion: apps/v1
-   kind: Deployment
-   metadata:
-     name: slurm-operator
-     namespace: slurm-system
-   spec:
-     replicas: 1
-     selector:
-       matchLabels:
-         app: slurm-operator
-     template:
-       metadata:
-         labels:
-           app: slurm-operator
-       spec:
-         serviceAccountName: slurm-operator
-         containers:
-           - name: operator
-             image: ghcr.io/slinkyproject/slurm-operator:latest
-             command:
-               - /manager
-             args:
-               - --leader-elect
-             resources:
-               limits:
-                 cpu: 500m
-                 memory: 256Mi
-               requests:
-                 cpu: 100m
-                 memory: 128Mi
-   ---
-   apiVersion: v1
-   kind: ServiceAccount
-   metadata:
-     name: slurm-operator
-     namespace: slurm-system
-   ---
-   apiVersion: rbac.authorization.k8s.io/v1
-   kind: ClusterRole
-   metadata:
-     name: slurm-operator
-   rules:
-     - apiGroups: [""]
-       resources: ["pods", "services", "configmaps", "secrets", "persistentvolumeclaims"]
-       verbs: ["*"]
-     - apiGroups: ["apps"]
-       resources: ["deployments", "statefulsets", "daemonsets"]
-       verbs: ["*"]
-     - apiGroups: ["slinky.slurm.net"]
-       resources: ["*"]
-       verbs: ["*"]
-   ---
-   apiVersion: rbac.authorization.k8s.io/v1
-   kind: ClusterRoleBinding
-   metadata:
-     name: slurm-operator
-   roleRef:
-     apiGroup: rbac.authorization.k8s.io
-     kind: ClusterRole
-     name: slurm-operator
-   subjects:
-     - kind: ServiceAccount
-       name: slurm-operator
-       namespace: slurm-system
-   ```
+4. **Verify the Operator**
 
-5. **Apply Operator**
    ```bash
-   kubectl apply -f slurm-operator-deployment.yaml
+   # Operator pod should be Running
+   kubectl get pods -n slinky
 
-   # Verify operator is running
-   kubectl get pods -n slurm-system
-   kubectl logs -n slurm-system -l app=slurm-operator --tail=20
+   # Verify CRDs are installed
+   kubectl get crds | grep slinky.slurm.net
+
+   # Expected CRDs:
+   #   nodesets.slinky.slurm.net
+   #   loginsets.slinky.slurm.net
+   #   accountings.slinky.slurm.net
+   #   restapis.slinky.slurm.net
+   #   tokens.slinky.slurm.net
    ```
 
-### Task 2: Configure Shared Storage (15 min)
+### Task 2: Deploy a Slurm Cluster (30 min)
 
-1. **Create NFS Storage for Slurm**
+The Slinky `slurm` Helm chart deploys a complete Slurm cluster using the operator's CRDs. It provisions `slurmctld` (scheduler), `slurmdbd` (accounting daemon), compute nodes (via NodeSet), and login nodes (via LoginSet).
+
+1. **Create the Slurm Namespace**
+
+   ```bash
+   kubectl create namespace slurm
+   ```
+
+2. **Prepare Shared Storage**
+
+   Slurm requires ReadWriteMany storage for job scripts and output. Create the PVC:
+
    ```yaml
    # Save as slurm-storage.yaml
    apiVersion: v1
    kind: PersistentVolumeClaim
    metadata:
-     name: slurm-shared-storage
-     namespace: slurm-system
+     name: slurm-shared
+     namespace: slurm
    spec:
      accessModes:
        - ReadWriteMany
      resources:
        requests:
-         storage: 100Gi
-     storageClassName: nfs-client  # Adjust for your storage class
-   ---
-   apiVersion: v1
-   kind: PersistentVolumeClaim
-   metadata:
-     name: slurm-state
-     namespace: slurm-system
-   spec:
-     accessModes:
-       - ReadWriteOnce
-     resources:
-       requests:
-         storage: 10Gi
+         storage: 50Gi
+     # Adjust StorageClass for your environment:
+     # AWS EKS: efs-sc (requires EFS CSI driver)
+     # On-prem: nfs-client
+     # storageClassName: efs-sc
    ```
 
-2. **Apply Storage**
    ```bash
    kubectl apply -f slurm-storage.yaml
-
-   # If using local storage for testing, create a local PV
-   cat <<EOF | kubectl apply -f -
-   apiVersion: v1
-   kind: PersistentVolume
-   metadata:
-     name: slurm-local-pv
-   spec:
-     capacity:
-       storage: 100Gi
-     accessModes:
-       - ReadWriteMany
-     hostPath:
-       path: /var/slurm/shared
-     storageClassName: manual
-   EOF
    ```
 
-### Task 3: Deploy Slurm Cluster (45 min)
+3. **Install the Slurm Cluster**
 
-1. **Create Slurm Configuration**
-   ```yaml
-   # Save as slurm-config.yaml
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: slurm-config
-     namespace: slurm-system
-   data:
-     slurm.conf: |
-       # Slurm Configuration
-       ClusterName=k8s-hpc
-       SlurmctldHost=slurmctld-0
-
-       # Scheduling
-       SchedulerType=sched/backfill
-       SelectType=select/cons_tres
-       SelectTypeParameters=CR_Core_Memory
-
-       # Job Defaults
-       DefMemPerCPU=4096
-       MaxJobCount=10000
-       MaxArraySize=1000
-
-       # Logging
-       SlurmctldLogFile=/var/log/slurm/slurmctld.log
-       SlurmdLogFile=/var/log/slurm/slurmd.log
-
-       # Accounting
-       AccountingStorageType=accounting_storage/slurmdbd
-       AccountingStorageHost=slurmdbd
-       AccountingStoragePort=6819
-
-       # GPU Configuration
-       GresTypes=gpu
-
-       # Partitions
-       PartitionName=gpu Nodes=slurmd-[0-3] Default=YES MaxTime=INFINITE State=UP
-       PartitionName=cpu Nodes=slurmd-[4-7] MaxTime=24:00:00 State=UP
-
-       # Node Definitions (will be auto-populated by operator)
-       NodeName=slurmd-[0-3] Gres=gpu:1 CPUs=8 RealMemory=32000 State=UNKNOWN
-       NodeName=slurmd-[4-7] CPUs=8 RealMemory=32000 State=UNKNOWN
-
-     gres.conf: |
-       # GPU GRES Configuration
-       NodeName=slurmd-[0-3] Name=gpu File=/dev/nvidia0
-
-     cgroup.conf: |
-       CgroupMountpoint=/sys/fs/cgroup
-       CgroupPlugin=autodetect
-       ConstrainCores=yes
-       ConstrainDevices=yes
-       ConstrainRAMSpace=yes
-   ```
-
-2. **Create Slurm Database Configuration**
-   ```yaml
-   # Save as slurmdbd-config.yaml
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: slurmdbd-config
-     namespace: slurm-system
-   data:
-     slurmdbd.conf: |
-       AuthType=auth/munge
-       DbdHost=slurmdbd
-       DbdPort=6819
-       SlurmUser=slurm
-       DebugLevel=verbose
-       LogFile=/var/log/slurm/slurmdbd.log
-       PidFile=/var/run/slurmdbd.pid
-       StorageType=accounting_storage/mysql
-       StorageHost=mysql
-       StoragePort=3306
-       StoragePass=slurm_password
-       StorageUser=slurm
-       StorageLoc=slurm_acct_db
-   ```
-
-3. **Deploy MySQL for Slurm Accounting**
-   ```yaml
-   # Save as mysql-deployment.yaml
-   apiVersion: apps/v1
-   kind: Deployment
-   metadata:
-     name: mysql
-     namespace: slurm-system
-   spec:
-     replicas: 1
-     selector:
-       matchLabels:
-         app: mysql
-     template:
-       metadata:
-         labels:
-           app: mysql
-       spec:
-         containers:
-           - name: mysql
-             image: mysql:8.0
-             env:
-               - name: MYSQL_ROOT_PASSWORD
-                 value: "rootpassword"
-               - name: MYSQL_DATABASE
-                 value: "slurm_acct_db"
-               - name: MYSQL_USER
-                 value: "slurm"
-               - name: MYSQL_PASSWORD
-                 value: "slurm_password"
-             ports:
-               - containerPort: 3306
-             volumeMounts:
-               - name: mysql-data
-                 mountPath: /var/lib/mysql
-         volumes:
-           - name: mysql-data
-             emptyDir: {}
-   ---
-   apiVersion: v1
-   kind: Service
-   metadata:
-     name: mysql
-     namespace: slurm-system
-   spec:
-     selector:
-       app: mysql
-     ports:
-       - port: 3306
-         targetPort: 3306
-   ```
-
-4. **Deploy Slurm Control Plane**
-   ```yaml
-   # Save as slurm-control-plane.yaml
-   apiVersion: apps/v1
-   kind: StatefulSet
-   metadata:
-     name: slurmctld
-     namespace: slurm-system
-   spec:
-     serviceName: slurmctld
-     replicas: 1
-     selector:
-       matchLabels:
-         app: slurmctld
-     template:
-       metadata:
-         labels:
-           app: slurmctld
-       spec:
-         containers:
-           - name: slurmctld
-             image: schedmd/slurm:24.05
-             command: ["/usr/sbin/slurmctld", "-D", "-vvv"]
-             ports:
-               - containerPort: 6817
-               - containerPort: 6818
-             volumeMounts:
-               - name: slurm-config
-                 mountPath: /etc/slurm
-               - name: munge-key
-                 mountPath: /etc/munge
-               - name: state
-                 mountPath: /var/spool/slurmctld
-               - name: logs
-                 mountPath: /var/log/slurm
-         volumes:
-           - name: slurm-config
-             configMap:
-               name: slurm-config
-           - name: munge-key
-             secret:
-               secretName: munge-key
-           - name: state
-             persistentVolumeClaim:
-               claimName: slurm-state
-           - name: logs
-             emptyDir: {}
-   ---
-   apiVersion: v1
-   kind: Service
-   metadata:
-     name: slurmctld
-     namespace: slurm-system
-   spec:
-     selector:
-       app: slurmctld
-     ports:
-       - name: slurmctld
-         port: 6817
-         targetPort: 6817
-       - name: slurmd
-         port: 6818
-         targetPort: 6818
-     clusterIP: None
-   ---
-   apiVersion: apps/v1
-   kind: Deployment
-   metadata:
-     name: slurmdbd
-     namespace: slurm-system
-   spec:
-     replicas: 1
-     selector:
-       matchLabels:
-         app: slurmdbd
-     template:
-       metadata:
-         labels:
-           app: slurmdbd
-       spec:
-         containers:
-           - name: slurmdbd
-             image: schedmd/slurm:24.05
-             command: ["/usr/sbin/slurmdbd", "-D", "-vvv"]
-             ports:
-               - containerPort: 6819
-             volumeMounts:
-               - name: slurmdbd-config
-                 mountPath: /etc/slurm/slurmdbd.conf
-                 subPath: slurmdbd.conf
-               - name: munge-key
-                 mountPath: /etc/munge
-               - name: logs
-                 mountPath: /var/log/slurm
-         volumes:
-           - name: slurmdbd-config
-             configMap:
-               name: slurmdbd-config
-           - name: munge-key
-             secret:
-               secretName: munge-key
-           - name: logs
-             emptyDir: {}
-   ---
-   apiVersion: v1
-   kind: Service
-   metadata:
-     name: slurmdbd
-     namespace: slurm-system
-   spec:
-     selector:
-       app: slurmdbd
-     ports:
-       - port: 6819
-         targetPort: 6819
-   ```
-
-5. **Create Munge Key Secret**
    ```bash
-   # Generate munge key
-   dd if=/dev/urandom bs=1 count=1024 > munge.key
-
-   # Create secret
-   kubectl create secret generic munge-key \
-     --from-file=munge.key=munge.key \
-     -n slurm-system
-
-   rm munge.key
+   helm install slurm \
+     oci://ghcr.io/slinkyproject/charts/slurm \
+     --namespace slurm \
+     --version 1.0.1 \
+     --set "slurm.clusterName=k8s-hpc" \
+     --set "slurm.compute.gpu=true"
    ```
 
-6. **Deploy Slurm Compute Nodes (slurmd)**
-   ```yaml
-   # Save as slurmd-daemonset.yaml
-   apiVersion: apps/v1
-   kind: DaemonSet
-   metadata:
-     name: slurmd
-     namespace: slurm-system
-   spec:
-     selector:
-       matchLabels:
-         app: slurmd
-     template:
-       metadata:
-         labels:
-           app: slurmd
-       spec:
-         nodeSelector:
-           nvidia.com/gpu.present: "true"
-         hostNetwork: true
-         hostPID: true
-         containers:
-           - name: slurmd
-             image: schedmd/slurm:24.05
-             command: ["/usr/sbin/slurmd", "-D", "-vvv"]
-             securityContext:
-               privileged: true
-             env:
-               - name: SLURMD_NODENAME
-                 valueFrom:
-                   fieldRef:
-                     fieldPath: spec.nodeName
-             ports:
-               - containerPort: 6818
-             volumeMounts:
-               - name: slurm-config
-                 mountPath: /etc/slurm
-               - name: munge-key
-                 mountPath: /etc/munge
-               - name: cgroup
-                 mountPath: /sys/fs/cgroup
-               - name: shared
-                 mountPath: /shared
-               - name: nvidia
-                 mountPath: /dev/nvidia0
-         volumes:
-           - name: slurm-config
-             configMap:
-               name: slurm-config
-           - name: munge-key
-             secret:
-               secretName: munge-key
-           - name: cgroup
-             hostPath:
-               path: /sys/fs/cgroup
-           - name: shared
-             persistentVolumeClaim:
-               claimName: slurm-shared-storage
-           - name: nvidia
-             hostPath:
-               path: /dev/nvidia0
-   ```
+   > **Note:** The `slurm` Helm chart creates `slurmctld`, `slurmdbd` (with an embedded MariaDB), munge secrets, Slurm configuration, NodeSet (compute nodes), and LoginSet (login nodes) automatically. You do NOT need to create these manually.
 
-7. **Apply All Components**
+4. **Verify the Slurm Cluster Components**
+
    ```bash
-   kubectl apply -f slurm-config.yaml
-   kubectl apply -f slurmdbd-config.yaml
-   kubectl apply -f mysql-deployment.yaml
-   sleep 30  # Wait for MySQL
-   kubectl apply -f slurm-control-plane.yaml
-   sleep 30  # Wait for control plane
-   kubectl apply -f slurmd-daemonset.yaml
+   # Check all pods in the slurm namespace
+   kubectl get pods -n slurm
 
-   # Verify all components
-   kubectl get pods -n slurm-system
+   # Expected pods (names will vary):
+   #   slurm-slurmctld-0           (StatefulSet — Slurm controller)
+   #   slurm-slurmdbd-0            (StatefulSet — accounting daemon)
+   #   slurm-mariadb-0             (StatefulSet — accounting database)
+   #   slurm-compute-*             (NodeSet — compute nodes)
+   #   slurm-login-*               (LoginSet — login/submit nodes)
+
+   # Check the Slinky CRD resources
+   kubectl get nodesets -n slurm
+   kubectl get loginsets -n slurm
+   kubectl get accountings -n slurm
    ```
 
-### Task 4: Submit and Monitor Slurm Jobs (30 min)
+5. **Verify Slurm Cluster Health**
 
-1. **Create Slurm Client Pod**
-   ```yaml
-   # Save as slurm-client.yaml
-   apiVersion: v1
-   kind: Pod
-   metadata:
-     name: slurm-client
-     namespace: slurm-system
-   spec:
-     containers:
-       - name: client
-         image: schedmd/slurm:24.05
-         command: ["sleep", "infinity"]
-         volumeMounts:
-           - name: slurm-config
-             mountPath: /etc/slurm
-           - name: munge-key
-             mountPath: /etc/munge
-           - name: shared
-             mountPath: /shared
-     volumes:
-       - name: slurm-config
-         configMap:
-           name: slurm-config
-       - name: munge-key
-         secret:
-           secretName: munge-key
-       - name: shared
-         persistentVolumeClaim:
-           claimName: slurm-shared-storage
-   ```
-
-2. **Access Slurm Client**
    ```bash
-   kubectl apply -f slurm-client.yaml
-   kubectl wait --for=condition=Ready pod/slurm-client -n slurm-system --timeout=120s
+   # Exec into a login node to run Slurm commands
+   LOGIN_POD=$(kubectl get pods -n slurm -l slinky.slurm.net/set-type=login -o jsonpath='{.items[0].metadata.name}')
 
-   # Exec into client
-   kubectl exec -it -n slurm-system slurm-client -- bash
-   ```
-
-3. **Check Cluster Status (inside client pod)**
-   ```bash
-   # Check nodes
-   sinfo
+   # Check cluster info
+   kubectl exec -n slurm ${LOGIN_POD} -- sinfo
 
    # Expected output:
    # PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
-   # gpu*      up     infinite      4   idle  slurmd-[0-3]
-   # cpu       up    1-00:00:00     4   idle  slurmd-[4-7]
+   # batch*    up     infinite      N   idle  slurm-compute-[0-N]
 
-   # Detailed node info
-   scontrol show nodes
+   # Detailed node status
+   kubectl exec -n slurm ${LOGIN_POD} -- scontrol show nodes
 
    # Check partitions
-   scontrol show partitions
+   kubectl exec -n slurm ${LOGIN_POD} -- scontrol show partitions
    ```
 
-4. **Submit a Simple Job**
+### Task 3: Submit and Monitor Slurm Jobs (30 min)
+
+Access the Slurm login node to submit jobs using standard HPC commands.
+
+1. **Get an Interactive Shell on the Login Node**
+
    ```bash
-   # Create job script
-   cat > /shared/test-job.sh << 'EOF'
+   LOGIN_POD=$(kubectl get pods -n slurm -l slinky.slurm.net/set-type=login -o jsonpath='{.items[0].metadata.name}')
+
+   kubectl exec -it -n slurm ${LOGIN_POD} -- bash
+   ```
+
+   All subsequent commands in this task run **inside the login pod**.
+
+2. **Submit a Simple CPU Job**
+
+   ```bash
+   cat > /tmp/test-job.sh << 'JOBEOF'
    #!/bin/bash
-   #SBATCH --job-name=test-job
-   #SBATCH --output=/shared/output-%j.txt
+   #SBATCH --job-name=hello-slurm
+   #SBATCH --output=/tmp/hello-%j.txt
    #SBATCH --ntasks=1
    #SBATCH --cpus-per-task=2
-   #SBATCH --mem=4G
-   #SBATCH --time=00:10:00
+   #SBATCH --mem=2G
+   #SBATCH --time=00:05:00
 
-   echo "Job started on $(hostname) at $(date)"
-   echo "Working directory: $(pwd)"
-   echo "CPU info:"
-   lscpu | head -10
-   sleep 30
-   echo "Job completed at $(date)"
-   EOF
+   echo "=== Slurm Job Started ==="
+   echo "Job ID: ${SLURM_JOB_ID}"
+   echo "Host: $(hostname)"
+   echo "Date: $(date)"
+   echo "CPUs allocated: ${SLURM_CPUS_ON_NODE}"
+   echo "Memory: ${SLURM_MEM_PER_NODE} MB"
+   sleep 10
+   echo "=== Job Completed ==="
+   JOBEOF
 
-   # Submit job
-   sbatch /shared/test-job.sh
+   sbatch /tmp/test-job.sh
 
-   # Check job status
+   # Monitor the job
    squeue
    ```
 
-5. **Submit GPU Job**
+3. **Submit a GPU Job**
+
    ```bash
-   # Create GPU job script
-   cat > /shared/gpu-job.sh << 'EOF'
+   cat > /tmp/gpu-job.sh << 'JOBEOF'
    #!/bin/bash
    #SBATCH --job-name=gpu-test
-   #SBATCH --output=/shared/gpu-output-%j.txt
-   #SBATCH --partition=gpu
+   #SBATCH --output=/tmp/gpu-%j.txt
    #SBATCH --gres=gpu:1
    #SBATCH --ntasks=1
    #SBATCH --cpus-per-task=4
-   #SBATCH --mem=16G
-   #SBATCH --time=00:30:00
+   #SBATCH --mem=8G
+   #SBATCH --time=00:10:00
 
    echo "=== GPU Job Started ==="
+   echo "Job ID: ${SLURM_JOB_ID}"
    echo "Host: $(hostname)"
-   echo "Date: $(date)"
+   echo "GPUs allocated: ${CUDA_VISIBLE_DEVICES}"
    echo ""
-   echo "=== GPU Information ==="
+   echo "=== nvidia-smi Output ==="
    nvidia-smi
    echo ""
-   echo "=== Running CUDA Test ==="
-   # Run a simple CUDA test if available
-   python3 -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'GPU: {torch.cuda.get_device_name(0)}' if torch.cuda.is_available() else 'No GPU')" 2>/dev/null || echo "PyTorch not installed"
-   echo ""
    echo "=== Job Completed ==="
-   EOF
+   JOBEOF
 
-   # Submit GPU job
-   sbatch /shared/gpu-job.sh
+   sbatch /tmp/gpu-job.sh
 
-   # Monitor
+   # Watch the job progress
    squeue -l
-   watch -n 2 squeue
    ```
 
-6. **Submit Array Job**
+4. **Submit an Array Job**
+
+   Array jobs run the same script with different `$SLURM_ARRAY_TASK_ID` values — ideal for hyperparameter sweeps:
+
    ```bash
-   # Create array job
-   cat > /shared/array-job.sh << 'EOF'
+   cat > /tmp/array-job.sh << 'JOBEOF'
    #!/bin/bash
-   #SBATCH --job-name=array-job
-   #SBATCH --output=/shared/array-%A_%a.txt
-   #SBATCH --array=1-10
+   #SBATCH --job-name=sweep
+   #SBATCH --output=/tmp/sweep-%A_%a.txt
+   #SBATCH --array=1-5
    #SBATCH --ntasks=1
    #SBATCH --cpus-per-task=1
    #SBATCH --mem=1G
    #SBATCH --time=00:05:00
 
-   echo "Array job: Task ID = $SLURM_ARRAY_TASK_ID"
+   echo "Array task ${SLURM_ARRAY_TASK_ID} of job ${SLURM_ARRAY_JOB_ID}"
    echo "Running on: $(hostname)"
-   sleep $((SLURM_ARRAY_TASK_ID * 2))
-   echo "Task $SLURM_ARRAY_TASK_ID completed"
-   EOF
 
-   # Submit
-   sbatch /shared/array-job.sh
+   # Simulate different hyperparameters per task
+   LEARNING_RATES=(0.001 0.005 0.01 0.05 0.1)
+   LR=${LEARNING_RATES[$((SLURM_ARRAY_TASK_ID - 1))]}
+   echo "Learning rate: ${LR}"
+   sleep $((SLURM_ARRAY_TASK_ID * 3))
+   echo "Task ${SLURM_ARRAY_TASK_ID} completed"
+   JOBEOF
 
-   # Watch array tasks
+   sbatch /tmp/array-job.sh
+
+   # View array tasks
    squeue -r
    ```
 
-### Task 5: Configure Slurm Accounting (20 min)
+5. **Run an Interactive GPU Session**
 
-1. **Add Cluster to Accounting (inside client pod)**
    ```bash
-   # Add cluster
-   sacctmgr add cluster k8s-hpc
+   # Request an interactive session with 1 GPU
+   srun --gres=gpu:1 --pty bash
 
-   # Create accounts
-   sacctmgr add account research Description="Research Group"
-   sacctmgr add account training Description="Training Jobs"
-   sacctmgr add account production Description="Production Inference"
+   # Inside the interactive session:
+   nvidia-smi
+   echo "Interactive session on $(hostname) with GPU"
 
-   # Add users
-   sacctmgr add user researcher Account=research
-   sacctmgr add user mleng Account=training
-   sacctmgr add user inference Account=production
-
-   # Set QOS (Quality of Service)
-   sacctmgr add qos high Priority=100 MaxWall=48:00:00
-   sacctmgr add qos normal Priority=50 MaxWall=24:00:00
-   sacctmgr add qos low Priority=10 MaxWall=12:00:00
-
-   # Associate QOS with accounts
-   sacctmgr modify account research set qos=high
-   sacctmgr modify account training set qos=normal
-   sacctmgr modify account production set qos=high
-
-   # Verify configuration
-   sacctmgr show associations
-   sacctmgr show qos
+   # Exit the interactive session
+   exit
    ```
 
-2. **View Job Accounting**
+6. **Check Job Results**
+
    ```bash
-   # Show completed jobs
-   sacct --starttime=2024-01-01 --format=JobID,JobName,Partition,State,Elapsed,MaxRSS
+   # View completed jobs
+   sacct --format=JobID,JobName,Partition,State,Elapsed,AllocGRES,ExitCode
 
-   # Show GPU usage
-   sacct --starttime=2024-01-01 --format=JobID,JobName,AllocGRES,Elapsed,State
-
-   # Usage report by account
-   sreport cluster AccountUtilizationByUser start=2024-01-01
+   # View output of a specific job
+   cat /tmp/hello-*.txt
+   cat /tmp/gpu-*.txt
    ```
 
-### Task 6: Integrate with Kubernetes Workloads (25 min)
+7. **Exit the Login Pod**
 
-1. **Create Slurm Job Submission Service**
-   ```yaml
-   # Save as slurm-submission-api.yaml
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: slurm-submission-script
-     namespace: slurm-system
-   data:
-     submit.py: |
-       #!/usr/bin/env python3
-       from flask import Flask, request, jsonify
-       import subprocess
-       import os
-
-       app = Flask(__name__)
-
-       @app.route('/submit', methods=['POST'])
-       def submit_job():
-           data = request.json
-           script_content = data.get('script', '')
-           job_name = data.get('name', 'api-job')
-
-           # Write script to shared storage
-           script_path = f'/shared/jobs/{job_name}.sh'
-           os.makedirs('/shared/jobs', exist_ok=True)
-
-           with open(script_path, 'w') as f:
-               f.write(script_content)
-
-           # Submit job
-           result = subprocess.run(
-               ['sbatch', script_path],
-               capture_output=True,
-               text=True
-           )
-
-           if result.returncode == 0:
-               job_id = result.stdout.strip().split()[-1]
-               return jsonify({'status': 'submitted', 'job_id': job_id})
-           else:
-               return jsonify({'status': 'error', 'message': result.stderr}), 500
-
-       @app.route('/status/<job_id>', methods=['GET'])
-       def job_status(job_id):
-           result = subprocess.run(
-               ['squeue', '-j', job_id, '-o', '%T'],
-               capture_output=True,
-               text=True
-           )
-
-           if result.returncode == 0:
-               lines = result.stdout.strip().split('\n')
-               state = lines[1] if len(lines) > 1 else 'COMPLETED'
-               return jsonify({'job_id': job_id, 'state': state})
-           else:
-               return jsonify({'job_id': job_id, 'state': 'UNKNOWN'})
-
-       if __name__ == '__main__':
-           app.run(host='0.0.0.0', port=8080)
-   ---
-   apiVersion: apps/v1
-   kind: Deployment
-   metadata:
-     name: slurm-api
-     namespace: slurm-system
-   spec:
-     replicas: 1
-     selector:
-       matchLabels:
-         app: slurm-api
-     template:
-       metadata:
-         labels:
-           app: slurm-api
-       spec:
-         containers:
-           - name: api
-             image: python:3.11-slim
-             command:
-               - /bin/bash
-               - -c
-               - |
-                 pip install flask
-                 python /app/submit.py
-             ports:
-               - containerPort: 8080
-             volumeMounts:
-               - name: script
-                 mountPath: /app
-               - name: slurm-config
-                 mountPath: /etc/slurm
-               - name: munge-key
-                 mountPath: /etc/munge
-               - name: shared
-                 mountPath: /shared
-         volumes:
-           - name: script
-             configMap:
-               name: slurm-submission-script
-           - name: slurm-config
-             configMap:
-               name: slurm-config
-           - name: munge-key
-             secret:
-               secretName: munge-key
-           - name: shared
-             persistentVolumeClaim:
-               claimName: slurm-shared-storage
-   ---
-   apiVersion: v1
-   kind: Service
-   metadata:
-     name: slurm-api
-     namespace: slurm-system
-   spec:
-     selector:
-       app: slurm-api
-     ports:
-       - port: 8080
-         targetPort: 8080
+   ```bash
+   exit
    ```
 
-2. **Test API Submission**
+### Task 4: Configure Slurm Accounting (20 min)
+
+Slurm accounting tracks resource usage per user, account, and QOS (Quality of Service). The Slinky Helm chart deploys `slurmdbd` with MariaDB automatically.
+
+1. **Access the Login Node**
+
    ```bash
-   kubectl apply -f slurm-submission-api.yaml
+   kubectl exec -it -n slurm ${LOGIN_POD} -- bash
+   ```
 
-   # Port forward
-   kubectl port-forward -n slurm-system svc/slurm-api 8080:8080 &
+2. **Create Accounts and Users**
 
-   # Submit job via API
-   curl -X POST http://localhost:8080/submit \
+   ```bash
+   # Add the cluster to accounting (if not auto-registered)
+   sacctmgr -i add cluster k8s-hpc 2>/dev/null || echo "Cluster already exists"
+
+   # Create organizational accounts
+   sacctmgr -i add account research Description="Research Team"
+   sacctmgr -i add account training Description="ML Training Team"
+   sacctmgr -i add account production Description="Production Inference"
+
+   # Add users to accounts
+   sacctmgr -i add user researcher Account=research
+   sacctmgr -i add user mleng Account=training
+   sacctmgr -i add user inference Account=production
+
+   # Verify
+   sacctmgr show associations format=Cluster,Account,User,QOS
+   ```
+
+3. **Configure Quality of Service (QOS)**
+
+   ```bash
+   # Create QOS tiers with different priorities and limits
+   sacctmgr -i add qos high Priority=100 MaxWall=48:00:00 MaxTRESPerUser=gres/gpu=4
+   sacctmgr -i add qos normal Priority=50 MaxWall=24:00:00 MaxTRESPerUser=gres/gpu=2
+   sacctmgr -i add qos low Priority=10 MaxWall=12:00:00 MaxTRESPerUser=gres/gpu=1
+
+   # Assign QOS to accounts
+   sacctmgr -i modify account training set qos=high
+   sacctmgr -i modify account research set qos=normal
+   sacctmgr -i modify account production set qos=high
+
+   # View QOS configuration
+   sacctmgr show qos format=Name,Priority,MaxWall,MaxTRESPerUser
+   ```
+
+4. **View Usage Reports**
+
+   ```bash
+   # Show recent job history
+   sacct --starttime=now-1hour \
+     --format=JobID,JobName,User,Account,Partition,State,Elapsed,AllocGRES,MaxRSS
+
+   # GPU usage report
+   sacct --starttime=now-1hour \
+     --format=JobID,JobName,AllocGRES,Elapsed,State
+
+   # Usage summary by account
+   sreport cluster AccountUtilizationByUser start=now-1day
+
+   # Top GPU users
+   sreport user TopUsage start=now-1day TopCount=5
+   ```
+
+5. **Exit the Login Pod**
+
+   ```bash
+   exit
+   ```
+
+### Task 5: Explore the Slurm REST API (20 min)
+
+Slurm includes a built-in REST API component (`slurmrestd`) that provides programmatic access to job submission, monitoring, and cluster management. The Slinky Helm chart can deploy this as a RestAPI CRD resource.
+
+1. **Check if slurmrestd is Deployed**
+
+   ```bash
+   kubectl get restapis -n slurm
+   kubectl get pods -n slurm -l slinky.slurm.net/set-type=restapi
+   ```
+
+2. **Port-Forward to the REST API**
+
+   ```bash
+   # Find the slurmrestd service
+   kubectl get svc -n slurm | grep rest
+
+   # Port-forward (adjust service name as needed)
+   kubectl port-forward -n slurm svc/slurm-restapi 6820:6820 &
+   ```
+
+3. **Query Cluster Status via REST API**
+
+   ```bash
+   # Get cluster info (OpenAPI 0.0.40+ endpoints)
+   curl -s http://localhost:6820/slurm/v0.0.40/nodes | jq '.nodes[] | {name, state}'
+
+   # Get partition info
+   curl -s http://localhost:6820/slurm/v0.0.40/partitions | jq '.partitions[] | {name, state}'
+
+   # List jobs
+   curl -s http://localhost:6820/slurm/v0.0.40/jobs | jq '.jobs[] | {job_id, name, job_state}'
+   ```
+
+4. **Submit a Job via REST API**
+
+   ```bash
+   curl -s -X POST http://localhost:6820/slurm/v0.0.40/job/submit \
      -H "Content-Type: application/json" \
      -d '{
-       "name": "api-test-job",
-       "script": "#!/bin/bash\n#SBATCH --job-name=api-test\n#SBATCH --output=/shared/api-output.txt\necho \"Submitted via API\"\nhostname\ndate"
-     }'
+       "job": {
+         "name": "rest-api-test",
+         "ntasks": 1,
+         "cpus_per_task": 1,
+         "time_limit": {
+           "number": 5,
+           "set": true
+         },
+         "environment": ["PATH=/usr/bin:/bin"],
+         "script": "#!/bin/bash\necho \"Submitted via REST API\"\nhostname\ndate"
+       }
+     }' | jq .
 
-   # Check status
-   curl http://localhost:8080/status/<job_id>
+   # Kill port-forward
+   kill %1 2>/dev/null
    ```
+
+   > **Why slurmrestd instead of a custom Flask app?** Slurmrestd is the official Slurm REST API, maintained by SchedMD, with OpenAPI documentation, authentication support (JWT tokens), and full Slurm feature coverage. Never build a custom wrapper when the native API exists.
+
+### Task 6: Scale the Slurm Cluster (15 min)
+
+The Slinky operator manages compute node scaling through the NodeSet CRD.
+
+1. **View Current NodeSet**
+
+   ```bash
+   kubectl get nodesets -n slurm -o wide
+
+   # Inspect the NodeSet spec
+   kubectl get nodeset -n slurm -o yaml | head -40
+   ```
+
+2. **Scale Compute Nodes**
+
+   ```bash
+   # Scale up to 4 compute nodes (adjust name to match your NodeSet)
+   NODESET_NAME=$(kubectl get nodesets -n slurm -o jsonpath='{.items[0].metadata.name}')
+
+   kubectl patch nodeset ${NODESET_NAME} -n slurm \
+     --type merge \
+     -p '{"spec":{"replicas":4}}'
+
+   # Watch new nodes come up
+   kubectl get pods -n slurm -l slinky.slurm.net/set-type=compute -w
+   ```
+
+3. **Verify Slurm Sees the New Nodes**
+
+   ```bash
+   kubectl exec -n slurm ${LOGIN_POD} -- sinfo
+
+   # All nodes should show as idle
+   kubectl exec -n slurm ${LOGIN_POD} -- scontrol show nodes
+   ```
+
+4. **Scale Down**
+
+   ```bash
+   # Scale back to 2 nodes (Slinky handles graceful drain)
+   kubectl patch nodeset ${NODESET_NAME} -n slurm \
+     --type merge \
+     -p '{"spec":{"replicas":2}}'
+
+   # The operator will drain jobs from removed nodes before termination
+   kubectl get pods -n slurm -l slinky.slurm.net/set-type=compute -w
+   ```
+
+### Task 7: Compare with Kueue (15 min)
+
+For teams that don't need Slurm compatibility, Kueue provides Kubernetes-native job queueing using standard K8s resources.
+
+1. **Understand the Kueue Architecture**
+
+   ```
+   Kueue Architecture (Kubernetes-native):
+   ┌─────────────────────────────────────────────┐
+   │  ResourceFlavor      (defines GPU types)     │
+   │  ClusterQueue        (cluster-wide quotas)   │
+   │  LocalQueue          (namespace quotas)       │
+   │  Workload            (internal admission)     │
+   └────────────────────┬────────────────────────┘
+                        │ admission control
+   ┌────────────────────▼────────────────────────┐
+   │  Standard K8s Jobs, PyTorchJob, RayJob       │
+   │  (Kueue suspends/unsuspends via spec.suspend)│
+   └────────────────────┬────────────────────────┘
+                        │ scheduling
+   ┌────────────────────▼────────────────────────┐
+   │  Default kube-scheduler (NOT replaced)        │
+   └──────────────────────────────────────────────┘
+   ```
+
+   Key difference: Kueue does NOT replace the Kubernetes scheduler. It controls **admission** — whether a Job is allowed to run — by toggling the Job's `spec.suspend` field. Once admitted, the standard kube-scheduler places pods on nodes.
+
+2. **When to Use Each**
+
+   | Scenario | Recommended |
+   |----------|-------------|
+   | HPC team migrating from bare-metal Slurm | **Slurm (Slinky)** |
+   | Cloud-native ML platform | **Kueue** |
+   | Existing Slurm job scripts to preserve | **Slurm (Slinky)** |
+   | Multi-tenant K8s with GPU quotas | **Kueue** or **KAI Scheduler** |
+   | Need `sbatch`, `srun`, `scancel` | **Slurm (Slinky)** |
+   | Need Kubernetes-native RBAC | **Kueue** |
+
+   > **Both can coexist:** Some organizations run Slurm (via slurm-bridge) alongside Kueue — Slurm handles HPC workloads while Kueue manages cloud-native ML jobs, sharing the same GPU cluster.
+
+### Task 8: k0rdent Integration (15 min)
+
+The k0rdent catalog includes the **Nebius Soperator** — an alternative Slurm operator with its own `SlurmCluster` CRD.
+
+1. **Available k0rdent Catalog Templates**
+
+   | ServiceTemplate | Version | Description |
+   |----------------|---------|-------------|
+   | `helm-soperator-1-22-1` | 1.22.1 | Nebius Slurm Operator |
+   | `helm-slurm-cluster-1-22-1` | 1.22.1 | Slurm cluster instance (requires soperator) |
+
+2. **Install the Soperator from k0rdent Catalog**
+
+   ```bash
+   # Install the operator ServiceTemplate
+   helm upgrade --install soperator \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=soperator:1.22.1" \
+     -n kcm-system
+
+   # Install the slurm-cluster ServiceTemplate
+   helm upgrade --install slurm-cluster \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=slurm-cluster:1.22.1" \
+     -n kcm-system
+   ```
+
+3. **Deploy via MultiClusterService**
+
+   ```yaml
+   # Save as slurm-multicluster.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: slurm-hpc
+     namespace: kcm-system
+   spec:
+     clusterSelector:
+       matchLabels:
+         workload-type: hpc
+     serviceSpec:
+       services:
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+         - template: helm-soperator-1-22-1
+           name: soperator
+           namespace: soperator-system
+         - template: helm-slurm-cluster-1-22-1
+           name: slurm-cluster
+           namespace: slurm
+           values: |
+             clusterName: k8s-hpc
+             compute:
+               replicas: 4
+               gpu: true
+       priority: 100
+   ```
+
+   > **Slinky vs Soperator on k0rdent:** The Nebius Soperator is in the k0rdent catalog because it's open-source and packaged as a Helm chart. The Slinky operator could also be used (same OCI Helm charts) but would require creating a custom ServiceTemplate. For automated multi-cluster deployment, the catalog-native Soperator is more convenient.
 
 ## Deliverables
 
-- [ ] **Screenshot** of `sinfo` showing cluster status
-- [ ] **Job submission output** from sbatch command
-- [ ] **GPU job output** showing nvidia-smi results
-- [ ] **sacct output** showing job accounting
-- [ ] **API test output** showing successful submission
+- [ ] **Output** of `kubectl get pods -n slurm` showing all Slurm components running
+- [ ] **Output** of `sinfo` showing cluster partition and node status
+- [ ] **Job submission output** from `sbatch` with job ID
+- [ ] **GPU job output** showing `nvidia-smi` from within a Slurm job
+- [ ] **`sacct` output** showing job accounting history
+- [ ] **REST API query** output showing cluster status via `curl`
 
 ## Verification Checklist
 
-- [ ] Slurm control plane (slurmctld, slurmdbd) running
-- [ ] Slurm compute nodes (slurmd) registered
-- [ ] Basic job submission working
-- [ ] GPU job scheduling functional
-- [ ] Array jobs executing correctly
-- [ ] Accounting database tracking jobs
-- [ ] API submission service operational
+- [ ] Slinky operator v1.0.1 deployed in `slinky` namespace
+- [ ] Slurm cluster deployed via Helm chart (slurmctld, slurmdbd, compute, login)
+- [ ] `sinfo` shows compute nodes in idle state
+- [ ] CPU job submitted and completed via `sbatch`
+- [ ] GPU job submitted and completed with GRES allocation
+- [ ] Array job submitted and completed
+- [ ] Accounting configured with accounts, users, and QOS
+- [ ] Slurm REST API accessible and responding
+- [ ] NodeSet scaling (up and down) working
 
 ## Troubleshooting
 
-### Nodes Not Registering
+### Slinky Operator Not Starting
 
-**Check slurmd logs:**
+**Check cert-manager is running:**
 ```bash
-kubectl logs -n slurm-system -l app=slurmd --tail=50
+kubectl get pods -n cert-manager
+# All pods must be Running before Slinky can start
 ```
 
-**Verify munge authentication:**
+**Check operator logs:**
 ```bash
-kubectl exec -n slurm-system -it slurm-client -- munge -n | unmunge
+kubectl logs -n slinky -l app.kubernetes.io/name=slurm-operator --tail=50
+```
+
+### Compute Nodes Not Registering with slurmctld
+
+**Check NodeSet status:**
+```bash
+kubectl get nodesets -n slurm -o yaml
+kubectl get pods -n slurm -l slinky.slurm.net/set-type=compute
+```
+
+**Check slurmd logs on a compute pod:**
+```bash
+COMPUTE_POD=$(kubectl get pods -n slurm -l slinky.slurm.net/set-type=compute -o jsonpath='{.items[0].metadata.name}')
+kubectl logs -n slurm ${COMPUTE_POD} --tail=50
+```
+
+**Verify munge authentication between nodes:**
+```bash
+kubectl exec -n slurm ${LOGIN_POD} -- munge -n | kubectl exec -i -n slurm ${COMPUTE_POD} -- unmunge
 ```
 
 ### Jobs Stuck in Pending
 
-**Check reason:**
+**Check the reason:**
 ```bash
-squeue -l
-scontrol show job <job_id>
+kubectl exec -n slurm ${LOGIN_POD} -- squeue -l
+kubectl exec -n slurm ${LOGIN_POD} -- scontrol show job <job_id>
 ```
 
-**Common reasons:**
-- `Resources` - No nodes available with required resources
-- `Priority` - Other jobs have higher priority
-- `Dependency` - Waiting for dependent job
+**Common pending reasons:**
+- `Resources` — Not enough CPUs/GPUs/memory available
+- `Priority` — Lower-priority job waiting for higher-priority jobs
+- `QOSMaxGRESPerUser` — User exceeded QOS GPU limit
+- `ReqNodeNotAvail` — Requested nodes are down or draining
 
 ### GPU Not Available in Jobs
 
 **Check GRES configuration:**
 ```bash
-scontrol show nodes | grep Gres
+kubectl exec -n slurm ${LOGIN_POD} -- scontrol show nodes | grep -A5 Gres
 ```
 
-**Verify GPU device access:**
+**Verify GPU Operator is working on compute nodes:**
 ```bash
-kubectl exec -n slurm-system -it <slurmd-pod> -- ls -la /dev/nvidia*
+kubectl exec -n slurm ${COMPUTE_POD} -- nvidia-smi
 ```
 
-### Database Connection Issues
+### Accounting Database Issues
 
 **Check slurmdbd logs:**
 ```bash
-kubectl logs -n slurm-system -l app=slurmdbd --tail=50
+kubectl logs -n slurm -l app=slurmdbd --tail=50
 ```
 
-**Test MySQL connection:**
+**Check MariaDB is running:**
 ```bash
-kubectl exec -n slurm-system -it deployment/mysql -- mysql -u slurm -pslurm_password slurm_acct_db -e "SHOW TABLES;"
+kubectl get pods -n slurm -l app=mariadb
+kubectl exec -n slurm -it <mariadb-pod> -- mysql -u slurm -e "SHOW DATABASES;"
 ```
 
 ## Key Takeaways
 
-1. **Slurm on Kubernetes** enables HPC users to use familiar tools on cloud-native infrastructure
-2. **Slinky Operator** manages Slurm components as Kubernetes resources
-3. **GRES configuration** is essential for GPU job scheduling
-4. **Accounting database** enables usage tracking and fair-share scheduling
-5. **Shared storage** is required for job scripts and output files
-6. **API integration** allows programmatic job submission from applications
+1. **Slinky** (v1.0.1) is the official SchedMD/NVIDIA operator for running Slurm on Kubernetes, using CRDs (`NodeSet`, `LoginSet`, `Accounting`) to manage the cluster lifecycle
+2. **Slurm on K8s** preserves the HPC user experience (`sbatch`, `srun`, `squeue`) while leveraging Kubernetes infrastructure management, autoscaling, and GPU Operator integration
+3. **NVIDIA's acquisition of SchedMD** (Dec 2025) unifies Slurm with Run:ai/KAI under one vendor, ensuring continued development of Slurm as open-source software
+4. **slurmrestd** is the built-in Slurm REST API — always use it instead of building custom wrappers
+5. **Kueue** (kubernetes-sigs) is the Kubernetes-native alternative for teams that don't need Slurm compatibility
+6. **k0rdent catalog** provides the Nebius Soperator for automated Slurm deployment on managed clusters via MultiClusterService
 
 ## References
 
+- [Slinky Official Documentation](https://slinky.schedmd.com/)
+- [Slinky slurm-operator GitHub](https://github.com/SlinkyProject/slurm-operator)
+- [Slinky slurm-bridge GitHub](https://github.com/SlinkyProject/slurm-bridge)
 - [Slurm Documentation](https://slurm.schedmd.com/documentation.html)
-- [Slinky Project](https://github.com/SlinkyProject/slurm-operator)
-- [SchedMD Kubernetes Guide](https://slurm.schedmd.com/kubernetes.html)
+- [Slurm 25.11 Release Notes](https://slurm.schedmd.com/release_notes.html)
+- [NVIDIA Acquires SchedMD (Dec 2025)](https://blogs.nvidia.com/blog/nvidia-acquires-schedmd/)
+- [Running Slurm on Amazon EKS with Slinky (AWS Blog)](https://aws.amazon.com/blogs/containers/running-slurm-on-amazon-eks-with-slinky/)
+- [Nebius Soperator GitHub](https://github.com/nebius/soperator)
+- [k0rdent Catalog — Soperator](https://catalog.k0rdent.io/v1.5.0/apps/soperator/)
+- [Kueue Documentation](https://kueue.sigs.k8s.io/)
 
 ## Next Steps
 

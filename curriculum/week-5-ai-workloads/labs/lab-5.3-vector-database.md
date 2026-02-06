@@ -98,10 +98,24 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    ```
 
 2. **Create Milvus Configuration**
+
+   > **Architecture Note (Milvus v2.6.x):** Milvus v2.6 unified four separate
+   > coordinators (root, data, query, index) into a single **MixCoord** process,
+   > merged IndexNode into DataNode, and introduced **StreamingNode** as a GA
+   > component. The recommended WAL backend is **Woodpecker** (replaces Pulsar),
+   > which eliminates the need for ZooKeeper, BookKeeper, and Broker pods.
+
    ```yaml
    # Save as milvus-values.yaml
    cluster:
      enabled: true
+
+   # Enable authentication (Milvus defaults to OFF)
+   extraConfigFiles:
+     user.yaml: |
+       common:
+         security:
+           authorizationEnabled: true
 
    etcd:
      replicaCount: 3
@@ -116,26 +130,37 @@ This lab deploys **Milvus** as a production-grade distributed solution.
        enabled: true
        size: 50Gi
 
-   pulsar:
+   # Woodpecker WAL (recommended for v2.6+, replaces Pulsar)
+   woodpecker:
      enabled: true
-     components:
-       autorecovery: false
-     proxy:
-       replicaCount: 1
-     broker:
-       replicaCount: 1
-     bookkeeper:
-       replicaCount: 3
-       volumes:
-         journal:
-           size: 10Gi
-         ledgers:
-           size: 20Gi
-     zookeeper:
-       replicaCount: 3
-       volumes:
-         data:
-           size: 10Gi
+
+   # Disable legacy Pulsar (no longer needed with Woodpecker)
+   pulsar:
+     enabled: false
+   pulsarv3:
+     enabled: false
+
+   # MixCoord replaces separate rootcoord, querycoord, datacoord, indexcoord
+   mixCoordinator:
+     replicas: 1
+     resources:
+       requests:
+         cpu: "0.5"
+         memory: 2Gi
+       limits:
+         cpu: "2"
+         memory: 8Gi
+
+   # StreamingNode (new in v2.6, handles real-time data ingestion)
+   streamingNode:
+     replicas: 1
+     resources:
+       requests:
+         cpu: "0.5"
+         memory: 2Gi
+       limits:
+         cpu: "2"
+         memory: 8Gi
 
    queryNode:
      replicas: 2
@@ -147,16 +172,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
          cpu: "2"
          memory: 8Gi
 
-   indexNode:
-     replicas: 1
-     resources:
-       requests:
-         cpu: "0.5"
-         memory: 2Gi
-       limits:
-         cpu: "2"
-         memory: 8Gi
-
+   # DataNode now includes index building (no separate indexNode in v2.6)
    dataNode:
      replicas: 1
      resources:
@@ -189,13 +205,44 @@ This lab deploys **Milvus** as a production-grade distributed solution.
      enabled: true
    ```
 
-3. **Install Milvus**
-   ```bash
-   helm install milvus milvus/milvus \
-     --namespace vector-db \
-     --values milvus-values.yaml \
-     --wait --timeout 15m
+3. **Deploy Milvus via k0rdent ServiceTemplate**
+
+   The k0rdent catalog includes `milvus-5-0-1` (Milvus v2.6.x). Deploy it
+   using a `MultiClusterService` or `ClusterDeployment` service spec, consistent
+   with the patterns from Labs 5.1 and 5.2:
+
+   ```yaml
+   # Save as milvus-service.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: milvus
+     namespace: kcm-system
+   spec:
+     clusterSelector:
+       matchLabels:
+         workload-type: ai-inference
+     serviceSpec:
+       services:
+         - template: milvus-5-0-1
+           name: milvus
+           namespace: vector-db
+           valuesFrom: milvus-values.yaml
    ```
+
+   ```bash
+   kubectl apply -f milvus-service.yaml
+   ```
+
+   > **Alternative (direct Helm):** If deploying outside k0rdent management,
+   > you can use Helm directly. This bypasses fleet management but works for
+   > single-cluster testing:
+   > ```bash
+   > helm install milvus milvus/milvus \
+   >   --namespace vector-db \
+   >   --values milvus-values.yaml \
+   >   --wait --timeout 15m
+   > ```
 
 4. **Watch Deployment Progress**
    ```bash
@@ -213,25 +260,27 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    kubectl get svc -n vector-db | grep milvus
    ```
 
-6. **Expected Pod List**
+6. **Expected Pod List (Milvus v2.6.x with Woodpecker)**
+
+   > With Woodpecker replacing Pulsar, the pod count drops from ~17 to ~12.
+   > MixCoord replaces 4 separate coordinator pods, and IndexNode is merged
+   > into DataNode.
+
    ```
    NAME                                      READY   STATUS    RESTARTS   AGE
+   milvus-mixcoord-xxx                       1/1     Running   0          5m
    milvus-datanode-xxx                       1/1     Running   0          5m
+   milvus-querynode-xxx                      1/1     Running   0          5m
+   milvus-querynode-yyy                      1/1     Running   0          5m
+   milvus-streaming-node-xxx                 1/1     Running   0          5m
+   milvus-proxy-xxx                          1/1     Running   0          5m
    milvus-etcd-0                             1/1     Running   0          5m
    milvus-etcd-1                             1/1     Running   0          5m
    milvus-etcd-2                             1/1     Running   0          5m
-   milvus-indexnode-xxx                      1/1     Running   0          5m
    milvus-minio-0                            1/1     Running   0          5m
    milvus-minio-1                            1/1     Running   0          5m
    milvus-minio-2                            1/1     Running   0          5m
    milvus-minio-3                            1/1     Running   0          5m
-   milvus-proxy-xxx                          1/1     Running   0          5m
-   milvus-pulsar-bookkeeper-0               1/1     Running   0          5m
-   milvus-pulsar-broker-xxx                  1/1     Running   0          5m
-   milvus-pulsar-proxy-xxx                   1/1     Running   0          5m
-   milvus-pulsar-zookeeper-0                1/1     Running   0          5m
-   milvus-querynode-xxx                      1/1     Running   0          5m
-   milvus-rootcoord-xxx                      1/1     Running   0          5m
    milvus-attu-xxx                           1/1     Running   0          5m
    ```
 
@@ -243,13 +292,13 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    kubectl port-forward svc/milvus -n vector-db 19530:19530 &
 
    # Install pymilvus client
-   pip install pymilvus==2.4.0
+   pip install pymilvus==2.6.8
    ```
 
 2. **Create Authentication Script**
    ```python
    # Save as setup_auth.py
-   from pymilvus import connections, utility
+   from pymilvus import connections, utility, Role
 
    # Connect without auth (first time)
    connections.connect(
@@ -264,13 +313,12 @@ This lab deploys **Milvus** as a production-grade distributed solution.
        password="SecurePassword123!"
    )
 
-   # Grant role
-   utility.grant_role(
-       user="mlops",
-       role_name="admin"
-   )
+   # Grant admin role using the Role ORM API
+   # Note: utility.grant_role() does not exist in PyMilvus ORM
+   role = Role("admin")
+   role.add_user("mlops")
 
-   print("User 'mlops' created successfully")
+   print("User 'mlops' created and granted admin role")
    connections.disconnect("default")
    ```
 
@@ -377,6 +425,8 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    ]
 
    collection.insert(data)
+   # Note: flush() forces immediate persistence but Milvus auto-flushes.
+   # Use only when you need guaranteed durability before the next operation.
    collection.flush()
 
    print(f"Inserted {len(sample_docs)} documents")
@@ -534,6 +584,13 @@ standalone:
       cpu: "2"
       memory: 8Gi
 
+# Enable authentication even in standalone mode
+extraConfigFiles:
+  user.yaml: |
+    common:
+      security:
+        authorizationEnabled: true
+
 etcd:
   replicaCount: 1
   persistence:
@@ -547,6 +604,9 @@ minio:
     size: 20Gi
 
 pulsar:
+  enabled: false
+
+woodpecker:
   enabled: false
 
 attu:
@@ -571,8 +631,8 @@ helm install milvus milvus/milvus \
 ## Verification Checklist
 
 - [ ] Milvus cluster deployed and healthy
-- [ ] All components (etcd, minio, pulsar) running
-- [ ] Authentication configured
+- [ ] All components (etcd, minio, mixcoord, streaming-node) running
+- [ ] Authentication configured and enforced (authorizationEnabled: true)
 - [ ] Collection created with index
 - [ ] Data loaded successfully
 - [ ] Similarity search working

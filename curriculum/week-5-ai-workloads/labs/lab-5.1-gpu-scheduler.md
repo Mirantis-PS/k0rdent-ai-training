@@ -36,10 +36,12 @@ Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, e
 
 ## Prerequisites
 
-- Kubernetes cluster with GPU nodes (from Week 4)
-- NVIDIA GPU Operator installed and functional
+- k0rdent-managed cluster with GPU nodes provisioned via `ClusterDeployment` (from Week 4)
+- NVIDIA GPU Operator deployed as a ServiceTemplate from the [k0rdent catalog](https://catalog.k0rdent.io/) (see [GPU Operator Setup](#gpu-operator-via-k0rdent) below)
 - At least 2 GPU nodes for scheduling demonstrations
-- kubectl access with cluster-admin privileges
+- kubectl access to the managed cluster with cluster-admin privileges
+
+> **k0rdent context:** This lab runs on a managed GPU cluster. The GPU Operator should already be deployed via `ClusterDeployment.spec.serviceSpec` or `MultiClusterService`, following the same pattern as cert-manager and ingress-nginx in [Lab 1.7](../../week-1-foundations/labs/lab-1.7-multicluster-services.md).
 
 ---
 
@@ -110,8 +112,8 @@ The default Kubernetes scheduler has limitations for AI/ML workloads:
 
 | Scheduler | Use Case | License |
 |-----------|----------|---------|
-| **KAI Scheduler** | Open-source, Kubernetes-native | Apache 2.0 |
-| **Run:AI** | Enterprise features, GUI | Commercial |
+| **KAI Scheduler** | NVIDIA open-source GPU scheduler | Apache 2.0 |
+| **Run:AI** | KAI core + enterprise UI, analytics | NVIDIA Commercial |
 | **Volcano** | Batch/HPC workloads | Apache 2.0 |
 
 This lab uses **KAI Scheduler** as the open-source option.
@@ -119,9 +121,63 @@ This lab uses **KAI Scheduler** as the open-source option.
 ## Lab Environment
 
 **Cluster Requirements:**
-- 2+ GPU nodes with NVIDIA GPUs
-- GPU Operator v25.10.0+ installed
-- Cluster API or direct kubectl access
+- k0rdent-managed cluster with 2+ GPU nodes (k0s distribution)
+- GPU Operator v25.10.0+ deployed via k0rdent ServiceTemplate
+- kubectl access to the managed cluster
+
+### GPU Operator via k0rdent
+
+If the GPU Operator is not yet deployed on your managed cluster, install the ServiceTemplate and attach it:
+
+```bash
+# On the management cluster: Install GPU Operator ServiceTemplate from catalog
+helm install gpu-operator-service-template \
+  oci://ghcr.io/k0rdent/catalog/charts/gpu-operator-service-template \
+  --version 25.10.0 \
+  -n kcm-system
+
+# Verify the ServiceTemplate is available
+kubectl get servicetemplate -n kcm-system | grep gpu-operator
+```
+
+Then attach it to your managed cluster via `MultiClusterService` or by patching your `ClusterDeployment`:
+
+```yaml
+# Save as gpu-multicluster-service.yaml
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: MultiClusterService
+metadata:
+  name: gpu-operator
+  namespace: kcm-system
+spec:
+  clusterSelector:
+    matchLabels:
+      gpu-enabled: "true"
+  serviceSpec:
+    services:
+    - template: gpu-operator-25-10-0
+      name: gpu-operator
+      namespace: gpu-operator
+      values: |
+        toolkit:
+          env:
+            - name: CONTAINERD_CONFIG
+              value: /etc/k0s/containerd.d/nvidia.toml
+            - name: CONTAINERD_SOCKET
+              value: /run/k0s/containerd.sock
+            - name: CONTAINERD_RUNTIME_CLASS
+              value: nvidia
+```
+
+> **k0s-specific:** Because k0rdent uses k0s as its Kubernetes distribution, the containerd paths differ from standard installations. The toolkit environment variables above are required for GPU Operator to correctly configure the NVIDIA container runtime on k0s nodes. See [NVIDIA k0rdent Partner Validation](https://docs.nvidia.com/datacenter/cloud-native/partner-validated/latest/k0rdent.html) for details.
+
+```bash
+# Apply and verify (on management cluster)
+kubectl apply -f gpu-multicluster-service.yaml
+
+# Switch to managed cluster context and verify GPU Operator pods
+kubectl get pods -n gpu-operator
+```
 
 ## Tasks
 
@@ -155,60 +211,31 @@ This lab uses **KAI Scheduler** as the open-source option.
 
 ### Task 2: Deploy KAI Scheduler (45 min)
 
-1. **Add KAI Helm Repository**
-   ```bash
-   helm repo add kai https://project-codeflare.github.io/kai-scheduler
-   helm repo update
-   ```
+1. **Install KAI Scheduler from NVIDIA OCI Registry**
 
-2. **Create Scheduler Namespace**
+   KAI Scheduler is published as an OCI Helm chart by NVIDIA. Install directly from the GitHub Container Registry:
+
    ```bash
+   # Create namespace
    kubectl create namespace kai-scheduler
-   ```
 
-3. **Create Scheduler Configuration**
-   ```yaml
-   # Save as kai-values.yaml
-   scheduler:
-     replicaCount: 2
-     resources:
-       requests:
-         cpu: 500m
-         memory: 512Mi
-       limits:
-         cpu: 1000m
-         memory: 1Gi
-
-   # Enable gang scheduling
-   gangScheduling:
-     enabled: true
-
-   # Enable GPU topology awareness
-   topologyAwareness:
-     enabled: true
-
-   # Configure default queue
-   queues:
-     default:
-       weight: 1
-       priority: 100
-
-   # Prometheus metrics
-   metrics:
-     enabled: true
-     serviceMonitor:
-       enabled: false  # Enable if Prometheus Operator installed
-   ```
-
-4. **Install KAI Scheduler**
-   ```bash
-   helm install kai-scheduler kai/kai-scheduler \
+   # Install KAI Scheduler (pin version for reproducibility)
+   helm upgrade --install kai-scheduler \
+     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     --version 0.12.11 \
      --namespace kai-scheduler \
-     --values kai-values.yaml \
      --wait
    ```
 
-5. **Verify Installation**
+   > **Alternative:** You can also install from NVIDIA NGC:
+   > ```bash
+   > helm repo add nvidia-k8s https://helm.ngc.nvidia.com/nvidia/k8s
+   > helm repo update
+   > helm install kai-scheduler nvidia-k8s/kai-scheduler \
+   >   --namespace kai-scheduler --wait
+   > ```
+
+2. **Verify Installation**
    ```bash
    # Check scheduler pods
    kubectl get pods -n kai-scheduler
@@ -217,7 +244,7 @@ This lab uses **KAI Scheduler** as the open-source option.
    kubectl logs -n kai-scheduler -l app=kai-scheduler --tail=50
    ```
 
-6. **Expected Pod Status**
+3. **Expected Pod Status**
    ```
    NAME                            READY   STATUS    RESTARTS   AGE
    kai-scheduler-6d8f9b7c4-xxxxx   1/1     Running   0          2m
@@ -262,69 +289,53 @@ This lab uses **KAI Scheduler** as the open-source option.
    ```
 
 2. **Create Resource Queues**
+
+   KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:AI origins):
+
    ```yaml
    # Save as gpu-queues.yaml
-   apiVersion: kai.io/v1alpha1
+   apiVersion: scheduling.run.ai/v2
    kind: Queue
    metadata:
      name: training-queue
-     namespace: kai-scheduler
    spec:
-     weight: 50
-     priority: 100
      resources:
        gpu:
-         min: 1
-         max: 8
-       cpu:
-         min: 4
-         max: 64
-       memory:
-         min: 16Gi
-         max: 256Gi
+         quota: 8
+         overQuotaWeight: 50
+     priority: 100
    ---
-   apiVersion: kai.io/v1alpha1
+   apiVersion: scheduling.run.ai/v2
    kind: Queue
    metadata:
      name: inference-queue
-     namespace: kai-scheduler
    spec:
-     weight: 30
-     priority: 150  # Higher priority for latency-sensitive inference
      resources:
        gpu:
-         min: 1
-         max: 4
-       cpu:
-         min: 2
-         max: 16
-       memory:
-         min: 8Gi
-         max: 64Gi
+         quota: 4
+         overQuotaWeight: 30
+     priority: 150  # Higher priority for latency-sensitive inference
    ---
-   apiVersion: kai.io/v1alpha1
+   apiVersion: scheduling.run.ai/v2
    kind: Queue
    metadata:
      name: dev-queue
-     namespace: kai-scheduler
    spec:
-     weight: 20
-     priority: 50
      resources:
        gpu:
-         min: 0
-         max: 2
-       cpu:
-         min: 1
-         max: 8
-       memory:
-         min: 4Gi
-         max: 32Gi
+         quota: 2
+         overQuotaWeight: 20
+     priority: 50
    ```
 
    ```bash
    kubectl apply -f gpu-queues.yaml
    ```
+
+   > **Queue fields explained:**
+   > - `quota`: Maximum GPU allocation for the queue
+   > - `overQuotaWeight`: Relative weight when borrowing unused GPUs from other queues (higher = more share)
+   > - `priority`: Scheduling priority when queues compete for the same resources
 
 3. **Verify Queues**
    ```bash
@@ -336,6 +347,9 @@ This lab uses **KAI Scheduler** as the open-source option.
 Gang scheduling ensures all pods in a job start together or none start, critical for distributed training.
 
 1. **Create Gang Scheduling Test Job**
+
+   KAI Scheduler automatically detects pods belonging to the same Job and applies gang scheduling -- all pods start together or none start. Queue assignment uses a **label** (not annotation):
+
    ```yaml
    # Save as gang-test-job.yaml
    apiVersion: batch/v1
@@ -343,17 +357,13 @@ Gang scheduling ensures all pods in a job start together or none start, critical
    metadata:
      name: gang-test
      namespace: default
-     annotations:
-       kai.io/gang-scheduling: "true"
-       kai.io/gang-size: "2"
-       kai.io/queue: "training-queue"
    spec:
      completions: 2
      parallelism: 2
      template:
        metadata:
-         annotations:
-           kai.io/gang-scheduling: "true"
+         labels:
+           kai.scheduler/queue: training-queue
        spec:
          schedulerName: kai-scheduler
          restartPolicy: Never
@@ -379,6 +389,8 @@ Gang scheduling ensures all pods in a job start together or none start, critical
              operator: Exists
              effect: NoSchedule
    ```
+
+   > **How it works:** KAI's PodGrouper automatically groups the 2 pods (parallelism: 2) into a gang. Both must be schedulable before either starts. No manual gang annotations required.
 
 2. **Submit Gang Job**
    ```bash
@@ -408,6 +420,8 @@ Gang scheduling ensures all pods in a job start together or none start, critical
    ```
 
 ### Task 5: Test Priority Preemption (30 min)
+
+> **Note:** This task demonstrates Kubernetes-native `PriorityClass` preemption, which works with KAI Scheduler independently of queue assignment. The pods below intentionally omit `kai.scheduler/queue` labels to show that priority preemption is a Kubernetes built-in feature that KAI Scheduler honors.
 
 1. **Create Low Priority Workload**
    ```yaml
@@ -566,6 +580,8 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    ```
 
    **Expected output for 8-GPU NVSwitch node:**
+
+   For **A100 nodes** (e.g., p4d.24xlarge, 12 NVLinks per GPU):
    ```
            GPU0  GPU1  GPU2  GPU3  GPU4  GPU5  GPU6  GPU7  NIC0  CPU
    GPU0     X    NV12  NV12  NV12  NV12  NV12  NV12  NV12  SYS   SYS
@@ -573,8 +589,16 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    ...
    ```
 
+   For **H100 nodes** (e.g., p5.48xlarge, 18 NVLinks per GPU):
+   ```
+           GPU0  GPU1  GPU2  GPU3  GPU4  GPU5  GPU6  GPU7  NIC0  CPU
+   GPU0     X    NV18  NV18  NV18  NV18  NV18  NV18  NV18  SYS   SYS
+   GPU1    NV18   X    NV18  NV18  NV18  NV18  NV18  NV18  SYS   SYS
+   ...
+   ```
+
    **Legend:**
-   - `NV#` = NVLink connection (NV12 = 12 NVLinks = NVSwitch full-mesh)
+   - `NV#` = Number of NVLink connections (NV12 = A100 @ 600 GB/s, NV18 = H100 @ 900 GB/s)
    - `SYS` = System/PCIe connection (avoid for multi-GPU)
    - `PHB` = PCIe Host Bridge
 
@@ -603,8 +627,9 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
      # NCCL_P2P_DISABLE: "0"
 
      # ===== RDMA/GPUDirect Configuration =====
-     # Enable GPUDirect RDMA (0=disable, 5=full)
-     NCCL_NET_GDR_LEVEL: "5"
+     # Enable GPUDirect RDMA (valid: LOC, PIX, PXB, PHB, SYS)
+     # SYS = allow GDR across any system path (maximum reach)
+     NCCL_NET_GDR_LEVEL: "SYS"
 
      # For AWS EFA
      # FI_EFA_USE_DEVICE_RDMA: "1"
@@ -612,6 +637,8 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
 
      # For Azure InfiniBand
      NCCL_IB_DISABLE: "0"
+     # Prefix match: "mlx5" matches all mlx5_* devices.
+     # Use "=mlx5_0" for exact match of a single device.
      NCCL_IB_HCA: "mlx5"
 
      # ===== Performance Tuning =====
@@ -629,11 +656,12 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
      # Tree algorithm threshold (0 = always use tree, good for many nodes)
      NCCL_TREE_THRESHOLD: "0"
 
-     # Minimum rings for ring algorithm
+     # Minimum rings for ring algorithm (legacy; NCCL_MIN_CTAS in NCCL 2.18+)
      NCCL_MIN_NRINGS: "4"
 
      # ===== CUDA Optimization =====
-     # Max CUDA streams (1 for Megatron async, higher for other frameworks)
+     # Max CUDA streams: 1 for Megatron Tensor/Sequence Parallelism.
+     # Do NOT set to 1 for FSDP workloads. Remove or increase for FSDP.
      CUDA_DEVICE_MAX_CONNECTIONS: "1"
    ```
 
@@ -644,6 +672,8 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
 3. **Create NCCL Test Deployment**
 
    Test the NCCL configuration with a multi-GPU workload:
+
+   > **Note:** NCCL performance tests must be built from source or use a dedicated test image. The standard PyTorch NGC container does NOT include pre-built NCCL tests.
 
    ```yaml
    # Save as nccl-config-test.yaml
@@ -668,9 +698,19 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
              nvidia-smi topo -m
 
              echo ""
+             echo "=== Building NCCL Tests ==="
+             apt-get update && apt-get install -y build-essential
+             cd /tmp
+             git clone https://github.com/NVIDIA/nccl-tests.git
+             cd nccl-tests
+             make MPI=0 CUDA_HOME=/usr/local/cuda NCCL_HOME=/usr/lib/x86_64-linux-gnu
+             echo "Build complete."
+
+             echo ""
              echo "=== Running NCCL All-Reduce Test ==="
-             cd /opt/nccl-tests/build
-             ./all_reduce_perf -b 1M -e 1G -f 2 -g 4
+             GPU_COUNT=$(nvidia-smi -L | wc -l)
+             echo "Detected $GPU_COUNT GPUs"
+             ./build/all_reduce_perf -b 1M -e 1G -f 2 -g $GPU_COUNT
 
              echo ""
              echo "=== Test Complete ==="
@@ -698,6 +738,8 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
          operator: Exists
          effect: NoSchedule
    ```
+
+   > **Tip:** For faster iteration, pre-build NCCL tests into a custom container image rather than building at runtime. See [NVIDIA nccl-tests](https://github.com/NVIDIA/nccl-tests) for Dockerfile examples.
 
    ```bash
    kubectl apply -f nccl-config-test.yaml
@@ -729,7 +771,7 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    | Scenario | Key Settings |
    |----------|--------------|
    | **Single-node, NVLink** | `NCCL_P2P_LEVEL=NVL` |
-   | **Multi-node, InfiniBand** | `NCCL_IB_DISABLE=0`, `NCCL_NET_GDR_LEVEL=5` |
+   | **Multi-node, InfiniBand** | `NCCL_IB_DISABLE=0`, `NCCL_NET_GDR_LEVEL=SYS` |
    | **Multi-node, AWS EFA** | `FI_EFA_USE_DEVICE_RDMA=1`, `FI_PROVIDER=efa` |
    | **Debugging connectivity** | `NCCL_DEBUG=INFO`, `NCCL_DEBUG_SUBSYS=INIT,NET` |
    | **Maximum performance** | `NCCL_BUFFSIZE=8388608`, `NCCL_NTHREADS=512` |
@@ -833,10 +875,16 @@ kubectl get pod <pod-name> -o jsonpath='{.spec.schedulerName}'
 
 ### Gang Scheduling Not Working
 
-**Check gang annotations:**
+**Verify queue label is set:**
 ```bash
-kubectl get pod <pod-name> -o yaml | grep -A5 annotations
-# Must have kai.io/gang-scheduling: "true"
+kubectl get pod <pod-name> -o yaml | grep -A5 labels
+# Must have kai.scheduler/queue: "<queue-name>"
+```
+
+**Check the PodGroup was created:**
+```bash
+kubectl get podgroups
+# KAI auto-creates PodGroups for Jobs with parallelism > 1
 ```
 
 **Check scheduler logs for gang decisions:**
@@ -883,12 +931,20 @@ kubectl get priorityclass high-priority-gpu -o yaml
 ## References
 
 ### NVIDIA
+- [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
+- [KAI Scheduler on NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/k8s/helm-charts/kai-scheduler)
+- [NVIDIA Open Sources Run:AI Scheduler](https://developer.nvidia.com/blog/nvidia-open-sources-runai-scheduler-to-foster-community-collaboration/)
 - [NCCL Environment Variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)
 - [GPU Operator Documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/)
+- [GPU Operator - k0rdent Partner Validation](https://docs.nvidia.com/datacenter/cloud-native/partner-validated/latest/k0rdent.html)
 - [NCCL Tests GitHub](https://github.com/NVIDIA/nccl-tests)
 
+### k0rdent
+- [k0rdent Service Catalog](https://catalog.k0rdent.io/)
+- [k0rdent Documentation](https://docs.k0rdent.io/)
+- [ServiceTemplate Reference](https://docs.k0rdent.io/latest/admin/ksm/ksm-service-templates/)
+
 ### Kubernetes
-- [KAI Scheduler](https://github.com/project-codeflare/kai-scheduler)
 - [Volcano Scheduler](https://volcano.sh/)
 - [Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
 

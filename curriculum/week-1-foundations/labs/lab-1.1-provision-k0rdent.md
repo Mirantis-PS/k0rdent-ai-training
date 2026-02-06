@@ -73,7 +73,7 @@ Choose ONE of these methods:
 aws configure
 # AWS Access Key ID: <your-access-key>
 # AWS Secret Access Key: <your-secret-key>
-# Default region name: us-east-1  (or your preferred region)
+# Default region name: <your-preferred-region>  (e.g. eu-west-1, us-east-1)
 # Default output format: json
 
 # Verify it works
@@ -85,7 +85,7 @@ aws sts get-caller-identity
 ```bash
 export AWS_ACCESS_KEY_ID="your-key-id"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="us-east-1"
+export AWS_DEFAULT_REGION="<your-preferred-region>"  # e.g. eu-west-1
 
 # Verify
 aws sts get-caller-identity

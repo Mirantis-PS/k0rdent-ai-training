@@ -88,7 +88,7 @@ Lab Types:
   gpu-advanced <session-id>   Provision advanced GPU lab (8x A100)
 
 Options:
-  --region <region>           AWS region (default: us-east-1)
+  --region <region>           AWS region (or set AWS_REGION env var)
   --spot                      Use spot instances for cost savings
   --no-spot                   Use on-demand instances (default, more reliable)
   --workers <n>               Number of workers (kubevirt only, default: 2)
@@ -141,6 +141,12 @@ load_config() {
     if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
         source "$CONFIG_DIR/lab-config.env"
         log_info "Loaded configuration from lab-config.env"
+    fi
+
+    # If no region set yet via --region flag, try saved config
+    if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
+        REGION="$LAB_REGION"
+        log_info "Using region from saved config: $REGION"
     fi
 }
 
@@ -520,7 +526,7 @@ provision_k0rdent() {
 }
 
 # Default values
-REGION="${AWS_REGION:-us-east-1}"
+REGION=""  # Resolved after argument parsing
 USE_SPOT="false"
 WORKER_COUNT="2"
 NODE_COUNT="1"
@@ -596,6 +602,23 @@ fi
 # Execute
 check_prerequisites
 load_config
+
+# Resolve region: --region flag already set REGION during arg parsing.
+# Otherwise try env vars, then saved config (loaded above), then AWS CLI default.
+if [[ -z "$REGION" ]]; then
+    REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
+fi
+if [[ -z "$REGION" ]]; then
+    REGION=$(aws configure get region 2>/dev/null || true)
+fi
+if [[ -z "$REGION" ]]; then
+    log_error "No AWS region specified. Use one of:"
+    log_error "  --region <region>              (e.g. --region eu-west-1)"
+    log_error "  export AWS_REGION=<region>     (environment variable)"
+    log_error "  aws configure set region <region>  (AWS CLI default)"
+    exit 1
+fi
+log_info "Using AWS region: $REGION"
 
 case $COMMAND in
     shared)

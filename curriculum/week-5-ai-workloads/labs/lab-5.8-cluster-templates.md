@@ -32,24 +32,25 @@ FOUNDATION (Required)                    YOU ARE HERE
 
 ## Overview
 
-This lab teaches you to create and manage k0rdent ClusterTemplates optimized for AI workloads. You'll learn how k0rdent abstracts Cluster API complexity while providing GPU-specific configurations for development, training, and inference scenarios.
+This lab teaches you to understand and use k0rdent ClusterTemplates for deploying GPU-enabled clusters for AI workloads. You'll explore the shipped templates, deploy clusters with different GPU configurations for development, training, and inference scenarios, and deploy AI services via `serviceSpec`.
 
 ## Learning Objectives
 
 By the end of this lab, you will be able to:
 
 1. Understand k0rdent's ClusterTemplate abstraction over Cluster API
-2. Create ClusterTemplates for different AI workload types
-3. Deploy GPU-enabled clusters using ClusterDeployment
-4. Configure multi-GPU node pools with proper topology
-5. Implement cluster lifecycle management for AI teams
+2. Explore shipped ClusterTemplates and their parameters via `status.config`
+3. Deploy GPU-enabled clusters using ClusterDeployment with different worker configurations
+4. Deploy AI services (GPU Operator, monitoring) via `serviceSpec`
+5. Manage cluster lifecycle (scaling, upgrading) for AI teams
+6. Understand when and how to create custom ClusterTemplates
 
 ## Prerequisites
 
 - Completed Lab 5.1 (GPU Scheduler Deployment)
-- Completed Lab 5.7 (NVIDIA FIPS Configuration) - recommended
+- Completed Lab 5.5 (k0rdent Service Catalog) - recommended
 - Access to k0rdent management cluster
-- AWS credentials configured
+- AWS credentials configured via Credential object
 
 ## Duration
 
@@ -57,7 +58,7 @@ By the end of this lab, you will be able to:
 
 ---
 
-## Theory: k0rdent Cluster Abstraction
+## Part 1: Understanding k0rdent Cluster Abstraction
 
 ### k0rdent vs Cluster API
 
@@ -68,16 +69,16 @@ k0rdent provides a higher-level abstraction over Cluster API (CAPI), simplifying
 │                     k0rdent Abstraction Layer                   │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐  │
 │  │ ClusterTemplate │  │ClusterDeployment│  │   Credential   │  │
-│  │  (Reusable)     │  │  (Instance)     │  │  (Auth)        │  │
+│  │  (Chart Wrapper)│  │  (Instance)     │  │  (Auth)        │  │
 │  └────────┬────────┘  └────────┬────────┘  └───────┬────────┘  │
 └───────────┼─────────────────────┼──────────────────┼───────────┘
             │                     │                  │
             ▼                     ▼                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Cluster API Layer                            │
+│               Cluster API + Infrastructure Layer                │
 │  ┌──────────────┐  ┌─────────────┐  ┌───────────────────────┐  │
-│  │ ClusterClass │  │   Cluster   │  │ AWSClusterIdentity    │  │
-│  │ + Templates  │  │ + Topology  │  │ + Secret              │  │
+│  │   Cluster    │  │  Machines   │  │ AWSClusterIdentity    │  │
+│  │ + Topology   │  │ + Pools     │  │ + Secret              │  │
 │  └──────────────┘  └─────────────┘  └───────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
             │                     │                  │
@@ -88,395 +89,672 @@ k0rdent provides a higher-level abstraction over Cluster API (CAPI), simplifying
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Differences
+### How ClusterTemplates Work
+
+A ClusterTemplate is a wrapper around a **Helm chart** that generates CAPI resources. The key insight is that parameters are **not defined on the template itself** - they come from the Helm chart's values and are automatically exposed in the template's `status.config` field after validation.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  ClusterTemplate                                             │
+│  spec:                                                       │
+│    helm.chartSpec → references a Helm chart in a repository  │
+│    providers → list of required CAPI providers               │
+│                                                              │
+│  status:                                                     │
+│    config → parameters extracted from chart (read-only)      │
+│    valid → whether template passed validation                │
+│    providers → resolved provider list                        │
+└──────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────┐
+│  ClusterDeployment                                           │
+│  spec:                                                       │
+│    template → references ClusterTemplate by name             │
+│    credential → references Credential by name                │
+│    config → overrides for status.config parameters           │
+│    serviceSpec → services to deploy on the cluster           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Key Differences from Raw CAPI
 
 | Aspect | Cluster API | k0rdent |
 |--------|-------------|---------|
-| Template definition | ClusterClass + 5-10 supporting resources | Single ClusterTemplate |
-| Cluster creation | Cluster with topology variables | ClusterDeployment with config |
-| Credential management | Manual Secret + Identity resources | Credential CRD with reference |
-| Multi-tenancy | Manual namespace isolation | Built-in tenant support |
-| GPU configuration | Raw machine templates | Parameterized GPU profiles |
+| Template definition | ClusterClass + MachineDeployments + supporting resources | Single ClusterTemplate wrapping a Helm chart |
+| Cluster creation | Cluster with topology variables | ClusterDeployment with config overrides |
+| Parameter discovery | Read ClusterClass variables manually | `status.config` auto-populated by controller |
+| Credential management | Manual Secret + Identity resources | Credential CRD with simple reference |
+| Service deployment | Manual Helm installs after cluster creation | `serviceSpec` deploys services automatically |
+| Multi-tenancy | Manual namespace isolation | Built-in tenant support via namespaces |
 
 ### AI Workload Cluster Patterns
 
-Different AI workloads require different cluster configurations:
+Different AI workloads require different cluster configurations. With k0rdent, you use the **same ClusterTemplate** but vary the `config` parameters:
 
-| Workload Type | GPU Requirement | Instance Type | Key Features |
-|---------------|-----------------|---------------|--------------|
-| **Development** | 1 GPU per pod | g5.xlarge | Fast iteration, cost-effective |
-| **Training** | 8 GPUs per node, multi-node | p4d.24xlarge | NVLink, high memory |
-| **Inference** | 1-4 GPUs per node | g5.12xlarge | Low latency, high throughput |
+| Workload Type | Worker Instance | Key Config | Use Case |
+|---------------|-----------------|------------|----------|
+| **Development** | g5.xlarge (1x A10G) | 1-2 workers, small control plane | Fast iteration, notebooks |
+| **Training** | p4d.24xlarge (8x A100) | 2-16 workers, large control plane | Distributed training |
+| **Inference** | g5.12xlarge (4x A10G) | 2-10 workers, autoscaling | Low latency serving |
 
 ---
 
-## Hands-On Tasks
+## Part 2: Hands-On Tasks
 
-### Task 1: Explore Existing ClusterTemplates (20 min)
+### Task 1: Explore Shipped ClusterTemplates (15 min)
+
+k0rdent ships pre-validated ClusterTemplates for each supported provider. These templates have versioned names.
 
 1. **List available ClusterTemplates**
+
    ```bash
    kubectl get clustertemplates -n kcm-system
    ```
 
-2. **Examine a ClusterTemplate structure**
-   ```bash
-   kubectl get clustertemplate aws-standalone-cp -n kcm-system -o yaml
+   Expected output (template names include version suffixes):
+   ```
+   NAMESPACE    NAME                              VALID
+   kcm-system   adopted-cluster-1-0-16            true
+   kcm-system   aws-eks-0-2-3                     true
+   kcm-system   aws-hosted-cp-0-2-3               true
+   kcm-system   aws-standalone-cp-0-2-3           true
+   kcm-system   azure-aks-0-1-0                   true
+   kcm-system   azure-hosted-cp-0-1-0             true
+   kcm-system   azure-standalone-cp-0-1-0         true
+   kcm-system   gcp-gke-0-1-0                     true
+   kcm-system   gcp-hosted-cp-0-1-0               true
+   kcm-system   gcp-standalone-cp-0-1-0           true
+   kcm-system   openstack-standalone-cp-0-1-0     true
+   kcm-system   vsphere-hosted-cp-0-1-0           true
+   kcm-system   vsphere-standalone-cp-0-1-0       true
    ```
 
-3. **Understand the template components**
+   > **Note:** Version suffixes (e.g., `-0-2-3`) correspond to the chart version with dots replaced by dashes. Your environment may show different versions depending on the k0rdent release installed.
+
+2. **Examine the AWS standalone template**
+
+   ```bash
+   kubectl get clustertemplate aws-standalone-cp-0-2-3 -n kcm-system -o yaml
+   ```
+
+3. **Understand the real ClusterTemplate structure**
+
+   The shipped `aws-standalone-cp` template looks like this:
+
    ```yaml
    apiVersion: k0rdent.mirantis.com/v1beta1
    kind: ClusterTemplate
    metadata:
-     name: aws-standalone-cp
+     name: aws-standalone-cp-0-2-3
      namespace: kcm-system
    spec:
-     # Provider configuration
-     providers:
-       infrastructure: aws
-       bootstrap: k0s
-       controlPlane: k0s
-
      # Helm chart that generates CAPI resources
      helm:
-       chartRef:
-         name: k0rdent-cluster-aws
-         version: 0.2.0
+       chartSpec:
+         chart: aws-standalone-cp
+         interval: 10m0s
+         reconcileStrategy: ChartVersion
+         sourceRef:
+           kind: HelmRepository
+           name: k0rdent-catalog
+         version: 0.2.3
 
-     # Exposable parameters for customization
-     parameters:
-       - name: region
-         type: string
-         default: "us-west-2"
-       - name: controlPlaneInstanceType
-         type: string
-         default: "t3.large"
-       - name: workerInstanceType
-         type: string
-         default: "t3.medium"
-       - name: workerReplicas
-         type: integer
-         default: 2
-   ```
-
-### Task 2: Create AI Development ClusterTemplate (30 min)
-
-1. **Define the AI Development template**
-   ```yaml
-   # Save as ai-dev-template.yaml
-   apiVersion: k0rdent.mirantis.com/v1beta1
-   kind: ClusterTemplate
-   metadata:
-     name: ai-dev
-     namespace: kcm-system
-     labels:
-       k0rdent.mirantis.com/workload-type: ai
-       k0rdent.mirantis.com/ai-tier: development
-   spec:
+     # Required CAPI providers (flat string array)
      providers:
-       infrastructure: aws
-       bootstrap: k0s
-       controlPlane: k0s
+     - bootstrap-k0smotron
+     - control-plane-k0smotron
+     - infrastructure-aws
 
-     helm:
-       chartRef:
-         name: k0rdent-cluster-aws-gpu
-         version: 0.2.0
-
-     # Parameters exposed to cluster deployers
-     parameters:
-       # Region selection
-       - name: region
-         type: string
-         default: "us-west-2"
-         description: "AWS region for cluster deployment"
-
-       # Control plane configuration
-       - name: controlPlaneInstanceType
-         type: string
-         default: "t3.large"
-
-       # GPU worker configuration
-       - name: gpuInstanceType
-         type: string
-         default: "g5.xlarge"
-         description: "GPU instance type (g5.xlarge = 1x A10G)"
-         enum:
-           - g5.xlarge    # 1x A10G, 24GB
-           - g5.2xlarge   # 1x A10G, 24GB, more CPU
-           - g5.4xlarge   # 1x A10G, 24GB, more CPU/RAM
-
-       - name: gpuWorkerReplicas
-         type: integer
-         default: 1
-         minimum: 1
-         maximum: 4
-         description: "Number of GPU worker nodes"
-
-       # CPU worker configuration (optional)
-       - name: cpuWorkerReplicas
-         type: integer
-         default: 0
-         description: "Number of CPU-only worker nodes"
-
-       - name: cpuInstanceType
-         type: string
-         default: "t3.large"
-
-     # Default services to deploy
-     services:
-       - name: nvidia-gpu-operator
-         version: "v25.3.0"
-       - name: prometheus-stack
-         version: "45.0.0"
+     # Provider contract versions
+     providerContracts:
+       bootstrap-k0smotron: v1beta1
+       control-plane-k0smotron: v1beta1
+       infrastructure-aws: v1beta2
    ```
 
-2. **Apply the template**
+   > **Key insight:** The `spec` only references a Helm chart and declares required providers. There is no `parameters` or `services` field - parameters come from the chart's values and appear in `status.config`.
+
+### Task 2: Discover Template Parameters via status.config (15 min)
+
+After the k0rdent controller validates a ClusterTemplate, it populates `status.config` with all available parameters and their defaults. This is how you discover what can be customized.
+
+1. **View the available parameters**
+
    ```bash
-   kubectl apply -f ai-dev-template.yaml
-
-   # Verify creation
-   kubectl get clustertemplate ai-dev -n kcm-system
+   kubectl get clustertemplate aws-standalone-cp-0-2-3 -n kcm-system \
+     -o jsonpath='{.status.config}' | python3 -m json.tool
    ```
 
-3. **Inspect the generated template**
-   ```bash
-   kubectl describe clustertemplate ai-dev -n kcm-system
+   Output shows all configurable parameters:
+   ```json
+   {
+     "bastion": {
+       "allowedCIDRBlocks": [],
+       "ami": "",
+       "disableIngressRules": false,
+       "enabled": false,
+       "instanceType": "t2.micro"
+     },
+     "clusterIdentity": {
+       "kind": "AWSClusterStaticIdentity",
+       "name": ""
+     },
+     "clusterLabels": {},
+     "clusterNetwork": {
+       "pods": { "cidrBlocks": ["10.244.0.0/16"] },
+       "services": { "cidrBlocks": ["10.96.0.0/12"] }
+     },
+     "controlPlane": {
+       "amiID": "",
+       "iamInstanceProfile": "control-plane.cluster-api-provider-aws.sigs.k8s.io",
+       "instanceType": "",
+       "rootVolumeSize": 8
+     },
+     "controlPlaneNumber": 3,
+     "k0s": { "version": "v1.31.1+k0s.1" },
+     "publicIP": false,
+     "region": "",
+     "sshKeyName": "",
+     "worker": {
+       "amiID": "",
+       "iamInstanceProfile": "nodes.cluster-api-provider-aws.sigs.k8s.io",
+       "instanceType": "",
+       "rootVolumeSize": 8
+     },
+     "workersNumber": 2
+   }
    ```
 
-### Task 3: Create AI Training ClusterTemplate (30 min)
+2. **Identify GPU-relevant parameters**
 
-1. **Define the AI Training template**
-   ```yaml
-   # Save as ai-training-template.yaml
-   apiVersion: k0rdent.mirantis.com/v1beta1
-   kind: ClusterTemplate
-   metadata:
-     name: ai-training
-     namespace: kcm-system
-     labels:
-       k0rdent.mirantis.com/workload-type: ai
-       k0rdent.mirantis.com/ai-tier: training
-   spec:
-     providers:
-       infrastructure: aws
-       bootstrap: k0s
-       controlPlane: k0s
+   For AI workloads, the key parameters are:
 
-     helm:
-       chartRef:
-         name: k0rdent-cluster-aws-gpu
-         version: 0.2.0
+   | Parameter | Description | AI Relevance |
+   |-----------|-------------|--------------|
+   | `worker.instanceType` | EC2 instance type for workers | Set to GPU instance (g5, p4d, p5) |
+   | `workersNumber` | Number of worker nodes | Scale for distributed training |
+   | `worker.rootVolumeSize` | Root disk size (GB) | Increase for model/data storage |
+   | `controlPlane.instanceType` | Control plane instance type | Larger for training clusters |
+   | `controlPlaneNumber` | Number of control plane nodes | 3 for production |
+   | `region` | AWS region | Choose region with GPU capacity |
+   | `clusterLabels` | Labels for the cluster | Used by MultiClusterService targeting |
+   | `publicIP` | Assign public IPs | Required for external access |
 
-     parameters:
-       - name: region
-         type: string
-         default: "us-west-2"
+   > **Important:** The standard `aws-standalone-cp` template provisions a single worker pool. All workers share the same instance type. For mixed GPU + CPU pools, you would need a custom ClusterTemplate with a chart that supports multiple MachineDeployments (covered in Task 6).
 
-       - name: controlPlaneInstanceType
-         type: string
-         default: "m5.xlarge"
-         description: "Larger control plane for training clusters"
+### Task 3: Deploy an AI Development Cluster (25 min)
 
-       # Multi-GPU training nodes
-       - name: gpuInstanceType
-         type: string
-         default: "p4d.24xlarge"
-         description: "Multi-GPU instance for distributed training"
-         enum:
-           - p3.8xlarge    # 4x V100, NVLink
-           - p3.16xlarge   # 8x V100, NVLink
-           - p4d.24xlarge  # 8x A100, NVLink/NVSwitch
-           - p5.48xlarge   # 8x H100, NVLink/NVSwitch
+Deploy a lightweight GPU cluster for ML development and experimentation.
 
-       - name: gpuWorkerReplicas
-         type: integer
-         default: 2
-         minimum: 1
-         maximum: 16
-         description: "Number of multi-GPU training nodes"
+1. **Verify your Credential exists**
 
-       # EFA for RDMA (training optimization)
-       - name: enableEFA
-         type: boolean
-         default: true
-         description: "Enable Elastic Fabric Adapter for NCCL"
-
-       # Placement group for low-latency
-       - name: usePlacementGroup
-         type: boolean
-         default: true
-         description: "Use cluster placement group for GPU nodes"
-
-       # Shared storage for checkpoints
-       - name: sharedStorageSize
-         type: string
-         default: "1Ti"
-         description: "FSx Lustre size for training data/checkpoints"
-
-     services:
-       - name: nvidia-gpu-operator
-         version: "v25.3.0"
-       - name: aws-efa-k8s-device-plugin
-         version: "v0.5.0"
-       - name: fsx-csi-driver
-         version: "v1.9.0"
-       - name: prometheus-stack
-         version: "45.0.0"
-   ```
-
-2. **Apply and verify**
-   ```bash
-   kubectl apply -f ai-training-template.yaml
-   kubectl get clustertemplate ai-training -n kcm-system -o yaml
-   ```
-
-### Task 4: Create AI Inference ClusterTemplate (20 min)
-
-1. **Define the AI Inference template**
-   ```yaml
-   # Save as ai-inference-template.yaml
-   apiVersion: k0rdent.mirantis.com/v1beta1
-   kind: ClusterTemplate
-   metadata:
-     name: ai-inference
-     namespace: kcm-system
-     labels:
-       k0rdent.mirantis.com/workload-type: ai
-       k0rdent.mirantis.com/ai-tier: inference
-   spec:
-     providers:
-       infrastructure: aws
-       bootstrap: k0s
-       controlPlane: k0s
-
-     helm:
-       chartRef:
-         name: k0rdent-cluster-aws-gpu
-         version: 0.2.0
-
-     parameters:
-       - name: region
-         type: string
-         default: "us-west-2"
-
-       - name: controlPlaneInstanceType
-         type: string
-         default: "t3.large"
-
-       # Inference-optimized GPU nodes
-       - name: gpuInstanceType
-         type: string
-         default: "g5.12xlarge"
-         description: "Inference-optimized instance"
-         enum:
-           - g5.xlarge     # 1x A10G - small models
-           - g5.2xlarge    # 1x A10G - more CPU
-           - g5.12xlarge   # 4x A10G - large models
-           - inf2.xlarge   # 1x Inferentia2 - cost-optimized
-           - inf2.8xlarge  # 1x Inferentia2 - high throughput
-
-       - name: gpuWorkerReplicas
-         type: integer
-         default: 2
-         minimum: 1
-         maximum: 10
-
-       # Autoscaling for inference
-       - name: enableAutoscaling
-         type: boolean
-         default: true
-
-       - name: minReplicas
-         type: integer
-         default: 2
-
-       - name: maxReplicas
-         type: integer
-         default: 10
-
-     services:
-       - name: nvidia-gpu-operator
-         version: "v25.3.0"
-       - name: cluster-autoscaler
-         version: "9.29.0"
-       - name: prometheus-stack
-         version: "45.0.0"
-       - name: istio
-         version: "1.20.0"
-   ```
-
-2. **Apply the template**
-   ```bash
-   kubectl apply -f ai-inference-template.yaml
-   ```
-
-### Task 5: Deploy a Cluster Using ClusterDeployment (20 min)
-
-1. **Verify Credential exists**
    ```bash
    kubectl get credentials -n kcm-system
    ```
 
-2. **Create a ClusterDeployment**
+   You should see `aws-cluster-identity-cred` in the list. If not, refer to [Lab 1.3](../../week-1-foundations/labs/lab-1.3-configure-aws-provider.md).
+
+2. **Create a development ClusterDeployment**
+
    ```yaml
-   # Save as dev-cluster-deployment.yaml
+   # Save as ai-dev-cluster.yaml
    apiVersion: k0rdent.mirantis.com/v1beta1
    kind: ClusterDeployment
    metadata:
-     name: ml-team-dev
-     namespace: tenant-ml-team
+     name: ml-dev
+     namespace: kcm-system
    spec:
-     # Reference the template
-     template: ai-dev
-
-     # Reference credentials
-     credential: aws-creds
-
-     # Override default parameters
+     template: aws-standalone-cp-0-2-3
+     credential: aws-cluster-identity-cred
      config:
        region: us-west-2
-       gpuInstanceType: g5.xlarge
-       gpuWorkerReplicas: 2
-       cpuWorkerReplicas: 1
-
-     # Cluster metadata
-     clusterLabels:
-       team: ml-research
-       environment: development
-       cost-center: ai-platform
+       publicIP: true
+       controlPlaneNumber: 1
+       controlPlane:
+         instanceType: t3.large
+         rootVolumeSize: 50
+       workersNumber: 1
+       worker:
+         instanceType: g5.xlarge    # 1x NVIDIA A10G, 24GB VRAM
+         rootVolumeSize: 100        # Space for container images and models
+       clusterLabels:
+         k0rdent.mirantis.com/workload-type: ai
+         environment: development
+         team: ml-research
+       sshKeyName: k0rdent-clusters
+     # GPU Operator deployed automatically via serviceSpec
+     serviceSpec:
+       services:
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+       priority: 100
    ```
 
-3. **Deploy the cluster**
-   ```bash
-   # Create tenant namespace if needed
-   kubectl create namespace tenant-ml-team --dry-run=client -o yaml | kubectl apply -f -
+   > **k0rdent context:** The `serviceSpec` section deploys services to the workload cluster after provisioning. The GPU Operator ServiceTemplate (`gpu-operator-25-10-0`) is installed from the [k0rdent catalog](https://catalog.k0rdent.io/). This follows the same pattern as deploying ingress-nginx or kyverno from [Lab 1.7](../../week-1-foundations/labs/lab-1.7-multicluster-services.md).
 
-   # Apply the ClusterDeployment
-   kubectl apply -f dev-cluster-deployment.yaml
+3. **Apply the ClusterDeployment**
+
+   ```bash
+   kubectl apply -f ai-dev-cluster.yaml
    ```
 
 4. **Monitor deployment progress**
+
    ```bash
    # Watch ClusterDeployment status
-   kubectl get clusterdeployment ml-team-dev -n tenant-ml-team -w
+   kubectl get clusterdeployment ml-dev -n kcm-system -w
 
    # Check underlying CAPI resources
-   kubectl get clusters,machines -n tenant-ml-team
+   kubectl get clusters,machines -n kcm-system -l cluster.x-k8s.io/cluster-name=ml-dev
 
-   # View detailed status
-   kubectl describe clusterdeployment ml-team-dev -n tenant-ml-team
+   # View detailed status and conditions
+   kubectl describe clusterdeployment ml-dev -n kcm-system
    ```
+
+   Wait until the ClusterDeployment shows `Ready` status. This typically takes 10-15 minutes for AWS.
 
 5. **Access the deployed cluster**
-   ```bash
-   # Get kubeconfig
-   kubectl get secret ml-team-dev-kubeconfig -n tenant-ml-team -o jsonpath='{.data.value}' | base64 -d > ml-team-dev.kubeconfig
 
-   # Verify GPU nodes
-   KUBECONFIG=ml-team-dev.kubeconfig kubectl get nodes -l nvidia.com/gpu.present=true
+   ```bash
+   # Extract kubeconfig from the generated secret
+   kubectl get secret ml-dev-kubeconfig -n kcm-system \
+     -o jsonpath='{.data.value}' | base64 -d > ml-dev.kubeconfig
+
+   # Verify the cluster is accessible
+   KUBECONFIG=ml-dev.kubeconfig kubectl get nodes
+
+   # Verify GPU node is present
+   KUBECONFIG=ml-dev.kubeconfig kubectl get nodes \
+     -o custom-columns='NAME:.metadata.name,INSTANCE:.metadata.labels.node\.kubernetes\.io/instance-type,GPU:.status.allocatable.nvidia\.com/gpu'
    ```
+
+   Expected output:
+   ```
+   NAME                          INSTANCE     GPU
+   ml-dev-cp-0                   t3.large     <none>
+   ml-dev-worker-0               g5.xlarge    1
+   ```
+
+6. **Verify GPU Operator is running**
+
+   The GPU Operator should be deployed automatically via `serviceSpec`:
+
+   ```bash
+   KUBECONFIG=ml-dev.kubeconfig kubectl get pods -n gpu-operator
+   ```
+
+### Task 4: Deploy an AI Training Cluster (25 min)
+
+Deploy a multi-GPU cluster for distributed training workloads.
+
+1. **Create a training ClusterDeployment**
+
+   ```yaml
+   # Save as ai-training-cluster.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: ClusterDeployment
+   metadata:
+     name: ml-training
+     namespace: kcm-system
+   spec:
+     template: aws-standalone-cp-0-2-3
+     credential: aws-cluster-identity-cred
+     config:
+       region: us-west-2
+       publicIP: true
+       controlPlaneNumber: 3                  # HA control plane for long-running jobs
+       controlPlane:
+         instanceType: m5.xlarge              # Larger CP for training clusters
+         rootVolumeSize: 100
+       workersNumber: 2                       # 2x multi-GPU nodes
+       worker:
+         instanceType: p4d.24xlarge           # 8x A100 per node, NVLink/NVSwitch
+         rootVolumeSize: 500                  # Space for datasets and checkpoints
+       clusterLabels:
+         k0rdent.mirantis.com/workload-type: ai
+         environment: training
+         team: ml-research
+         gpu-tier: a100
+       sshKeyName: k0rdent-clusters
+     serviceSpec:
+       services:
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+           values: |
+             driver:
+               rdma:
+                 enabled: true                # Enable nvidia-peermem for GPUDirect RDMA
+       priority: 100
+   ```
+
+   > **Training clusters vs dev clusters:** Training clusters use multi-GPU instances (p4d.24xlarge = 8x A100 with NVLink/NVSwitch for fast inter-GPU communication), larger control planes (3 nodes for HA during long-running jobs), and larger root volumes for dataset staging. The GPU Operator is configured with RDMA support for high-bandwidth inter-node communication.
+
+2. **Apply and monitor**
+
+   ```bash
+   kubectl apply -f ai-training-cluster.yaml
+
+   # Monitor progress
+   kubectl get clusterdeployment ml-training -n kcm-system -w
+   ```
+
+   > **Note:** p4d.24xlarge instances have limited availability. If provisioning fails with capacity errors, try a different region (us-east-1, us-east-2) or switch to p3.16xlarge (8x V100).
+
+3. **Verify multi-GPU workers**
+
+   ```bash
+   kubectl get secret ml-training-kubeconfig -n kcm-system \
+     -o jsonpath='{.data.value}' | base64 -d > ml-training.kubeconfig
+
+   # Verify GPU count per node
+   KUBECONFIG=ml-training.kubeconfig kubectl get nodes \
+     -o custom-columns='NAME:.metadata.name,INSTANCE:.metadata.labels.node\.kubernetes\.io/instance-type,GPU:.status.allocatable.nvidia\.com/gpu'
+   ```
+
+   Expected output:
+   ```
+   NAME                             INSTANCE         GPU
+   ml-training-cp-0                 m5.xlarge        <none>
+   ml-training-cp-1                 m5.xlarge        <none>
+   ml-training-cp-2                 m5.xlarge        <none>
+   ml-training-worker-0             p4d.24xlarge     8
+   ml-training-worker-1             p4d.24xlarge     8
+   ```
+
+   Total GPUs: 16x A100 (2 nodes x 8 GPUs).
+
+### Task 5: Deploy AI Services via serviceSpec (20 min)
+
+k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service deployment. You can also use `MultiClusterService` to deploy services across multiple clusters at once.
+
+1. **Update a cluster with additional services**
+
+   Add monitoring to the training cluster by updating the ClusterDeployment:
+
+   ```yaml
+   # Save as ai-training-cluster-updated.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: ClusterDeployment
+   metadata:
+     name: ml-training
+     namespace: kcm-system
+   spec:
+     template: aws-standalone-cp-0-2-3
+     credential: aws-cluster-identity-cred
+     config:
+       region: us-west-2
+       publicIP: true
+       controlPlaneNumber: 3
+       controlPlane:
+         instanceType: m5.xlarge
+         rootVolumeSize: 100
+       workersNumber: 2
+       worker:
+         instanceType: p4d.24xlarge
+         rootVolumeSize: 500
+       clusterLabels:
+         k0rdent.mirantis.com/workload-type: ai
+         environment: training
+         team: ml-research
+         gpu-tier: a100
+       sshKeyName: k0rdent-clusters
+     serviceSpec:
+       services:
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+           values: |
+             driver:
+               rdma:
+                 enabled: true
+         - template: ingress-nginx-4-11-3
+           name: ingress-nginx
+           namespace: ingress-nginx
+         - template: kyverno-3-2-6
+           name: kyverno
+           namespace: kyverno
+       priority: 100
+   ```
+
+   ```bash
+   kubectl apply -f ai-training-cluster-updated.yaml
+   ```
+
+2. **Deploy services across ALL AI clusters with MultiClusterService**
+
+   For services that should be on every AI cluster, use `MultiClusterService` with label selectors:
+
+   ```yaml
+   # Save as ai-common-services.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: ai-common-services
+     namespace: kcm-system
+   spec:
+     clusterSelector:
+       matchLabels:
+         k0rdent.mirantis.com/workload-type: ai
+     serviceSpec:
+       services:
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+         - template: ingress-nginx-4-11-3
+           name: ingress-nginx
+           namespace: ingress-nginx
+       priority: 100
+   ```
+
+   ```bash
+   kubectl apply -f ai-common-services.yaml
+   ```
+
+   > **k0rdent context:** `MultiClusterService` targets clusters by label. Since both `ml-dev` and `ml-training` have `k0rdent.mirantis.com/workload-type: ai` in their `clusterLabels`, both clusters receive the GPU Operator and ingress-nginx automatically. Any future cluster with that label will also receive these services. This is the same pattern used in [Lab 5.5](lab-5.5-service-catalog.md) for deploying services from the k0rdent catalog.
+
+3. **Verify services deployed to training cluster**
+
+   ```bash
+   KUBECONFIG=ml-training.kubeconfig kubectl get pods -n gpu-operator
+   KUBECONFIG=ml-training.kubeconfig kubectl get pods -n ingress-nginx
+   ```
+
+### Task 6: Cluster Lifecycle Management (20 min)
+
+1. **Scale workers on the training cluster**
+
+   To add more GPU nodes, update the `workersNumber` in the ClusterDeployment config:
+
+   ```bash
+   kubectl patch clusterdeployment ml-training -n kcm-system --type merge -p '
+   spec:
+     config:
+       workersNumber: 4
+   '
+   ```
+
+   Monitor the scaling:
+   ```bash
+   kubectl get machines -n kcm-system -l cluster.x-k8s.io/cluster-name=ml-training -w
+   ```
+
+   Two new p4d.24xlarge nodes will be provisioned, giving you 32 A100 GPUs total.
+
+2. **Compare cluster configurations**
+
+   ```bash
+   # See all AI clusters and their configs
+   kubectl get clusterdeployments -n kcm-system -o custom-columns=\
+   'NAME:.metadata.name,TEMPLATE:.spec.template,WORKERS:.spec.config.workersNumber,INSTANCE:.spec.config.worker.instanceType'
+   ```
+
+   Expected output:
+   ```
+   NAME           TEMPLATE                    WORKERS   INSTANCE
+   ml-dev         aws-standalone-cp-0-2-3     1         g5.xlarge
+   ml-training    aws-standalone-cp-0-2-3     4         p4d.24xlarge
+   ```
+
+   Both clusters use the **same template** but with different configurations - this is k0rdent's approach to supporting diverse AI workloads without template proliferation.
+
+3. **Scale down after training completes**
+
+   ```bash
+   kubectl patch clusterdeployment ml-training -n kcm-system --type merge -p '
+   spec:
+     config:
+       workersNumber: 1
+   '
+   ```
+
+   k0rdent will gracefully drain and terminate excess workers, saving significant GPU cost.
+
+### Task 7: Understanding Custom ClusterTemplates (15 min)
+
+The shipped `aws-standalone-cp` template supports a single worker pool. For advanced scenarios like mixed GPU + CPU pools, you need a custom ClusterTemplate backed by a custom Helm chart.
+
+1. **When to create custom templates**
+
+   | Scenario | Shipped Template | Custom Template Needed |
+   |----------|-----------------|----------------------|
+   | Single GPU worker pool | Yes | No |
+   | Different instance types per pool | No | Yes |
+   | GPU + CPU mixed pools | No | Yes |
+   | EFA networking configuration | No | Yes |
+   | Placement groups for GPU locality | No | Yes |
+   | Custom AMIs with pre-installed drivers | No | Yes |
+
+2. **Custom ClusterTemplate structure**
+
+   A custom ClusterTemplate references a Helm chart you create and publish. The chart must generate valid CAPI resources (Cluster, MachineDeployments, etc.):
+
+   ```yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: ClusterTemplate
+   metadata:
+     name: aws-gpu-training-0-1-0
+     namespace: kcm-system
+   spec:
+     helm:
+       chartSpec:
+         chart: aws-gpu-training
+         interval: 10m0s
+         reconcileStrategy: ChartVersion
+         sourceRef:
+           kind: HelmRepository
+           name: my-org-charts       # Your org's chart repository
+         version: 0.1.0
+
+     # Required CAPI providers
+     providers:
+     - bootstrap-k0smotron
+     - control-plane-k0smotron
+     - infrastructure-aws
+
+     providerContracts:
+       bootstrap-k0smotron: v1beta1
+       control-plane-k0smotron: v1beta1
+       infrastructure-aws: v1beta2
+   ```
+
+   > **Important:** The ClusterTemplate `spec` is **immutable** after creation (`self == oldSelf` validation). To update a template, you create a new version (e.g., `aws-gpu-training-0-2-0`) rather than editing the existing one. This ensures running clusters are not affected by template changes.
+
+3. **Custom chart features for AI workloads**
+
+   A custom Helm chart for GPU training clusters would generate:
+
+   ```
+   Chart: aws-gpu-training
+   ├── templates/
+   │   ├── cluster.yaml           # CAPI Cluster resource
+   │   ├── control-plane.yaml     # K0sControlPlane
+   │   ├── gpu-workers.yaml       # MachineDeployment for GPU nodes
+   │   ├── cpu-workers.yaml       # MachineDeployment for CPU nodes
+   │   ├── placement-group.yaml   # AWS placement group for GPU locality
+   │   └── efa-security-group.yaml # Security group rules for EFA
+   └── values.yaml                # Parameters (become status.config)
+   ```
+
+   The chart's `values.yaml` defines parameters that k0rdent exposes via `status.config`:
+
+   ```yaml
+   # values.yaml for the custom chart
+   region: ""
+   controlPlaneNumber: 3
+   controlPlane:
+     instanceType: m5.xlarge
+
+   # GPU worker pool
+   gpuWorkers:
+     instanceType: p4d.24xlarge
+     count: 2
+     rootVolumeSize: 500
+     enableEFA: true
+     usePlacementGroup: true
+
+   # CPU worker pool (for data preprocessing, monitoring)
+   cpuWorkers:
+     instanceType: m5.2xlarge
+     count: 2
+     rootVolumeSize: 100
+   ```
+
+   After applying this ClusterTemplate, `status.config` would show these parameters, and users could override them in `ClusterDeployment.spec.config`.
+
+4. **Using the custom template**
+
+   ```yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: ClusterDeployment
+   metadata:
+     name: ml-training-advanced
+     namespace: kcm-system
+   spec:
+     template: aws-gpu-training-0-1-0      # Custom template
+     credential: aws-cluster-identity-cred
+     config:
+       region: us-west-2
+       gpuWorkers:
+         instanceType: p5.48xlarge          # H100 instead of A100
+         count: 4
+         enableEFA: true
+       cpuWorkers:
+         count: 3
+       clusterLabels:
+         environment: training
+         gpu-tier: h100
+     serviceSpec:
+       services:
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+       priority: 100
+   ```
+
+   > **Note:** Creating custom CAPI Helm charts is an advanced topic typically handled by platform teams. The shipped templates cover most single-pool GPU scenarios. Custom templates are needed when your organization requires standardized multi-pool configurations that are deployed repeatedly.
+
+---
+
+## Cleanup
+
+When you're done with the lab, delete the test clusters to avoid ongoing AWS charges:
+
+```bash
+# Delete ClusterDeployments (this destroys the underlying infrastructure)
+kubectl delete clusterdeployment ml-dev -n kcm-system
+kubectl delete clusterdeployment ml-training -n kcm-system
+
+# Delete MultiClusterService
+kubectl delete multiclusterservice ai-common-services -n kcm-system
+
+# Monitor deletion
+kubectl get clusterdeployments -n kcm-system -w
+```
+
+> **Warning:** Cluster deletion triggers infrastructure teardown (EC2 instances, VPCs, security groups). This is irreversible. Ensure any important data (model checkpoints, training logs) has been saved before deleting.
 
 ---
 
@@ -484,64 +762,80 @@ Different AI workloads require different cluster configurations:
 
 Before proceeding, verify you have completed:
 
-- [ ] Listed and examined existing ClusterTemplates
-- [ ] Created ai-dev ClusterTemplate with GPU parameters
-- [ ] Created ai-training ClusterTemplate with EFA and multi-GPU support
-- [ ] Created ai-inference ClusterTemplate with autoscaling
-- [ ] Deployed a cluster using ClusterDeployment
-- [ ] Accessed the deployed cluster and verified GPU nodes
+- [ ] Listed and examined shipped ClusterTemplates with versioned names
+- [ ] Explored `status.config` to discover available parameters
+- [ ] Deployed an AI development cluster with a single GPU worker (g5.xlarge)
+- [ ] Deployed an AI training cluster with multi-GPU workers (p4d.24xlarge)
+- [ ] Deployed GPU Operator and services via `serviceSpec`
+- [ ] Deployed common services across AI clusters via `MultiClusterService`
+- [ ] Scaled workers up and down on the training cluster
+- [ ] Understand when custom ClusterTemplates are needed
 
 ## Troubleshooting
 
-### ClusterTemplate Not Ready
+### ClusterTemplate Not Valid
 
 ```bash
-# Check template status
-kubectl describe clustertemplate <name> -n kcm-system
+# Check template status and validation errors
+kubectl get clustertemplate <name> -n kcm-system -o jsonpath='{.status.validationError}'
 
 # Check k0rdent controller logs
-kubectl logs -n kcm-system -l app=kcm-controller-manager --tail=100
+kubectl logs -n kcm-system -l app.kubernetes.io/name=kcm-controller-manager --tail=100
 ```
 
-### ClusterDeployment Stuck
+### ClusterDeployment Stuck Provisioning
 
 ```bash
-# Check deployment status
-kubectl describe clusterdeployment <name> -n <namespace>
+# Check deployment status and conditions
+kubectl describe clusterdeployment <name> -n kcm-system
 
-# Check underlying Cluster resource
-kubectl get cluster -n <namespace> -o yaml
+# Check underlying CAPI Cluster resource
+kubectl get cluster -n kcm-system -l cluster.x-k8s.io/cluster-name=<name> -o yaml
 
-# Check machine provisioning
-kubectl get machines -n <namespace>
+# Check machine provisioning status
+kubectl get machines -n kcm-system -l cluster.x-k8s.io/cluster-name=<name>
 
-# Check AWS events in CAPA controller
+# Check AWS CAPI provider logs for infrastructure errors
 kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tail=100
 ```
 
-### GPU Nodes Not Joining
+### GPU Nodes Not Reporting GPUs
 
 ```bash
-# Check machine status
-kubectl describe machine <machine-name> -n <namespace>
-
-# Check cloud-init logs on the node (if accessible)
-# Look for GPU driver installation failures
-
-# Verify GPU operator is deployed
+# Verify GPU Operator pods are running on the workload cluster
 KUBECONFIG=<cluster>.kubeconfig kubectl get pods -n gpu-operator
+
+# Check GPU Operator logs for driver installation issues
+KUBECONFIG=<cluster>.kubeconfig kubectl logs -n gpu-operator -l app=nvidia-driver-daemonset --tail=50
+
+# Verify node labels
+KUBECONFIG=<cluster>.kubeconfig kubectl get nodes -l nvidia.com/gpu.present=true
+```
+
+### Service Deployment Failures
+
+```bash
+# Check serviceSpec status on the ClusterDeployment
+kubectl get clusterdeployment <name> -n kcm-system -o jsonpath='{.status.services}' | python3 -m json.tool
+
+# Check that the ServiceTemplate exists
+kubectl get servicetemplates -n kcm-system | grep gpu-operator
+
+# If using MultiClusterService, check its status
+kubectl describe multiclusterservice ai-common-services -n kcm-system
 ```
 
 ---
 
 ## Key Takeaways
 
-1. **k0rdent simplifies Cluster API** by providing ClusterTemplate abstraction
-2. **ClusterTemplates are reusable** across multiple ClusterDeployments
-3. **Parameters enable customization** without modifying templates
-4. **Different AI workloads** require different cluster configurations
-5. **Credentials are managed separately** from cluster definitions
-6. **Multi-tenancy is built-in** via namespace isolation
+1. **ClusterTemplates wrap Helm charts** that generate CAPI resources - parameters come from the chart, not the template
+2. **`status.config` is your API reference** - it shows all available parameters after validation
+3. **Same template, different configs** - dev, training, and inference clusters use the same template with different `spec.config` values
+4. **`serviceSpec` automates Day-2 services** - GPU Operator, monitoring, and security tools deploy automatically
+5. **`MultiClusterService` targets by labels** - deploy services across all AI clusters with `clusterLabels` matching
+6. **ClusterTemplate spec is immutable** - create new versions instead of editing existing templates
+7. **Custom templates are for advanced multi-pool scenarios** - shipped templates handle most single-pool GPU configurations
 
 ---
 
