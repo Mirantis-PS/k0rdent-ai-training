@@ -422,7 +422,7 @@ metadata:
     k0rdent.mirantis.com/kof-cert-email: admin@example.com
 spec:
   template: aws-standalone-cp-1-0-20
-  credential: aws-credential
+  credential: aws-cluster-identity-cred
   config:
     region: us-east-1
     # ... rest of config

@@ -119,7 +119,7 @@ metadata:
   namespace: team-platform
 rules:
 - apiGroups: ["k0rdent.mirantis.com"]
-  resources: ["managedclusters", "clusterdeployments"]
+  resources: ["clusterdeployments", "multiclusterservices"]
   verbs: ["*"]
 - apiGroups: [""]
   resources: ["secrets"]

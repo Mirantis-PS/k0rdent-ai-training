@@ -178,7 +178,7 @@ cat << 'EOF' | kubectl apply -f -
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: Credential
 metadata:
-  name: aws-credential
+  name: aws-cluster-identity-cred
   namespace: kcm-system
 spec:
   identityRef:
@@ -201,7 +201,7 @@ kubectl get secret aws-cluster-identity-secret -n kcm-system
 kubectl get awsclusterstaticidentity -n kcm-system
 
 # Verify the credential (or use alias: kgcred)
-kubectl get credential aws-credential -n kcm-system
+kubectl get credential aws-cluster-identity-cred -n kcm-system
 ```
 
 ### Verify AWS Provider Controller

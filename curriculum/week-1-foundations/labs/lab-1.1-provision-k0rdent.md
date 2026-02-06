@@ -321,8 +321,10 @@ For quick diagnostics:
 ```bash
 # Check environment status
 ./scripts/lab-status.sh k0rdent your-name
+```
 
 **Error: Terraform version too old**
+
 ```bash
 # Install newer Terraform
 # macOS:

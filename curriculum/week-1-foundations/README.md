@@ -1,6 +1,6 @@
 # Week 1: k0rdent Enterprise Installation & Configuration
 
-**Duration:** 15 hours
+**Duration:** 24.5 hours
 **Focus:** k0rdent Enterprise deployment, architecture understanding, production-ready configuration
 
 ## Learning Objectives
@@ -26,6 +26,9 @@ By the end of this week, you will be able to:
 | 3 | Theory: Infrastructure Providers and Cluster API | 1.5h | Video/Reading |
 | 3 | Lab 1.3: Configure AWS Infrastructure Provider | 3h | Hands-on |
 | 4 | Lab 1.4: Production Configuration and RBAC | 3h | Hands-on |
+| 4 | Lab 1.5: Provision Your First Managed Cluster | 2.5h | Hands-on |
+| 5 | Lab 1.6: Deploy KOF (Observability & FinOps) | 3h | Hands-on |
+| 5 | Lab 1.7: Multi-Cluster Services | 2h | Hands-on |
 | 5 | Week 1 Assessment | 0.5h | Quiz |
 
 ## Theory Content
@@ -40,6 +43,9 @@ By the end of this week, you will be able to:
 - [Lab 1.2 - Explore k0rdent UI](labs/lab-1.2-explore-k0rdent-ui.md)
 - [Lab 1.3 - Configure AWS Provider](labs/lab-1.3-configure-aws-provider.md)
 - [Lab 1.4 - Production Configuration](labs/lab-1.4-production-configuration.md)
+- [Lab 1.5 - Provision Your First Managed Cluster](labs/lab-1.5-provision-managed-cluster.md)
+- [Lab 1.6 - Deploy KOF (Observability & FinOps)](labs/lab-1.6-deploy-kof.md)
+- [Lab 1.7 - Multi-Cluster Services](labs/lab-1.7-multicluster-services.md)
 
 ## Prerequisites
 
