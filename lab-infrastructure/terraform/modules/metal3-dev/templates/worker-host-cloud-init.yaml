@@ -1,0 +1,84 @@
+#cloud-config
+# Metal3 Worker Host Cloud-Init Configuration
+# Additional host for running more simulated bare metal nodes
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-kvm
+  - libvirt-daemon-system
+  - libvirt-clients
+  - virtinst
+  - bridge-utils
+  - jq
+  - curl
+  - wget
+  - htop
+  - tmux
+  - vim
+  - python3-pip
+
+groups:
+  - libvirt
+  - kvm
+
+users:
+  - default
+
+write_files:
+  - path: /opt/k0rdent/config/worker-info.env
+    content: |
+      ENGINEER_ID=${engineer_id}
+      CONTROLLER_IP=${controller_ip}
+      WORKER_HOST_INDEX=${worker_host_index}
+    permissions: '0644'
+
+  - path: /opt/k0rdent/scripts/setup-worker-host.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/worker-info.env
+
+      echo "=== Setting up Worker Host $WORKER_HOST_INDEX ==="
+
+      # Enable libvirt
+      sudo systemctl enable --now libvirtd
+
+      # Create bridge for connection to controller's baremetal network
+      cat > /tmp/baremetal-bridge.xml <<EOF
+      <network>
+        <name>baremetal</name>
+        <forward mode="route"/>
+        <bridge name='baremetal' stp='off' delay='0'/>
+        <ip address='192.168.111.$((10 + WORKER_HOST_INDEX * 10))' netmask='255.255.255.0'>
+        </ip>
+      </network>
+      EOF
+
+      sudo virsh net-define /tmp/baremetal-bridge.xml
+      sudo virsh net-start baremetal
+      sudo virsh net-autostart baremetal
+
+      echo "=== Worker Host $WORKER_HOST_INDEX setup complete ==="
+      echo "Controller IP: $CONTROLLER_IP"
+
+runcmd:
+  - usermod -aG libvirt ubuntu
+  - usermod -aG kvm ubuntu
+  - mkdir -p /opt/k0rdent/{config,scripts}
+  - chown -R ubuntu:ubuntu /opt/k0rdent
+  # Format and mount additional storage
+  - mkfs.ext4 /dev/nvme1n1 || mkfs.ext4 /dev/xvdb || true
+  - mkdir -p /var/lib/libvirt/images
+  - mount /dev/nvme1n1 /var/lib/libvirt/images || mount /dev/xvdb /var/lib/libvirt/images || true
+  - su - ubuntu -c "/opt/k0rdent/scripts/setup-worker-host.sh"
+
+final_message: |
+  k0rdent Metal3 Worker Host ${worker_host_index}
+  Engineer ID: ${engineer_id}
+  Controller: ${controller_ip}
+
+  Ready for additional simulated bare metal nodes.

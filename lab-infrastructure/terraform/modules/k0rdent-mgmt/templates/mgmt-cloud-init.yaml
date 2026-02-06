@@ -1,0 +1,503 @@
+#cloud-config
+# k0rdent Enterprise Management Cluster Bootstrap
+# Installs k0s single-node cluster with k0rdent Enterprise
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - curl
+  - jq
+  - git
+  - unzip
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - apt-transport-https
+  - software-properties-common
+  - htop
+  - tmux
+  - vim
+  - net-tools
+
+groups:
+  - docker
+
+users:
+  - default
+  - name: k0rdent
+    groups: [docker, sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+write_files:
+  - path: /etc/sysctl.d/99-k0rdent.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+    permissions: '0644'
+
+  - path: /opt/k0rdent-lab/config/lab-info.env
+    content: |
+      ENGINEER_ID=${engineer_id}
+      K0S_VERSION=${k0s_version}
+      K0RDENT_VERSION=${k0rdent_version}
+      K0RDENT_UI_PASSWORD=${ui_password}
+      ARTIFACTS_BUCKET=${artifacts_bucket}
+      AWS_REGION=${region}
+      NODE_IP=$(hostname -I | awk '{print $1}')
+    permissions: '0644'
+
+  - path: /opt/k0rdent-lab/scripts/01-install-k0s.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent-lab/config/lab-info.env
+
+      echo "=== Installing k0s $K0S_VERSION ==="
+
+      # Download and install k0s
+      curl -sSLf https://get.k0s.sh | sudo K0S_VERSION=$K0S_VERSION sh
+
+      # Get node IP
+      NODE_IP=$(hostname -I | awk '{print $1}')
+
+      # Create k0s configuration for single-node cluster
+      sudo mkdir -p /etc/k0s
+      cat <<EOF | sudo tee /etc/k0s/k0s.yaml
+      apiVersion: k0s.k0sproject.io/v1beta1
+      kind: ClusterConfig
+      metadata:
+        name: k0rdent-mgmt-${engineer_id}
+      spec:
+        api:
+          address: $NODE_IP
+          k0sApiPort: 9443
+          port: 6443
+          sans:
+            - $NODE_IP
+            - localhost
+            - 127.0.0.1
+        network:
+          provider: calico
+          calico:
+            mode: vxlan
+          podCIDR: 10.244.0.0/16
+          serviceCIDR: 10.96.0.0/12
+        storage:
+          type: etcd
+        telemetry:
+          enabled: false
+      EOF
+
+      # Install k0s as controller+worker (single node)
+      sudo k0s install controller --config /etc/k0s/k0s.yaml --enable-worker
+      sudo k0s start
+
+      # Wait for k0s to be ready
+      echo "Waiting for k0s to start..."
+      sleep 30
+
+      # Check k0s status
+      sudo k0s status || true
+
+      # Get kubeconfig for ubuntu user
+      sudo mkdir -p /home/ubuntu/.kube
+      sudo k0s kubeconfig admin > /home/ubuntu/.kube/config
+      sudo chown -R ubuntu:ubuntu /home/ubuntu/.kube
+      sudo chmod 600 /home/ubuntu/.kube/config
+
+      # Also for root
+      sudo mkdir -p /root/.kube
+      sudo k0s kubeconfig admin > /root/.kube/config
+
+      echo "=== k0s installation complete ==="
+
+  - path: /opt/k0rdent-lab/scripts/02-install-tools.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "=== Installing CLI tools ==="
+
+      # Install kubectl
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      chmod +x kubectl
+      sudo mv kubectl /usr/local/bin/
+
+      # Install Helm
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      # Install k0sctl
+      curl -sSLf https://github.com/k0sproject/k0sctl/releases/download/v0.19.4/k0sctl-linux-amd64 -o /tmp/k0sctl
+      chmod +x /tmp/k0sctl
+      sudo mv /tmp/k0sctl /usr/local/bin/k0sctl
+
+      # Install clusterctl (Cluster API CLI)
+      curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.9.0/clusterctl-linux-amd64 -o /tmp/clusterctl
+      chmod +x /tmp/clusterctl
+      sudo mv /tmp/clusterctl /usr/local/bin/clusterctl
+
+      # Install Flux CLI
+      curl -s https://fluxcd.io/install.sh | sudo bash
+
+      # Install AWS CLI v2
+      curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
+      unzip -q /tmp/awscliv2.zip -d /tmp
+      sudo /tmp/aws/install
+      rm -rf /tmp/aws /tmp/awscliv2.zip
+
+      # Install yq
+      curl -LO https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+      chmod +x yq_linux_amd64
+      sudo mv yq_linux_amd64 /usr/local/bin/yq
+
+      # Install k9s (TUI for Kubernetes)
+      curl -sS https://webinstall.dev/k9s | bash || true
+
+      echo "=== CLI tools installed ==="
+
+  - path: /opt/k0rdent-lab/scripts/03-wait-for-cluster.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      export KUBECONFIG=/home/ubuntu/.kube/config
+
+      echo "=== Waiting for Kubernetes cluster to be ready ==="
+
+      # Wait for API server
+      echo "Waiting for API server..."
+      until kubectl get nodes &>/dev/null; do
+        echo "  Waiting for API server to respond..."
+        sleep 10
+      done
+
+      # Wait for node to be Ready
+      echo "Waiting for node to be Ready..."
+      until kubectl get nodes | grep -q "Ready"; do
+        echo "  Node not ready yet..."
+        sleep 10
+      done
+
+      # Wait for CoreDNS
+      echo "Waiting for CoreDNS..."
+      kubectl wait --for=condition=Available deployment/coredns -n kube-system --timeout=300s || true
+
+      # Remove master taint for single-node
+      echo "Removing master taint..."
+      kubectl taint nodes --all node-role.kubernetes.io/master- 2>/dev/null || true
+      kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null || true
+
+      echo "=== Cluster is ready ==="
+      kubectl get nodes -o wide
+
+  - path: /opt/k0rdent-lab/scripts/04-install-k0rdent.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent-lab/config/lab-info.env
+      export KUBECONFIG=/home/ubuntu/.kube/config
+
+      echo "=== Installing k0rdent Enterprise $K0RDENT_VERSION ==="
+
+      # Create namespace
+      kubectl create namespace kcm-system --dry-run=client -o yaml | kubectl apply -f -
+
+      # Install k0rdent Enterprise via Helm
+      echo "Installing k0rdent Enterprise Helm chart..."
+      helm install kcm oci://registry.mirantis.com/k0rdent-enterprise/charts/k0rdent-enterprise \
+        --version ${k0rdent_version} \
+        --namespace kcm-system \
+        --create-namespace \
+        --set k0rdent-ui.enabled=true \
+        --set k0rdent-ui.auth.basic.password="$K0RDENT_UI_PASSWORD" \
+        --wait \
+        --timeout 15m
+
+      echo "=== k0rdent Enterprise installation initiated ==="
+      echo "Waiting for KCM components to be ready..."
+
+      # Wait for KCM operator
+      kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=kcm -n kcm-system --timeout=600s || true
+
+      echo "=== k0rdent Enterprise installed ==="
+
+  - path: /opt/k0rdent-lab/scripts/05-configure-providers.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent-lab/config/lab-info.env
+      export KUBECONFIG=/home/ubuntu/.kube/config
+
+      echo "=== Configuring k0rdent providers ==="
+
+      # Wait for CRDs to be available
+      echo "Waiting for k0rdent CRDs..."
+      until kubectl get crd managements.k0rdent.mirantis.com &>/dev/null; do
+        echo "  Waiting for Management CRD..."
+        sleep 10
+      done
+
+      # Create AWS credentials secret (placeholder - engineers will update)
+      cat <<EOF | kubectl apply -f -
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: aws-credentials
+        namespace: kcm-system
+      type: Opaque
+      stringData:
+        AWS_ACCESS_KEY_ID: "REPLACE_WITH_YOUR_ACCESS_KEY"
+        AWS_SECRET_ACCESS_KEY: "REPLACE_WITH_YOUR_SECRET_KEY"
+        AWS_REGION: "${region}"
+      EOF
+
+      echo "=== Provider configuration templates created ==="
+      echo ""
+      echo "IMPORTANT: Update AWS credentials in kcm-system/aws-credentials secret"
+      echo "  kubectl edit secret aws-credentials -n kcm-system"
+
+  - path: /opt/k0rdent-lab/scripts/06-verify-installation.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      export KUBECONFIG=/home/ubuntu/.kube/config
+
+      echo "=============================================="
+      echo "  k0rdent Enterprise Installation Verification"
+      echo "=============================================="
+      echo ""
+
+      echo "=== Cluster Info ==="
+      kubectl cluster-info
+      echo ""
+
+      echo "=== Nodes ==="
+      kubectl get nodes -o wide
+      echo ""
+
+      echo "=== k0rdent Components (kcm-system) ==="
+      kubectl get pods -n kcm-system
+      echo ""
+
+      echo "=== k0rdent Management Object ==="
+      kubectl get management -A 2>/dev/null || echo "Management object not yet created"
+      echo ""
+
+      echo "=== Available ClusterTemplates ==="
+      kubectl get clustertemplates -A 2>/dev/null || echo "No ClusterTemplates yet"
+      echo ""
+
+      echo "=== k0rdent UI Access ==="
+      echo "The k0rdent UI is available via port-forward:"
+      echo "  kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000"
+      echo "  Then open: http://localhost:8080"
+      echo ""
+
+      echo "=============================================="
+      echo "  Installation Complete!"
+      echo "=============================================="
+
+  - path: /opt/k0rdent-lab/scripts/init-lab.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      LOG_FILE="/var/log/k0rdent-init.log"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+
+      echo "=============================================="
+      echo "  k0rdent Enterprise Lab Initialization"
+      echo "  Started at: $(date)"
+      echo "=============================================="
+
+      cd /opt/k0rdent-lab/scripts
+
+      echo ""
+      echo "[1/6] Installing k0s Kubernetes..."
+      ./01-install-k0s.sh
+
+      echo ""
+      echo "[2/6] Installing CLI tools..."
+      ./02-install-tools.sh
+
+      echo ""
+      echo "[3/6] Waiting for cluster readiness..."
+      ./03-wait-for-cluster.sh
+
+      echo ""
+      echo "[4/6] Installing k0rdent Enterprise..."
+      ./04-install-k0rdent.sh
+
+      echo ""
+      echo "[5/6] Configuring providers..."
+      ./05-configure-providers.sh
+
+      echo ""
+      echo "[6/6] Verifying installation..."
+      ./06-verify-installation.sh
+
+      echo ""
+      echo "=============================================="
+      echo "  Lab initialization complete!"
+      echo "  Finished at: $(date)"
+      echo "=============================================="
+
+      # Create completion marker
+      touch /opt/k0rdent-lab/.init-complete
+
+      # Upload log to S3
+      source /opt/k0rdent-lab/config/lab-info.env
+      aws s3 cp "$LOG_FILE" "s3://$ARTIFACTS_BUCKET/logs/$ENGINEER_ID/k0rdent-init-$(date +%Y%m%d-%H%M%S).log" 2>/dev/null || true
+
+  - path: /etc/profile.d/k0rdent-lab.sh
+    content: |
+      export PATH=$PATH:/usr/local/bin:/home/ubuntu/.local/bin
+      export KUBECONFIG=/home/ubuntu/.kube/config
+
+      # Kubernetes aliases
+      alias k=kubectl
+      alias kgp='kubectl get pods'
+      alias kgs='kubectl get svc'
+      alias kgn='kubectl get nodes'
+      alias kga='kubectl get all'
+      alias kgaa='kubectl get all -A'
+
+      # k0rdent aliases
+      alias kgm='kubectl get management -A'
+      alias kgcd='kubectl get clusterdeployment -A'
+      alias kgct='kubectl get clustertemplates -A'
+      alias kgcred='kubectl get credentials -A'
+
+      # Flux aliases
+      alias fga='flux get all'
+      alias fgs='flux get sources all'
+
+      # k0s aliases
+      alias k0sstatus='sudo k0s status'
+
+      # Welcome message
+      if [ -f /opt/k0rdent-lab/.init-complete ]; then
+        echo "================================================"
+        echo "  k0rdent Enterprise Management Cluster"
+        echo "  Engineer: ${engineer_id}"
+        echo "  k0s: ${k0s_version}"
+        echo "  k0rdent: ${k0rdent_version}"
+        echo "================================================"
+        echo ""
+        echo "Quick commands:"
+        echo "  kubectl get management         - Check k0rdent status"
+        echo "  kubectl get clustertemplates   - List available templates"
+        echo "  kubectl get clusterdeployment  - List deployed clusters"
+        echo ""
+        echo "k0rdent UI:"
+        echo "  kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000"
+        echo ""
+      else
+        echo "================================================"
+        echo "  k0rdent Lab - Initializing..."
+        echo "  Check progress: tail -f /var/log/k0rdent-init.log"
+        echo "================================================"
+      fi
+
+  - path: /opt/k0rdent-lab/README.md
+    content: |
+      # k0rdent Enterprise Management Cluster
+
+      ## Engineer: ${engineer_id}
+      ## k0s Version: ${k0s_version}
+      ## k0rdent Version: ${k0rdent_version}
+
+      ## Quick Start
+
+      1. **Check cluster status:**
+         ```bash
+         kubectl get nodes
+         kubectl get pods -n kcm-system
+         ```
+
+      2. **Access k0rdent UI:**
+         ```bash
+         kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000
+         ```
+         Then open http://localhost:8080
+
+      3. **Check k0rdent components:**
+         ```bash
+         kubectl get management
+         kubectl get clustertemplates
+         ```
+
+      ## Configure AWS Credentials
+
+      Before creating clusters, update AWS credentials:
+      ```bash
+      kubectl edit secret aws-credentials -n kcm-system
+      ```
+
+      ## Create Your First Cluster
+
+      1. List available templates:
+         ```bash
+         kubectl get clustertemplates
+         ```
+
+      2. Create a ClusterDeployment:
+         ```bash
+         kubectl apply -f /opt/k0rdent-lab/examples/cluster-deployment.yaml
+         ```
+
+      ## Useful Commands
+
+      - Check k0rdent status: `kubectl get management`
+      - List clusters: `kubectl get clusterdeployment -A`
+      - View templates: `kubectl get clustertemplates`
+      - Check logs: `kubectl logs -n kcm-system -l app.kubernetes.io/name=kcm`
+
+      ## Troubleshooting
+
+      - Init logs: `tail -f /var/log/k0rdent-init.log`
+      - k0s status: `sudo k0s status`
+      - k0rdent pods: `kubectl get pods -n kcm-system`
+
+runcmd:
+  - sysctl --system
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker ubuntu
+  - mkdir -p /opt/k0rdent-lab/{config,scripts,examples,manifests}
+  - chown -R ubuntu:ubuntu /opt/k0rdent-lab
+  - chown -R ubuntu:ubuntu /home/ubuntu
+  # Create log file with proper permissions
+  - touch /var/log/k0rdent-init.log && chown ubuntu:ubuntu /var/log/k0rdent-init.log
+  # Run initialization in background
+  - nohup /opt/k0rdent-lab/scripts/init-lab.sh > /var/log/k0rdent-init.log 2>&1 &
+
+final_message: |
+  k0rdent Enterprise Management Cluster
+  Engineer ID: ${engineer_id}
+
+  Cloud-init complete. Lab initialization running in background.
+  Check progress: tail -f /var/log/k0rdent-init.log
+
+  Once complete:
+    kubectl get nodes
+    kubectl get pods -n kcm-system
+    kubectl get management

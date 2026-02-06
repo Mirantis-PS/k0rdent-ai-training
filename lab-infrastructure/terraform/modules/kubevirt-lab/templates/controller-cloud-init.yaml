@@ -1,0 +1,383 @@
+#cloud-config
+# KubeVirt Lab Controller Cloud-Init Configuration
+# Sets up k0s controller node with KubeVirt operator
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - jq
+  - curl
+  - wget
+  - git
+  - htop
+  - tmux
+  - vim
+  - unzip
+  - awscli
+  - net-tools
+
+groups:
+  - docker
+
+users:
+  - default
+
+write_files:
+  - path: /etc/sysctl.d/99-k0rdent.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+    permissions: '0644'
+
+  - path: /opt/k0rdent/config/lab-info.env
+    content: |
+      ENGINEER_ID=${engineer_id}
+      K0S_VERSION=${k0s_version}
+      KUBEVIRT_VERSION=${kubevirt_version}
+      CDI_VERSION=${cdi_version}
+      ARTIFACTS_BUCKET=${artifacts_bucket}
+      IMAGES_BUCKET=${images_bucket}
+      AWS_REGION=${region}
+      WORKER_COUNT=${worker_count}
+      NODE_ROLE=${node_role}
+    permissions: '0644'
+
+  - path: /opt/k0rdent/scripts/setup-k0s-controller.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/lab-info.env
+
+      echo "=== Installing k0s $K0S_VERSION (Controller) ==="
+
+      # Download k0s
+      curl -sSLf https://get.k0s.sh | sudo K0S_VERSION=$K0S_VERSION sh
+
+      # Get node IP
+      NODE_IP=$(hostname -I | awk '{print $1}')
+
+      # Create k0s configuration
+      mkdir -p /etc/k0s
+      cat > /etc/k0s/k0s.yaml <<EOF
+      apiVersion: k0s.k0sproject.io/v1beta1
+      kind: ClusterConfig
+      metadata:
+        name: k0rdent-kubevirt-lab
+      spec:
+        api:
+          address: $NODE_IP
+          sans:
+            - $NODE_IP
+            - localhost
+            - 127.0.0.1
+        network:
+          provider: calico
+          calico:
+            mode: vxlan
+          podCIDR: 10.244.0.0/16
+          serviceCIDR: 10.96.0.0/12
+        extensions:
+          helm:
+            repositories:
+              - name: kubevirt
+                url: https://charts.kubevirt.io
+              - name: cdi
+                url: https://charts.kubevirt.io
+            charts: []
+      EOF
+
+      # Install k0s as controller
+      sudo k0s install controller --config /etc/k0s/k0s.yaml
+      sudo k0s start
+
+      # Wait for k0s to be ready
+      echo "Waiting for k0s to be ready..."
+      sleep 30
+
+      # Get kubeconfig
+      mkdir -p ~/.kube /home/ubuntu/.kube
+      sudo k0s kubeconfig admin > ~/.kube/config
+      cp ~/.kube/config /home/ubuntu/.kube/config
+      chmod 600 ~/.kube/config /home/ubuntu/.kube/config
+      chown ubuntu:ubuntu /home/ubuntu/.kube/config
+
+      # Install kubectl
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      chmod +x kubectl
+      sudo mv kubectl /usr/local/bin/
+
+      # Wait for cluster to be ready
+      until kubectl get nodes 2>/dev/null; do
+        echo "Waiting for cluster..."
+        sleep 10
+      done
+
+      # Generate worker join tokens
+      echo "Generating worker join tokens..."
+      mkdir -p /opt/k0rdent/tokens
+      for i in $(seq 0 $((WORKER_COUNT - 1))); do
+        sudo k0s token create --role=worker > /opt/k0rdent/tokens/worker-$i.token
+      done
+
+      echo "=== k0s controller installation complete ==="
+
+  - path: /opt/k0rdent/scripts/setup-kubevirt.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/lab-info.env
+
+      echo "=== Installing KubeVirt $KUBEVIRT_VERSION ==="
+
+      # Wait for cluster to be ready
+      until kubectl get nodes 2>/dev/null; do
+        echo "Waiting for cluster..."
+        sleep 10
+      done
+
+      # Install KubeVirt operator
+      kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/$KUBEVIRT_VERSION/kubevirt-operator.yaml || true
+
+      # Wait for operator
+      echo "Waiting for KubeVirt operator..."
+      kubectl wait --for=condition=Available deployment/virt-operator -n kubevirt --timeout=300s || true
+
+      # Create KubeVirt custom resource
+      cat <<EOF | kubectl apply -f -
+      apiVersion: kubevirt.io/v1
+      kind: KubeVirt
+      metadata:
+        name: kubevirt
+        namespace: kubevirt
+      spec:
+        certificateRotateStrategy: {}
+        configuration:
+          developerConfiguration:
+            useEmulation: true
+          network:
+            permitBridgeInterfaceOnPodNetwork: true
+        customizeComponents: {}
+        imagePullPolicy: IfNotPresent
+      EOF
+
+      # Wait for KubeVirt to be ready
+      echo "Waiting for KubeVirt to be ready..."
+      kubectl wait --for=condition=Available kv/kubevirt -n kubevirt --timeout=600s || true
+
+      # Install virtctl
+      VIRTCTL_VERSION=$KUBEVIRT_VERSION
+      curl -L -o /tmp/virtctl https://github.com/kubevirt/kubevirt/releases/download/$VIRTCTL_VERSION/virtctl-$VIRTCTL_VERSION-linux-amd64
+      chmod +x /tmp/virtctl
+      sudo mv /tmp/virtctl /usr/local/bin/
+
+      echo "=== KubeVirt installation complete ==="
+
+  - path: /opt/k0rdent/scripts/setup-cdi.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/lab-info.env
+
+      echo "=== Installing CDI $CDI_VERSION ==="
+
+      # Install CDI operator
+      kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$CDI_VERSION/cdi-operator.yaml || true
+
+      # Wait for operator
+      echo "Waiting for CDI operator..."
+      kubectl wait --for=condition=Available deployment/cdi-operator -n cdi --timeout=300s || true
+
+      # Create CDI custom resource
+      cat <<EOF | kubectl apply -f -
+      apiVersion: cdi.kubevirt.io/v1beta1
+      kind: CDI
+      metadata:
+        name: cdi
+      spec:
+        config:
+          featureGates:
+            - HonorWaitForFirstConsumer
+          uploadProxyURLOverride: ""
+      EOF
+
+      # Wait for CDI to be ready
+      echo "Waiting for CDI to be ready..."
+      kubectl wait --for=condition=Available cdi/cdi --timeout=300s || true
+
+      echo "=== CDI installation complete ==="
+
+  - path: /opt/k0rdent/scripts/create-sample-vms.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "=== Creating sample VM templates ==="
+
+      # Create namespace for VMs
+      kubectl create namespace vm-workloads || true
+
+      # Create a sample Fedora VM template
+      cat <<EOF | kubectl apply -f -
+      apiVersion: kubevirt.io/v1
+      kind: VirtualMachine
+      metadata:
+        name: fedora-sample
+        namespace: vm-workloads
+      spec:
+        running: false
+        template:
+          metadata:
+            labels:
+              kubevirt.io/vm: fedora-sample
+          spec:
+            domain:
+              devices:
+                disks:
+                  - name: containerdisk
+                    disk:
+                      bus: virtio
+                  - name: cloudinitdisk
+                    disk:
+                      bus: virtio
+                interfaces:
+                  - name: default
+                    masquerade: {}
+              resources:
+                requests:
+                  memory: 1Gi
+                  cpu: "1"
+            networks:
+              - name: default
+                pod: {}
+            volumes:
+              - name: containerdisk
+                containerDisk:
+                  image: quay.io/kubevirt/fedora-cloud-container-disk-demo:latest
+              - name: cloudinitdisk
+                cloudInitNoCloud:
+                  userData: |
+                    #cloud-config
+                    password: fedora
+                    chpasswd: { expire: False }
+      EOF
+
+      # Create Ubuntu VM template
+      cat <<EOF | kubectl apply -f -
+      apiVersion: kubevirt.io/v1
+      kind: VirtualMachine
+      metadata:
+        name: ubuntu-sample
+        namespace: vm-workloads
+      spec:
+        running: false
+        template:
+          metadata:
+            labels:
+              kubevirt.io/vm: ubuntu-sample
+          spec:
+            domain:
+              devices:
+                disks:
+                  - name: containerdisk
+                    disk:
+                      bus: virtio
+                  - name: cloudinitdisk
+                    disk:
+                      bus: virtio
+                interfaces:
+                  - name: default
+                    masquerade: {}
+              resources:
+                requests:
+                  memory: 2Gi
+                  cpu: "2"
+            networks:
+              - name: default
+                pod: {}
+            volumes:
+              - name: containerdisk
+                containerDisk:
+                  image: quay.io/kubevirt/cirros-container-disk-demo:latest
+              - name: cloudinitdisk
+                cloudInitNoCloud:
+                  userData: |
+                    #cloud-config
+                    password: ubuntu
+                    chpasswd: { expire: False }
+      EOF
+
+      echo "=== Sample VM templates created ==="
+      echo "Start a VM: virtctl start fedora-sample -n vm-workloads"
+      echo "Console:    virtctl console fedora-sample -n vm-workloads"
+
+  - path: /opt/k0rdent/scripts/init-lab.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      LOG_FILE="/var/log/k0rdent-init.log"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+
+      echo "=========================================="
+      echo "k0rdent KubeVirt Lab Initialization"
+      echo "Started at: $(date)"
+      echo "=========================================="
+
+      cd /opt/k0rdent/scripts
+
+      echo "[1/4] Setting up k0s controller..."
+      ./setup-k0s-controller.sh
+
+      echo "[2/4] Installing KubeVirt..."
+      ./setup-kubevirt.sh
+
+      echo "[3/4] Installing CDI..."
+      ./setup-cdi.sh
+
+      echo "[4/4] Creating sample VMs..."
+      ./create-sample-vms.sh
+
+      echo "=========================================="
+      echo "Lab initialization complete!"
+      echo "Finished at: $(date)"
+      echo "=========================================="
+
+      # Create completion marker
+      touch /opt/k0rdent/.init-complete
+
+      # Upload log to S3
+      source /opt/k0rdent/config/lab-info.env
+      aws s3 cp "$LOG_FILE" "s3://$ARTIFACTS_BUCKET/logs/$ENGINEER_ID/kubevirt-init-$(date +%Y%m%d-%H%M%S).log" || true
+
+runcmd:
+  - sysctl --system
+  - modprobe br_netfilter || true
+  - usermod -aG docker ubuntu
+  - mkdir -p /opt/k0rdent/{config,scripts,manifests,tokens}
+  - chown -R ubuntu:ubuntu /opt/k0rdent
+  # Run initialization as root (delayed to allow cloud-init to complete)
+  - nohup /opt/k0rdent/scripts/init-lab.sh > /var/log/k0rdent-init-bg.log 2>&1 &
+
+final_message: |
+  k0rdent KubeVirt Lab Controller
+  Engineer ID: ${engineer_id}
+
+  Cloud-init complete. Lab initialization running in background.
+  Check progress: tail -f /var/log/k0rdent-init.log
+
+  Once complete:
+    export KUBECONFIG=~/.kube/config
+    kubectl get nodes
+    kubectl get vms -A
+    virtctl start fedora-sample -n vm-workloads

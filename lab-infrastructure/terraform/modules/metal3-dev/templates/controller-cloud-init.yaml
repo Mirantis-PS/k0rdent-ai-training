@@ -1,0 +1,455 @@
+#cloud-config
+# Metal3 Controller Cloud-Init Configuration
+# Sets up k0s cluster with Metal3 operator and Ironic for bare metal simulation
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - qemu-kvm
+  - libvirt-daemon-system
+  - libvirt-clients
+  - virtinst
+  - virt-manager
+  - bridge-utils
+  - cpu-checker
+  - cloud-image-utils
+  - jq
+  - curl
+  - wget
+  - git
+  - htop
+  - tmux
+  - vim
+  - unzip
+  - awscli
+  - python3-pip
+  - ipmitool
+  - net-tools
+  - snapd
+
+groups:
+  - docker
+  - libvirt
+  - kvm
+
+users:
+  - default
+  - name: k0rdent
+    groups: [docker, libvirt, kvm, sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+write_files:
+  - path: /etc/sysctl.d/99-k0rdent.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+    permissions: '0644'
+
+  - path: /opt/k0rdent/config/engineer-info.env
+    content: |
+      ENGINEER_ID=${engineer_id}
+      K0S_VERSION=${k0s_version}
+      METAL3_VERSION=${metal3_version}
+      IRONIC_VERSION=${ironic_version}
+      WORKER_COUNT=${worker_count}
+      ARTIFACTS_BUCKET=${artifacts_bucket}
+      IMAGES_BUCKET=${images_bucket}
+      AWS_REGION=${region}
+    permissions: '0644'
+
+  - path: /opt/k0rdent/scripts/setup-k0s.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/engineer-info.env
+
+      echo "=== Installing k0s $K0S_VERSION ==="
+
+      # Download k0s
+      curl -sSLf https://get.k0s.sh | sudo K0S_VERSION=$K0S_VERSION sh
+
+      # Create k0s configuration
+      mkdir -p /etc/k0s
+      cat > /etc/k0s/k0s.yaml <<EOF
+      apiVersion: k0s.k0sproject.io/v1beta1
+      kind: ClusterConfig
+      metadata:
+        name: k0rdent-metal3-lab
+      spec:
+        api:
+          address: $(hostname -I | awk '{print $1}')
+          sans:
+            - $(hostname -I | awk '{print $1}')
+            - localhost
+            - 127.0.0.1
+        network:
+          provider: calico
+          calico:
+            mode: vxlan
+        extensions:
+          helm:
+            repositories:
+              - name: metal3
+                url: https://metal3.github.io/metal3-helm
+              - name: jetstack
+                url: https://charts.jetstack.io
+            charts:
+              - name: cert-manager
+                chartname: jetstack/cert-manager
+                namespace: cert-manager
+                version: "v1.16.2"
+                values: |
+                  installCRDs: true
+      EOF
+
+      # Install k0s as controller
+      sudo k0s install controller --config /etc/k0s/k0s.yaml --enable-worker
+      sudo k0s start
+
+      # Wait for k0s to be ready
+      echo "Waiting for k0s to be ready..."
+      sleep 30
+
+      # Get kubeconfig
+      mkdir -p ~/.kube
+      sudo k0s kubeconfig admin > ~/.kube/config
+      chmod 600 ~/.kube/config
+
+      # Install kubectl
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      chmod +x kubectl
+      sudo mv kubectl /usr/local/bin/
+
+      # Install helm
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      # Add helm repos
+      helm repo add metal3 https://metal3.github.io/metal3-helm
+      helm repo add jetstack https://charts.jetstack.io
+      helm repo update
+
+      # Remove master taint for single-node cluster (allows workloads to schedule)
+      echo "Waiting for node to be ready before removing taint..."
+      sleep 30
+      kubectl taint nodes --all node-role.kubernetes.io/master- || true
+
+      echo "=== k0s installation complete ==="
+
+  - path: /opt/k0rdent/scripts/setup-libvirt.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/engineer-info.env
+
+      echo "=== Setting up libvirt for nested virtualization ==="
+
+      # Enable and start libvirt
+      sudo systemctl enable --now libvirtd
+
+      # Create storage pool for VM disks
+      sudo mkdir -p /var/lib/libvirt/images/k0rdent
+
+      # Create provisioning network for Metal3
+      cat > /tmp/provisioning-network.xml <<EOF
+      <network>
+        <name>provisioning</name>
+        <bridge name='provisioning' stp='off' delay='0'/>
+        <ip address='172.22.0.1' netmask='255.255.255.0'>
+          <dhcp>
+            <range start='172.22.0.10' end='172.22.0.254'/>
+          </dhcp>
+        </ip>
+      </network>
+      EOF
+
+      sudo virsh net-define /tmp/provisioning-network.xml
+      sudo virsh net-start provisioning
+      sudo virsh net-autostart provisioning
+
+      # Create baremetal network (no DHCP - managed by Ironic)
+      cat > /tmp/baremetal-network.xml <<EOF
+      <network>
+        <name>baremetal</name>
+        <bridge name='baremetal' stp='off' delay='0'/>
+        <ip address='192.168.111.1' netmask='255.255.255.0'/>
+      </network>
+      EOF
+
+      sudo virsh net-define /tmp/baremetal-network.xml
+      sudo virsh net-start baremetal
+      sudo virsh net-autostart baremetal
+
+      echo "=== libvirt setup complete ==="
+
+  - path: /opt/k0rdent/scripts/create-simulated-bm.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/engineer-info.env
+
+      echo "=== Creating $WORKER_COUNT simulated bare metal nodes ==="
+
+      # Download Ubuntu cloud image for workers
+      UBUNTU_IMG_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+      UBUNTU_IMG="/var/lib/libvirt/images/ubuntu-22.04-cloud.qcow2"
+
+      if [ ! -f "$UBUNTU_IMG" ]; then
+        echo "Downloading Ubuntu cloud image..."
+        sudo wget -O "$UBUNTU_IMG" "$UBUNTU_IMG_URL"
+      fi
+
+      # Create VMs to simulate bare metal nodes
+      for i in $(seq 1 $WORKER_COUNT); do
+        VM_NAME="bm-worker-$i"
+        VM_DISK="/var/lib/libvirt/images/k0rdent/$${VM_NAME}.qcow2"
+
+        echo "Creating $VM_NAME..."
+
+        # Create disk from cloud image
+        sudo qemu-img create -f qcow2 -F qcow2 -b "$UBUNTU_IMG" "$VM_DISK" 50G
+
+        # Create VM with virtual BMC (vbmc)
+        sudo virt-install \
+          --name "$VM_NAME" \
+          --memory 4096 \
+          --vcpus 2 \
+          --disk path="$VM_DISK",format=qcow2 \
+          --network network=baremetal,model=virtio \
+          --network network=provisioning,model=virtio \
+          --os-variant ubuntu22.04 \
+          --boot hd,network \
+          --graphics vnc \
+          --noautoconsole \
+          --import
+
+        # Shut down VM (Metal3/Ironic will manage power state)
+        sleep 5
+        sudo virsh destroy "$VM_NAME" || true
+
+        echo "$VM_NAME created and powered off"
+      done
+
+      echo "=== Simulated bare metal nodes created ==="
+
+  - path: /opt/k0rdent/scripts/setup-vbmc.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/engineer-info.env
+
+      echo "=== Setting up Virtual BMC for IPMI simulation ==="
+
+      # Install virtualbmc
+      sudo pip3 install virtualbmc
+
+      # Start vbmcd
+      sudo vbmcd
+
+      # Add virtual BMC for each simulated node
+      for i in $(seq 1 $WORKER_COUNT); do
+        VM_NAME="bm-worker-$i"
+        BMC_PORT=$((6230 + i))
+
+        echo "Creating virtual BMC for $VM_NAME on port $BMC_PORT..."
+
+        vbmc add "$VM_NAME" --port "$BMC_PORT" --username admin --password password
+        vbmc start "$VM_NAME"
+      done
+
+      # List all virtual BMCs
+      vbmc list
+
+      echo "=== Virtual BMC setup complete ==="
+      echo "Test with: ipmitool -I lanplus -U admin -P password -H localhost -p 6231 power status"
+
+  - path: /opt/k0rdent/scripts/setup-metal3.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/engineer-info.env
+
+      echo "=== Setting up Metal3 operator ==="
+
+      # Wait for k0s cluster to be ready
+      until kubectl get nodes; do
+        echo "Waiting for k0s cluster..."
+        sleep 10
+      done
+
+      # Wait for cert-manager (installed via k0s helm extension)
+      echo "Waiting for cert-manager..."
+      kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=300s || true
+
+      # Install Metal3 operator
+      kubectl create namespace metal3-system || true
+
+      # Create Ironic configuration
+      cat > /tmp/ironic-config.yaml <<EOF
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: ironic-config
+        namespace: metal3-system
+      data:
+        IRONIC_IP: "$(hostname -I | awk '{print $1}')"
+        IRONIC_INSPECTOR_IP: "$(hostname -I | awk '{print $1}')"
+        PROVISIONING_INTERFACE: "baremetal"
+        PROVISIONING_IP: "192.168.111.1"
+        DHCP_RANGE: "192.168.111.10,192.168.111.100"
+        DEPLOY_KERNEL_URL: "http://192.168.111.1:6180/images/ironic-python-agent.kernel"
+        DEPLOY_RAMDISK_URL: "http://192.168.111.1:6180/images/ironic-python-agent.initramfs"
+      EOF
+
+      kubectl apply -f /tmp/ironic-config.yaml
+
+      # Install Metal3 using Helm
+      helm upgrade --install metal3 metal3/metal3 \
+        --namespace metal3-system \
+        --version $METAL3_VERSION \
+        --set ironic.enabled=true \
+        --wait --timeout 10m
+
+      echo "=== Metal3 setup complete ==="
+
+  - path: /opt/k0rdent/scripts/register-bm-hosts.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      source /opt/k0rdent/config/engineer-info.env
+
+      echo "=== Registering simulated bare metal hosts with Metal3 ==="
+
+      CONTROLLER_IP=$(hostname -I | awk '{print $1}')
+
+      for i in $(seq 1 $WORKER_COUNT); do
+        VM_NAME="bm-worker-$i"
+        BMC_PORT=$((6230 + i))
+
+        # Get MAC address of baremetal interface
+        MAC_ADDR=$(sudo virsh domiflist "$VM_NAME" | grep baremetal | awk '{print $5}')
+
+        echo "Registering $VM_NAME with MAC $MAC_ADDR..."
+
+        cat > /tmp/bmh-$i.yaml <<EOF
+      apiVersion: metal3.io/v1alpha1
+      kind: BareMetalHost
+      metadata:
+        name: $VM_NAME
+        namespace: metal3-system
+      spec:
+        online: true
+        bootMACAddress: $MAC_ADDR
+        bmc:
+          address: ipmi://$CONTROLLER_IP:$BMC_PORT
+          credentialsName: $VM_NAME-bmc-secret
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: $VM_NAME-bmc-secret
+        namespace: metal3-system
+      type: Opaque
+      stringData:
+        username: admin
+        password: password
+      EOF
+
+        kubectl apply -f /tmp/bmh-$i.yaml
+      done
+
+      echo "=== Bare metal hosts registered ==="
+      echo "Check status with: kubectl get baremetalhosts -n metal3-system"
+
+  - path: /opt/k0rdent/scripts/init-lab.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      LOG_FILE="/var/log/k0rdent-init.log"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+
+      echo "=========================================="
+      echo "k0rdent Metal3 Lab Initialization"
+      echo "Started at: $(date)"
+      echo "=========================================="
+
+      cd /opt/k0rdent/scripts
+
+      echo "[1/6] Setting up k0s cluster..."
+      ./setup-k0s.sh
+
+      echo "[2/6] Setting up libvirt..."
+      ./setup-libvirt.sh
+
+      echo "[3/6] Creating simulated bare metal nodes..."
+      ./create-simulated-bm.sh
+
+      echo "[4/6] Setting up virtual BMC..."
+      ./setup-vbmc.sh
+
+      echo "[5/6] Setting up Metal3 operator..."
+      ./setup-metal3.sh
+
+      echo "[6/6] Registering bare metal hosts..."
+      ./register-bm-hosts.sh
+
+      echo "=========================================="
+      echo "Lab initialization complete!"
+      echo "Finished at: $(date)"
+      echo "=========================================="
+
+      # Create completion marker
+      touch /opt/k0rdent/.init-complete
+
+      # Upload log to S3
+      source /opt/k0rdent/config/engineer-info.env
+      aws s3 cp "$LOG_FILE" "s3://$ARTIFACTS_BUCKET/logs/$ENGINEER_ID/init-$(date +%Y%m%d-%H%M%S).log" || true
+
+runcmd:
+  - sysctl --system
+  - usermod -aG docker ubuntu
+  - usermod -aG libvirt ubuntu
+  - usermod -aG kvm ubuntu
+  - mkdir -p /opt/k0rdent/config /opt/k0rdent/scripts /opt/k0rdent/manifests
+  - chown -R ubuntu:ubuntu /opt/k0rdent
+  # Format and mount additional storage
+  - mkfs.ext4 /dev/nvme1n1 || mkfs.ext4 /dev/xvdb || true
+  - mkdir -p /var/lib/libvirt/images
+  - mount /dev/nvme1n1 /var/lib/libvirt/images || mount /dev/xvdb /var/lib/libvirt/images || true
+  - echo '/dev/nvme1n1 /var/lib/libvirt/images ext4 defaults 0 2' >> /etc/fstab || true
+  # Create log file with proper permissions for ubuntu user
+  - touch /var/log/k0rdent-init.log && chown ubuntu:ubuntu /var/log/k0rdent-init.log
+  # Run initialization as root (scripts require sudo anyway)
+  - nohup /opt/k0rdent/scripts/init-lab.sh > /var/log/k0rdent-init.log 2>&1 &
+
+final_message: |
+  k0rdent Metal3 Lab Controller
+  Engineer ID: ${engineer_id}
+
+  Cloud-init complete. Lab initialization running in background.
+  Check progress: tail -f /var/log/k0rdent-init.log
+
+  Once complete, access k0s cluster:
+    export KUBECONFIG=~/.kube/config
+    kubectl get nodes
+    kubectl get baremetalhosts -n metal3-system

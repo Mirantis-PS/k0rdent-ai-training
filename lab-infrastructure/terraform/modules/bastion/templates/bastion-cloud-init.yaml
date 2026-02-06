@@ -1,0 +1,85 @@
+#cloud-config
+# Bastion Host Configuration
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - tmux
+  - vim
+  - htop
+  - jq
+  - git
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/bastion.conf
+    content: |
+      # Hardened SSH configuration for bastion
+      PermitRootLogin no
+      PasswordAuthentication no
+      ChallengeResponseAuthentication no
+      UsePAM yes
+      X11Forwarding no
+      PrintMotd yes
+      AcceptEnv LANG LC_*
+      AllowAgentForwarding yes
+      AllowTcpForwarding yes
+      GatewayPorts no
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+      # Speed up SSH connections
+      UseDNS no
+      GSSAPIAuthentication no
+    permissions: '0644'
+
+  - path: /etc/motd
+    content: |
+      ===============================================
+       k0rdent Training Lab - Bastion Host
+       Project: ${project_name}
+      ===============================================
+
+      This bastion provides SSH jump access to lab instances.
+
+      Usage:
+        ssh -J ec2-user@<this-ip> ubuntu@<lab-instance-ip>
+
+      Or configure SSH config:
+        Host lab-*
+          ProxyJump bastion
+          User ubuntu
+
+      Available tools: tmux, vim, htop, jq, kubectl
+      ===============================================
+    permissions: '0644'
+
+  - path: /home/ec2-user/.ssh/config
+    content: |
+      Host *
+        StrictHostKeyChecking no
+        UserKnownHostsFile /dev/null
+        ServerAliveInterval 60
+    permissions: '0600'
+    owner: ec2-user:ec2-user
+
+%{ if length(ssh_public_keys) > 0 ~}
+  - path: /home/ec2-user/.ssh/authorized_keys
+    content: |
+%{ for key in ssh_public_keys ~}
+      ${key}
+%{ endfor ~}
+    append: true
+    permissions: '0600'
+    owner: ec2-user:ec2-user
+%{ endif ~}
+
+runcmd:
+  - systemctl restart sshd
+  # Install kubectl
+  - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+  - chmod +x kubectl
+  - mv kubectl /usr/local/bin/
+
+final_message: |
+  k0rdent Training Bastion Host Ready
+  SSH access is configured and hardened.

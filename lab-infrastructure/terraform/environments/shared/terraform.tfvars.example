@@ -1,0 +1,36 @@
+# Terraform variables for Shared Infrastructure
+# k0rdent AI Training Environment
+#
+# Copy this file to terraform.tfvars and customize:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# Then edit terraform.tfvars with your values
+
+# Region Configuration
+# Choose your preferred AWS region and a valid availability zone for GPU instances
+# Common options: us-east-1/us-east-1a, us-west-2/us-west-2a, eu-west-1/eu-west-1a
+region       = "eu-west-1"
+gpu_az       = "eu-west-1a"  # Must be valid AZ in the chosen region
+
+project_name = "k0rdent-training"
+vpc_cidr     = "10.0.0.0/16"
+
+# SSH access - restrict to your IP for security
+# Get your IP: curl ifconfig.me
+# For shared training environments, you can use ["0.0.0.0/0"]
+allowed_ssh_cidrs = [
+  "YOUR_IP/32",  # Replace with your IP
+]
+
+# Bastion configuration
+bastion_instance_type   = "t3.small"
+bastion_use_elastic_ip  = true
+
+# Owner identification - used for resource tagging
+# This helps identify who created the shared infrastructure
+owner = "your-name"  # Replace with your name/team
+
+tags = {
+  CostCenter  = "training"
+  Environment = "lab"
+}
