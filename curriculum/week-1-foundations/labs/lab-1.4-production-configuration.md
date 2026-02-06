@@ -185,13 +185,24 @@ EOF
 
 ### Configure k0s for Audit Logging
 
-```bash
-# Note: This requires k0s configuration update
-# View current k0s config
-sudo k0s config create
+> **Scope Note:** Enabling audit logging in k0s requires modifying `/etc/k0s/k0s.yaml` and restarting the k0s service, which would temporarily disrupt the management cluster. This is beyond the scope of this training lab. The audit policy file above is provided as a **production reference** -- in a real deployment, you would add the following to your k0s configuration:
 
-# Audit logging is enabled via k0s.yaml configuration
-# For this lab, we'll use kubectl for audit awareness
+```yaml
+# Production reference only - do NOT apply in this training environment
+# Add this under spec.api in /etc/k0s/k0s.yaml:
+spec:
+  api:
+    extraArgs:
+      audit-policy-file: /var/lib/k0s/audit-policy.yaml
+      audit-log-path: /var/log/kubernetes/audit.log
+      audit-log-maxage: "30"
+      audit-log-maxbackup: "10"
+      audit-log-maxsize: "100"
+```
+
+```bash
+# View the current k0s config for reference
+sudo k0s config create
 ```
 
 ## Part 4: Configure Backup and Recovery
@@ -246,7 +257,14 @@ kubectl get clusters,machines,machinedeployments \
 
 ### Network Policies
 
-> **Warning for Training Environments:** The network policies below are for **production reference only**. In this training environment, applying restrictive network policies to `kcm-system` can block k0rdent webhooks and prevent cluster provisioning in Lab 1.5. **Skip this section** if you plan to continue with Labs 1.5-1.7, or delete the policies before proceeding.
+> **WARNING -- DO NOT APPLY IN TRAINING**
+>
+> The network policies below are for **production reference only**. Applying them in this training environment **WILL break cluster provisioning** in Labs 1.5-1.7 by blocking webhook traffic on port 9443. You would see `webhook timeout` errors when creating ClusterDeployments, and diagnosing this is non-obvious.
+>
+> **Read the YAML below for learning purposes, but do NOT run the `kubectl apply` command.** If you accidentally apply them, delete immediately with:
+> ```
+> kubectl delete networkpolicy -n kcm-system --all
+> ```
 
 For production environments, network policies should allow:
 - Internal kcm-system pod-to-pod communication

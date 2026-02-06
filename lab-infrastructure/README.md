@@ -175,11 +175,14 @@ This is the single reference for lab infrastructure costs.
 | GPU Lab - 4 hour session | ~$18.00 (spot) |
 | **Forgotten GPU Lab - 24 hours** | **~$108 (spot) / ~$294 (on-demand)** |
 
-### Spot Instances (Default)
+### Spot Instances
 
-All labs use spot instances by default for ~60-70% cost savings.
+The k0rdent management cluster uses **on-demand instances by default** for reliability during long-running operations (cluster provisioning, Helm installs). Other lab types (Metal3, KubeVirt, GPU) support spot instances for cost savings:
 
 ```bash
+# Enable spot instances for non-k0rdent labs (~60-70% savings)
+./scripts/lab-provision.sh metal3 your-name --spot
+
 # Use on-demand if spot unavailable
 ./scripts/lab-provision.sh metal3 your-name --no-spot
 ```

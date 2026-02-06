@@ -57,6 +57,8 @@ Each provider includes:
 
 ### Required Permissions
 
+> **Training vs Production:** The policy below uses broad permissions (`ec2:*`, `elasticloadbalancing:*`) for simplicity in this training environment. For production deployments, use a scoped-down policy -- see [Theory 1.3: Infrastructure Providers](../theory/1.3-infrastructure-providers.md) for a least-privilege reference policy.
+
 Create an IAM policy with these permissions:
 
 ```json
@@ -162,14 +164,12 @@ metadata:
 spec:
   secretRef: aws-cluster-identity-secret
   allowedNamespaces:
-    list:
-      - kcm-system
     selector:
       matchLabels: {}
 EOF
 ```
 
-> **Important:** The `allowedNamespaces.list` must include `kcm-system` to allow ClusterDeployments in that namespace to use this identity.
+> **Important:** The `allowedNamespaces.selector` with empty `matchLabels: {}` permits **all namespaces** to use this identity. This is appropriate for training. In production, restrict access using specific labels (e.g., `matchLabels: {k0rdent.mirantis.com/project: "my-team"}`) or use `allowedNamespaces.list` to enumerate specific namespaces.
 
 ### Step 3: Create k0rdent Credential Object
 

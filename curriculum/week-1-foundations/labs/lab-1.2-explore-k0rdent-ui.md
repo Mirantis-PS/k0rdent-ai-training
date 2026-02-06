@@ -94,14 +94,18 @@ Each cluster template includes:
 Find and examine an AWS cluster template:
 
 ```bash
-# From SSH session, view templates via kubectl (or use alias: kgct)
-kubectl get clustertemplates -A
+# From SSH session, list all available templates (or use alias: kgct)
+kubectl get clustertemplates -n kcm-system
 
-# Get details of a specific template (choose one from the list above)
-kubectl get clustertemplate aws-standalone-cp-1-0-20 -n kcm-system -o yaml | head -100
+# Find the AWS standalone control plane template
+AWS_TEMPLATE=$(kubectl get clustertemplates -n kcm-system -o name | grep aws-standalone-cp | head -1)
+echo "Found template: $AWS_TEMPLATE"
+
+# Get details of the template
+kubectl get $AWS_TEMPLATE -n kcm-system -o yaml | head -100
 ```
 
-> **Note:** Template names include version numbers (e.g., `aws-standalone-cp-1-0-20`). Use `kubectl get clustertemplates -A` to see available templates in your installation.
+> **Note:** Template names include version numbers (e.g., `aws-standalone-cp-1-0-20`) that change between k0rdent releases. Always list templates first rather than hardcoding names.
 
 Questions to answer:
 - [ ] What Kubernetes version does it deploy?

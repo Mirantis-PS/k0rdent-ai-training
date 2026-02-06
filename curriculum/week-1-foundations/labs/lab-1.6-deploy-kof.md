@@ -154,6 +154,8 @@ victoria-metrics-operator:
 victoriametrics:
   enabled: false
 promxy:
+  # Promxy provides unified Prometheus-compatible query interface across VictoriaMetrics clusters.
+  # The CRD (PromxyServerGroup) is managed by kof-storage; the deployment runs in kof-mothership.
   enabled: true
 victoria-logs-cluster:
   vlstorage:
@@ -299,6 +301,8 @@ kubectl get clusterdeployment managed-cluster-01 -n kcm-system --show-labels
 ```
 
 #### Step 2: Create Cluster Configuration
+
+> **Networking Prerequisite:** The endpoints below use internal Kubernetes DNS names (e.g., `vminsert-cluster.kof.svc.cluster.local`) that are only resolvable **within the management cluster**. In this training environment, the managed cluster runs in a separate VPC without direct connectivity to these services. We complete this step to learn the configuration pattern -- collectors will deploy but show connection errors until cross-VPC networking is established (see "Training Environment Limitation" below).
 
 The child cluster needs to know where to send telemetry. Create a ConfigMap with the storage endpoints:
 

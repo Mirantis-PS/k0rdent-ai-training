@@ -165,17 +165,23 @@ This establishes an SSH connection through the bastion host.
 
 ### Verify k0rdent Installation
 
-Once connected, check the installation status:
+Once connected, wait for the installation to complete:
 
 ```bash
-# Check k0rdent installation log (live progress)
-tail -f /var/log/k0rdent-init.log
-
-# Or check if installation is complete
-ls /opt/k0rdent-lab/.init-complete && echo "Installation complete!"
+# Wait for k0rdent installation to finish (10-15 minutes after instance launch)
+echo "Waiting for k0rdent installation to complete..."
+while [ ! -f /opt/k0rdent-lab/.init-complete ]; do sleep 10; echo -n "."; done
+echo " Done!"
 ```
 
-The installation runs in the background and may take 10-15 minutes after the instance is available.
+If you want to watch the installation progress in real time instead:
+
+```bash
+# Watch the installation log (Ctrl+C to stop watching)
+tail -f /var/log/k0rdent-init.log
+```
+
+> **Important:** Do not proceed to the next steps until installation is complete. The k0rdent pods and CRDs will not be available until the init script finishes.
 
 > **Tip:** The lab environment includes helpful aliases. Type `alias` to see them all.
 

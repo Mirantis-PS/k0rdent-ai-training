@@ -334,8 +334,8 @@ kubectl version
 # Unset KUBECONFIG to return to management cluster
 unset KUBECONFIG
 
-# Or explicitly use the management cluster config
-export KUBECONFIG=/etc/kubernetes/admin.conf
+# Or explicitly use the management cluster config (k0s uses this path)
+export KUBECONFIG=/home/ubuntu/.kube/config
 ```
 
 ## Part 5: Explore the Managed Cluster
@@ -395,6 +395,8 @@ kubectl create secret generic azure-cluster-identity-secret \
   -n kcm-system
 
 # Create AzureClusterIdentity
+# Note: CAPZ uses v1beta1 (not v1beta2 like CAPA). Verify with:
+#   kubectl api-resources | grep azureclusteridentit
 cat << EOF | kubectl apply -f -
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: AzureClusterIdentity

@@ -47,6 +47,30 @@ By the end of this week, you will be able to:
 - [Lab 1.6 - Deploy KOF (Observability & FinOps)](labs/lab-1.6-deploy-kof.md)
 - [Lab 1.7 - Multi-Cluster Services](labs/lab-1.7-multicluster-services.md)
 
+## Version Compatibility
+
+These labs are validated against the following versions. If your environment uses different versions, commands and template names may differ.
+
+| Component | Version | Used In |
+|-----------|---------|---------|
+| k0rdent Enterprise | 1.2.1 | Lab 1.1 (auto-installed) |
+| k0s | v1.32.4+k0s.0 | Lab 1.1 (auto-installed) |
+| Flux | v2.4.0 | Lab 1.1 (auto-installed) |
+| clusterctl | v1.9.0 | Lab 1.1 (auto-installed) |
+| k0sctl | v0.19.4 | Lab 1.1 (auto-installed) |
+| KOF charts | 1.5.0 | Lab 1.6 |
+| cert-manager ServiceTemplate | 1.16.2 | Lab 1.7 |
+| ingress-nginx ServiceTemplate | 4.11.0 | Labs 1.2, 1.7 |
+| kyverno ServiceTemplate | 3.2.6 | Lab 1.7 |
+
+> **Tip:** If a hardcoded version is unavailable, check what's available:
+> ```bash
+> # List available cluster templates
+> kubectl get clustertemplates -n kcm-system
+> # List available service templates
+> kubectl get servicetemplates -n kcm-system
+> ```
+
 ## Prerequisites
 
 - AWS Account with appropriate permissions
