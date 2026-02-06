@@ -1,6 +1,6 @@
 # Lab 1.1: Provision k0rdent Management Cluster
 
-**Duration:** 3 hours
+**Duration:** 3 hours (active: ~1.5h, waiting for provisioning: ~1.5h)
 **Type:** Hands-on Lab
 
 ## Objectives
@@ -27,15 +27,15 @@ Before provisioning, understand the multi-tenant architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           SHARED INFRASTRUCTURE (auto-created)               │
+│           SHARED INFRASTRUCTURE (auto-created)              │
 │         VPC, Bastion, S3 Buckets, IAM Roles                 │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │  john-doe   │  │  jane-doe   │  │  bob-smith  │   ...   │
-│  │   k0rdent   │  │   k0rdent   │  │   k0rdent   │         │
-│  │ 10.0.8.x    │  │ 10.0.8.y    │  │ 10.0.8.z    │         │
-│  └─────────────┘  └─────────────┘  └─────────────┘         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │  john-doe   │  │  jane-doe   │  │  bob-smith  │   ...    │
+│  │   k0rdent   │  │   k0rdent   │  │   k0rdent   │          │
+│  │ 10.0.8.x    │  │ 10.0.8.y    │  │ 10.0.8.z    │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
 │                                                             │
 │  Each engineer has isolated state and resources             │
 └─────────────────────────────────────────────────────────────┘
@@ -46,6 +46,22 @@ Before provisioning, understand the multi-tenant architecture:
 - Each engineer uses a unique ID (e.g., `john-doe`, `jane-doe`)
 - Running with different IDs creates **completely isolated** environments
 - State files are stored separately: `k0rdent/<your-id>/terraform.tfstate`
+
+## Resuming This Lab
+
+If your SSH session dropped or you're returning the next day:
+
+```bash
+# Reconnect to your environment
+cd lab-infrastructure
+./scripts/lab-connect.sh k0rdent <your-engineer-id>
+
+# Verify the cluster is running
+kubectl get nodes
+kubectl get pods -n kcm-system
+```
+
+---
 
 ## Part 1: Configure AWS Credentials
 

@@ -1,6 +1,6 @@
 # Lab 1.6: Deploy k0rdent Observability & FinOps (KOF)
 
-**Duration:** 2 hours
+**Duration:** 3 hours (active: ~2h, waiting for Helm installs: ~1h)
 **Type:** Hands-on Lab
 
 ## Objectives
@@ -15,8 +15,38 @@ In this lab, you will:
 ## Prerequisites
 
 - Completed Labs 1.1-1.5
-- At least one managed cluster running (from Lab 1.5)
 - Basic understanding of monitoring concepts
+
+> **Keep your managed cluster running!** This lab requires the managed cluster from Lab 1.5 to be active. Do **not** run the Lab 1.5 cleanup steps until you have completed Labs 1.6 and 1.7.
+
+## Resuming This Lab
+
+If your SSH session dropped or you're returning the next day:
+
+```bash
+cd lab-infrastructure
+./scripts/lab-connect.sh k0rdent <your-engineer-id>
+kubectl get nodes && kubectl get pods -n kcm-system
+
+# Verify managed cluster is still running
+kubectl get clusterdeployment -n kcm-system
+
+# Check KOF namespace (if you already started KOF installation)
+kubectl get pods -n kof
+```
+
+---
+
+## Lab Path
+
+This is the longest lab in Week 1. Choose your path based on available time:
+
+| Path | Parts | Duration | What You Learn |
+|------|-------|----------|----------------|
+| **Core** (recommended) | 1-4, 7 | ~2h | KOF installation, Grafana access, dashboard basics |
+| **Full** | 1-7 | ~3h | Above + child cluster deployment, custom dashboards, troubleshooting |
+
+> Parts 5-6 cover child cluster KOF deployment options and advanced networking -- these are valuable but can be revisited later.
 
 ## What is KOF?
 

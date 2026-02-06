@@ -1,6 +1,6 @@
 # Lab 1.5: Provision Your First Managed Cluster
 
-**Duration:** 2-3 hours
+**Duration:** 2.5 hours (active: ~1h, waiting for cluster provisioning: ~1.5h)
 **Type:** Hands-on Lab
 
 ## Objectives
@@ -25,6 +25,25 @@ In this lab, you will:
 > - **Estimated AWS cost:** ~$0.15/hour for minimal cluster (1 control plane + 1 worker)
 > - **Remember to clean up** when finished with the lab
 > - Cleanup instructions provided at the end
+
+## Resuming This Lab
+
+If your SSH session dropped or you're returning the next day:
+
+```bash
+# Reconnect from your local machine
+cd lab-infrastructure
+./scripts/lab-connect.sh k0rdent <your-engineer-id>
+
+# Verify management cluster is running
+kubectl get nodes
+kubectl get pods -n kcm-system
+
+# Check if your managed cluster is still running
+kubectl get clusterdeployment -n kcm-system
+```
+
+---
 
 ## Part 1: Verify Prerequisites
 

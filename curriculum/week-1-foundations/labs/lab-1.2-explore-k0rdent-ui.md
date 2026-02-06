@@ -19,6 +19,18 @@ In this lab, you will:
 - SSH access to management cluster
 - Web browser for UI access
 
+## Resuming This Lab
+
+If your SSH session dropped or you're returning the next day:
+
+```bash
+cd lab-infrastructure
+./scripts/lab-connect.sh k0rdent <your-engineer-id>
+kubectl get nodes && kubectl get pods -n kcm-system
+```
+
+---
+
 ## Part 1: Access the k0rdent UI
 
 ### Set up Port Forwarding

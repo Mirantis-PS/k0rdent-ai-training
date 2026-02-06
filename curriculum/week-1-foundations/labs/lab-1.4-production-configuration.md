@@ -17,6 +17,18 @@ In this lab, you will:
 - Understanding of Kubernetes RBAC
 - Basic security concepts
 
+## Resuming This Lab
+
+If your SSH session dropped or you're returning the next day:
+
+```bash
+cd lab-infrastructure
+./scripts/lab-connect.sh k0rdent <your-engineer-id>
+kubectl get nodes && kubectl get pods -n kcm-system
+```
+
+---
+
 ## Part 1: Production Architecture Overview
 
 ### Single vs Multi-Node Management Cluster

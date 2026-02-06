@@ -22,6 +22,18 @@ In this lab, you will:
   - Security groups
 - AWS Access Key ID and Secret Access Key
 
+## Resuming This Lab
+
+If your SSH session dropped or you're returning the next day:
+
+```bash
+cd lab-infrastructure
+./scripts/lab-connect.sh k0rdent <your-engineer-id>
+kubectl get nodes && kubectl get pods -n kcm-system
+```
+
+---
+
 ## Part 1: Understanding Infrastructure Providers
 
 ### What are Infrastructure Providers?

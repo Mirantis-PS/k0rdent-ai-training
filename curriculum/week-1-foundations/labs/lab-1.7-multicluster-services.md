@@ -14,9 +14,28 @@ In this lab, you will:
 
 ## Prerequisites
 
-- Completed Labs 1.1-1.5
-- At least one managed cluster running (ideally two for multi-cluster demonstration)
+- Completed Labs 1.1-1.6
 - Understanding of Helm and Kubernetes services
+
+> **Keep your managed cluster running!** This lab requires the managed cluster from Lab 1.5 to be active. This is the final lab of Week 1 -- you can run cleanup after completing it.
+
+## Resuming This Lab
+
+If your SSH session dropped or you're returning the next day:
+
+```bash
+cd lab-infrastructure
+./scripts/lab-connect.sh k0rdent <your-engineer-id>
+kubectl get nodes && kubectl get pods -n kcm-system
+
+# Verify managed cluster is still running
+kubectl get clusterdeployment -n kcm-system
+
+# Check if ServiceTemplates are already installed
+kubectl get servicetemplates -n kcm-system
+```
+
+---
 
 ## What is MultiClusterService?
 
@@ -304,6 +323,20 @@ kubectl get multiclusterservice training-baseline-services -n kcm-system \
 ```
 
 ### Check Services on Managed Cluster
+
+First, verify from the **management cluster** that the MCS is being reconciled:
+
+```bash
+# Check MCS status and conditions (works even without managed cluster access)
+kubectl get multiclusterservice training-baseline-services -n kcm-system -o yaml | grep -A 5 "conditions:"
+
+# Check if HelmReleases were created for the managed cluster
+kubectl get helmreleases -A | grep managed-cluster-01
+```
+
+> **Fallback:** If your managed cluster is unreachable (e.g., provisioning issues from Lab 1.5), the management-side checks above still validate that k0rdent accepted your MultiClusterService and created the correct HelmRelease objects. The key learning -- how MCS translates to per-cluster HelmReleases via label selectors -- is visible from the management cluster alone.
+
+If your managed cluster is accessible, verify services deployed there:
 
 ```bash
 # Get kubeconfig for managed cluster
