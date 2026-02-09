@@ -10,7 +10,7 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 |-----------|-------|
 | **Target Audience** | Engineers proficient in Kubernetes |
 | **Format** | Self-paced online with cloud-based labs |
-| **Duration** | 6 weeks (~15 hours/week, ~90 total hours) |
+| **Duration** | 6 weeks (~15-25 hours/week, ~96+ total hours) |
 | **Lab Ratio** | 70% hands-on / 30% theory |
 | **Cohort Size** | 5-15 engineers |
 | **Primary Outcome** | Implement k0rdent for customer deployments |
@@ -20,7 +20,7 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 
 | Product | Week(s) | Description |
 |---------|---------|-------------|
-| **BMaaS** | 1-2 | Bare Metal Hardware Rental/Utilization |
+| **BMaaS** | 2 | Bare Metal Hardware Rental/Utilization |
 | **VMaaS** | 3 | Virtual Machine Provisioning |
 | **KaaS** | 4 | Bare Metal & Instance-based Kubernetes Clusters |
 | **MaaS** | 5 | Models as a Service (Endpoints, API Keys, Per-token pricing) |
@@ -58,8 +58,8 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 │Foundations│──▶│  BMaaS  │──▶│  VMaaS  │──▶│  KaaS   │──▶│AI Workloads│──▶│Capstone │
 │         │    │         │    │         │    │         │    │         │    │         │
 │• k0rdent│    │• Metal3 │    │• KubeVirt│   │• CAPI   │    │• Run:AI │    │• Tenancy│
-│• GPU HW │    │• Ironic │    │• GPU Pass│   │• GPU Op │    │• vLLM   │    │• RBAC   │
-│• BMC    │    │• Provisi│    │• NVLink │    │• CNI/CSI│    │• Catalog│    │• Audit  │
+│• CAPI   │    │• Ironic │    │• GPU Pass│   │• GPU Op │    │• vLLM   │    │• RBAC   │
+│• KOF    │    │• Provisi│    │• NVLink │    │• CNI/CSI│    │• Catalog│    │• Audit  │
 └─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
      │              │              │              │              │              │
      └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┘
@@ -70,7 +70,7 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 | Week | Topic | Duration | Focus Areas |
 |------|-------|----------|-------------|
-| 1 | Foundations | 15h | k0rdent architecture, GPU hardware landscape, BMC management |
+| 1 | Foundations | 24.5h | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services |
 | 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration |
 | 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV |
 | 4 | KaaS | 15h | Cluster API, GPU Operator, hosted control planes |
@@ -81,12 +81,13 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 By the end of Week 1, engineers will be able to:
 
-- Describe k0rdent's architecture and the 5 core products it enables
-- Identify NVIDIA GPU platforms (H100, H200, B100, B200, B300, GB200)
-- Explain NVLink generations, NVSwitch topology, and HGX baseboard design
-- Differentiate between Redfish and IPMI protocols
-- Use Redfish API to query BMC endpoints and control server power state
-- Diagnose common BMC registration and connectivity failures
+- Describe k0rdent Enterprise architecture (KCM, KSM, KOF) and its value proposition
+- Deploy k0rdent Enterprise on a k0s Kubernetes cluster
+- Navigate the k0rdent UI and understand key concepts (Management, ClusterDeployment, templates)
+- Configure AWS infrastructure provider using Cluster API (CAPI)
+- Set up credential management and RBAC for production readiness
+- Provision managed clusters and deploy multi-cluster services (cert-manager, ingress-nginx, kyverno)
+- Deploy KOF for observability and FinOps across the cluster fleet
 
 ## Outcomes
 
