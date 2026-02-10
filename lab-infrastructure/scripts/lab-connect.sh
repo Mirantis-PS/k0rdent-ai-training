@@ -33,7 +33,7 @@ Lab Types:
   gpu <session-id>            Connect to GPU lab instance
 
 Options:
-  --region <region>           AWS region (default: us-east-1)
+  --region <region>           AWS region (or set AWS_REGION env var)
   --bastion <ip>              Bastion host IP for jump connection
   --worker <n>                Connect to specific worker (kubevirt)
   --advanced                  Connect to advanced GPU (8x A100)
@@ -48,7 +48,7 @@ Examples:
   $0 k0rdent engineer-01 --show-password      # Get UI password
   $0 metal3 engineer-01
   $0 kubevirt engineer-01 --worker 0
-  $0 gpu cohort-2026-q1
+  $0 gpu cohort-2024-q1
 
 EOF
     exit 1
@@ -246,8 +246,8 @@ load_config() {
 
 load_config
 
-# Default values - prefer LAB_REGION from config, then AWS_REGION env var, then default
-REGION="${LAB_REGION:-${AWS_REGION:-us-east-1}}"
+# Default values - region resolved after arg parsing
+REGION=""
 BASTION=""
 WORKER_INDEX=""
 ADVANCED="false"
@@ -317,6 +317,24 @@ fi
 if [[ -z "$IDENTIFIER" ]]; then
     log_error "Identifier required"
     usage
+fi
+
+# Resolve region: --region flag > saved LAB_REGION > env vars > AWS CLI default
+if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
+    REGION="$LAB_REGION"
+fi
+if [[ -z "$REGION" ]]; then
+    REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
+fi
+if [[ -z "$REGION" ]]; then
+    REGION=$(aws configure get region 2>/dev/null || true)
+fi
+if [[ -z "$REGION" ]]; then
+    log_error "No AWS region specified. Use one of:"
+    log_error "  --region <region>              (e.g. --region eu-west-1)"
+    log_error "  export AWS_REGION=<region>     (environment variable)"
+    log_error "  aws configure set region <region>  (AWS CLI default)"
+    exit 1
 fi
 
 # Determine target

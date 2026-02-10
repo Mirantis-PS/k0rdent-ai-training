@@ -72,22 +72,27 @@ For a Llama-2-70B model with 4096 context length:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     GPU Memory Layout                           │
+│                     GPU Memory Layout (Llama-2-70B, FP16)       │
 ├─────────────────────────────────────────────────────────────────┤
 │  Model Weights (FP16)           │  ~140 GB                      │
-│  ├─ Embedding layers            │    4.2 GB                     │
-│  ├─ Attention (QKV + Output)    │   67.2 GB                     │
-│  ├─ FFN (MLP)                   │   67.2 GB                     │
-│  └─ Layer norms                 │    1.4 GB                     │
+│  ├─ FFN (gate+up+down, SwiGLU)  │  ~112.7 GB (80% of model)    │
+│  ├─ Attention (QKV+O, 8 KV GQA) │   ~24.2 GB                   │
+│  ├─ Embeddings (input + lm_head) │    ~1.0 GB                   │
+│  └─ RMSNorm layers               │    ~0.003 GB                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  KV Cache (per batch)           │  ~1.5 GB per 1K tokens        │
-│  ├─ Keys: layers × heads × dim  │    0.75 GB                    │
-│  └─ Values: layers × heads × dim│    0.75 GB                    │
+│  KV Cache (per batch, FP16)     │  ~320 MB per 1K tokens        │
+│  ├─ Keys: 80 layers × 8 heads   │    160 MB                     │
+│  └─ Values: 80 layers × 8 heads │    160 MB                     │
 ├─────────────────────────────────────────────────────────────────┤
-│  Activation Memory              │  ~2-4 GB (varies)             │
+│  Activation Memory              │  ~2-4 GB (varies with batch)  │
 ├─────────────────────────────────────────────────────────────────┤
-│  CUDA Overhead                  │  ~2-3 GB                      │
+│  CUDA/NCCL Overhead             │  ~2-3 GB                      │
 └─────────────────────────────────────────────────────────────────┘
+
+Note: FFN dominates because SwiGLU uses 3 projection matrices
+(gate, up, down) each 8192×28672. GQA (8 KV heads vs 64 attention
+heads) dramatically reduces attention parameters vs standard MHA.
+KV cache per token: 2 × 80 × 8 × 128 × 2 bytes = 320 KB.
 ```
 
 ### Parallelism Strategies
@@ -177,20 +182,20 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 **Key Quantization Methods:**
 
-1. **FP8 (Float8):** Native on H100/A100 Tensor Cores
-   - E4M3 format for weights
-   - E5M2 format for activations
-   - Best quality/performance ratio
+1. **FP8 (Float8):** Native W8A8 on H100+ Tensor Cores (Hopper/Ada Lovelace, CC ≥ 8.9)
+   - E4M3 format for weights, E5M2 format for activations
+   - Weight-only FP8 (W8A16) available on A100 via Marlin kernels (memory savings, not full throughput)
+   - Best quality/performance ratio on natively supported hardware
 
 2. **AWQ (Activation-aware Weight Quantization):**
    - INT4 weights with FP16 activations
-   - Preserves important weight channels
-   - No calibration data required
+   - Preserves important weight channels based on activation statistics
+   - Lightweight calibration (small sample set, no backpropagation — generalizes better than GPTQ)
 
 3. **GPTQ:**
-   - One-shot INT4 quantization
-   - Requires calibration dataset
-   - Slightly better quality than AWQ
+   - One-shot INT4 quantization with Hessian-based weight reconstruction
+   - Requires calibration dataset (can overfit to calibration data)
+   - Generally lower quality retention than AWQ, but faster inference kernels on NVIDIA GPUs
 
 ---
 
@@ -405,8 +410,9 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 2. **Test Health Endpoint**
    ```bash
-   curl http://localhost:8000/health
-   # Expected: {"status":"ok"}
+   curl -v http://localhost:8000/health
+   # Expected: HTTP/1.1 200 OK with empty body (healthy)
+   # HTTP 503 indicates engine not ready or unhealthy
    ```
 
 3. **List Available Models**
@@ -485,11 +491,11 @@ Quantization reduces model precision to decrease memory usage and increase throu
    ```bash
    curl http://localhost:8000/metrics
 
-   # Key metrics to observe:
-   # - vllm:num_requests_running
-   # - vllm:num_requests_waiting
-   # - vllm:gpu_cache_usage_perc
-   # - vllm:cpu_cache_usage_perc
+   # Key metrics to observe (V1 names, vLLM v0.11+):
+   # - vllm:num_requests_running     — currently processing
+   # - vllm:num_requests_waiting     — queued for processing
+   # - vllm:kv_cache_usage_perc      — KV cache utilization (renamed from gpu_cache_usage_perc in V1)
+   # - vllm:cpu_cache_usage_perc     — CPU offload cache usage
    ```
 
 4. **Create Prometheus ServiceMonitor (Optional)**
@@ -647,9 +653,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
                - name: model-cache
                  mountPath: /root/.cache/huggingface
                - name: shm
-                 emptyDir:
-                   medium: Memory
-                   sizeLimit: 64Gi  # Larger shared memory for multi-GPU
+                 mountPath: /dev/shm
          volumes:
            - name: model-cache
              persistentVolumeClaim:
@@ -696,7 +700,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
      --format=csv -l 2
    ```
 
-   **Expected:** Each GPU should show ~17-18GB used (70B model / 8 GPUs).
+   **Expected:** `nvidia-smi` will show ~55-68 GB used per GPU. vLLM pre-allocates memory at startup for KV cache blocks based on `--gpu-memory-utilization` (0.85 × 80 GB = ~68 GB on A100-80GB). The 70B model weights contribute ~17.5 GB per GPU (140 GB / 8 GPUs), with the remainder reserved for KV cache and NCCL communication buffers.
 
 6. **Benchmark Tensor Parallelism Performance**
    ```bash
@@ -733,13 +737,13 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
 
    | Method | Memory Reduction | Speed Gain | Quality Impact | GPU Requirements |
    |--------|-----------------|------------|----------------|------------------|
-   | FP8 | 2x | 1.5-2x | <1% perplexity | A100/H100 |
+   | FP8 (W8A8) | 2x | 1.5-2x | <1% perplexity | H100+ native; A100 W8A16 only |
    | INT8 SQ | 2x | 1.3-1.5x | 1-2% perplexity | Any |
    | AWQ INT4 | 4x | 2-3x | 2-5% perplexity | Any |
 
-2. **Deploy FP8 Quantized Model (A100/H100 only)**
+2. **Deploy FP8 Quantized Model (H100 recommended; A100 W8A16 only)**
 
-   FP8 uses native Tensor Core support for minimal quality loss:
+   FP8 W8A8 uses native Tensor Core support on H100+ (Hopper/Ada Lovelace) for minimal quality loss. On A100, vLLM falls back to weight-only FP8 (W8A16) via Marlin kernels — this provides memory savings but not the full throughput benefit of native FP8 compute:
 
    ```yaml
    # Save as vllm-fp8.yaml
@@ -882,7 +886,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
      - "8"
      # Keep model in FP16 but quantize KV cache
      - --kv-cache-dtype
-     - "fp8"  # or "int8"
+     - "fp8"  # Also available: fp8_e4m3, fp8_e5m2 (int8 is NOT supported for KV cache)
    ```
 
    **Impact:** KV cache memory reduced by 50%, enabling larger batches or longer contexts.
@@ -891,26 +895,27 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
 
 **Objective:** Establish baseline metrics for production planning.
 
-1. **Install vLLM Benchmarking Tool**
-   ```bash
-   # Clone vLLM for benchmarking scripts
-   git clone https://github.com/vllm-project/vllm.git
-   cd vllm/benchmarks
-   ```
+1. **Run vLLM Built-in Benchmark**
 
-2. **Run Throughput Benchmark**
+   vLLM v0.11+ includes a built-in benchmarking CLI (the legacy `benchmark_serving.py` script is deprecated):
+
    ```bash
-   # Generate synthetic requests
-   python benchmark_serving.py \
-     --backend vllm \
+   # Install vLLM CLI if not already available
+   pip install vllm
+
+   # Run serving benchmark against the running vLLM server
+   vllm bench serve \
+     --backend openai-chat \
      --model meta-llama/Llama-2-70b-chat-hf \
-     --endpoint http://localhost:8001/v1/completions \
+     --base-url http://localhost:8001 \
+     --endpoint /v1/chat/completions \
      --num-prompts 100 \
      --request-rate 10 \
-     --max-tokens 256
+     --dataset-name random \
+     --random-output-len 256
    ```
 
-3. **Key Metrics to Capture**
+2. **Key Metrics to Capture**
 
    | Metric | Definition | Target |
    |--------|------------|--------|
@@ -919,7 +924,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
    | **Throughput** | Tokens/second | >1000 tok/s |
    | **GPU Utilization** | Compute utilization | >80% |
 
-4. **Document Results**
+3. **Document Results**
 
    Create a performance report:
 
@@ -941,6 +946,99 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
    | GPU Memory | XXX GB |
    | GPU Util | XX% |
    ```
+
+## k0rdent Enterprise Integration
+
+In a k0rdent-managed environment, inference workloads benefit from the Service Catalog model. While the tasks above deploy vLLM as raw Kubernetes manifests (valuable for understanding the mechanics), production deployments use k0rdent's **KServe** ServiceTemplate for managed inference.
+
+### KServe via k0rdent Service Catalog
+
+The k0rdent catalog includes [KServe v0.15.0](https://catalog.k0rdent.io/latest/apps/kserve/), which natively supports vLLM as a serving runtime. Deploy it to your GPU cluster via MultiClusterService:
+
+```yaml
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: MultiClusterService
+metadata:
+  name: inference-platform
+  namespace: kcm-system
+spec:
+  clusterSelector:
+    matchLabels:
+      workload-type: inference
+  serviceSpec:
+    services:
+      # KServe CRDs (install first)
+      - template: kserve-crd-0-15-0
+        name: kserve-crd
+        namespace: kserve
+      # KServe controller
+      - template: kserve-0-15-0
+        name: kserve
+        namespace: kserve
+        values: |
+          kserve:
+            controller:
+              deploymentMode: RawDeployment
+      # cert-manager dependency
+      - template: cert-manager-1-18-2
+        name: cert-manager
+        namespace: cert-manager
+```
+
+### vLLM as KServe InferenceService
+
+Once KServe is deployed, vLLM runs as a **ServingRuntime** + **InferenceService**, gaining autoscaling, canary deployments, and standardized APIs:
+
+```yaml
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-runtime
+  namespace: vllm-inference
+spec:
+  supportedModelFormats:
+    - name: vllm
+      version: "1"
+      autoSelect: true
+  containers:
+    - name: kserve-container
+      image: vllm/vllm-openai:v0.11.2
+      args:
+        - --port=8080
+        - --gpu-memory-utilization=0.9
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: llama2-7b
+  namespace: vllm-inference
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: vllm
+      runtime: vllm-runtime
+      storageUri: "hf://meta-llama/Llama-2-7b-chat-hf"
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+```
+
+### Additional Catalog Resources for Inference
+
+| ServiceTemplate | Version | Purpose |
+|----------------|---------|---------|
+| `lws` (LeaderWorkerSet) | 0.7.0 | Multi-node distributed inference (pipeline parallelism across nodes) |
+| `kuberay` | 1.3.2 | Ray Serve + vLLM backend for advanced serving patterns |
+| `ollama` | 1.40.0 | Simpler LLM inference (good for development/testing) |
+| `nvidia` (GPU Operator) | 25.10.0 | GPU enablement (required — see [Lab Setup README](README.md)) |
+
+> **Note:** There is no standalone `vllm` ServiceTemplate in the k0rdent catalog. The recommended production path is KServe + vLLM ServingRuntime. For direct vLLM deployment, use the raw Kubernetes manifests from this lab or create a [BYO ServiceTemplate](https://docs.k0rdent.io/latest/reference/template/template-byo/).
+
+---
 
 ## Deliverables
 
@@ -1044,7 +1142,7 @@ kubectl exec deployment/vllm-llama2 -n vllm-inference -- nvidia-smi
 8. **Tensor parallelism** splits layers across GPUs, requiring NVLink for efficient all-reduce
 9. **Pipeline parallelism** splits layers sequentially, useful for cross-node deployment
 10. **NVLink bandwidth** (600-900 GB/s) is critical for tensor parallelism performance - PCIe (64 GB/s) creates severe bottlenecks
-11. **FP8 quantization** provides best quality/performance trade-off on A100/H100
+11. **FP8 quantization** provides best quality/performance trade-off — native W8A8 on H100+, weight-only W8A16 on A100 via Marlin kernels
 12. **AWQ INT4** enables 4x memory reduction with acceptable quality loss
 13. **KV cache quantization** can double batch size without model quantization
 14. **NCCL environment variables** (NCCL_P2P_LEVEL=NVL) ensure NVLink utilization
@@ -1062,9 +1160,19 @@ kubectl exec deployment/vllm-llama2 -n vllm-inference -- nvidia-smi
 ## References
 
 ### Official Documentation
-- [vLLM Documentation - Parallelism and Scaling](https://docs.vllm.ai/en/latest/serving/parallelism_scaling/)
-- [vLLM Documentation - Quantization](https://docs.vllm.ai/en/latest/quantization/)
+- [vLLM Documentation](https://docs.vllm.ai/)
+- [vLLM Parallelism and Scaling](https://docs.vllm.ai/en/latest/serving/parallelism_scaling/)
+- [vLLM Quantization](https://docs.vllm.ai/en/latest/quantization/)
+- [vLLM FP8 Quantization](https://docs.vllm.ai/en/latest/features/quantization/fp8/) — W8A8 (H100+) vs W8A16 (A100) explained
+- [vLLM KServe Integration](https://docs.vllm.ai/en/latest/deployment/integrations/kserve/)
+- [vLLM Benchmarking CLI](https://docs.vllm.ai/en/latest/cli/bench/serve/)
 - [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
+
+### k0rdent Enterprise
+- [k0rdent Service Catalog](https://catalog.k0rdent.io/)
+- [KServe in k0rdent Catalog](https://catalog.k0rdent.io/latest/apps/kserve/)
+- [k0rdent Documentation - Services](https://docs.k0rdent.io/latest/user/services/)
+- [k0rdent Documentation - BYO Templates](https://docs.k0rdent.io/latest/reference/template/template-byo/)
 
 ### NVLink and NCCL
 - [NVIDIA NVLink Technology](https://www.nvidia.com/en-us/data-center/nvlink/)
