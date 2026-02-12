@@ -132,7 +132,7 @@ When you complete Lab 1.1, you'll have:
 
 ## Support
 
-- **Slack:** #k0rdent-training
+- **Slack:** #k0rdent-services-training
 - **Issues:** Create GitHub issue
 - **Docs:** [docs.mirantis.com/k0rdent-enterprise](https://docs.mirantis.com/k0rdent-enterprise/latest/)
 
