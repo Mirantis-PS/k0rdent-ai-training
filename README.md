@@ -6,7 +6,7 @@ A comprehensive 6-week training program (~90 hours) for engineers to master k0rd
 
 ```bash
 # 1. Clone and enter the repository
-git clone git@github.com:mgueye01/k0rdent-ai-training.git
+git clone git@github.com:Mirantis-PS/k0rdent-ai-training.git
 cd k0rdent-ai-training
 
 # 2. Configure AWS credentials
