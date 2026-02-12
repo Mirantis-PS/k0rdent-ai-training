@@ -60,6 +60,8 @@ JupyterHub provides multi-user Jupyter notebook environments:
     └─────────┘         └─────────┘         └─────────┘
 ```
 
+> **Note:** JupyterHub is a standalone multi-user notebook server. Kubeflow provides an alternative **Notebook Controller** that uses a CRD-based approach (`kubeflow.org/v1 Notebook`) integrated with the Kubeflow platform. This lab teaches the standalone JupyterHub approach, which can also be deployed via k0rdent's `jupyterhub-4-2-0` ServiceTemplate (see Task 7).
+
 ### Server Profiles
 
 | Profile | Resources | Use Case |
@@ -99,7 +101,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
      resources:
        requests:
          storage: 100Gi
-     storageClassName: standard  # Adjust for your cluster
+     storageClassName: standard  # Adjust for your cluster (e.g., gp2/gp3 on EKS, default on AKS)
    ```
 
    ```bash
@@ -114,17 +116,13 @@ JupyterHub provides multi-user Jupyter notebook environments:
    helm repo update
    ```
 
-2. **Generate Hub Secret**
-   ```bash
-   # Generate secure token for proxy
-   openssl rand -hex 32 > /tmp/jupyter-proxy-secret
-   ```
+2. **Create JupyterHub Configuration**
 
-3. **Create JupyterHub Configuration**
+   > **Note:** The Helm chart 4.x auto-generates the proxy secret token — no manual `openssl rand` step is needed.
+
    ```yaml
    # Save as jupyterhub-values.yaml
    proxy:
-     secretToken: $(cat /tmp/jupyter-proxy-secret)
      service:
        type: ClusterIP
 
@@ -136,24 +134,24 @@ JupyterHub provides multi-user Jupyter notebook environments:
          allowed_users:
            - mlops
            - datascientist
-       DummyAuthenticator:
-         password: "training123"
+       SharedPasswordAuthenticator:
+         user_password: "training123"
        JupyterHub:
-         authenticator_class: dummy
+         authenticator_class: shared-password
 
      db:
        type: sqlite-pvc
        pvc:
-         storageClassName: standard
+         storageClassName: standard  # Adjust for your cluster
          storage: 1Gi
 
    singleuser:
      defaultUrl: "/lab"
 
-     # GPU-enabled default image
+     # GPU-enabled default image (from Quay.io — Docker Hub images are frozen)
      image:
-       name: jupyter/pytorch-notebook
-       tag: cuda12-pytorch-2.1.0
+       name: quay.io/jupyter/pytorch-notebook
+       tag: cuda12-latest
 
      cpu:
        limit: 4
@@ -166,7 +164,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
        type: dynamic
        capacity: 10Gi
        dynamic:
-         storageClass: standard
+         storageClass: standard  # Adjust for your cluster
 
      extraEnv:
        NVIDIA_VISIBLE_DEVICES: "all"
@@ -181,6 +179,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
            cpu_guarantee: 0.5
            mem_limit: "4G"
            mem_guarantee: "2G"
+           image: "quay.io/jupyter/pytorch-notebook:latest"
            extra_resource_limits: {}
 
        - display_name: "CPU - Medium (4 CPU, 16GB)"
@@ -190,6 +189,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
            cpu_guarantee: 1
            mem_limit: "16G"
            mem_guarantee: "8G"
+           image: "quay.io/jupyter/pytorch-notebook:latest"
            extra_resource_limits: {}
 
        - display_name: "GPU - Standard (1 GPU, 32GB RAM)"
@@ -199,7 +199,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
            cpu_guarantee: 2
            mem_limit: "32G"
            mem_guarantee: "16G"
-           image: "jupyter/pytorch-notebook:cuda12-pytorch-2.1.0"
+           image: "quay.io/jupyter/pytorch-notebook:cuda12-latest"
            extra_resource_limits:
              nvidia.com/gpu: "1"
            extra_resource_guarantees:
@@ -216,7 +216,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
            cpu_guarantee: 4
            mem_limit: "64G"
            mem_guarantee: "32G"
-           image: "jupyter/pytorch-notebook:cuda12-pytorch-2.1.0"
+           image: "quay.io/jupyter/pytorch-notebook:cuda12-latest"
            extra_resource_limits:
              nvidia.com/gpu: "2"
            extra_resource_guarantees:
@@ -238,15 +238,18 @@ JupyterHub provides multi-user Jupyter notebook environments:
      every: 300
    ```
 
-4. **Install JupyterHub**
+   > **Image tags:** The Jupyter Docker Stacks publish images to `quay.io` (Docker Hub images are frozen since October 2023). Tags use the format `cuda12-latest`, `cuda12-<date>`, or `cuda12-<git-sha>` — PyTorch version is NOT included in the tag. For reproducible deployments, pin to a date tag like `cuda12-2026-02-09`. CPU profiles use `latest` (no CUDA) to avoid pulling the larger CUDA image for CPU-only work.
+
+3. **Install JupyterHub**
    ```bash
    helm install jupyterhub jupyterhub/jupyterhub \
      --namespace jupyter \
+     --version 4.2.0 \
      --values jupyterhub-values.yaml \
      --wait --timeout 10m
    ```
 
-5. **Verify Deployment**
+4. **Verify Deployment**
    ```bash
    kubectl get pods -n jupyter
 
@@ -392,6 +395,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
    ```bash
    helm upgrade jupyterhub jupyterhub/jupyterhub \
      --namespace jupyter \
+     --version 4.2.0 \
      --values jupyterhub-values.yaml \
      --wait
    ```
@@ -432,6 +436,53 @@ JupyterHub provides multi-user Jupyter notebook environments:
    curl http://localhost:8081/hub/metrics
    ```
 
+### Task 7: Deploy via k0rdent Enterprise (15 min)
+
+In a k0rdent-managed environment, JupyterHub can be deployed declaratively across clusters using the `jupyterhub-4-2-0` ServiceTemplate from the k0rdent catalog.
+
+1. **Verify ServiceTemplate Availability**
+   ```bash
+   # On the management cluster
+   kubectl get servicetemplates -n kcm-system | grep jupyter
+   # Expected: jupyterhub-4-2-0
+   ```
+
+2. **Deploy JupyterHub via MultiClusterService**
+   ```yaml
+   # Save as jupyter-mcs.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: jupyter-notebooks
+     namespace: kcm-system
+   spec:
+     clusterSelector:
+       matchLabels:
+         workload-type: ml-training
+     serviceSpec:
+       services:
+         - template: jupyterhub-4-2-0
+           name: jupyterhub
+           namespace: jupyter
+   ```
+
+   ```bash
+   kubectl apply -f jupyter-mcs.yaml
+   ```
+
+3. **Verify Deployment**
+   ```bash
+   # Check MultiClusterService status
+   kubectl get multiclusterservice jupyter-notebooks -n kcm-system
+
+   # On the target cluster, verify JupyterHub pods
+   kubectl get pods -n jupyter
+   ```
+
+> **When to use which approach:** Use the manual Helm deployment (Tasks 2-6) for customized single-cluster setups with fine-grained profile control. Use the k0rdent `MultiClusterService` approach for consistent, declarative deployment across multiple GPU clusters where the ServiceTemplate's default configuration is sufficient.
+
+---
+
 ## Optional: Ingress Configuration
 
 ```yaml
@@ -471,6 +522,7 @@ kubectl apply -f jupyter-ingress.yaml
 - [ ] **Screenshot** of notebook showing GPU detection output
 - [ ] **Training output** from the ML test
 - [ ] **Configuration YAML** with notes
+- [ ] **MultiClusterService YAML** for k0rdent deployment (Task 7)
 
 ## Verification Checklist
 
@@ -480,6 +532,7 @@ kubectl apply -f jupyter-ingress.yaml
 - [ ] GPU detected in notebook
 - [ ] PyTorch GPU operations work
 - [ ] Persistent storage working
+- [ ] k0rdent MultiClusterService deployed (Task 7)
 
 ## Troubleshooting
 
@@ -517,12 +570,14 @@ kubectl logs -n jupyter -l component=hub
 ## Key Takeaways
 
 1. **JupyterHub enables self-service** GPU access for data scientists
-2. **Profile system provides resource governance** - users choose appropriate tier
+2. **Profile system provides resource governance** — users choose appropriate tier
 3. **Persistent storage preserves work** across sessions
-4. **Idle culling prevents resource waste** - configure based on usage patterns
+4. **Idle culling prevents resource waste** — configure based on usage patterns
 5. **GPU tolerations are critical** for scheduling on GPU nodes
 6. **Always set resource limits** to prevent runaway notebooks
 7. **Monitor usage patterns** to optimize profile offerings
+8. **k0rdent ServiceTemplates** enable declarative JupyterHub deployment across clusters via `jupyterhub-4-2-0`
+9. **Kubeflow Notebooks** is an alternative CRD-based approach for platform-integrated notebook management (see Theory 5.5)
 
 ## Next Lab
 

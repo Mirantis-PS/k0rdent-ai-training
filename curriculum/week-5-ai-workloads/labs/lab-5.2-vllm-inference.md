@@ -815,6 +815,9 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
              args:
                - --model
                # Use pre-quantized AWQ model from HuggingFace
+               # Note: TheBloke community quantizations are legacy (last updated Jan 2024).
+               # For newer models, look for official quantized variants or use vLLM's
+               # built-in quantization with --quantization awq on the original model.
                - TheBloke/Llama-2-70B-Chat-AWQ
                - --tensor-parallel-size
                - "2"  # AWQ needs even fewer GPUs
