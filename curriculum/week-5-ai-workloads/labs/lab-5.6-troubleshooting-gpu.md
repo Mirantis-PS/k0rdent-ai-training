@@ -36,54 +36,256 @@ FOUNDATION (Required) ─ COMPLETE!             CHOOSE YOUR PATH
 
 **Duration:** 2 hours
 **Type:** Hands-on Technical
-**Environment:** GPU Lab
+**Environment:** GPU Lab (k0rdent-managed workload cluster)
 
 ## Objective
 
-Diagnose and resolve common GPU scheduling failures in AI/ML workloads, including pending pods, memory issues, and health check failures during upgrades.
+Diagnose and resolve common GPU scheduling failures in AI/ML workloads on k0rdent-managed clusters. You will work through realistic failure scenarios covering GPU Operator component issues, pending pods, OOM errors, health check failures, and hardware faults.
 
 ## Prerequisites
 
 - Completed Labs 5.1-5.5
-- Kubernetes cluster with GPU nodes
-- NVIDIA GPU Operator installed
-- Understanding of Kubernetes scheduling
+- k0rdent management cluster with a GPU-enabled workload cluster provisioned via `ClusterDeployment`
+- GPU Operator deployed via `gpu-operator-25-10-0` ServiceTemplate
 
-## Background
+## k0rdent Context
 
-### Common GPU Scheduling Issues
+On k0rdent-managed clusters, the GPU Operator is deployed via the `gpu-operator-25-10-0` ServiceTemplate (either through `ClusterDeployment.spec.serviceSpec` or `MultiClusterService`). Troubleshooting requires understanding the full stack:
 
-| Issue | Symptoms | Root Cause |
-|-------|----------|------------|
-| Pods pending | Indefinite Pending state | No available GPUs |
-| OOM errors | Pod killed/restarted | GPU memory exhaustion |
-| Fragmentation | GPUs allocated but unused | Poor bin-packing |
-| Health check failures | Pods fail readiness | Model loading timeout |
-| Driver issues | nvidia-smi fails | GPU Operator problems |
+```
+┌──────────────────────────────────────────────────────────────┐
+│                 k0rdent Management Cluster                    │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  ClusterDeployment                                      │  │
+│  │    └── serviceSpec:                                     │  │
+│  │          └── gpu-operator-25-10-0 ServiceTemplate       │  │
+│  │                └── Sveltos deploys Helm release ──────────── │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  Workload Cluster (k0s)                       │
+│  ┌───────────────────┐  ┌──────────────────────────────────┐│
+│  │  GPU Operator      │  │  GPU Operator Components          ││
+│  │  (controller)      │  │  ├── nvidia-driver-daemonset      ││
+│  │                    │  │  ├── nvidia-container-toolkit-ds   ││
+│  │                    │  │  ├── nvidia-device-plugin-ds       ││
+│  │                    │  │  ├── nvidia-dcgm-exporter          ││
+│  │                    │  │  ├── gpu-feature-discovery          ││
+│  │                    │  │  └── node-feature-discovery        ││
+│  └───────────────────┘  └──────────────────────────────────┘│
+│                                                               │
+│  k0s-specific paths:                                         │
+│  ├── /etc/k0s/containerd.d/nvidia.toml  (runtime config)    │
+│  └── /run/k0s/containerd.sock           (socket)            │
+└──────────────────────────────────────────────────────────────┘
+```
 
-### Diagnostic Tools
+### Diagnostic Tools Reference
 
-| Tool | Purpose |
-|------|---------|
-| `kubectl describe` | Scheduling events and errors |
-| `nvidia-smi` | GPU state and memory usage |
-| `kubectl top` | Resource consumption |
-| `dcgmi` | Deep GPU diagnostics |
+| Tool | Purpose | Where to Run |
+|------|---------|-------------|
+| `kubectl describe pod` | Scheduling events and errors | Workload cluster |
+| `kubectl logs` | Container logs and crash reasons | Workload cluster |
+| `nvidia-smi` | GPU state, memory, processes | Inside GPU pod or node |
+| `dcgmi diag` | Deep GPU hardware diagnostics | DCGM pod |
+| `dcgmi health` | GPU health monitoring | DCGM pod |
+| `kubectl get clusterdeployment` | Service deployment status | Management cluster |
 
-## Scenario Exercises
+## Tasks
 
-### Scenario A: Workloads Stuck Pending (Queue Full) - 30 min
+### Task 1: Access the k0rdent-Managed GPU Cluster (10 min)
+
+1. **Extract kubeconfig from the management cluster**
+
+   ```bash
+   # On the k0rdent management cluster
+   kubectl get secret ml-gpu-kubeconfig -n kcm-system \
+     -o jsonpath='{.data.value}' | base64 -d > ml-gpu.kubeconfig
+
+   export KUBECONFIG=ml-gpu.kubeconfig
+   ```
+
+2. **Verify GPU Operator service status on the management cluster**
+
+   Before troubleshooting the workload cluster, check whether the GPU Operator was successfully deployed by Sveltos:
+
+   ```bash
+   # Switch back to management cluster temporarily
+   unset KUBECONFIG
+
+   # Check ClusterDeployment service conditions
+   kubectl get clusterdeployment ml-gpu -n kcm-system \
+     -o jsonpath='{.status.services[0].conditions}' | jq .
+
+   # Look for:
+   # - type: Helm → status: "True", reason: Provisioned
+   # - type: gpu-operator.gpu-operator/SveltosHelmReleaseReady → status: "True"
+   ```
+
+   If `SveltosHelmReleaseReady` shows `status: "False"`, the GPU Operator Helm release failed. Check the Sveltos logs on the management cluster:
+
+   ```bash
+   kubectl logs -n projectsveltos -l app=sveltos-manager --tail=50
+   ```
+
+3. **Switch to workload cluster and verify GPU nodes**
+
+   ```bash
+   export KUBECONFIG=ml-gpu.kubeconfig
+
+   kubectl get nodes -o wide
+   kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
+   ```
+
+---
+
+### Scenario A: GPU Operator Component Failures (30 min)
+
+The most common GPU issue on k0rdent-managed clusters is the GPU Operator not initializing correctly, typically due to k0s containerd path mismatches.
 
 **Symptoms:**
-- GPU pods remain in Pending state
-- Other GPU workloads running normally
+- `nvidia-smi` fails inside pods ("command not found" or "no GPU detected")
+- GPU Operator pods in `CrashLoopBackOff` or `Error` state
+- Node shows `nvidia.com/gpu: 0` in allocatable resources
 
-**Setup:**
+**Investigation Steps:**
+
+1. **Check GPU Operator pod health**
+
+   ```bash
+   # Overview of all GPU Operator pods
+   kubectl get pods -n gpu-operator
+
+   # Check each component:
+   # Driver (runs nvidia driver installer on each GPU node)
+   kubectl get pods -n gpu-operator -l app=nvidia-driver-daemonset
+   kubectl logs -n gpu-operator -l app=nvidia-driver-daemonset --tail=30
+
+   # Container Toolkit (configures containerd nvidia runtime)
+   kubectl get pods -n gpu-operator -l app=nvidia-container-toolkit-daemonset
+   kubectl logs -n gpu-operator -l app=nvidia-container-toolkit-daemonset --tail=30
+
+   # Device Plugin (advertises nvidia.com/gpu resources to kubelet)
+   kubectl get pods -n gpu-operator -l app=nvidia-device-plugin-daemonset
+   kubectl logs -n gpu-operator -l app=nvidia-device-plugin-daemonset --tail=30
+
+   # GPU Feature Discovery (labels nodes with GPU properties)
+   kubectl get pods -n gpu-operator -l app.kubernetes.io/name=gpu-feature-discovery
+   ```
+
+2. **Diagnose: Toolkit crash due to wrong containerd paths (k0s-specific)**
+
+   This is the **#1 cause** of GPU Operator failures on k0rdent clusters. k0s uses non-standard containerd paths:
+
+   ```bash
+   # Check if toolkit logs show containerd path errors
+   kubectl logs -n gpu-operator -l app=nvidia-container-toolkit-daemonset --tail=50 | \
+     grep -i "containerd\|socket\|config\|error"
+
+   # Common error: "failed to find containerd config" or "socket not found"
+   ```
+
+   **Root cause:** The GPU Operator ServiceTemplate values must include k0s containerd paths:
+
+   ```yaml
+   # These env vars MUST be set in the ServiceTemplate values
+   toolkit:
+     env:
+       - name: CONTAINERD_CONFIG
+         value: /etc/k0s/containerd.d/nvidia.toml    # NOT /etc/containerd/config.toml
+       - name: CONTAINERD_SOCKET
+         value: /run/k0s/containerd.sock              # NOT /run/containerd/containerd.sock
+       - name: CONTAINERD_RUNTIME_CLASS
+         value: nvidia
+   ```
+
+   **Fix:** Update the ClusterDeployment serviceSpec on the management cluster:
+
+   ```bash
+   # Switch to management cluster
+   unset KUBECONFIG
+
+   # Patch the ClusterDeployment to add correct toolkit env vars
+   # (See Lab 5.8 for full ClusterDeployment serviceSpec syntax)
+   kubectl edit clusterdeployment ml-gpu -n kcm-system
+   # Add the toolkit.env values shown above
+   ```
+
+3. **Diagnose: Driver pod failures**
+
+   ```bash
+   export KUBECONFIG=ml-gpu.kubeconfig
+
+   # Check driver pod status
+   kubectl get pods -n gpu-operator -l app=nvidia-driver-daemonset -o wide
+
+   # Check driver compilation logs (driver builds kernel module on each node)
+   DRIVER_POD=$(kubectl get pods -n gpu-operator -l app=nvidia-driver-daemonset \
+     -o jsonpath='{.items[0].metadata.name}')
+   kubectl logs -n gpu-operator $DRIVER_POD --tail=100
+   ```
+
+   **Common driver issues:**
+   - Kernel headers missing → driver compilation fails
+   - Secure Boot enabled → unsigned kernel module rejected
+   - Pre-existing NVIDIA driver → conflict with operator-managed driver
+
+4. **Diagnose: Device Plugin shows 0 GPUs**
+
+   ```bash
+   # Check device plugin logs
+   kubectl logs -n gpu-operator -l app=nvidia-device-plugin-daemonset --tail=30
+
+   # Verify GPUs visible to the node
+   kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
+
+   # If nvidia.com/gpu shows 0, the device plugin may need restart
+   kubectl delete pods -n gpu-operator -l app=nvidia-device-plugin-daemonset
+   ```
+
+5. **Verify fix: test GPU access**
+
+   ```bash
+   kubectl run gpu-test --image=nvcr.io/nvidia/cuda:12.6.0-base-ubi9 \
+     --restart=Never --rm -it \
+     --overrides='{"spec":{"tolerations":[{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"}]}}' \
+     --limits=nvidia.com/gpu=1 \
+     -- nvidia-smi
+   ```
+
+6. **Verify the containerd config on the node (SSH)**
+
+   ```bash
+   NODE_IP=$(kubectl get nodes -l nvidia.com/gpu.present=true \
+     -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+
+   ssh ec2-user@${NODE_IP} "cat /etc/k0s/containerd.d/nvidia.toml"
+   ```
+
+   **Expected content:**
+   ```toml
+   [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+     privileged_without_host_devices = false
+     runtime_type = "io.containerd.runc.v2"
+   [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
+     BinaryName = "/usr/bin/nvidia-container-runtime"
+   ```
+
+---
+
+### Scenario B: Workloads Stuck Pending (25 min)
+
+**Symptoms:**
+- GPU pods remain in `Pending` state indefinitely
+- Other GPU workloads are running normally
+
+**Setup: Saturate GPU capacity**
+
 ```bash
-# Create a namespace for troubleshooting
 kubectl create namespace gpu-troubleshoot
 
-# Deploy pods to consume all GPUs
 cat << 'EOF' | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -91,7 +293,7 @@ metadata:
   name: gpu-hog
   namespace: gpu-troubleshoot
 spec:
-  replicas: 10  # More than available GPUs
+  replicas: 10
   selector:
     matchLabels:
       app: gpu-hog
@@ -102,12 +304,10 @@ spec:
     spec:
       containers:
         - name: gpu-hog
-          image: nvidia/cuda:12.2.0-base-ubuntu22.04
+          image: nvcr.io/nvidia/cuda:12.6.0-base-ubi9
           command: ["sh", "-c", "nvidia-smi && sleep infinity"]
           resources:
             limits:
-              nvidia.com/gpu: 1
-            requests:
               nvidia.com/gpu: 1
       tolerations:
         - key: nvidia.com/gpu
@@ -118,55 +318,65 @@ EOF
 
 **Investigation Steps:**
 
-1. **Check Pod Status**
+1. **Identify pending pods**
+
    ```bash
    kubectl get pods -n gpu-troubleshoot
-
-   # Look for Pending pods
    kubectl get pods -n gpu-troubleshoot --field-selector=status.phase=Pending
    ```
 
-2. **Describe Pending Pod**
+2. **Check scheduling failure reason**
+
    ```bash
-   kubectl describe pod -n gpu-troubleshoot -l app=gpu-hog | grep -A20 "Events:"
+   # Describe a pending pod to see Events
+   PENDING_POD=$(kubectl get pods -n gpu-troubleshoot --field-selector=status.phase=Pending \
+     -o jsonpath='{.items[0].metadata.name}')
+
+   kubectl describe pod $PENDING_POD -n gpu-troubleshoot | tail -20
 
    # Look for:
-   # - "Insufficient nvidia.com/gpu"
-   # - "0/3 nodes are available"
+   # 0/3 nodes are available: 3 Insufficient nvidia.com/gpu
    ```
 
-3. **Check GPU Availability**
+3. **Check cluster-wide GPU allocation**
+
    ```bash
-   # Total allocatable GPUs
+   # Total allocatable GPUs per node
    kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
 
-   # Currently requested GPUs
-   kubectl get pods -A -o json | jq '[.items[] | select(.spec.containers[].resources.limits."nvidia.com/gpu" != null) | .spec.containers[].resources.limits."nvidia.com/gpu" | tonumber] | add'
+   # Count pods currently consuming GPUs
+   kubectl get pods -A -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.resources.limits.nvidia\.com/gpu}{"\n"}{end}{end}' | grep -v '^$' | wc -l
    ```
 
-4. **Check Queue Status (if using scheduler)**
+4. **Check KAI Scheduler queue (if deployed)**
+
    ```bash
-   kubectl get queues -n kai-scheduler
-   kubectl describe queue training-queue -n kai-scheduler
+   # KAI Queues are cluster-scoped (NOT namespaced)
+   kubectl get queues.scheduling.run.ai
+
+   # Check queue resource allocation
+   kubectl describe queue default
    ```
 
 **Resolution Options:**
 
-1. **Scale Down Other Workloads**
+1. **Scale down competing workloads**
    ```bash
    kubectl scale deployment gpu-hog -n gpu-troubleshoot --replicas=2
    ```
 
-2. **Use Priority and Preemption**
+2. **Use PriorityClass for preemption**
    ```yaml
-   spec:
-     priorityClassName: high-priority-gpu
+   apiVersion: scheduling.k8s.io/v1
+   kind: PriorityClass
+   metadata:
+     name: high-priority-gpu
+   value: 1000000
+   globalDefault: false
+   description: "High priority for critical GPU workloads"
    ```
 
-3. **Enable Fractional GPU Sharing**
-   ```bash
-   # See Lab 5.1 Task 6 for time-slicing configuration
-   ```
+3. **Enable GPU sharing** (time-slicing or MIG - see Lab 5.1 Task 6)
 
 **Cleanup:**
 ```bash
@@ -175,123 +385,16 @@ kubectl delete deployment gpu-hog -n gpu-troubleshoot
 
 ---
 
-### Scenario B: GPU Memory Fragmentation - 25 min
-
-**Symptoms:**
-- GPUs show as allocated but underutilized
-- New workloads can't schedule despite available memory
-- nvidia-smi shows gaps in GPU memory usage
-
-**Setup:**
-```bash
-# Deploy multiple small workloads
-cat << 'EOF' | kubectl apply -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: small-gpu-jobs
-  namespace: gpu-troubleshoot
-spec:
-  replicas: 4
-  selector:
-    matchLabels:
-      app: small-gpu
-  template:
-    metadata:
-      labels:
-        app: small-gpu
-    spec:
-      containers:
-        - name: gpu-small
-          image: nvidia/cuda:12.2.0-base-ubuntu22.04
-          command: ["python3", "-c"]
-          args:
-            - |
-              import torch
-              # Allocate only 2GB of GPU memory
-              x = torch.zeros(256, 1024, 1024, device='cuda')
-              import time
-              while True:
-                  time.sleep(60)
-          resources:
-            limits:
-              nvidia.com/gpu: 1
-            requests:
-              nvidia.com/gpu: 1
-      tolerations:
-        - key: nvidia.com/gpu
-          operator: Exists
-          effect: NoSchedule
-EOF
-```
-
-**Investigation Steps:**
-
-1. **Check GPU Memory Usage**
-   ```bash
-   # Get GPU node
-   GPU_NODE=$(kubectl get nodes -l nvidia.com/gpu.present=true -o jsonpath='{.items[0].metadata.name}')
-
-   # Check memory on GPU pods
-   for pod in $(kubectl get pods -n gpu-troubleshoot -l app=small-gpu -o name); do
-     echo "=== $pod ==="
-     kubectl exec -n gpu-troubleshoot $pod -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv
-   done
-   ```
-
-2. **Calculate Fragmentation**
-   ```bash
-   # Total GPU memory on node
-   TOTAL_MEM=$(kubectl exec -n gpu-troubleshoot deployment/small-gpu-jobs -- nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1)
-
-   # Used memory
-   USED_MEM=$(kubectl exec -n gpu-troubleshoot deployment/small-gpu-jobs -- nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
-
-   echo "Total: ${TOTAL_MEM}MB, Used: ${USED_MEM}MB"
-   echo "Fragmentation: Each pod uses 1 GPU but only ~2GB of memory"
-   ```
-
-**Resolution Options:**
-
-1. **Use MIG (Multi-Instance GPU)**
-   ```yaml
-   # For A100/H100 GPUs - partition into smaller instances
-   resources:
-     limits:
-       nvidia.com/mig-1g.5gb: 1  # Use MIG slice instead of full GPU
-   ```
-
-2. **Enable Time-Slicing**
-   ```yaml
-   # GPU Operator time-slicing config
-   sharing:
-     timeSlicing:
-       resources:
-         - name: nvidia.com/gpu
-           replicas: 4  # Share each GPU 4 ways
-   ```
-
-3. **Right-size Workloads**
-   - Batch similar-sized workloads together
-   - Use CUDA_VISIBLE_DEVICES for multi-process sharing
-
-**Cleanup:**
-```bash
-kubectl delete deployment small-gpu-jobs -n gpu-troubleshoot
-```
-
----
-
-### Scenario C: vLLM OOM Errors - 30 min
+### Scenario C: vLLM Out-of-Memory Errors (30 min)
 
 **Symptoms:**
 - vLLM pod starts but crashes during model loading
-- Logs show CUDA out of memory errors
-- Pod enters CrashLoopBackOff
+- Logs show `CUDA out of memory` errors
+- Pod enters `CrashLoopBackOff`
 
-**Setup:**
+**Setup: Deploy vLLM with insufficient resources**
+
 ```bash
-# Deploy vLLM with insufficient memory settings
 cat << 'EOF' | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -313,13 +416,13 @@ spec:
           image: vllm/vllm-openai:v0.11.2
           args:
             - --model
-            - meta-llama/Llama-2-13b-chat-hf  # Large model
+            - meta-llama/Llama-2-13b-chat-hf
             - --gpu-memory-utilization
-            - "0.99"  # Too aggressive
+            - "0.99"
             - --max-model-len
-            - "8192"  # Large context
+            - "8192"
           env:
-            - name: HUGGING_FACE_HUB_TOKEN
+            - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: hf-token
@@ -327,9 +430,8 @@ spec:
                   optional: true
           resources:
             limits:
-              nvidia.com/gpu: 1  # Single GPU may not be enough
-            requests:
               nvidia.com/gpu: 1
+            requests:
               memory: 16Gi
       tolerations:
         - key: nvidia.com/gpu
@@ -340,70 +442,88 @@ EOF
 
 **Investigation Steps:**
 
-1. **Check Pod Status**
+1. **Check crash status**
+
    ```bash
    kubectl get pods -n gpu-troubleshoot -l app=vllm-oom
 
-   # Check crash count
-   kubectl get pods -n gpu-troubleshoot -l app=vllm-oom -o jsonpath='{.items[0].status.containerStatuses[0].restartCount}'
+   # Check restart count
+   kubectl get pods -n gpu-troubleshoot -l app=vllm-oom \
+     -o jsonpath='{.items[0].status.containerStatuses[0].restartCount}'
    ```
 
-2. **View Logs for OOM**
-   ```bash
-   kubectl logs -n gpu-troubleshoot -l app=vllm-oom --previous | grep -i "out of memory\|oom\|cuda error"
+2. **Read crash logs**
 
-   # Look for:
-   # torch.cuda.OutOfMemoryError: CUDA out of memory
-   # RuntimeError: CUDA error: out of memory
+   ```bash
+   # View logs from the previous (crashed) container
+   kubectl logs -n gpu-troubleshoot -l app=vllm-oom --previous | \
+     grep -i "out of memory\|oom\|cuda error\|torch.cuda"
+
+   # Expected errors:
+   # torch.cuda.OutOfMemoryError: CUDA out of memory.
+   # Tried to allocate X GiB (GPU 0; Y GiB total capacity; Z GiB already allocated)
    ```
 
-3. **Calculate Model Memory Requirements**
-   ```bash
-   # Rough estimation for LLM:
-   # Memory ≈ Parameters × 2 bytes (for fp16) × 1.2 (overhead)
-   # Llama-2-13B ≈ 13B × 2 × 1.2 ≈ 31.2 GB
-   echo "Llama-2-13B requires ~32GB GPU memory"
-   echo "A100-40GB might work, T4-16GB won't"
+3. **Estimate model memory requirements**
+
+   ```
+   Model memory estimation (fp16):
+   ┌────────────────────────────────────────────────┐
+   │ Memory = Parameters x 2 bytes x 1.2 (overhead) │
+   │                                                  │
+   │ Llama-2-7B:  7B  x 2 x 1.2 ≈ 17 GB            │
+   │ Llama-2-13B: 13B x 2 x 1.2 ≈ 31 GB            │
+   │ Llama-2-70B: 70B x 2 x 1.2 ≈ 168 GB           │
+   │                                                  │
+   │ + KV cache for context (depends on max_model_len)│
+   │ 8192 context @ 13B ≈ 4-6 GB additional          │
+   │                                                  │
+   │ GPU Memory Required:                             │
+   │ Llama-2-13B + 8K ctx ≈ 35-37 GB                 │
+   │ ↳ A10G (24GB): FAILS                            │
+   │ ↳ A100-40GB:   tight (needs lower utilization)  │
+   │ ↳ A100-80GB:   OK                               │
+   └────────────────────────────────────────────────┘
    ```
 
 **Resolution Options:**
 
-1. **Reduce Memory Utilization**
+1. **Reduce GPU memory utilization** (leave headroom for KV cache)
    ```yaml
    args:
      - --gpu-memory-utilization
-     - "0.8"  # Leave 20% headroom
+     - "0.85"    # Leave 15% headroom (default is 0.9)
    ```
 
-2. **Reduce Context Length**
+2. **Reduce context length** (smaller KV cache)
    ```yaml
    args:
      - --max-model-len
-     - "2048"  # Shorter context = less KV cache memory
+     - "2048"    # Reduce from 8192
    ```
 
-3. **Use Smaller Model**
+3. **Use a smaller model**
    ```yaml
    args:
      - --model
-     - meta-llama/Llama-2-7b-chat-hf  # 7B instead of 13B
+     - meta-llama/Llama-2-7b-chat-hf    # 7B instead of 13B
    ```
 
-4. **Enable Tensor Parallelism (Multi-GPU)**
+4. **Use tensor parallelism** (split across multiple GPUs)
    ```yaml
    args:
      - --tensor-parallel-size
-     - "2"  # Split across 2 GPUs
+     - "2"
    resources:
      limits:
        nvidia.com/gpu: 2
    ```
 
-5. **Use Quantization**
+5. **Use quantization** (reduce model precision)
    ```yaml
    args:
      - --quantization
-     - awq  # 4-bit quantization reduces memory by ~4x
+     - awq    # 4-bit: reduces memory ~4x
    ```
 
 **Cleanup:**
@@ -413,16 +533,16 @@ kubectl delete deployment vllm-oom-test -n gpu-troubleshoot
 
 ---
 
-### Scenario D: Health Check Failures During Upgrade - 25 min
+### Scenario D: Health Check Failures During Rolling Update (25 min)
 
 **Symptoms:**
 - New pods fail readiness probes during rolling update
 - Model loading takes longer than probe timeout
-- Deployment rollout stuck
+- `kubectl rollout status` shows deployment stuck
 
-**Setup:**
+**Setup: Deploy vLLM with aggressive health checks**
+
 ```bash
-# Deploy vLLM with aggressive health checks
 cat << 'EOF' | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -451,31 +571,28 @@ spec:
             - --model
             - meta-llama/Llama-2-7b-chat-hf
           env:
-            - name: HUGGING_FACE_HUB_TOKEN
+            - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: hf-token
                   key: token
                   optional: true
-          # Aggressive probes - will fail during model loading
           readinessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 10  # Too short!
+            initialDelaySeconds: 10    # Too short!
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 30  # Too short for large models
+            initialDelaySeconds: 30    # Too short for model loading
             periodSeconds: 10
             failureThreshold: 3
           resources:
             limits:
-              nvidia.com/gpu: 1
-            requests:
               nvidia.com/gpu: 1
       tolerations:
         - key: nvidia.com/gpu
@@ -486,85 +603,95 @@ EOF
 
 **Investigation Steps:**
 
-1. **Check Rollout Status**
-   ```bash
-   kubectl rollout status deployment/vllm-health-test -n gpu-troubleshoot
+1. **Check rollout status**
 
-   # If stuck, check pods
+   ```bash
+   kubectl rollout status deployment/vllm-health-test -n gpu-troubleshoot --timeout=120s
+
    kubectl get pods -n gpu-troubleshoot -l app=vllm-health
    ```
 
-2. **View Probe Failures**
-   ```bash
-   kubectl describe pod -n gpu-troubleshoot -l app=vllm-health | grep -A5 "Readiness\|Liveness"
+2. **View probe failures in events**
 
-   # Look for:
-   # Warning  Unhealthy  Readiness probe failed: Get "http://...": connection refused
+   ```bash
+   kubectl describe pod -n gpu-troubleshoot -l app=vllm-health | grep -A5 "Events:"
+
+   # Expected:
+   # Warning  Unhealthy  Readiness probe failed: Get "http://10.x.x.x:8000/health": connection refused
+   # Warning  Unhealthy  Liveness probe failed: ...
    ```
 
-3. **Check Model Loading Time**
+3. **Estimate actual model loading time**
+
    ```bash
-   # Watch logs during startup
+   # Watch logs during startup to find when model is ready
    kubectl logs -n gpu-troubleshoot -l app=vllm-health -f
 
-   # Time from start to "Application startup complete"
+   # Look for: "Application startup complete" or "Uvicorn running on"
    ```
 
-4. **Measure Actual Loading Time**
-   ```bash
-   # Typical loading times:
-   # - 7B model, cached: 30-60 seconds
-   # - 7B model, downloading: 3-10 minutes
-   # - 13B model: 2-4 minutes
-   # - 70B model: 10-20 minutes
-   ```
+   Typical loading times (with model cached on PVC):
+   | Model | Cached | First Download |
+   |-------|--------|---------------|
+   | 7B | 30-60s | 3-10 min |
+   | 13B | 1-2 min | 5-15 min |
+   | 70B | 5-10 min | 15-30 min |
 
-**Resolution:**
+   > **Note:** vLLM's `/health` endpoint returns HTTP 200 with an empty body when the server is ready. Before model loading completes, the endpoint returns connection refused (server not started yet).
 
-1. **Increase Probe Timeouts**
-   ```yaml
-   readinessProbe:
-     httpGet:
-       path: /health
-       port: 8000
-     initialDelaySeconds: 120  # Allow time for download
-     periodSeconds: 10
-     failureThreshold: 30  # More retries
-     timeoutSeconds: 5
-   livenessProbe:
-     httpGet:
-       path: /health
-       port: 8000
-     initialDelaySeconds: 300  # Model loading can be slow
-     periodSeconds: 30
-     failureThreshold: 10
-     timeoutSeconds: 10
-   ```
+**Resolution: Use a startup probe**
 
-2. **Use Startup Probe**
-   ```yaml
-   startupProbe:
-     httpGet:
-       path: /health
-       port: 8000
-     initialDelaySeconds: 30
-     periodSeconds: 10
-     failureThreshold: 60  # 10 minutes for initial startup
-     timeoutSeconds: 5
-   # Liveness/readiness only start after startup succeeds
-   ```
+The correct pattern for LLM workloads is a **startup probe** that handles the long initialization, combined with reasonable readiness/liveness probes for steady-state operation:
 
-3. **Pre-cache Models**
-   ```yaml
-   # Use PVC with pre-downloaded models
-   volumeMounts:
-     - name: model-cache
-       mountPath: /root/.cache/huggingface
-   volumes:
-     - name: model-cache
-       persistentVolumeClaim:
-         claimName: model-cache-pvc  # Pre-populated with models
-   ```
+```yaml
+containers:
+  - name: vllm
+    # Startup probe: handles long model loading phase
+    # Liveness/readiness won't run until startup succeeds
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      failureThreshold: 60     # 30s + (10s x 60) = ~10.5 minutes max
+      timeoutSeconds: 5
+
+    # Readiness: fast checks once model is loaded
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      periodSeconds: 10
+      failureThreshold: 3
+      timeoutSeconds: 5
+
+    # Liveness: detect stuck processes
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      periodSeconds: 30
+      failureThreshold: 5
+      timeoutSeconds: 10
+```
+
+**Additional optimization: pre-cache models on PVC**
+
+```yaml
+env:
+  - name: HF_HOME
+    value: /models
+volumeMounts:
+  - name: model-cache
+    mountPath: /models
+volumes:
+  - name: model-cache
+    persistentVolumeClaim:
+      claimName: model-cache-pvc
+```
+
+Pre-populating the PVC with models reduces startup time from minutes to seconds, making probe tuning less critical.
 
 **Cleanup:**
 ```bash
@@ -573,64 +700,163 @@ kubectl delete deployment vllm-health-test -n gpu-troubleshoot
 
 ---
 
+### Scenario E: GPU Hardware Faults (20 min)
+
+**Symptoms:**
+- GPU workloads produce incorrect results or crash intermittently
+- `nvidia-smi` shows ECC errors
+- Node logs contain Xid error messages
+
+**Investigation Steps:**
+
+1. **Check for GPU errors via DCGM**
+
+   ```bash
+   # Find the DCGM pod
+   DCGM_POD=$(kubectl get pods -n gpu-operator -l app=nvidia-dcgm \
+     -o jsonpath='{.items[0].metadata.name}')
+
+   # Discover GPUs
+   kubectl exec -n gpu-operator $DCGM_POD -- dcgmi discovery -l
+
+   # Run quick health check (Level 1)
+   kubectl exec -n gpu-operator $DCGM_POD -- dcgmi diag -r 1
+
+   # Run comprehensive diagnostic (Level 3 - takes longer)
+   kubectl exec -n gpu-operator $DCGM_POD -- dcgmi diag -r 3
+   ```
+
+2. **Check DCGM Exporter metrics for errors**
+
+   ```bash
+   # Port-forward to DCGM exporter
+   kubectl port-forward -n gpu-operator svc/nvidia-dcgm-exporter 9400:9400 &
+
+   # Check for ECC errors
+   curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV_ECC_SBE_VOL|DCGM_FI_DEV_ECC_DBE_VOL"
+
+   # Check GPU temperature and power
+   curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE"
+
+   # Check for retired pages (indicator of failing memory)
+   curl -s http://localhost:9400/metrics | grep "DCGM_FI_DEV_RETIRED_"
+
+   kill %1 2>/dev/null
+   ```
+
+3. **Check Xid errors on the node**
+
+   ```bash
+   NODE_IP=$(kubectl get nodes -l nvidia.com/gpu.present=true \
+     -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+
+   # Check kernel logs for NVIDIA Xid errors
+   ssh ec2-user@${NODE_IP} "sudo dmesg | grep -i 'xid\|nvidia' | tail -20"
+   ```
+
+   **Common Xid error codes:**
+
+   | Xid | Meaning | Action |
+   |-----|---------|--------|
+   | 13 | Graphics Engine fault | Usually application bug; check workload code |
+   | 31 | MMU fault (illegal memory access) | Application bug or driver issue |
+   | 45 | Preemptive channel removal | Informational; check if GPU was reset |
+   | 48 | Double-bit ECC error (DBE) | **Hardware fault** - GPU memory failing |
+   | 63 | ECC page retired successfully | Memory cells failing; monitor rate |
+   | 64 | ECC page retirement failed | **Critical** - GPU needs replacement |
+   | 79 | GPU fell off the bus | **Critical** - PCIe/hardware failure |
+
+4. **Handle GPU hardware failures**
+
+   If DCGM reports persistent ECC errors (Xid 48/63/64) or bus failures (Xid 79):
+
+   ```bash
+   # Cordon the node to prevent new workloads
+   kubectl cordon <node-name>
+
+   # Drain existing workloads (they'll reschedule to healthy nodes)
+   kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data
+
+   # On k0rdent: scale up the ClusterDeployment to add a replacement node
+   # (on management cluster)
+   unset KUBECONFIG
+   kubectl patch clusterdeployment ml-gpu -n kcm-system \
+     --type merge -p '{"spec":{"config":{"workersNumber":3}}}'
+   ```
+
+---
+
 ## Summary: Troubleshooting Flowchart
 
 ```
+nvidia-smi fails in pod?
+    │
+    ├── GPU Operator pods healthy?
+    │   ├── NO → Check toolkit logs for containerd path errors
+    │   │        └── Fix: Add k0s containerd paths to ServiceTemplate values
+    │   │
+    │   └── Driver pod crashing?
+    │       └── Check: kernel headers, Secure Boot, pre-existing drivers
+    │
+    └── Device plugin shows 0 GPUs?
+        └── Restart: kubectl delete pods -l app=nvidia-device-plugin-daemonset
+
 Pod Pending?
     │
-    ├── Check: kubectl describe pod
-    │   └── "Insufficient nvidia.com/gpu"
-    │       └── Scale down other workloads OR enable time-slicing
+    ├── kubectl describe pod → "Insufficient nvidia.com/gpu"
+    │   └── Scale down workloads OR enable GPU sharing (MIG/time-slicing)
     │
-    └── Check: Node GPU availability
-        └── All GPUs allocated
-            └── Use priority/preemption OR add GPU nodes
+    └── All GPUs allocated
+        └── Use PriorityClass preemption OR add GPU nodes via ClusterDeployment
 
 Pod CrashLoopBackOff?
     │
-    ├── Check: kubectl logs --previous
-    │   └── "CUDA out of memory"
-    │       └── Reduce memory utilization OR use smaller model
+    ├── kubectl logs --previous → "CUDA out of memory"
+    │   └── Reduce --gpu-memory-utilization / --max-model-len / use quantization
     │
-    └── Check: kubectl describe pod
-        └── "Liveness/Readiness probe failed"
-            └── Increase probe timeouts OR add startup probe
+    └── kubectl describe pod → "probe failed"
+        └── Add startupProbe with failureThreshold=60 + pre-cache models
 
-GPU Not Detected?
+GPU errors / wrong results?
     │
-    ├── Check: nvidia-smi in pod
-    │   └── Command not found
-    │       └── Verify GPU Operator installation
+    ├── dcgmi diag -r 1 → FAIL
+    │   └── Check Xid errors in dmesg
+    │       ├── Xid 13/31: Application bug
+    │       └── Xid 48/63/64/79: Hardware fault → cordon + drain + replace
     │
-    └── Check: GPU Operator pods
-        └── Driver pods not running
-            └── Check node kernel compatibility
+    └── DCGM ECC metrics rising
+        └── Monitor rate; plan node replacement if persistent
 ```
 
-## Deliverables
+## Cleanup
 
-- [ ] **Troubleshooting notes** for each scenario
-- [ ] **Resolution commands** that worked
-- [ ] **Screenshots** of error messages and fixes
-- [ ] **Custom troubleshooting script** based on flowchart
+```bash
+# Delete all troubleshooting resources
+kubectl delete namespace gpu-troubleshoot --ignore-not-found
+
+# Stop any port-forwards
+kill %1 2>/dev/null
+```
 
 ## Verification Checklist
 
-- [ ] Identified pending pod causes
-- [ ] Diagnosed memory fragmentation
-- [ ] Resolved OOM errors
-- [ ] Fixed health check timeouts
-- [ ] Created troubleshooting documentation
+- [ ] Accessed workload cluster via kubeconfig extraction from management cluster
+- [ ] Checked GPU Operator service status on ClusterDeployment
+- [ ] Diagnosed and resolved GPU Operator component failures (k0s containerd paths)
+- [ ] Identified pending pod causes and applied resolution
+- [ ] Diagnosed OOM errors with memory estimation
+- [ ] Fixed health check timeouts using startup probes
+- [ ] Ran DCGM diagnostics and interpreted Xid errors
+- [ ] Applied node drain and ClusterDeployment scaling for hardware faults
 
 ## Key Takeaways
 
-1. **Always check `kubectl describe pod`** for scheduling failures
-2. **GPU memory is the most common bottleneck** for AI workloads
-3. **Model loading time varies greatly** - probe timeouts must account for this
-4. **Time-slicing and MIG** help with GPU fragmentation
-5. **PVCs for model caching** dramatically improve startup times
-6. **Startup probes** are essential for ML workloads with long initialization
-7. **Document common issues** for team knowledge sharing
+1. **k0s containerd paths are the #1 GPU Operator issue** on k0rdent clusters. Always verify `/etc/k0s/containerd.d/nvidia.toml` exists on nodes.
+2. **Check service deployment status** on the management cluster first (`SveltosHelmReleaseReady` condition) before debugging the workload cluster.
+3. **GPU memory is the most common workload bottleneck** - estimate model requirements before deployment using the Parameters x 2 x 1.2 formula.
+4. **Startup probes are essential for LLM workloads** - model loading can take minutes; liveness/readiness probes only activate after startup succeeds.
+5. **DCGM diagnostics detect hardware faults** that aren't visible to Kubernetes - run `dcgmi diag -r 1` regularly.
+6. **Scale GPU nodes via ClusterDeployment** on the management cluster rather than manually adding nodes.
 
 ## Next Steps - Choose Your Path
 
@@ -645,7 +871,7 @@ Build end-to-end ML workflows:
 
 ### Compliance & Templates Track (If Required)
 For regulated environments:
-- [Lab 5.7 - NVIDIA FIPS Configuration](lab-5.7-nvidia-fips.md) - FIPS 140-2 compliance
+- [Lab 5.7 - FIPS Compliance](lab-5.7-nvidia-fips.md) - FIPS 140-2/3 compliance for GPU infrastructure
 - [Lab 5.8 - Cluster Templates for AI](lab-5.8-cluster-templates.md) - k0rdent ClusterTemplates
 
 ### Advanced Optimization Track (Optional)

@@ -32,24 +32,70 @@ FOUNDATION (Required)                         ADVANCED OPTIMIZATION
 
 **Duration:** 3.5 hours
 **Type:** Hands-on Technical (Advanced)
-**Environment:** GPU Lab (A100/H100 recommended)
+**Environment:** GPU Lab (H100 recommended, A100 supported)
 
 ## Objective
 
-Deploy and optimize LLM inference using NVIDIA TensorRT-LLM, achieving maximum performance through advanced quantization techniques (INT4, INT8, FP8), custom engine builds, and Triton Inference Server integration.
+Deploy and optimize LLM inference using NVIDIA TensorRT-LLM on a k0rdent-managed GPU cluster, demonstrating quantization techniques (INT4 AWQ, FP8, INT8 SmoothQuant), engine builds, Triton Inference Server integration with the ensemble model architecture, and the OpenAI-compatible serving API.
 
 ## Prerequisites
 
 - Completed Lab 5.2 (vLLM Inference Service)
-- Kubernetes cluster with GPU nodes (A100 40GB+ recommended)
+- k0rdent Enterprise management cluster operational
+- At least one k0rdent-managed GPU cluster (A100 40GB+ minimum)
 - NVIDIA GPU Operator v25.10.0 installed
 - Basic understanding of model quantization from Lab 5.2
+
+## k0rdent Context
+
+### TensorRT-LLM in the k0rdent Ecosystem
+
+The k0rdent catalog does **not** include a TensorRT-LLM or Triton ServiceTemplate. TensorRT-LLM is deployed manually on k0rdent-managed workload clusters. For production LLM serving with k0rdent catalog integration, the recommended path is KServe + vLLM (see Lab 5.2).
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                   k0rdent Management Cluster                        │
+│                                                                     │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│  │  ServiceTemplate │  │ ClusterDeployment│  │ Alternative:     │  │
+│  │  gpu-operator-   │  │ (GPU clusters)   │  │ kserve-v0-15-0   │  │
+│  │  25-10-0         │  │                  │  │ (catalog path)   │  │
+│  └────────┬─────────┘  └────────┬─────────┘  └──────────────────┘  │
+│           │                     │                                   │
+│           └─────────────────────┘                                   │
+│                     │ Sveltos                                       │
+│                     ▼                                               │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │              Workload Cluster (GPU)                           │   │
+│  │                                                              │   │
+│  │  GPU Operator (via catalog)     TensorRT-LLM (manual)       │   │
+│  │  ┌──────────────────┐          ┌──────────────────────┐     │   │
+│  │  │ NVIDIA Drivers   │          │ Builder Pod          │     │   │
+│  │  │ Device Plugin    │          │ (quantize + build)   │     │   │
+│  │  │ Container Toolkit│          ├──────────────────────┤     │   │
+│  │  └──────────────────┘          │ Triton Server        │     │   │
+│  │                                │ (serve engines)      │     │   │
+│  │                                └──────────────────────┘     │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### When to Use TensorRT-LLM vs vLLM (via KServe)
+
+| Scenario | Recommendation | k0rdent Path |
+|----------|---------------|--------------|
+| Rapid prototyping | vLLM | KServe ServiceTemplate from catalog |
+| Frequent model updates | vLLM | KServe + ServingRuntime |
+| Maximum inference throughput | TensorRT-LLM | Manual deploy on workload cluster |
+| Fixed model, high traffic | TensorRT-LLM | Manual deploy + custom ServiceTemplate |
+| Memory-constrained GPUs | TensorRT-LLM (INT4) | Manual deploy on workload cluster |
+| FP8 quality-optimized (H100+) | TensorRT-LLM | Manual deploy on workload cluster |
 
 ## Background: TensorRT-LLM Architecture
 
 ### What is TensorRT-LLM?
 
-TensorRT-LLM is NVIDIA's high-performance inference framework specifically optimized for large language models. Unlike vLLM which uses PyTorch, TensorRT-LLM compiles models into optimized CUDA kernels.
+TensorRT-LLM is NVIDIA's high-performance inference framework specifically optimized for large language models. Unlike vLLM which uses PyTorch, TensorRT-LLM compiles models into optimized CUDA kernels for maximum throughput.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -58,81 +104,79 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
 │                                                                 │
 │  HuggingFace Model    Quantization       TRT Engine    Serving  │
 │  ┌─────────────┐     ┌───────────┐     ┌───────────┐  ┌──────┐ │
-│  │ Llama-70B   │ --> │ INT4/INT8 │ --> │ .engine   │->│Triton│ │
+│  │ Llama-7B    │ --> │ INT4/INT8 │ --> │ .engine   │->│Triton│ │
 │  │ (FP16)      │     │ FP8       │     │ file      │  │Server│ │
 │  └─────────────┘     └───────────┘     └───────────┘  └──────┘ │
-│       140GB              35-70GB          Optimized     Runtime │
+│       ~14GB              ~4-7GB          Optimized     Runtime  │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### TensorRT-LLM vs vLLM
+### Quantization Formats
 
-| Feature | TensorRT-LLM | vLLM |
-|---------|-------------|------|
-| **Framework** | Custom CUDA kernels | PyTorch |
-| **Performance** | ~20-40% faster | Good baseline |
-| **Quantization** | Native INT4/INT8/FP8 | AWQ, GPTQ |
-| **Setup Complexity** | High (requires engine build) | Low (load and serve) |
-| **Flexibility** | Less (model-specific engines) | More (dynamic loading) |
-| **Best For** | Production, max performance | Development, flexibility |
+| Format | Bits | Memory Savings | Speed Gain | Quality Impact | GPU Requirement |
+|--------|------|---------------|------------|----------------|-----------------|
+| FP16 (baseline) | 16 | 1x | 1x | None | Any NVIDIA GPU |
+| INT8 SmoothQuant | 8 | ~2x | 1.5-2x | Low (<1%) | Ampere+ (A100, H100) |
+| FP8 | 8 | ~2x | 2-2.5x | Minimal (<0.5%) | **Hopper+ (H100) only** |
+| INT4 AWQ | 4 | ~4x | 2-3x | Low (1-3%) | Ampere+ (A100, H100) |
+| INT4 GPTQ | 4 | ~4x | 2-3x | Low (1-3%) | Ampere+ (A100, H100) |
 
-### Quantization Formats in TensorRT-LLM
-
-TensorRT-LLM supports multiple quantization formats, each with specific trade-offs:
-
-| Format | Bits | Memory Savings | Speed Gain | Quality Impact | Build Time |
-|--------|------|---------------|------------|----------------|------------|
-| FP16 (baseline) | 16 | 1x | 1x | None | Fast |
-| INT8 SmoothQuant | 8 | 2x | 1.5-2x | Low (<1%) | Medium |
-| FP8 | 8 | 2x | 2-2.5x | Minimal (<0.5%) | Fast |
-| INT4 AWQ | 4 | 4x | 2-3x | Low (1-3%) | Medium |
-| INT4 GPTQ | 4 | 4x | 2-3x | Low (1-3%) | Long |
+> **Important:** FP8 requires Hopper architecture (H100, H200) or newer with Compute Capability >= 8.9. A100 (Ampere, CC 8.0) does **not** have native FP8 hardware support.
 
 ---
 
 ## Lab Environment
 
 **Cluster Requirements:**
-- 1+ GPU nodes with NVIDIA A100 (40GB minimum, 80GB recommended)
+- 1+ GPU nodes with NVIDIA A100 (40GB minimum) or H100
+- StorageClass `ebs-gp3` available (AWS EBS)
 - 200GB+ storage for model checkpoints and engines
-- NVIDIA GPU Operator installed
+- NVIDIA GPU Operator installed via k0rdent catalog
 - Network access to NVIDIA NGC and HuggingFace
 
-**Resource Requirements:**
-- Engine build: 4-8 hours for 70B model (can be pre-built)
-- Inference: Depends on model size and quantization
+**Key Insight:** TensorRT-LLM engines are GPU-architecture specific. An engine built for A100 will NOT work on H100 and vice versa. Always build on the same GPU type you intend to serve on.
 
 ---
 
 ## Tasks
 
-### Task 1: Understanding the TensorRT-LLM Workflow (15 min)
+### Task 1: Access the k0rdent-Managed GPU Cluster (10 min)
 
-Before hands-on work, understand the TensorRT-LLM deployment workflow:
+1. **Identify your GPU cluster**
+   ```bash
+   # On the management cluster
+   kubectl get clusterdeployments -n kcm-system
+   ```
 
-```
-Step 1: Download HuggingFace Model
-        ↓
-Step 2: Quantize Model (optional, but recommended)
-        ↓
-Step 3: Build TensorRT Engine
-        ↓
-Step 4: Deploy with Triton Inference Server
-        ↓
-Step 5: Benchmark and Optimize
-```
+2. **Extract the workload cluster kubeconfig**
+   ```bash
+   export CLUSTER_NAME=gpu-cluster-01
+   kubectl get secret ${CLUSTER_NAME}-kubeconfig \
+     -n kcm-system \
+     -o jsonpath='{.data.value}' | base64 -d > /tmp/${CLUSTER_NAME}.kubeconfig
+   export KUBECONFIG=/tmp/${CLUSTER_NAME}.kubeconfig
+   ```
 
-**Key Insight:** TensorRT-LLM engines are GPU-architecture specific. An engine built for A100 won't work on H100 and vice versa.
+3. **Verify GPU availability**
+   ```bash
+   kubectl get nodes -l nvidia.com/gpu.present=true
+   kubectl get pods -n gpu-operator -l app=nvidia-device-plugin-daemonset
 
-### Task 2: Set Up TensorRT-LLM Environment (30 min)
+   # Check GPU type (important: engines are architecture-specific)
+   kubectl get nodes -l nvidia.com/gpu.present=true \
+     -o jsonpath='{.items[*].metadata.labels.nvidia\.com/gpu\.product}'
+   ```
 
-1. **Create Namespace and Storage**
+### Task 2: Set Up TensorRT-LLM Environment (25 min)
+
+1. **Create namespace and storage**
    ```bash
    kubectl create namespace trt-llm
+   ```
 
-   # Create large PVC for model storage
-   cat <<EOF | kubectl apply -f -
+   ```yaml
+   # Save as trt-llm-storage.yaml
    apiVersion: v1
    kind: PersistentVolumeClaim
    metadata:
@@ -141,23 +185,26 @@ Step 5: Benchmark and Optimize
    spec:
      accessModes:
        - ReadWriteOnce
+     storageClassName: ebs-gp3
      resources:
        requests:
          storage: 500Gi
-     storageClassName: standard  # Adjust for your cluster
-   EOF
    ```
 
-2. **Create HuggingFace Token Secret**
+   ```bash
+   kubectl apply -f trt-llm-storage.yaml
+   ```
+
+2. **Create HuggingFace token Secret**
    ```bash
    kubectl create secret generic hf-token \
      --from-literal=token=<your-hf-token> \
      -n trt-llm
    ```
 
-3. **Deploy TensorRT-LLM Build Pod**
+3. **Deploy TensorRT-LLM builder pod**
 
-   This pod provides the environment for quantization and engine building:
+   The Triton TRT-LLM image includes both the build tools and the serving runtime. Use the same image for building and serving to avoid version mismatches.
 
    ```yaml
    # Save as trt-llm-builder.yaml
@@ -169,8 +216,7 @@ Step 5: Benchmark and Optimize
    spec:
      containers:
        - name: builder
-         # Official NVIDIA TensorRT-LLM container
-         image: nvcr.io/nvidia/tritonserver:24.12-trtllm-python-py3
+         image: nvcr.io/nvidia/tritonserver:25.06-trtllm-python-py3
          command: ["sleep", "infinity"]
          env:
            - name: HF_TOKEN
@@ -211,54 +257,53 @@ Step 5: Benchmark and Optimize
 
 ### Task 3: Download and Quantize Model (45 min)
 
-1. **Access the Builder Pod**
+1. **Access the builder pod**
    ```bash
    kubectl exec -it trt-llm-builder -n trt-llm -- bash
    ```
 
-2. **Download Model from HuggingFace**
+2. **Download model from HuggingFace**
    ```bash
-   # Inside the pod
    cd /workspace
 
    # Clone TensorRT-LLM examples for quantization scripts
    git clone https://github.com/NVIDIA/TensorRT-LLM.git
-   cd TensorRT-LLM/examples/llama
+   cd TensorRT-LLM/examples
 
-   # Download Llama-2-7B model
-   # (For 70B, use meta-llama/Llama-2-70b-chat-hf but requires more storage/time)
+   # Download Llama-2-7B (use Llama-2-7b-chat-hf for a chat model)
    huggingface-cli download meta-llama/Llama-2-7b-chat-hf \
      --local-dir /workspace/models/llama-2-7b-chat-hf \
      --token $HF_TOKEN
+
+   echo "Model downloaded: $(du -sh /workspace/models/llama-2-7b-chat-hf)"
    ```
 
 3. **Quantize with INT4 AWQ**
 
-   INT4 AWQ (Activation-aware Weight Quantization) provides 4x memory reduction:
+   INT4 AWQ provides ~4x memory reduction with minimal quality loss. AWQ requires a small calibration dataset (lightweight, no backpropagation).
 
    ```bash
-   # Quantize the model to INT4 AWQ
-   python ../quantization/quantize.py \
+   python quantization/quantize.py \
      --model_dir /workspace/models/llama-2-7b-chat-hf \
      --output_dir /workspace/checkpoints/llama-2-7b-int4-awq \
      --dtype float16 \
      --qformat int4_awq \
      --awq_block_size 128 \
      --calib_size 32
-
-   # This creates a quantized checkpoint
-   # Expected output: "Quantization complete. Checkpoint saved to..."
    ```
 
-   **Understanding the Parameters:**
+   **Understanding the parameters:**
    - `--qformat int4_awq`: 4-bit AWQ quantization
    - `--awq_block_size 128`: Granularity of quantization (smaller = better quality, larger = faster)
-   - `--calib_size 32`: Number of calibration samples
+   - `--calib_size 32`: Number of calibration samples (AWQ uses lightweight calibration)
 
-4. **Alternative: FP8 Quantization (A100/H100 only)**
+4. **Alternative: FP8 Quantization (H100/H200 only)**
+
+   FP8 provides the best quality-to-compression ratio but requires Hopper architecture GPUs (H100, H200) with native FP8 hardware (Compute Capability >= 8.9).
+
    ```bash
-   # FP8 provides best quality with 2x compression
-   python ../quantization/quantize.py \
+   # ONLY run this on H100/H200 nodes
+   python quantization/quantize.py \
      --model_dir /workspace/models/llama-2-7b-chat-hf \
      --output_dir /workspace/checkpoints/llama-2-7b-fp8 \
      --dtype float16 \
@@ -266,23 +311,26 @@ Step 5: Benchmark and Optimize
      --kv_cache_dtype fp8
    ```
 
+   > **Warning:** Running FP8 quantization on A100 will produce a checkpoint, but the resulting engine will not benefit from FP8 hardware acceleration since A100 lacks native FP8 compute units.
+
 5. **Alternative: INT8 SmoothQuant**
+
+   INT8 SmoothQuant works on both A100 and H100, providing ~2x memory reduction with broad compatibility.
+
    ```bash
-   # INT8 SmoothQuant for broader GPU compatibility
-   python ../quantization/quantize.py \
+   python quantization/quantize.py \
      --model_dir /workspace/models/llama-2-7b-chat-hf \
      --output_dir /workspace/checkpoints/llama-2-7b-int8-sq \
      --dtype float16 \
      --qformat int8_sq
    ```
 
-### Task 4: Build TensorRT Engine (60 min)
+### Task 4: Build TensorRT Engine (45 min)
 
-Building the TensorRT engine optimizes the model for your specific GPU architecture.
+The `trtllm-build` command compiles the quantized checkpoint into an optimized engine for your specific GPU architecture.
 
-1. **Build Engine from Quantized Checkpoint**
+1. **Build engine from INT4 AWQ checkpoint**
    ```bash
-   # Build TensorRT engine from INT4 AWQ checkpoint
    trtllm-build \
      --checkpoint_dir /workspace/checkpoints/llama-2-7b-int4-awq \
      --output_dir /workspace/engines/llama-2-7b-int4-awq/1-gpu \
@@ -292,17 +340,17 @@ Building the TensorRT engine optimizes the model for your specific GPU architect
      --max_seq_len 4096 \
      --max_num_tokens 8192
 
-   # This takes 10-30 minutes for 7B model
-   # Look for: "Engine built successfully"
+   # Takes 10-30 minutes for a 7B model
    ```
 
-   **Key Build Parameters:**
-   - `--max_batch_size`: Maximum concurrent requests
-   - `--max_input_len`: Maximum prompt length
+   **Key build parameters:**
+   - `--max_batch_size`: Maximum concurrent requests in a batch
+   - `--max_input_len`: Maximum prompt token length
    - `--max_seq_len`: Maximum total sequence (prompt + generation)
+   - `--max_num_tokens`: Token budget per iteration (controls memory vs throughput)
    - `--gemm_plugin float16`: Use optimized matrix multiplication kernels
 
-2. **Build Multi-GPU Engine (for larger models)**
+2. **Build multi-GPU engine** (for larger models)
    ```bash
    # For 70B model with tensor parallelism across 4 GPUs
    trtllm-build \
@@ -315,145 +363,136 @@ Building the TensorRT engine optimizes the model for your specific GPU architect
      --max_seq_len 4096
    ```
 
-3. **Verify Engine Files**
+3. **Verify engine files**
    ```bash
    ls -la /workspace/engines/llama-2-7b-int4-awq/1-gpu/
 
    # Expected files:
-   # - config.json          # Model configuration
-   # - rank0.engine         # TensorRT engine (main inference file)
+   # - config.json          (model configuration)
+   # - rank0.engine         (TensorRT engine binary)
    ```
 
-### Task 5: Test Engine with TensorRT-LLM Runtime (20 min)
+### Task 5: Quick Test with trtllm-serve (15 min)
 
-1. **Run Quick Inference Test**
-   ```bash
-   # Test the engine directly
-   cd /workspace/TensorRT-LLM/examples/llama
+The `trtllm-serve` CLI provides the fastest way to test your engine. It wraps Triton with an OpenAI-compatible API.
 
-   python ../run.py \
-     --engine_dir /workspace/engines/llama-2-7b-int4-awq/1-gpu \
-     --tokenizer_dir /workspace/models/llama-2-7b-chat-hf \
-     --max_output_len 100 \
-     --input_text "What is Kubernetes? Explain in simple terms."
-   ```
-
-   **Expected Output:**
-   ```
-   Input: What is Kubernetes? Explain in simple terms.
-   Output: Kubernetes is an open-source container orchestration platform...
-   Latency: 1.23 seconds
-   Throughput: 81.3 tokens/second
-   ```
-
-2. **Benchmark Performance**
-   ```bash
-   # Run comprehensive benchmark
-   python ../summarize.py \
-     --engine_dir /workspace/engines/llama-2-7b-int4-awq/1-gpu \
-     --test_trt_llm \
-     --batch_size 1 \
-     --max_ite 10
-   ```
-
-### Task 6: Deploy with Triton Inference Server (45 min)
-
-Triton Inference Server provides production-grade model serving with batching, metrics, and HTTP/gRPC APIs.
-
-1. **Create Triton Model Repository Structure**
+1. **Start the serving server**
    ```bash
    # Inside the builder pod
-   mkdir -p /workspace/triton-models/llama-7b-trt/1
+   trtllm-serve \
+     /workspace/engines/llama-2-7b-int4-awq/1-gpu \
+     --tokenizer /workspace/models/llama-2-7b-chat-hf \
+     --host 0.0.0.0 \
+     --port 8000
 
-   # Copy engine files
-   cp -r /workspace/engines/llama-2-7b-int4-awq/1-gpu/* \
-     /workspace/triton-models/llama-7b-trt/1/
-
-   # Create config.pbtxt
-   cat > /workspace/triton-models/llama-7b-trt/config.pbtxt << 'EOF'
-   name: "llama-7b-trt"
-   backend: "tensorrtllm"
-   max_batch_size: 8
-
-   model_transaction_policy {
-     decoupled: true
-   }
-
-   input [
-     {
-       name: "input_ids"
-       data_type: TYPE_INT32
-       dims: [ -1 ]
-     },
-     {
-       name: "input_lengths"
-       data_type: TYPE_INT32
-       dims: [ 1 ]
-     },
-     {
-       name: "request_output_len"
-       data_type: TYPE_INT32
-       dims: [ 1 ]
-     }
-   ]
-
-   output [
-     {
-       name: "output_ids"
-       data_type: TYPE_INT32
-       dims: [ -1, -1 ]
-     },
-     {
-       name: "sequence_length"
-       data_type: TYPE_INT32
-       dims: [ -1 ]
-     }
-   ]
-
-   instance_group [
-     {
-       count: 1
-       kind: KIND_GPU
-       gpus: [ 0 ]
-     }
-   ]
-
-   parameters: {
-     key: "gpt_model_type"
-     value: {
-       string_value: "llama"
-     }
-   }
-
-   parameters: {
-     key: "gpt_model_path"
-     value: {
-       string_value: "/models/llama-7b-trt/1"
-     }
-   }
-
-   parameters: {
-     key: "max_tokens_in_paged_kv_cache"
-     value: {
-       string_value: "16384"
-     }
-   }
-
-   parameters: {
-     key: "batch_scheduler_policy"
-     value: {
-       string_value: "inflight_fused_batching"
-     }
-   }
-   EOF
+   # Wait for: "Application startup complete"
    ```
 
-2. **Exit Builder Pod**
+2. **Test with curl** (from another terminal)
+   ```bash
+   kubectl exec -it trt-llm-builder -n trt-llm -- \
+     curl -s http://localhost:8000/v1/completions \
+       -H "Content-Type: application/json" \
+       -d '{
+         "model": "llama-2-7b-chat-hf",
+         "prompt": "What is Kubernetes? Explain in simple terms.",
+         "max_tokens": 100,
+         "temperature": 0.7
+       }' | python3 -m json.tool
+   ```
+
+3. **Test with OpenAI Python client**
+   ```bash
+   kubectl exec -it trt-llm-builder -n trt-llm -- python3 -c "
+   from openai import OpenAI
+   client = OpenAI(api_key='unused', base_url='http://localhost:8000/v1')
+   response = client.completions.create(
+       model='llama-2-7b-chat-hf',
+       prompt='What is Kubernetes?',
+       max_tokens=100
+   )
+   print(response.choices[0].text)
+   "
+   ```
+
+4. **Stop trtllm-serve** (Ctrl+C) before proceeding to Task 6.
+
+### Task 6: Production Deployment with Triton Ensemble (60 min)
+
+For production, deploy Triton with the ensemble model architecture. This provides separate preprocessing (tokenization), inference, and postprocessing (de-tokenization) stages.
+
+1. **Prepare the Triton model repository**
+
+   The modern TRT-LLM Triton backend uses an ensemble of models:
+
+   ```
+   triton-models/
+   ├── ensemble/                  # Orchestrates the pipeline
+   │   └── config.pbtxt
+   ├── preprocessing/             # String → token IDs
+   │   ├── config.pbtxt
+   │   └── 1/
+   │       └── model.py
+   ├── tensorrt_llm/              # Core TRT-LLM engine
+   │   ├── config.pbtxt
+   │   └── 1/
+   │       ├── rank0.engine
+   │       └── config.json
+   └── postprocessing/            # Token IDs → string
+       ├── config.pbtxt
+       └── 1/
+           └── model.py
+   ```
+
+   ```bash
+   # Inside the builder pod
+   cd /workspace
+
+   # Clone the TensorRT-LLM backend repository with template configs
+   git clone https://github.com/triton-inference-server/tensorrtllm_backend.git
+   cd tensorrtllm_backend
+
+   # Copy the template model repository
+   cp -r all_models/inflight_batcher_llm /workspace/triton-models
+
+   # Copy engine files into the model repository
+   cp /workspace/engines/llama-2-7b-int4-awq/1-gpu/* \
+     /workspace/triton-models/tensorrt_llm/1/
+   ```
+
+2. **Configure the model repository with fill_template.py**
+
+   The `fill_template.py` script injects parameters into the template config files:
+
+   ```bash
+   # Fill preprocessing config
+   python3 tools/fill_template.py -i /workspace/triton-models/preprocessing/config.pbtxt \
+     "tokenizer_dir:/workspace/models/llama-2-7b-chat-hf,triton_max_batch_size:8,preprocessing_instance_count:1"
+
+   # Fill tensorrt_llm config
+   python3 tools/fill_template.py -i /workspace/triton-models/tensorrt_llm/config.pbtxt \
+     "triton_backend:tensorrtllm,triton_max_batch_size:8,decoupled_mode:True,engine_dir:/workspace/triton-models/tensorrt_llm/1,batching_strategy:inflight_fused_batching,batch_scheduler_policy:max_utilization,kv_cache_free_gpu_mem_fraction:0.9,max_num_sequences:8"
+
+   # Fill postprocessing config
+   python3 tools/fill_template.py -i /workspace/triton-models/postprocessing/config.pbtxt \
+     "tokenizer_dir:/workspace/models/llama-2-7b-chat-hf,triton_max_batch_size:8,postprocessing_instance_count:1"
+
+   # Fill ensemble config
+   python3 tools/fill_template.py -i /workspace/triton-models/ensemble/config.pbtxt \
+     "triton_max_batch_size:8"
+   ```
+
+   **Key configuration parameters:**
+   - `batch_scheduler_policy`: `max_utilization` (greedy packing) or `guaranteed_no_evict` (default, no request pauses)
+   - `kv_cache_free_gpu_mem_fraction`: Fraction of free GPU memory for KV cache (0.9 = 90%)
+   - `decoupled_mode`: Enable streaming responses
+
+3. **Exit the builder pod**
    ```bash
    exit
    ```
 
-3. **Deploy Triton Server**
+4. **Deploy Triton Server**
    ```yaml
    # Save as triton-trtllm.yaml
    apiVersion: apps/v1
@@ -473,11 +512,10 @@ Triton Inference Server provides production-grade model serving with batching, m
        spec:
          containers:
            - name: triton
-             image: nvcr.io/nvidia/tritonserver:24.12-trtllm-python-py3
+             image: nvcr.io/nvidia/tritonserver:25.06-trtllm-python-py3
              args:
                - tritonserver
                - --model-repository=/models
-               - --log-verbose=1
                - --http-port=8000
                - --grpc-port=8001
                - --metrics-port=8002
@@ -499,22 +537,28 @@ Triton Inference Server provides production-grade model serving with batching, m
                - name: storage
                  mountPath: /models
                  subPath: triton-models
+               - name: model-storage
+                 mountPath: /workspace/models
+                 subPath: models
                - name: shm
                  mountPath: /dev/shm
              livenessProbe:
                httpGet:
                  path: /v2/health/live
                  port: 8000
-               initialDelaySeconds: 60
+               initialDelaySeconds: 120
                periodSeconds: 30
              readinessProbe:
                httpGet:
                  path: /v2/health/ready
                  port: 8000
-               initialDelaySeconds: 30
+               initialDelaySeconds: 60
                periodSeconds: 10
          volumes:
            - name: storage
+             persistentVolumeClaim:
+               claimName: trt-llm-storage
+           - name: model-storage
              persistentVolumeClaim:
                claimName: trt-llm-storage
            - name: shm
@@ -549,161 +593,217 @@ Triton Inference Server provides production-grade model serving with batching, m
    ```bash
    kubectl apply -f triton-trtllm.yaml
 
-   # Watch deployment
+   # Watch deployment (model loading takes a few minutes)
    kubectl logs -f deployment/triton-trtllm -n trt-llm
 
-   # Look for: "Started HTTPService at 0.0.0.0:8000"
+   # Wait for: "Started HTTPService at 0.0.0.0:8000"
+   kubectl wait --for=condition=Ready pod -l app=triton-trtllm -n trt-llm --timeout=600s
    ```
 
-### Task 7: Test Triton Server (20 min)
+### Task 7: Test Triton Inference (20 min)
 
-1. **Port Forward to Triton**
+1. **Port forward to Triton**
    ```bash
    kubectl port-forward svc/triton-trtllm 8000:8000 -n trt-llm &
    ```
 
-2. **Check Server Health**
+2. **Check server health**
    ```bash
-   curl http://localhost:8000/v2/health/ready
-   # Expected: {"ready":true}
+   # Health check returns HTTP 200 with empty body (no JSON)
+   curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v2/health/ready
+   # Expected: 200
 
    # List loaded models
-   curl http://localhost:8000/v2/models
+   curl -s http://localhost:8000/v2/models | python3 -m json.tool
    ```
 
-3. **Run Inference Request**
+3. **Test with the ensemble endpoint using Triton client**
    ```bash
-   # Install Triton client
-   pip install tritonclient[all]
+   pip install tritonclient[all] transformers
+   ```
 
-   # Test inference
-   python << 'EOF'
+   ```python
+   # Save as test_triton.py
    import tritonclient.http as httpclient
-   from transformers import AutoTokenizer
    import numpy as np
+   import json
 
-   # Load tokenizer
-   tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
-
-   # Create client
    client = httpclient.InferenceServerClient("localhost:8000")
 
-   # Prepare input
+   # Check which models are loaded
+   models = client.get_model_repository_index()
+   for model in models:
+       print(f"  {model['name']}: {model.get('state', 'unknown')}")
+
+   # Use the ensemble model for end-to-end inference
+   # The ensemble handles tokenization and de-tokenization
    prompt = "What is machine learning? Explain briefly."
-   input_ids = tokenizer.encode(prompt, return_tensors="np").astype(np.int32)
 
-   # Create request
    inputs = [
-       httpclient.InferInput("input_ids", input_ids.shape, "INT32"),
-       httpclient.InferInput("input_lengths", [1], "INT32"),
-       httpclient.InferInput("request_output_len", [1], "INT32"),
+       httpclient.InferInput("text_input", [1, 1], "BYTES"),
+       httpclient.InferInput("max_tokens", [1, 1], "INT32"),
    ]
 
-   inputs[0].set_data_from_numpy(input_ids[0])
-   inputs[1].set_data_from_numpy(np.array([len(input_ids[0])], dtype=np.int32))
-   inputs[2].set_data_from_numpy(np.array([100], dtype=np.int32))  # Generate 100 tokens
+   inputs[0].set_data_from_numpy(
+       np.array([[prompt]], dtype=object)
+   )
+   inputs[1].set_data_from_numpy(
+       np.array([[100]], dtype=np.int32)
+   )
 
-   outputs = [
-       httpclient.InferRequestedOutput("output_ids"),
-   ]
+   outputs = [httpclient.InferRequestedOutput("text_output")]
 
-   # Run inference
-   response = client.infer("llama-7b-trt", inputs, outputs=outputs)
-   output_ids = response.as_numpy("output_ids")[0]
-
-   # Decode output
-   generated_text = tokenizer.decode(output_ids, skip_special_tokens=True)
-   print(f"Generated: {generated_text}")
-   EOF
+   result = client.infer("ensemble", inputs, outputs=outputs)
+   generated = result.as_numpy("text_output")[0][0]
+   if isinstance(generated, bytes):
+       generated = generated.decode("utf-8")
+   print(f"\nGenerated:\n{generated}")
    ```
 
-### Task 8: Performance Comparison with vLLM (30 min)
-
-1. **Benchmark TensorRT-LLM**
    ```bash
-   # Run benchmark with varying batch sizes
-   python << 'EOF'
+   python test_triton.py
+   ```
+
+4. **Test with OpenAI-compatible API** (if Triton OpenAI frontend is enabled)
+   ```python
+   # Save as test_openai.py
+   from openai import OpenAI
+
+   client = OpenAI(
+       api_key="unused",
+       base_url="http://localhost:8000/v1"
+   )
+
+   response = client.completions.create(
+       model="ensemble",
+       prompt="What is Kubernetes? Explain in simple terms.",
+       max_tokens=100,
+       temperature=0.7
+   )
+
+   print(f"Response: {response.choices[0].text}")
+   print(f"Usage: {response.usage.prompt_tokens} prompt, "
+         f"{response.usage.completion_tokens} completion tokens")
+   ```
+
+   ```bash
+   python test_openai.py
+   ```
+
+### Task 8: Performance Benchmarking (30 min)
+
+1. **Benchmark with varying configurations**
+
+   ```python
+   # Save as benchmark_trtllm.py
    import tritonclient.http as httpclient
-   from transformers import AutoTokenizer
    import numpy as np
    import time
+   import statistics
 
-   tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
    client = httpclient.InferenceServerClient("localhost:8000")
 
-   prompt = "What is Kubernetes?"
-   input_ids = tokenizer.encode(prompt, return_tensors="np").astype(np.int32)
+   prompt = "Explain the concept of containerization in cloud computing."
 
-   results = []
-   for batch_size in [1, 2, 4, 8]:
-       # Warm up
-       for _ in range(2):
-           inputs = [
-               httpclient.InferInput("input_ids", input_ids.shape, "INT32"),
-               httpclient.InferInput("input_lengths", [1], "INT32"),
-               httpclient.InferInput("request_output_len", [1], "INT32"),
-           ]
-           inputs[0].set_data_from_numpy(input_ids[0])
-           inputs[1].set_data_from_numpy(np.array([len(input_ids[0])], dtype=np.int32))
-           inputs[2].set_data_from_numpy(np.array([50], dtype=np.int32))
-           client.infer("llama-7b-trt", inputs)
+   def run_inference(max_tokens=50):
+       inputs = [
+           httpclient.InferInput("text_input", [1, 1], "BYTES"),
+           httpclient.InferInput("max_tokens", [1, 1], "INT32"),
+       ]
+       inputs[0].set_data_from_numpy(np.array([[prompt]], dtype=object))
+       inputs[1].set_data_from_numpy(np.array([[max_tokens]], dtype=np.int32))
+       outputs = [httpclient.InferRequestedOutput("text_output")]
 
-       # Benchmark
-       start = time.time()
-       for _ in range(10):
-           inputs = [
-               httpclient.InferInput("input_ids", input_ids.shape, "INT32"),
-               httpclient.InferInput("input_lengths", [1], "INT32"),
-               httpclient.InferInput("request_output_len", [1], "INT32"),
-           ]
-           inputs[0].set_data_from_numpy(input_ids[0])
-           inputs[1].set_data_from_numpy(np.array([len(input_ids[0])], dtype=np.int32))
-           inputs[2].set_data_from_numpy(np.array([50], dtype=np.int32))
-           client.infer("llama-7b-trt", inputs)
-       elapsed = time.time() - start
+       start = time.perf_counter()
+       result = client.infer("ensemble", inputs, outputs=outputs)
+       latency = time.perf_counter() - start
+       return latency
 
-       throughput = 10 * 50 / elapsed  # tokens per second
-       results.append((batch_size, elapsed / 10, throughput))
-       print(f"Batch {batch_size}: {elapsed/10:.3f}s/req, {throughput:.1f} tok/s")
+   # Warm up
+   for _ in range(3):
+       run_inference()
 
-   print("\n=== Comparison Table ===")
-   print("| Batch | Latency (s) | Throughput (tok/s) |")
-   print("|-------|-------------|-------------------|")
-   for bs, lat, tp in results:
-       print(f"| {bs} | {lat:.3f} | {tp:.1f} |")
-   EOF
+   # Benchmark different output lengths
+   print("=== TensorRT-LLM Inference Benchmark ===\n")
+   for max_tokens in [50, 100, 200]:
+       latencies = [run_inference(max_tokens) for _ in range(10)]
+       avg = statistics.mean(latencies)
+       p50 = statistics.median(latencies)
+       p99 = sorted(latencies)[int(0.99 * len(latencies))]
+       throughput = max_tokens / avg
+
+       print(f"Max tokens: {max_tokens}")
+       print(f"  Avg latency: {avg:.3f}s")
+       print(f"  P50 latency: {p50:.3f}s")
+       print(f"  P99 latency: {p99:.3f}s")
+       print(f"  Throughput:  ~{throughput:.0f} tokens/s")
+       print()
    ```
 
-2. **Compare with vLLM Results**
+   ```bash
+   python benchmark_trtllm.py
+   ```
 
-   Run the same benchmark against your Lab 5.2 vLLM deployment and compare:
+2. **Compare with your Lab 5.2 vLLM results**
 
-   | Metric | vLLM (FP16) | TRT-LLM (INT4 AWQ) | Improvement |
-   |--------|-------------|--------------------|-|
-   | Latency (batch=1) | ~0.5s | ~0.3s | 40% |
-   | Throughput | ~100 tok/s | ~160 tok/s | 60% |
-   | GPU Memory | ~14GB | ~5GB | 65% |
+   Run the same prompts against your vLLM deployment from Lab 5.2 and fill in:
+
+   | Metric | vLLM (FP16) | TRT-LLM (INT4 AWQ) | Notes |
+   |--------|-------------|--------------------|----|
+   | Latency (50 tok) | ___s | ___s | Measure with same prompt |
+   | Throughput | ___ tok/s | ___ tok/s | Single-request generation |
+   | GPU Memory | ___GB | ___GB | `nvidia-smi` during inference |
+   | Setup complexity | Low | High | Engine build required |
+
+   > **Note:** Actual performance depends on GPU type, model, batch size, and sequence length. Do not compare numbers across different hardware.
+
+3. **Check Triton metrics**
+   ```bash
+   # Triton exposes Prometheus-compatible metrics
+   curl -s http://localhost:8002/metrics | grep -E "^nv_inference|^nv_gpu"
+   ```
+
+## Cleanup
+
+```bash
+# Delete Triton deployment
+kubectl delete deployment triton-trtllm -n trt-llm
+kubectl delete svc triton-trtllm -n trt-llm
+
+# Delete builder pod
+kubectl delete pod trt-llm-builder -n trt-llm
+
+# Delete storage (WARNING: deletes all engines and model data)
+kubectl delete pvc trt-llm-storage -n trt-llm
+
+# Delete secrets
+kubectl delete secret hf-token -n trt-llm
+
+# Delete namespace
+kubectl delete namespace trt-llm
+```
 
 ---
 
 ## Deliverables
 
-- [ ] **Quantized checkpoint** created successfully
-- [ ] **TensorRT engine** built and tested
-- [ ] **Triton deployment** running and healthy
-- [ ] **Inference test** producing correct outputs
-- [ ] **Performance comparison** table with vLLM
-- [ ] **Documentation** of build parameters and trade-offs
+- [ ] **Quantized checkpoint** created with INT4 AWQ (or FP8 on H100)
+- [ ] **TensorRT engine** built and verified (`rank0.engine` exists)
+- [ ] **Quick test** passed via `trtllm-serve` with OpenAI-compatible API
+- [ ] **Triton ensemble deployment** running with preprocessing/postprocessing pipeline
+- [ ] **Inference test** producing correct outputs via Triton client
+- [ ] **Performance benchmark** table comparing TRT-LLM vs vLLM from Lab 5.2
 
 ## Verification Checklist
 
+- [ ] k0rdent kubeconfig extracted and GPU cluster accessible
 - [ ] TensorRT-LLM builder pod running with GPU access
 - [ ] Model downloaded and quantized successfully
 - [ ] TensorRT engine built without errors
-- [ ] Engine produces correct inference results
-- [ ] Triton server started and model loaded
-- [ ] HTTP inference endpoint responding
-- [ ] Performance benchmarks documented
+- [ ] Engine produces correct inference via `trtllm-serve`
+- [ ] Triton server deployed with ensemble model architecture
+- [ ] Health check returns HTTP 200 (`/v2/health/ready`)
+- [ ] Credentials stored in Kubernetes Secrets
 
 ## Troubleshooting
 
@@ -712,108 +812,76 @@ Triton Inference Server provides production-grade model serving with batching, m
 **Check GPU memory:**
 ```bash
 nvidia-smi
-# Ensure enough VRAM for model + quantization overhead
-```
-
-**Reduce calibration size:**
-```bash
-# Use smaller calibration dataset
---calib_size 16
+# INT4 AWQ quantization of 7B model needs ~20GB VRAM
+# Reduce calibration size if OOM:
+# --calib_size 16
 ```
 
 ### Engine Build Out of Memory
 
-**Reduce batch size:**
+**Reduce batch size and sequence length:**
 ```bash
-# Build with smaller max batch
---max_batch_size 4
+trtllm-build ... \
+  --max_batch_size 4 \
+  --max_input_len 1024 \
+  --max_seq_len 2048
 ```
 
 ### Triton Model Load Fails
 
 **Check model repository structure:**
 ```bash
-ls -la /models/llama-7b-trt/
-# Must have:
-# - config.pbtxt
-# - 1/rank0.engine
+# Must have the ensemble directory structure:
+ls /models/ensemble/config.pbtxt
+ls /models/preprocessing/config.pbtxt
+ls /models/tensorrt_llm/config.pbtxt
+ls /models/tensorrt_llm/1/rank0.engine
+ls /models/postprocessing/config.pbtxt
 ```
 
 **Check Triton logs:**
 ```bash
-kubectl logs deployment/triton-trtllm -n trt-llm
+kubectl logs deployment/triton-trtllm -n trt-llm | tail -50
 ```
 
-### Low Throughput
+### FP8 Engine Fails on A100
 
-**Enable in-flight batching:**
-```
-parameters: {
-  key: "batch_scheduler_policy"
-  value: {
-    string_value: "inflight_fused_batching"
-  }
-}
+FP8 requires Hopper architecture (H100+). If you built an FP8 engine on H100 and try to run it on A100, it will fail. Rebuild with INT4 AWQ or INT8 SmoothQuant for A100 compatibility.
+
+```bash
+# Check GPU compute capability
+nvidia-smi --query-gpu=compute_cap --format=csv,noheader
+# H100 = 9.0, A100 = 8.0
+# FP8 requires >= 8.9
 ```
 
 ---
 
 ## Key Takeaways
 
-### When to Use TensorRT-LLM
-
-| Scenario | Recommendation |
-|----------|---------------|
-| Development/prototyping | Use vLLM (faster iteration) |
-| Production deployment | Use TensorRT-LLM (maximum performance) |
-| Frequent model updates | Use vLLM (no rebuild needed) |
-| Fixed model, high traffic | Use TensorRT-LLM (worth build time) |
-| Memory constrained | Use TensorRT-LLM with INT4 |
-| Quality critical | Use TensorRT-LLM with FP8 |
+1. **TensorRT-LLM compiles models into architecture-specific engines** - providing maximum throughput but requiring a build step per GPU type
+2. **FP8 is H100+ only** - for A100 clusters, use INT4 AWQ (best memory savings) or INT8 SmoothQuant (best compatibility)
+3. **Modern Triton uses the ensemble model pattern** with separate preprocessing, inference, and postprocessing stages configured via `fill_template.py`
+4. **`trtllm-serve`** provides a quick OpenAI-compatible API for testing; production uses Triton Inference Server directly
+5. **No k0rdent catalog ServiceTemplate** exists for TensorRT-LLM; deploy manually on managed clusters (use KServe + vLLM from the catalog for simpler deployments)
 
 ### Performance Optimization Hierarchy
 
-1. **First:** Choose appropriate quantization (INT4 AWQ for memory, FP8 for quality)
-2. **Second:** Tune engine build parameters (max_batch_size, max_seq_len)
-3. **Third:** Enable in-flight batching in Triton
-4. **Fourth:** Scale horizontally if needed (multiple engines)
-
-### Memory vs Quality vs Speed Trade-offs
-
-```
-            Memory Savings ──────────────────────►
-            │
-            │   ┌─────────────────────────────────┐
-   Quality  │   │         FP16 (Baseline)         │
-      │     │   └─────────────────────────────────┘
-      │     │   ┌───────────────────────┐
-      │     │   │        FP8            │ ◄── Best for A100/H100
-      │     │   └───────────────────────┘
-      │     │   ┌─────────────────┐
-      │     │   │   INT8 SQ       │
-      │     │   └─────────────────┘
-      ▼     │   ┌───────────┐
-            │   │  INT4 AWQ │ ◄── Best for memory efficiency
-            │   └───────────┘
-```
+1. **First:** Choose appropriate quantization (INT4 AWQ for memory, FP8 for quality on H100)
+2. **Second:** Tune engine build parameters (`max_batch_size`, `max_seq_len`, `max_num_tokens`)
+3. **Third:** Configure batch scheduling policy (`max_utilization` for throughput, `guaranteed_no_evict` for predictability)
+4. **Fourth:** Tune KV cache fraction (`kv_cache_free_gpu_mem_fraction`)
+5. **Fifth:** Scale horizontally with multiple replicas if needed
 
 ---
 
 ## References
 
-### Official Documentation
 - [TensorRT-LLM GitHub Repository](https://github.com/NVIDIA/TensorRT-LLM)
 - [TensorRT-LLM Documentation](https://nvidia.github.io/TensorRT-LLM/)
-- [Triton Inference Server](https://docs.nvidia.com/deeplearning/triton-inference-server/)
-
-### Quantization
+- [TensorRT-LLM Backend for Triton](https://github.com/triton-inference-server/tensorrtllm_backend)
+- [Triton Inference Server Docs](https://docs.nvidia.com/deeplearning/triton-inference-server/)
 - [TensorRT-LLM Quantization Guide](https://nvidia.github.io/TensorRT-LLM/blogs/quantization-in-TRT-LLM.html)
-- [AWQ Paper](https://arxiv.org/abs/2306.00978)
-- [SmoothQuant Paper](https://arxiv.org/abs/2211.10438)
-
-### Performance Optimization
-- [TensorRT-LLM Best Practices](https://nvidia.github.io/TensorRT-LLM/blogs/best-practices.html)
-- [Triton Performance Tuning](https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/optimization.html)
 
 ---
 
