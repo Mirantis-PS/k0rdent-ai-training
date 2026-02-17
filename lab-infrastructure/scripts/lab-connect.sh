@@ -76,6 +76,31 @@ get_bastion_ip() {
     get_state_output "$tfstate_bucket" "shared/terraform.tfstate" "bastion_public_ip"
 }
 
+ensure_bastion_key() {
+    local key_file="$CONFIG_DIR/keys/bastion.pem"
+
+    if [[ -f "$key_file" ]] && [[ -s "$key_file" ]]; then
+        return 0
+    fi
+
+    log_info "Bastion SSH key not found locally, retrieving from Terraform state..."
+    local tfstate_bucket
+    tfstate_bucket=$(get_tfstate_bucket)
+
+    local ssh_key
+    ssh_key=$(get_state_output "$tfstate_bucket" "shared/terraform.tfstate" "bastion_ssh_private_key")
+
+    if [[ -z "$ssh_key" ]]; then
+        log_error "Could not retrieve bastion SSH key from state. Was shared infrastructure provisioned?"
+        return 1
+    fi
+
+    mkdir -p "$CONFIG_DIR/keys"
+    echo "$ssh_key" > "$key_file"
+    chmod 600 "$key_file"
+    log_success "Bastion SSH key retrieved and saved to: $key_file"
+}
+
 get_ssh_key() {
     local lab_type="$1"
     local identifier="$2"
@@ -367,6 +392,7 @@ if [[ -z "$BASTION" ]] && [[ "$IP" =~ ^10\. ]]; then
         exit 1
     fi
     log_info "Using bastion: $BASTION"
+    ensure_bastion_key
 fi
 
 log_info "Target: $IP"

@@ -211,10 +211,39 @@ check_shared_infrastructure() {
     fi
 }
 
+# Ensure bastion SSH key is available locally (fetch from S3 state if needed)
+ensure_bastion_key() {
+    local key_dir="$CONFIG_DIR/keys"
+    local key_file="$key_dir/bastion.pem"
+
+    if [[ -f "$key_file" ]] && [[ -s "$key_file" ]]; then
+        return 0
+    fi
+
+    log_info "Bastion SSH key not found locally, retrieving from Terraform state..."
+    local tfstate_bucket
+    tfstate_bucket=$(get_tfstate_bucket)
+
+    local ssh_key
+    ssh_key=$(aws s3 cp "s3://${tfstate_bucket}/shared/terraform.tfstate" - 2>/dev/null \
+        | jq -r '.outputs.bastion_ssh_private_key.value // empty' 2>/dev/null)
+
+    if [[ -z "$ssh_key" ]]; then
+        log_warn "Could not retrieve bastion SSH key from state"
+        return 1
+    fi
+
+    mkdir -p "$key_dir"
+    echo "$ssh_key" > "$key_file"
+    chmod 600 "$key_file"
+    log_success "Bastion SSH key saved to: $key_file"
+}
+
 # Auto-provision shared infrastructure if it doesn't exist
 ensure_shared_infrastructure() {
     if check_shared_infrastructure; then
         log_info "Shared infrastructure already exists, skipping..."
+        ensure_bastion_key || true
         return 0
     fi
 
