@@ -39,8 +39,8 @@ data "terraform_remote_state" "shared" {
 
   config = {
     bucket = var.tfstate_bucket
-    key    = "shared/terraform.tfstate"
-    region = var.region
+    key    = "${var.region}/shared/terraform.tfstate"
+    region = var.bucket_region
   }
 }
 

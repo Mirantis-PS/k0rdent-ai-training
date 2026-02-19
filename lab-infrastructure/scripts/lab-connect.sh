@@ -60,6 +60,20 @@ get_tfstate_bucket() {
     echo "k0rdent-training-tfstate-${account_id}"
 }
 
+# Detect the actual AWS region of the S3 state bucket
+get_bucket_region() {
+    local bucket_name
+    bucket_name=$(get_tfstate_bucket)
+    local location
+    location=$(aws s3api get-bucket-location --bucket "$bucket_name" \
+        --query LocationConstraint --output text 2>/dev/null)
+    if [[ "$location" == "None" || -z "$location" ]]; then
+        echo "us-east-1"
+    else
+        echo "$location"
+    fi
+}
+
 # Read terraform output from S3 state directly (bypasses terraform credential issues)
 get_state_output() {
     local bucket="$1"
@@ -73,11 +87,11 @@ get_bastion_ip() {
     local tfstate_bucket
     tfstate_bucket=$(get_tfstate_bucket)
 
-    get_state_output "$tfstate_bucket" "shared/terraform.tfstate" "bastion_public_ip"
+    get_state_output "$tfstate_bucket" "${REGION}/shared/terraform.tfstate" "bastion_public_ip"
 }
 
 ensure_bastion_key() {
-    local key_file="$CONFIG_DIR/keys/bastion.pem"
+    local key_file="$CONFIG_DIR/keys/bastion-${REGION}.pem"
 
     if [[ -f "$key_file" ]] && [[ -s "$key_file" ]]; then
         return 0
@@ -88,7 +102,7 @@ ensure_bastion_key() {
     tfstate_bucket=$(get_tfstate_bucket)
 
     local ssh_key
-    ssh_key=$(get_state_output "$tfstate_bucket" "shared/terraform.tfstate" "bastion_ssh_private_key")
+    ssh_key=$(get_state_output "$tfstate_bucket" "${REGION}/shared/terraform.tfstate" "bastion_ssh_private_key")
 
     if [[ -z "$ssh_key" ]]; then
         log_error "Could not retrieve bastion SSH key from state. Was shared infrastructure provisioned?"
@@ -118,16 +132,16 @@ get_ssh_key() {
 
     case $lab_type in
         k0rdent-mgmt|k0rdent)
-            state_key="k0rdent/${identifier}/terraform.tfstate"
+            state_key="${REGION}/k0rdent/${identifier}/terraform.tfstate"
             ;;
         metal3-dev|metal3)
-            state_key="metal3-dev/${identifier}/terraform.tfstate"
+            state_key="${REGION}/metal3-dev/${identifier}/terraform.tfstate"
             ;;
         kubevirt-lab|kubevirt)
-            state_key="kubevirt-lab/${identifier}/terraform.tfstate"
+            state_key="${REGION}/kubevirt-lab/${identifier}/terraform.tfstate"
             ;;
         gpu-lab|gpu)
-            state_key="gpu-lab/${identifier}/terraform.tfstate"
+            state_key="${REGION}/gpu-lab/${identifier}/terraform.tfstate"
             ;;
     esac
 
@@ -157,16 +171,16 @@ get_instance_ip() {
 
     case $lab_type in
         k0rdent-mgmt|k0rdent)
-            state_key="k0rdent/${identifier}/terraform.tfstate"
+            state_key="${REGION}/k0rdent/${identifier}/terraform.tfstate"
             ;;
         metal3-dev|metal3)
-            state_key="metal3-dev/${identifier}/terraform.tfstate"
+            state_key="${REGION}/metal3-dev/${identifier}/terraform.tfstate"
             ;;
         kubevirt-lab|kubevirt)
-            state_key="kubevirt-lab/${identifier}/terraform.tfstate"
+            state_key="${REGION}/kubevirt-lab/${identifier}/terraform.tfstate"
             ;;
         gpu-lab|gpu)
-            state_key="gpu-lab/${identifier}/terraform.tfstate"
+            state_key="${REGION}/gpu-lab/${identifier}/terraform.tfstate"
             ;;
     esac
 
@@ -200,11 +214,11 @@ connect_ssh() {
     local tunnel="${5:-}"
 
     local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-    local bastion_key="$CONFIG_DIR/keys/bastion.pem"
+    local bastion_key="$CONFIG_DIR/keys/bastion-${REGION}.pem"
 
     if [[ -n "$bastion" ]]; then
         # Use ProxyCommand with bastion key for the jump host
-        ssh_opts="$ssh_opts -o ProxyCommand=\"ssh -i $bastion_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ubuntu@${bastion}\""
+        ssh_opts="$ssh_opts -o ProxyCommand=\"ssh -i $bastion_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ec2-user@${bastion}\""
     fi
 
     if [[ -n "$tunnel" ]]; then
@@ -405,7 +419,7 @@ if [[ "$SHOW_PASSWORD" == "true" ]]; then
         exit 1
     fi
     TFSTATE_BUCKET=$(get_tfstate_bucket)
-    UI_PASSWORD=$(get_state_output "$TFSTATE_BUCKET" "k0rdent/${IDENTIFIER}/terraform.tfstate" "ui_password")
+    UI_PASSWORD=$(get_state_output "$TFSTATE_BUCKET" "${REGION}/k0rdent/${IDENTIFIER}/terraform.tfstate" "ui_password")
     if [[ -n "$UI_PASSWORD" ]]; then
         echo ""
         log_success "k0rdent UI Password: $UI_PASSWORD"

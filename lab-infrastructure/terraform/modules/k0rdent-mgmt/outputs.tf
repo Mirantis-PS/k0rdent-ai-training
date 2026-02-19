@@ -64,15 +64,15 @@ output "ssh_key_s3_path" {
 output "connection_info" {
   description = "Connection information for the management cluster"
   value = {
-    engineer_id      = var.engineer_id
-    node_ips         = aws_instance.mgmt_node[*].private_ip
-    primary_ip       = aws_instance.mgmt_node[0].private_ip
-    ssh_user         = "ubuntu"
-    ssh_key_name     = aws_key_pair.mgmt.key_name
-    k0s_version      = var.k0s_version
-    k0rdent_version  = var.k0rdent_version
-    flux_version     = var.flux_version
-    api_endpoint     = "https://${aws_instance.mgmt_node[0].private_ip}:6443"
+    engineer_id     = var.engineer_id
+    node_ips        = aws_instance.mgmt_node[*].private_ip
+    primary_ip      = aws_instance.mgmt_node[0].private_ip
+    ssh_user        = "ubuntu"
+    ssh_key_name    = aws_key_pair.mgmt.key_name
+    k0s_version     = var.k0s_version
+    k0rdent_version = var.k0rdent_version
+    flux_version    = var.flux_version
+    api_endpoint    = "https://${aws_instance.mgmt_node[0].private_ip}:6443"
   }
 }
 

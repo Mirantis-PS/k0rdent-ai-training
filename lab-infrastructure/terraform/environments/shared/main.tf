@@ -36,6 +36,7 @@ module "shared_infra" {
   source = "../../modules/shared-infra"
 
   project_name      = var.project_name
+  region            = var.region
   vpc_cidr          = var.vpc_cidr
   gpu_az            = var.gpu_az
   allowed_ssh_cidrs = var.allowed_ssh_cidrs

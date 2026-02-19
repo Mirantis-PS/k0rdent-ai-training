@@ -19,15 +19,15 @@ variable "vpc_cidr" {
 }
 
 variable "gpu_az" {
-  description = "Availability zone with GPU instance capacity"
+  description = "Availability zone with GPU instance capacity. Empty = auto-select first AZ in region."
   type        = string
-  default     = "eu-west-1a"
+  default     = ""
 }
 
 variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed to SSH to bastion"
   type        = list(string)
-  default     = [] # Set via tfvars
+  default     = ["0.0.0.0/0"]
 }
 
 variable "tags" {

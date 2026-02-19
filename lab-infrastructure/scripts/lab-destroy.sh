@@ -60,6 +60,20 @@ get_tfstate_bucket() {
     echo "k0rdent-training-tfstate-${account_id}"
 }
 
+# Detect the actual AWS region of the S3 state bucket
+get_bucket_region() {
+    local bucket_name
+    bucket_name=$(get_tfstate_bucket)
+    local location
+    location=$(aws s3api get-bucket-location --bucket "$bucket_name" \
+        --query LocationConstraint --output text 2>/dev/null)
+    if [[ "$location" == "None" || -z "$location" ]]; then
+        echo "us-east-1"
+    else
+        echo "$location"
+    fi
+}
+
 confirm_destroy() {
     local env_name="$1"
 
@@ -112,7 +126,7 @@ destroy_environment() {
     terraform init \
         -backend-config="bucket=${tfstate_bucket}" \
         -backend-config="key=${state_key}" \
-        -backend-config="region=${REGION}" &>/dev/null || true
+        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
 
     # Check if state exists
     if ! terraform state list &>/dev/null; then
@@ -131,6 +145,7 @@ destroy_environment() {
             terraform destroy $destroy_args \
                 -var="engineer_id=${identifier}" \
                 -var="tfstate_bucket=${tfstate_bucket}" \
+                -var="bucket_region=${BUCKET_REGION}" \
                 -var="region=${REGION}"
             cleanup_local_files "$identifier" "k0rdent"
             ;;
@@ -138,6 +153,7 @@ destroy_environment() {
             terraform destroy $destroy_args \
                 -var="engineer_id=${identifier}" \
                 -var="tfstate_bucket=${tfstate_bucket}" \
+                -var="bucket_region=${BUCKET_REGION}" \
                 -var="region=${REGION}"
             cleanup_local_files "$identifier" "metal3"
             ;;
@@ -145,6 +161,7 @@ destroy_environment() {
             terraform destroy $destroy_args \
                 -var="engineer_id=${identifier}" \
                 -var="tfstate_bucket=${tfstate_bucket}" \
+                -var="bucket_region=${BUCKET_REGION}" \
                 -var="region=${REGION}"
             cleanup_local_files "$identifier" "kubevirt"
             ;;
@@ -152,6 +169,7 @@ destroy_environment() {
             terraform destroy $destroy_args \
                 -var="lab_session_id=${identifier}" \
                 -var="tfstate_bucket=${tfstate_bucket}" \
+                -var="bucket_region=${BUCKET_REGION}" \
                 -var="region=${REGION}"
             cleanup_local_files "$identifier" "gpu"
             ;;
@@ -184,31 +202,31 @@ destroy_shared() {
         exit 0
     fi
 
-    destroy_environment "shared" "shared" "shared/terraform.tfstate"
+    destroy_environment "shared" "shared" "${REGION}/shared/terraform.tfstate"
 }
 
 destroy_k0rdent() {
     local engineer_id="$1"
     confirm_destroy "k0rdent management cluster for $engineer_id"
-    destroy_environment "k0rdent" "$engineer_id" "k0rdent/${engineer_id}/terraform.tfstate"
+    destroy_environment "k0rdent" "$engineer_id" "${REGION}/k0rdent/${engineer_id}/terraform.tfstate"
 }
 
 destroy_metal3() {
     local engineer_id="$1"
     confirm_destroy "Metal3 dev environment for $engineer_id"
-    destroy_environment "metal3-dev" "$engineer_id" "metal3-dev/${engineer_id}/terraform.tfstate"
+    destroy_environment "metal3-dev" "$engineer_id" "${REGION}/metal3-dev/${engineer_id}/terraform.tfstate"
 }
 
 destroy_kubevirt() {
     local engineer_id="$1"
     confirm_destroy "KubeVirt lab environment for $engineer_id"
-    destroy_environment "kubevirt-lab" "$engineer_id" "kubevirt-lab/${engineer_id}/terraform.tfstate"
+    destroy_environment "kubevirt-lab" "$engineer_id" "${REGION}/kubevirt-lab/${engineer_id}/terraform.tfstate"
 }
 
 destroy_gpu() {
     local session_id="$1"
     confirm_destroy "GPU lab environment for $session_id"
-    destroy_environment "gpu-lab" "$session_id" "gpu-lab/${session_id}/terraform.tfstate"
+    destroy_environment "gpu-lab" "$session_id" "${REGION}/gpu-lab/${session_id}/terraform.tfstate"
 }
 
 destroy_all_engineer() {
@@ -220,15 +238,15 @@ destroy_all_engineer() {
 
     # Destroy k0rdent management cluster
     log_info "Checking k0rdent environment..."
-    destroy_environment "k0rdent" "$engineer_id" "k0rdent/${engineer_id}/terraform.tfstate" || true
+    destroy_environment "k0rdent" "$engineer_id" "${REGION}/k0rdent/${engineer_id}/terraform.tfstate" || true
 
     # Destroy Metal3
     log_info "Checking Metal3 environment..."
-    destroy_environment "metal3-dev" "$engineer_id" "metal3-dev/${engineer_id}/terraform.tfstate" || true
+    destroy_environment "metal3-dev" "$engineer_id" "${REGION}/metal3-dev/${engineer_id}/terraform.tfstate" || true
 
     # Destroy KubeVirt
     log_info "Checking KubeVirt environment..."
-    destroy_environment "kubevirt-lab" "$engineer_id" "kubevirt-lab/${engineer_id}/terraform.tfstate" || true
+    destroy_environment "kubevirt-lab" "$engineer_id" "${REGION}/kubevirt-lab/${engineer_id}/terraform.tfstate" || true
 
     log_success "All environments for $engineer_id destroyed!"
 }
@@ -241,7 +259,7 @@ destroy_all_session() {
     log_info "Destroying all environments for session $session_id..."
 
     # Destroy GPU lab
-    destroy_environment "gpu-lab" "$session_id" "gpu-lab/${session_id}/terraform.tfstate" || true
+    destroy_environment "gpu-lab" "$session_id" "${REGION}/gpu-lab/${session_id}/terraform.tfstate" || true
 
     log_success "All environments for session $session_id destroyed!"
 }
@@ -253,6 +271,7 @@ fi
 
 # Default values - region resolved after arg parsing
 REGION=""
+BUCKET_REGION=""
 AUTO_APPROVE="false"
 KEEP_STATE="false"
 
@@ -321,6 +340,8 @@ if [[ -z "$REGION" ]]; then
     exit 1
 fi
 log_info "Using AWS region: $REGION"
+
+BUCKET_REGION=$(get_bucket_region)
 
 # Execute
 case $COMMAND in

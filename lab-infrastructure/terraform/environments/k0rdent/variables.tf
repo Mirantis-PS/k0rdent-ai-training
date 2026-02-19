@@ -22,6 +22,11 @@ variable "tfstate_bucket" {
   type        = string
 }
 
+variable "bucket_region" {
+  description = "AWS region where the S3 state bucket is located"
+  type        = string
+}
+
 #------------------------------------------------------------------------------
 # Cluster Configuration
 #------------------------------------------------------------------------------
@@ -29,7 +34,7 @@ variable "tfstate_bucket" {
 variable "node_count" {
   description = "Number of management cluster nodes (1 for single-node, 3 for HA)"
   type        = number
-  default     = 1  # Single-node for lab simplicity
+  default     = 1 # Single-node for lab simplicity
 
   validation {
     condition     = var.node_count >= 1 && var.node_count <= 5
@@ -40,7 +45,7 @@ variable "node_count" {
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "t3.xlarge"  # 4 vCPU, 16GB RAM - good for k0rdent
+  default     = "t3.xlarge" # 4 vCPU, 16GB RAM - good for k0rdent
 }
 
 variable "root_volume_size" {

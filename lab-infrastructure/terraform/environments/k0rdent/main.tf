@@ -33,19 +33,39 @@ provider "aws" {
   }
 }
 
+# Provider alias for S3 operations — targets the bucket's actual region
+provider "aws" {
+  alias  = "s3"
+  region = var.bucket_region
+
+  default_tags {
+    tags = {
+      Project     = "k0rdent-training"
+      ManagedBy   = "terraform"
+      Owner       = var.engineer_id
+      Environment = "k0rdent-mgmt"
+    }
+  }
+}
+
 # Get shared infrastructure outputs
 data "terraform_remote_state" "shared" {
   backend = "s3"
 
   config = {
     bucket = var.tfstate_bucket
-    key    = "shared/terraform.tfstate"
-    region = var.region
+    key    = "${var.region}/shared/terraform.tfstate"
+    region = var.bucket_region
   }
 }
 
 module "k0rdent_mgmt" {
   source = "../../modules/k0rdent-mgmt"
+
+  providers = {
+    aws    = aws
+    aws.s3 = aws.s3
+  }
 
   project_name = var.project_name
   engineer_id  = var.engineer_id
@@ -110,7 +130,7 @@ output "connection_info" {
 
 output "k0rdent_ui_info" {
   description = "k0rdent UI access information"
-  value = <<-EOT
+  value       = <<-EOT
     k0rdent Enterprise UI:
     1. Connect to management node: ./lab-connect.sh k0rdent ${var.engineer_id}
     2. Run: kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000

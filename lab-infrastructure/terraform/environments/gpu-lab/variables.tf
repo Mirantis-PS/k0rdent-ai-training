@@ -11,12 +11,17 @@ variable "project_name" {
 }
 
 variable "lab_session_id" {
-  description = "Lab session identifier (e.g., 'cohort-2026-q1')"
+  description = "Lab session identifier (e.g., 'cohort-2024-q1')"
   type        = string
 }
 
 variable "tfstate_bucket" {
   type = string
+}
+
+variable "bucket_region" {
+  description = "AWS region where the S3 state bucket is located"
+  type        = string
 }
 
 variable "enable_shared_gpu" {

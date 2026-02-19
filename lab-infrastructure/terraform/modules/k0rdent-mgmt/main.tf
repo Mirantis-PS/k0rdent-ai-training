@@ -5,8 +5,9 @@ terraform {
   required_version = ">= 1.5.0"
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+      source                = "hashicorp/aws"
+      version               = "~> 5.0"
+      configuration_aliases = [aws.s3]
     }
     tls = {
       source  = "hashicorp/tls"
@@ -24,7 +25,7 @@ terraform {
 #------------------------------------------------------------------------------
 resource "random_password" "ui_password" {
   length  = 32
-  special = false  # Avoid special chars that break YAML/shell escaping in Helm
+  special = false # Avoid special chars that break YAML/shell escaping in Helm
 }
 
 locals {
@@ -66,11 +67,11 @@ locals {
 
   # Generate k0sctl configuration
   k0sctl_yaml = templatefile("${path.module}/templates/k0sctl.yaml.tpl", {
-    cluster_name   = "k0rdent-mgmt-${var.engineer_id}"
-    k0s_version    = var.k0s_version
-    node_ips       = aws_instance.mgmt_node[*].private_ip
-    ssh_user       = "ubuntu"
-    ssh_key_path   = "~/.k0rdent-lab/${var.engineer_id}/ssh_key"
+    cluster_name = "k0rdent-mgmt-${var.engineer_id}"
+    k0s_version  = var.k0s_version
+    node_ips     = aws_instance.mgmt_node[*].private_ip
+    ssh_user     = "ubuntu"
+    ssh_key_path = "~/.k0rdent-lab/${var.engineer_id}/ssh_key"
   })
 }
 
@@ -204,11 +205,11 @@ resource "aws_security_group" "mgmt_cluster" {
 resource "aws_instance" "mgmt_node" {
   count = var.node_count
 
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type
-  key_name               = aws_key_pair.mgmt.key_name
-  subnet_id              = var.subnet_id
-  iam_instance_profile   = var.instance_profile_name
+  ami                  = data.aws_ami.ubuntu.id
+  instance_type        = var.instance_type
+  key_name             = aws_key_pair.mgmt.key_name
+  subnet_id            = var.subnet_id
+  iam_instance_profile = var.instance_profile_name
 
   vpc_security_group_ids = concat(
     var.security_group_ids,
@@ -227,8 +228,8 @@ resource "aws_instance" "mgmt_node" {
   user_data_base64 = local.node_user_data
 
   tags = merge(local.common_tags, {
-    Name     = local.node_names[count.index]
-    Role     = count.index == 0 ? "controller-primary" : "controller"
+    Name      = local.node_names[count.index]
+    Role      = count.index == 0 ? "controller-primary" : "controller"
     NodeIndex = count.index
   })
 
@@ -253,6 +254,7 @@ resource "aws_cloudwatch_log_group" "mgmt_cluster" {
 # Store SSH key in S3 for retrieval by provisioning scripts
 #------------------------------------------------------------------------------
 resource "aws_s3_object" "ssh_private_key" {
+  provider     = aws.s3
   bucket       = var.artifacts_bucket
   key          = "ssh-keys/${var.engineer_id}/mgmt/id_ed25519"
   content      = tls_private_key.mgmt.private_key_openssh
@@ -266,6 +268,7 @@ resource "aws_s3_object" "ssh_private_key" {
 }
 
 resource "aws_s3_object" "ssh_public_key" {
+  provider     = aws.s3
   bucket       = var.artifacts_bucket
   key          = "ssh-keys/${var.engineer_id}/mgmt/id_ed25519.pub"
   content      = tls_private_key.mgmt.public_key_openssh
@@ -280,6 +283,7 @@ resource "aws_s3_object" "ssh_public_key" {
 # Store k0sctl configuration in S3
 #------------------------------------------------------------------------------
 resource "aws_s3_object" "k0sctl_config" {
+  provider     = aws.s3
   bucket       = var.artifacts_bucket
   key          = "k0sctl/${var.engineer_id}/k0sctl.yaml"
   content      = local.k0sctl_yaml

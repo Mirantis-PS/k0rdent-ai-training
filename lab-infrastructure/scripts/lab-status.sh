@@ -56,6 +56,20 @@ get_tfstate_bucket() {
     echo "k0rdent-training-tfstate-${account_id}"
 }
 
+# Detect the actual AWS region of the S3 state bucket
+get_bucket_region() {
+    local bucket_name
+    bucket_name=$(get_tfstate_bucket)
+    local location
+    location=$(aws s3api get-bucket-location --bucket "$bucket_name" \
+        --query LocationConstraint --output text 2>/dev/null)
+    if [[ "$location" == "None" || -z "$location" ]]; then
+        echo "us-east-1"
+    else
+        echo "$location"
+    fi
+}
+
 check_instance_status() {
     local instance_id="$1"
     local status
@@ -82,8 +96,8 @@ show_shared_status() {
     }
 
     terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=shared/terraform.tfstate" \
-        -backend-config="region=${REGION}" &>/dev/null || true
+        -backend-config="key=${REGION}/shared/terraform.tfstate" \
+        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
 
     if terraform output vpc_id &>/dev/null; then
         echo -e "${GREEN}Status:${NC} Provisioned"
@@ -113,8 +127,8 @@ show_metal3_status() {
     }
 
     terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=metal3-dev/${engineer_id}/terraform.tfstate" \
-        -backend-config="region=${REGION}" &>/dev/null || true
+        -backend-config="key=${REGION}/metal3-dev/${engineer_id}/terraform.tfstate" \
+        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
 
     if terraform output controller_instance_id &>/dev/null; then
         local instance_id
@@ -163,8 +177,8 @@ show_kubevirt_status() {
     }
 
     terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=kubevirt-lab/${engineer_id}/terraform.tfstate" \
-        -backend-config="region=${REGION}" &>/dev/null || true
+        -backend-config="key=${REGION}/kubevirt-lab/${engineer_id}/terraform.tfstate" \
+        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
 
     if terraform output controller_instance_id &>/dev/null; then
         local instance_id
@@ -216,8 +230,8 @@ show_gpu_status() {
     }
 
     terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=gpu-lab/${session_id}/terraform.tfstate" \
-        -backend-config="region=${REGION}" &>/dev/null || true
+        -backend-config="key=${REGION}/gpu-lab/${session_id}/terraform.tfstate" \
+        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
 
     if terraform output gpu_info &>/dev/null; then
         local gpu_info
@@ -295,6 +309,7 @@ fi
 
 # Default values - region resolved after arg parsing
 REGION=""
+BUCKET_REGION=""
 JSON_OUTPUT="false"
 
 # Parse arguments
@@ -350,6 +365,8 @@ if [[ -z "$REGION" ]]; then
     log_error "  aws configure set region <region>  (AWS CLI default)"
     exit 1
 fi
+
+BUCKET_REGION=$(get_bucket_region)
 
 case $COMMAND in
     all)

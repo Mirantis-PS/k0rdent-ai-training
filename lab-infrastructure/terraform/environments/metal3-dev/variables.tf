@@ -22,6 +22,11 @@ variable "tfstate_bucket" {
   type        = string
 }
 
+variable "bucket_region" {
+  description = "AWS region where the S3 state bucket is located"
+  type        = string
+}
+
 variable "controller_instance_type" {
   description = "Instance type for controller"
   type        = string
