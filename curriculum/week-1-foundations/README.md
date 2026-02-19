@@ -75,34 +75,35 @@ These labs are validated against the following versions. If your environment use
 
 ```
                 YOUR MACHINE
-                     |
-                     | SSH (lab-connect.sh)
-                     v
-              +--------------+
-              |   Bastion    |  (shared across engineers)
-              |   Host       |
-              +------+-------+
-                     |
-                     | SSH jump
-                     v
-         +------------------------+
-         |  Management Cluster    |  Labs 1.1-1.4
-         |  (k0s + k0rdent)      |
-         |                        |
-         |  KCM  |  KSM  |  KOF  |  Lab 1.6 (KOF install)
-         |  CAPI providers        |  Lab 1.3 (AWS provider)
-         +----------+-------------+
-                    |
-                    | Cluster API provisioning
-                    v
-         +------------------------+
-         |  Managed Cluster       |  Lab 1.5 (provisioned)
-         |  (AWS EC2 / k0s)      |
-         |                        |
-         |  cert-manager          |  Lab 1.7 (services)
-         |  ingress-nginx         |
-         |  kyverno               |
-         +------------------------+
+                  |       |
+    SSH (lab-     |       |  Browser (k0rdent UI)
+    connect.sh)   |       |
+                  v       v
+              +--------------+     +---------------------+
+              |   Bastion    |     |   NLB               |
+              |   Host       |     |   (k0rdent UI:80)   |
+              +------+-------+     +----------+----------+
+                     |                        |
+                     | SSH jump               | NodePort 30080
+                     v                        v
+         +-------------------------------------------+
+         |  Management Cluster         Labs 1.1-1.4  |
+         |  (k0s + k0rdent)                          |
+         |                                           |
+         |  KCM  |  KSM  |  KOF     Lab 1.6 (KOF)   |
+         |  CAPI providers           Lab 1.3 (AWS)   |
+         +-------------------+-----------------------+
+                             |
+                             | Cluster API provisioning
+                             v
+         +-------------------------------------------+
+         |  Managed Cluster          Lab 1.5         |
+         |  (AWS EC2 / k0s)                          |
+         |                                           |
+         |  cert-manager             Lab 1.7         |
+         |  ingress-nginx            (services)      |
+         |  kyverno                                  |
+         +-------------------------------------------+
 ```
 
 ## Estimated AWS Cost
@@ -111,8 +112,9 @@ These labs are validated against the following versions. If your environment use
 |----------|-------------|-------------|
 | Management cluster (t3.xlarge) | ~$0.17/hr | Labs 1.1-1.7 |
 | NAT Gateway | ~$0.045/hr | Labs 1.1-1.7 |
+| NLB (k0rdent UI) | ~$0.023/hr | Labs 1.1-1.7 |
 | Managed cluster (2x t3.medium) | ~$0.15/hr | Labs 1.5-1.7 |
-| **Total (all running)** | **~$0.37/hr** | |
+| **Total (all running)** | **~$0.39/hr** | |
 
 > Running 8 hours/day for 5 days: **~$15-25 total**. Remember to destroy environments when not in use -- see cleanup instructions at the end of each lab.
 

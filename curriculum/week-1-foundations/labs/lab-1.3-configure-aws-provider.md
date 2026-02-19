@@ -28,7 +28,7 @@ If your SSH session dropped or you're returning the next day:
 
 ```bash
 cd lab-infrastructure
-./scripts/lab-connect.sh k0rdent <your-engineer-id>
+./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region>
 kubectl get nodes && kubectl get pods -n kcm-system
 ```
 

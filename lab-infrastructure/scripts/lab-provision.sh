@@ -627,7 +627,9 @@ provision_k0rdent() {
     echo ""
     log_info "k0rdent initialization is running in the background."
     log_info "After connecting, check progress with: tail -f /var/log/k0rdent-init.log"
-    log_info "Once complete, access k0rdent UI via port-forward."
+    log_info "Once complete, access k0rdent UI:"
+    log_info "  URL:      $(terraform output -raw ui_url 2>/dev/null || echo 'run: terraform output ui_url')"
+    log_info "  Password: run: terraform output ui_password"
 }
 
 # Default values

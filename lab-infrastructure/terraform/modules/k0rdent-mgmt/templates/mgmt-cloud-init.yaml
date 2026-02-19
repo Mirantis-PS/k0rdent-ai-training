@@ -232,6 +232,12 @@ write_files:
       # Wait for KCM operator
       kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=kcm -n kcm-system --timeout=600s || true
 
+      # Expose k0rdent UI via NodePort for NLB access
+      # The k0rdent-enterprise chart does not expose service.type as a configurable value,
+      # so we patch the service after installation.
+      echo "Patching k0rdent UI service to NodePort..."
+      kubectl patch svc kcm-k0rdent-ui -n kcm-system -p '{"spec":{"type":"NodePort","ports":[{"port":3000,"targetPort":3000,"nodePort":30080,"protocol":"TCP"}]}}'
+
       echo "=== k0rdent Enterprise installed ==="
 
   - path: /opt/k0rdent-lab/scripts/05-configure-providers.sh
@@ -305,9 +311,9 @@ write_files:
       echo ""
 
       echo "=== k0rdent UI Access ==="
-      echo "The k0rdent UI is available via port-forward:"
-      echo "  kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000"
-      echo "  Then open: http://localhost:8080"
+      echo "The k0rdent UI is exposed via a Network Load Balancer."
+      echo "  Get the URL: terraform output ui_url  (from k0rdent environment)"
+      echo "  Login: admin / <terraform output ui_password>"
       echo ""
 
       echo "=============================================="
@@ -407,8 +413,7 @@ write_files:
         echo "  kubectl get clustertemplates   - List available templates"
         echo "  kubectl get clusterdeployment  - List deployed clusters"
         echo ""
-        echo "k0rdent UI:"
-        echo "  kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000"
+        echo "k0rdent UI: exposed via NLB (see terraform output ui_url)"
         echo ""
       else
         echo "================================================"
@@ -434,10 +439,9 @@ write_files:
          ```
 
       2. **Access k0rdent UI:**
-         ```bash
-         kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000
-         ```
-         Then open http://localhost:8080
+         The UI is exposed via a Network Load Balancer.
+         Get the URL: `terraform output ui_url` (from k0rdent environment)
+         Login: admin / `terraform output ui_password`
 
       3. **Check k0rdent components:**
          ```bash

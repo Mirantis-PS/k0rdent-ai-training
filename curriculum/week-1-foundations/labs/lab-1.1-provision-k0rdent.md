@@ -52,9 +52,9 @@ Before provisioning, understand the multi-tenant architecture:
 If your SSH session dropped or you're returning the next day:
 
 ```bash
-# Reconnect to your environment
+# Reconnect to your environment (use the same region you provisioned in)
 cd lab-infrastructure
-./scripts/lab-connect.sh k0rdent <your-engineer-id>
+./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region>
 
 # Verify the cluster is running
 kubectl get nodes
@@ -152,12 +152,12 @@ The provisioning script automates the entire setup process including:
 Run the provisioning command:
 
 ```bash
-./scripts/lab-provision.sh k0rdent <your-engineer-id> --auto-approve
+./scripts/lab-provision.sh k0rdent <your-engineer-id> --region <your-region> --auto-approve
 ```
 
-Replace `<your-engineer-id>` with your unique identifier (e.g., `engineer-01`, `john-doe`).
+Replace `<your-engineer-id>` with your unique identifier (e.g., `engineer-01`, `john-doe`) and `<your-region>` with the AWS region you chose (e.g., `us-east-1`, `eu-west-1`).
 
-> **Example:** `./scripts/lab-provision.sh k0rdent john-doe --auto-approve`
+> **Example:** `./scripts/lab-provision.sh k0rdent john-doe --region us-east-1 --auto-approve`
 
 ### Understanding the Output
 
@@ -174,7 +174,7 @@ The script will display progress as it:
 Once provisioning completes, connect to your management cluster:
 
 ```bash
-./scripts/lab-connect.sh k0rdent <your-engineer-id>
+./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region>
 ```
 
 This establishes an SSH connection through the bastion host.
@@ -258,44 +258,38 @@ kubectl get credentials -A
 
 ## Part 7: Access the k0rdent UI
 
-The k0rdent UI is accessible via port-forwarding.
+The k0rdent UI is exposed via a Network Load Balancer (NLB), so you can access it directly from your browser -- no SSH tunnels or port-forwarding required.
 
-**Option A: Two-terminal approach**
+### Get the UI URL
 
-Terminal 1 (SSH to management cluster):
+From your local machine (where you ran the provisioning script):
+
 ```bash
-./scripts/lab-connect.sh k0rdent <your-engineer-id>
-# Then start port-forward:
-kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0
+cd lab-infrastructure/terraform/environments/k0rdent
+terraform output ui_url
 ```
 
-Terminal 2 (local machine - create tunnel):
+This outputs the NLB URL, e.g., `http://k0rdent-ui-xxxx.elb.us-east-1.amazonaws.com`
+
+### Get the UI Password
+
 ```bash
-./scripts/lab-connect.sh k0rdent <your-engineer-id> --tunnel 8080:8080
+# Option A: Terraform output
+cd lab-infrastructure/terraform/environments/k0rdent
+terraform output -raw ui_password
+
+# Option B: Helper script
+./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region> --show-password
 ```
 
-**Option B: Single command with background port-forward**
+### Login
 
-From your SSH session on the management cluster:
-```bash
-kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0 &
-```
+1. Open the NLB URL in your browser
+2. Login with:
+   - **Username:** `admin`
+   - **Password:** the password from the command above
 
-Then open a new local terminal:
-```bash
-./scripts/lab-connect.sh k0rdent <your-engineer-id> --tunnel 8080:8080
-```
-
-**Access the UI:**
-
-Open your browser to: `http://localhost:8080`
-
-**Credentials:**
-- **Username:** `admin`
-- **Password:** From your local machine, run:
-  ```bash
-  cd lab-infrastructure/terraform/environments/k0rdent && terraform output -raw ui_password
-  ```
+> **Note:** The NLB URL uses HTTP (port 80). The NLB may take 2-3 minutes after provisioning to become healthy. If you get a connection error, wait and retry.
 
 ## Part 8: Explore k0rdent Resources
 
@@ -342,7 +336,7 @@ For quick diagnostics:
 
 ```bash
 # Check environment status
-./scripts/lab-status.sh k0rdent your-name
+./scripts/lab-status.sh k0rdent your-name --region <your-region>
 ```
 
 **Error: Terraform version too old**
@@ -371,7 +365,7 @@ aws sso login --profile your-profile-name
 eval "$(aws configure export-credentials --format env --profile your-profile-name)"
 
 # Now run the provisioning script (credentials are in environment)
-./scripts/lab-provision.sh k0rdent <your-engineer-id> --auto-approve
+./scripts/lab-provision.sh k0rdent <your-engineer-id> --region <your-region> --auto-approve
 ```
 
 > **Note:** The exported credentials are temporary session tokens. If your session expires, run the `aws sso login` and `eval` commands again.
@@ -409,7 +403,7 @@ For comprehensive troubleshooting, see the [Troubleshooting Guide](../../../lab-
 When finished with the lab, you can destroy the environment:
 
 ```bash
-./scripts/lab-destroy.sh k0rdent <your-engineer-id> --auto-approve
+./scripts/lab-destroy.sh k0rdent <your-engineer-id> --region <your-region> --auto-approve
 ```
 
 > **Important:** Only destroy if you're done with **all Week 1 labs**, as subsequent labs build on this environment.

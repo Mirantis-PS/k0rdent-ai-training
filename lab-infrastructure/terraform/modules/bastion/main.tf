@@ -71,7 +71,7 @@ resource "aws_instance" "bastion" {
   associate_public_ip_address = true
 
   root_block_device {
-    volume_size           = 30  # AL2023 AMI requires minimum 30GB
+    volume_size           = 30 # AL2023 AMI requires minimum 30GB
     volume_type           = "gp3"
     encrypted             = true
     delete_on_termination = true

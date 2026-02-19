@@ -19,7 +19,19 @@ data "aws_availability_zones" "available" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  azs = slice(data.aws_availability_zones.available.names, 0, 3)
+  azs    = slice(data.aws_availability_zones.available.names, 0, 3)
+  gpu_az = local.gpu_az != "" ? local.gpu_az : local.azs[0]
+
+  account_id = data.aws_caller_identity.current.account_id
+
+  # S3 bucket names and ARNs computed directly — no AWS API calls needed.
+  # Buckets are created by lab-provision.sh (ensure_s3_buckets), not Terraform.
+  tfstate_bucket_name   = "${var.project_name}-tfstate-${local.account_id}"
+  tfstate_bucket_arn    = "arn:aws:s3:::${local.tfstate_bucket_name}"
+  images_bucket_name    = "${var.project_name}-images-${local.account_id}"
+  images_bucket_arn     = "arn:aws:s3:::${local.images_bucket_name}"
+  artifacts_bucket_name = "${var.project_name}-artifacts-${local.account_id}"
+  artifacts_bucket_arn  = "arn:aws:s3:::${local.artifacts_bucket_name}"
 
   common_tags = {
     Project     = "k0rdent-training"
@@ -108,10 +120,10 @@ resource "aws_subnet" "private" {
 resource "aws_subnet" "gpu" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, 100)
-  availability_zone = var.gpu_az
+  availability_zone = local.gpu_az
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-gpu-${var.gpu_az}"
+    Name = "${var.project_name}-gpu-${local.gpu_az}"
     Type = "gpu"
   })
 }
@@ -168,42 +180,11 @@ resource "aws_route_table_association" "gpu" {
 #------------------------------------------------------------------------------
 # S3 Buckets
 #------------------------------------------------------------------------------
-# NOTE: tfstate bucket is created by lab-provision.sh script before terraform runs
-# We reference it as a data source to avoid conflicts
-data "aws_s3_bucket" "tfstate" {
-  bucket = "${var.project_name}-tfstate-${data.aws_caller_identity.current.account_id}"
-}
-
-resource "aws_s3_bucket" "images" {
-  bucket = "${var.project_name}-images-${data.aws_caller_identity.current.account_id}"
-
-  tags = merge(local.common_tags, {
-    Name = "${var.project_name}-images"
-  })
-}
-
-resource "aws_s3_bucket" "artifacts" {
-  bucket = "${var.project_name}-artifacts-${data.aws_caller_identity.current.account_id}"
-
-  tags = merge(local.common_tags, {
-    Name = "${var.project_name}-artifacts"
-  })
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-
-  rule {
-    id     = "expire-old-artifacts"
-    status = "Enabled"
-
-    filter {}
-
-    expiration {
-      days = 30
-    }
-  }
-}
+# All S3 buckets are created by lab-provision.sh (ensure_s3_buckets) and referenced
+# here only via computed locals. This avoids cross-region S3 API call failures when
+# the AWS provider region differs from the bucket's actual region.
+# Legacy S3 resources are removed from state by the provisioning script
+# (migrate_s3_state) before terraform apply.
 
 #------------------------------------------------------------------------------
 # Security Groups

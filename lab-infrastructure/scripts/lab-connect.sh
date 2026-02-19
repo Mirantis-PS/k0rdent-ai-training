@@ -425,10 +425,9 @@ if [[ "$SHOW_PASSWORD" == "true" ]]; then
         log_success "k0rdent UI Password: $UI_PASSWORD"
         echo ""
         echo "UI Access:"
-        echo "  1. Run: ./scripts/lab-connect.sh k0rdent $IDENTIFIER --tunnel 8080:8080"
-        echo "  2. On server: kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000 --address 0.0.0.0 &"
-        echo "  3. Open: http://localhost:8080"
-        echo "  4. Login: admin / $UI_PASSWORD"
+        echo "  1. Get URL: cd lab-infrastructure/terraform/environments/k0rdent && terraform output ui_url"
+        echo "  2. Open the NLB URL in your browser"
+        echo "  3. Login: admin / $UI_PASSWORD"
     else
         log_error "Could not retrieve UI password"
         exit 1

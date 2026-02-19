@@ -185,6 +185,15 @@ resource "aws_security_group" "mgmt_cluster" {
     self        = true
   }
 
+  # NLB health checks and traffic to k0rdent UI NodePort
+  ingress {
+    description = "k0rdent UI via NLB"
+    from_port   = 30080
+    to_port     = 30080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Outbound traffic
   egress {
     description = "All outbound traffic"
@@ -248,6 +257,59 @@ resource "aws_cloudwatch_log_group" "mgmt_cluster" {
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-mgmt-logs-${var.engineer_id}"
   })
+}
+
+#------------------------------------------------------------------------------
+# Network Load Balancer for k0rdent UI
+#------------------------------------------------------------------------------
+resource "aws_lb" "k0rdent_ui" {
+  name               = "${var.project_name}-ui-${var.engineer_id}"
+  internal           = false
+  load_balancer_type = "network"
+  subnets            = var.public_subnet_ids
+
+  enable_cross_zone_load_balancing = true
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-ui-${var.engineer_id}"
+  })
+}
+
+resource "aws_lb_target_group" "k0rdent_ui" {
+  name     = "${var.project_name}-ui-${var.engineer_id}"
+  port     = 30080
+  protocol = "TCP"
+  vpc_id   = var.vpc_id
+
+  health_check {
+    protocol            = "TCP"
+    port                = 30080
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    interval            = 30
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-ui-tg-${var.engineer_id}"
+  })
+}
+
+resource "aws_lb_listener" "k0rdent_ui" {
+  load_balancer_arn = aws_lb.k0rdent_ui.arn
+  port              = 80
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.k0rdent_ui.arn
+  }
+}
+
+resource "aws_lb_target_group_attachment" "k0rdent_ui" {
+  count            = var.node_count
+  target_group_arn = aws_lb_target_group.k0rdent_ui.arn
+  target_id        = aws_instance.mgmt_node[count.index].id
+  port             = 30080
 }
 
 #------------------------------------------------------------------------------

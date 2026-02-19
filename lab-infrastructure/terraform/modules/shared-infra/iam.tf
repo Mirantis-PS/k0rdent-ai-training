@@ -4,7 +4,7 @@
 # Lab Provisioner Role (for engineers running Terraform)
 #------------------------------------------------------------------------------
 resource "aws_iam_role" "lab_provisioner" {
-  name = "${var.project_name}-lab-provisioner"
+  name = "${var.project_name}-lab-provisioner-${var.region}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -13,19 +13,19 @@ resource "aws_iam_role" "lab_provisioner" {
         Action = "sts:AssumeRole"
         Effect = "Allow"
         Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+          AWS = "arn:aws:iam::${local.account_id}:root"
         }
       }
     ]
   })
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-lab-provisioner"
+    Name = "${var.project_name}-lab-provisioner-${var.region}"
   })
 }
 
 resource "aws_iam_role_policy" "lab_provisioner" {
-  name = "${var.project_name}-lab-provisioner-policy"
+  name = "${var.project_name}-lab-provisioner-policy-${var.region}"
   role = aws_iam_role.lab_provisioner.id
 
   policy = jsonencode({
@@ -83,12 +83,12 @@ resource "aws_iam_role_policy" "lab_provisioner" {
           "s3:ListBucket"
         ]
         Resource = [
-          data.aws_s3_bucket.tfstate.arn,
-          "${data.aws_s3_bucket.tfstate.arn}/*",
-          aws_s3_bucket.images.arn,
-          "${aws_s3_bucket.images.arn}/*",
-          aws_s3_bucket.artifacts.arn,
-          "${aws_s3_bucket.artifacts.arn}/*"
+          local.tfstate_bucket_arn,
+          "${local.tfstate_bucket_arn}/*",
+          local.images_bucket_arn,
+          "${local.images_bucket_arn}/*",
+          local.artifacts_bucket_arn,
+          "${local.artifacts_bucket_arn}/*"
         ]
       },
       {
@@ -116,7 +116,7 @@ resource "aws_iam_role_policy" "lab_provisioner" {
 # Lab Instance Role (for EC2 instances)
 #------------------------------------------------------------------------------
 resource "aws_iam_role" "lab_instance" {
-  name = "${var.project_name}-lab-instance"
+  name = "${var.project_name}-lab-instance-${var.region}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -132,12 +132,12 @@ resource "aws_iam_role" "lab_instance" {
   })
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-lab-instance"
+    Name = "${var.project_name}-lab-instance-${var.region}"
   })
 }
 
 resource "aws_iam_role_policy" "lab_instance" {
-  name = "${var.project_name}-lab-instance-policy"
+  name = "${var.project_name}-lab-instance-policy-${var.region}"
   role = aws_iam_role.lab_instance.id
 
   policy = jsonencode({
@@ -151,8 +151,8 @@ resource "aws_iam_role_policy" "lab_instance" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.images.arn,
-          "${aws_s3_bucket.images.arn}/*"
+          local.images_bucket_arn,
+          "${local.images_bucket_arn}/*"
         ]
       },
       {
@@ -165,8 +165,8 @@ resource "aws_iam_role_policy" "lab_instance" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.artifacts.arn,
-          "${aws_s3_bucket.artifacts.arn}/*"
+          local.artifacts_bucket_arn,
+          "${local.artifacts_bucket_arn}/*"
         ]
       },
       {
@@ -282,11 +282,11 @@ resource "aws_iam_role_policy" "lab_instance" {
 }
 
 resource "aws_iam_instance_profile" "lab_instance" {
-  name = "${var.project_name}-lab-instance"
+  name = "${var.project_name}-lab-instance-${var.region}"
   role = aws_iam_role.lab_instance.name
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-lab-instance-profile"
+    Name = "${var.project_name}-lab-instance-profile-${var.region}"
   })
 }
 
@@ -294,7 +294,7 @@ resource "aws_iam_instance_profile" "lab_instance" {
 # Lab Admin Role (for instructors)
 #------------------------------------------------------------------------------
 resource "aws_iam_role" "lab_admin" {
-  name = "${var.project_name}-lab-admin"
+  name = "${var.project_name}-lab-admin-${var.region}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -303,19 +303,19 @@ resource "aws_iam_role" "lab_admin" {
         Action = "sts:AssumeRole"
         Effect = "Allow"
         Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+          AWS = "arn:aws:iam::${local.account_id}:root"
         }
       }
     ]
   })
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-lab-admin"
+    Name = "${var.project_name}-lab-admin-${var.region}"
   })
 }
 
 resource "aws_iam_role_policy" "lab_admin" {
-  name = "${var.project_name}-lab-admin-policy"
+  name = "${var.project_name}-lab-admin-policy-${var.region}"
   role = aws_iam_role.lab_admin.id
 
   policy = jsonencode({
@@ -349,12 +349,12 @@ resource "aws_iam_role_policy" "lab_admin" {
           "s3:*"
         ]
         Resource = [
-          data.aws_s3_bucket.tfstate.arn,
-          "${data.aws_s3_bucket.tfstate.arn}/*",
-          aws_s3_bucket.images.arn,
-          "${aws_s3_bucket.images.arn}/*",
-          aws_s3_bucket.artifacts.arn,
-          "${aws_s3_bucket.artifacts.arn}/*"
+          local.tfstate_bucket_arn,
+          "${local.tfstate_bucket_arn}/*",
+          local.images_bucket_arn,
+          "${local.images_bucket_arn}/*",
+          local.artifacts_bucket_arn,
+          "${local.artifacts_bucket_arn}/*"
         ]
       },
       {

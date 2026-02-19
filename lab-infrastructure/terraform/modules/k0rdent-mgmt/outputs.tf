@@ -91,3 +91,8 @@ output "ui_password" {
   value       = local.effective_ui_password
   sensitive   = true
 }
+
+output "ui_url" {
+  description = "k0rdent UI URL via NLB"
+  value       = "http://${aws_lb.k0rdent_ui.dns_name}"
+}

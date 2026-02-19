@@ -13,15 +13,20 @@ variable "vpc_cidr" {
 }
 
 variable "gpu_az" {
-  description = "Availability zone with GPU instance capacity (P3/P4)"
+  description = "Availability zone with GPU instance capacity (P3/P4). Defaults to first AZ in the region."
   type        = string
-  default     = "eu-west-1a"
+  default     = ""
 }
 
 variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed to SSH to bastion"
   type        = list(string)
   default     = ["0.0.0.0/0"] # Restrict in production
+}
+
+variable "region" {
+  description = "AWS region for this deployment (used in global resource names to avoid collisions)"
+  type        = string
 }
 
 variable "tags" {
