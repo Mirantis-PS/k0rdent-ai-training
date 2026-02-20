@@ -112,16 +112,6 @@ variable "artifacts_bucket" {
   type        = string
 }
 
-variable "images_bucket" {
-  description = "S3 bucket for OS images"
-  type        = string
-}
-
-variable "tfstate_bucket" {
-  description = "S3 bucket for Terraform state"
-  type        = string
-}
-
 #------------------------------------------------------------------------------
 # Git Repository Configuration
 #------------------------------------------------------------------------------

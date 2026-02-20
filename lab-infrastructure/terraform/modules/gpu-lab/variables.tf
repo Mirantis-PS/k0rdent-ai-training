@@ -7,7 +7,7 @@ variable "project_name" {
 }
 
 variable "lab_session_id" {
-  description = "Unique identifier for the lab session (e.g., 'cohort-2026-q1')"
+  description = "Unique identifier for the lab session (e.g., 'cohort-2024-q1')"
   type        = string
 }
 

@@ -6,6 +6,11 @@ variable "project_name" {
   default     = "k0rdent-training"
 }
 
+variable "engineer_id" {
+  description = "Unique identifier for the engineer"
+  type        = string
+}
+
 variable "subnet_id" {
   description = "Public subnet ID for bastion"
   type        = string
@@ -19,7 +24,7 @@ variable "security_group_id" {
 variable "instance_type" {
   description = "Instance type for bastion"
   type        = string
-  default     = "t3.medium"  # t3.micro/small are too resource-constrained for SSH tunneling
+  default     = "t3.medium" # t3.micro/small are too resource-constrained for SSH tunneling
 }
 
 variable "use_elastic_ip" {

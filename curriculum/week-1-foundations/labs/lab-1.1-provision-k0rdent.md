@@ -23,43 +23,52 @@ In this lab, you will:
 
 ## How the Lab Infrastructure Works
 
-Before provisioning, understand the multi-tenant architecture:
+Before provisioning, understand the per-student architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           SHARED INFRASTRUCTURE (auto-created)              │
-│         VPC, Bastion, S3 Buckets, IAM Roles                 │
+│           PER-STUDENT, PER-REGION INFRASTRUCTURE              │
+│       Each student + region gets fully isolated resources      │
 ├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │  john-doe   │  │  jane-doe   │  │  bob-smith  │   ...    │
-│  │   k0rdent   │  │   k0rdent   │  │   k0rdent   │          │
-│  │ 10.0.8.x    │  │ 10.0.8.y    │  │ 10.0.8.z    │          │
-│  └─────────────┘  └─────────────┘  └─────────────┘          │
-│                                                             │
-│  Each engineer has isolated state and resources             │
+│                                                              │
+│  john-doe                         jane-doe                   │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐          │
+│  │  us-east-1   │ │  eu-west-1   │ │  us-east-1   │   ...   │
+│  │  Own VPC     │ │  Own VPC     │ │  Own VPC     │          │
+│  │  Own Bastion │ │  Own Bastion │ │  Own Bastion │          │
+│  │  Own S3      │ │  Own S3      │ │  Own S3      │          │
+│  │  k0rdent     │ │  k0rdent     │ │  k0rdent     │          │
+│  └──────────────┘ └──────────────┘ └──────────────┘          │
+│                                                              │
+│  Each student can deploy to multiple regions independently   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Key Points:**
-- Shared infrastructure is created **automatically** on first run
+- Each student gets their own VPC, bastion, S3 bucket, and k0rdent cluster **per region**
 - Each engineer uses a unique ID (e.g., `john-doe`, `jane-doe`)
 - Running with different IDs creates **completely isolated** environments
-- State files are stored separately: `k0rdent/<your-id>/terraform.tfstate`
+- You can deploy to **multiple AWS regions** independently — each region gets its own S3 bucket and fully isolated infrastructure
+- State is stored in a per-student, per-region S3 bucket: `k0rdent-lab-<your-id>-<account-id>-<region>`
 
 ## Resuming This Lab
 
 If your SSH session dropped or you're returning the next day:
 
 ```bash
-# Reconnect to your environment (use the same region you provisioned in)
+# Reconnect to your environment
 cd lab-infrastructure
-./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region>
+./scripts/lab-connect.sh <your-engineer-id>
+
+# If you have deployments in multiple regions, specify which one:
+./scripts/lab-connect.sh <your-engineer-id> --region eu-west-1
 
 # Verify the cluster is running
 kubectl get nodes
 kubectl get pods -n kcm-system
 ```
+
+> **Note:** Without `--region`, the connect script uses the region from your last provisioned deployment.
 
 ---
 
@@ -144,26 +153,40 @@ aws sts get-caller-identity
 ## Part 3: Provision the k0rdent Management Cluster
 
 The provisioning script automates the entire setup process including:
-- Creating S3 bucket for Terraform state
-- Provisioning shared VPC infrastructure and bastion host
+- Creating a per-student, per-region S3 bucket for Terraform state
+- Provisioning VPC, bastion host, and IAM resources
 - Deploying the k0rdent management cluster
 - Installing k0s and k0rdent Enterprise
 
 Run the provisioning command:
 
 ```bash
-./scripts/lab-provision.sh k0rdent <your-engineer-id> --region <your-region> --auto-approve
+./scripts/lab-provision.sh <your-engineer-id> --region <your-region> --auto-approve
 ```
 
 Replace `<your-engineer-id>` with your unique identifier (e.g., `engineer-01`, `john-doe`) and `<your-region>` with the AWS region you chose (e.g., `us-east-1`, `eu-west-1`).
 
-> **Example:** `./scripts/lab-provision.sh k0rdent john-doe --region us-east-1 --auto-approve`
+> **Example:** `./scripts/lab-provision.sh john-doe --region us-east-1 --auto-approve`
+
+### Multi-Region Deployments
+
+You can deploy k0rdent clusters to **multiple regions** by running the provisioning script again with a different `--region`. Each region gets completely isolated infrastructure (its own VPC, bastion, S3 bucket, and k0rdent cluster):
+
+```bash
+# Deploy to US East
+./scripts/lab-provision.sh john-doe --region us-east-1 --auto-approve
+
+# Deploy to EU West (independent from the US deployment)
+./scripts/lab-provision.sh john-doe --region eu-west-1 --auto-approve
+```
+
+Each region's state is stored in a separate S3 bucket (`k0rdent-lab-john-doe-123456789012-us-east-1`, `k0rdent-lab-john-doe-123456789012-eu-west-1`), so deployments never interfere with each other.
 
 ### Understanding the Output
 
 The script will display progress as it:
-1. Creates S3 bucket for Terraform state
-2. Provisions shared infrastructure (VPC, subnets, bastion)
+1. Creates per-student, per-region S3 bucket for Terraform state
+2. Provisions VPC, subnets, bastion host
 3. Deploys the management cluster EC2 instance
 4. Waits for the instance to be ready
 
@@ -174,7 +197,7 @@ The script will display progress as it:
 Once provisioning completes, connect to your management cluster:
 
 ```bash
-./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region>
+./scripts/lab-connect.sh <your-engineer-id>
 ```
 
 This establishes an SSH connection through the bastion host.
@@ -265,7 +288,7 @@ The k0rdent UI is exposed via a Network Load Balancer (NLB), so you can access i
 From your local machine (where you ran the provisioning script):
 
 ```bash
-cd lab-infrastructure/terraform/environments/k0rdent
+cd lab-infrastructure/terraform/environments/student-lab
 terraform output ui_url
 ```
 
@@ -275,11 +298,11 @@ This outputs the NLB URL, e.g., `http://k0rdent-ui-xxxx.elb.us-east-1.amazonaws.
 
 ```bash
 # Option A: Terraform output
-cd lab-infrastructure/terraform/environments/k0rdent
+cd lab-infrastructure/terraform/environments/student-lab
 terraform output -raw ui_password
 
 # Option B: Helper script
-./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region> --show-password
+./scripts/lab-connect.sh <your-engineer-id> --show-password
 ```
 
 ### Login
@@ -335,8 +358,11 @@ Before completing this lab, verify:
 For quick diagnostics:
 
 ```bash
-# Check environment status
-./scripts/lab-status.sh k0rdent your-name --region <your-region>
+# Check environment status (uses last-provisioned region by default)
+./scripts/lab-status.sh your-name
+
+# Check a specific region
+./scripts/lab-status.sh your-name --region eu-west-1
 ```
 
 **Error: Terraform version too old**
@@ -365,7 +391,7 @@ aws sso login --profile your-profile-name
 eval "$(aws configure export-credentials --format env --profile your-profile-name)"
 
 # Now run the provisioning script (credentials are in environment)
-./scripts/lab-provision.sh k0rdent <your-engineer-id> --region <your-region> --auto-approve
+./scripts/lab-provision.sh <your-engineer-id> --region <your-region> --auto-approve
 ```
 
 > **Note:** The exported credentials are temporary session tokens. If your session expires, run the `aws sso login` and `eval` commands again.
@@ -403,7 +429,17 @@ For comprehensive troubleshooting, see the [Troubleshooting Guide](../../../lab-
 When finished with the lab, you can destroy the environment:
 
 ```bash
-./scripts/lab-destroy.sh k0rdent <your-engineer-id> --region <your-region> --auto-approve
+# Destroy the environment in the last-provisioned region
+./scripts/lab-destroy.sh <your-engineer-id> --auto-approve
+
+# Or specify which region to destroy
+./scripts/lab-destroy.sh <your-engineer-id> --region us-east-1 --auto-approve
+```
+
+If you deployed to multiple regions, each region must be destroyed separately. Add `--delete-bucket` to also remove the S3 state bucket:
+
+```bash
+./scripts/lab-destroy.sh <your-engineer-id> --region eu-west-1 --auto-approve --delete-bucket
 ```
 
 > **Important:** Only destroy if you're done with **all Week 1 labs**, as subsequent labs build on this environment.
@@ -412,6 +448,7 @@ When finished with the lab, you can destroy the environment:
 
 In this lab, you:
 - Provisioned a k0rdent Enterprise management cluster using automated scripts
+- Learned that deployments are per-student, per-region (you can deploy to multiple AWS regions independently)
 - Connected to the cluster via SSH through a bastion host
 - Verified k0s and k0rdent Enterprise installation
 - Explored the k0rdent UI and Kubernetes resources

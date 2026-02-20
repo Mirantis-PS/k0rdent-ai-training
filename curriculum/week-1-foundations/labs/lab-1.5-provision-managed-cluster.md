@@ -33,7 +33,7 @@ If your SSH session dropped or you're returning the next day:
 ```bash
 # Reconnect from your local machine
 cd lab-infrastructure
-./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region>
+./scripts/lab-connect.sh <your-engineer-id>
 
 # Verify management cluster is running
 kubectl get nodes

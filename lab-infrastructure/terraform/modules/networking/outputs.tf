@@ -1,4 +1,4 @@
-# Outputs for Shared Infrastructure Module
+# Outputs for Per-Student Networking Module
 
 output "vpc_id" {
   description = "VPC ID"
@@ -43,31 +43,6 @@ output "k8s_cluster_security_group_id" {
 output "gpu_lab_security_group_id" {
   description = "GPU lab security group ID"
   value       = aws_security_group.gpu_lab.id
-}
-
-output "tfstate_bucket" {
-  description = "S3 bucket for Terraform state"
-  value       = local.tfstate_bucket_name
-}
-
-output "images_bucket" {
-  description = "S3 bucket for OS images"
-  value       = local.images_bucket_name
-}
-
-output "artifacts_bucket" {
-  description = "S3 bucket for lab artifacts"
-  value       = local.artifacts_bucket_name
-}
-
-output "lab_provisioner_role_arn" {
-  description = "IAM role ARN for lab provisioning"
-  value       = aws_iam_role.lab_provisioner.arn
-}
-
-output "lab_instance_profile_name" {
-  description = "IAM instance profile name for lab instances"
-  value       = aws_iam_instance_profile.lab_instance.name
 }
 
 output "availability_zones" {

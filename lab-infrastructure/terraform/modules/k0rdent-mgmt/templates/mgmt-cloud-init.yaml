@@ -232,11 +232,42 @@ write_files:
       # Wait for KCM operator
       kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=kcm -n kcm-system --timeout=600s || true
 
-      # Expose k0rdent UI via NodePort for NLB access
-      # The k0rdent-enterprise chart does not expose service.type as a configurable value,
-      # so we patch the service after installation.
-      echo "Patching k0rdent UI service to NodePort..."
-      kubectl patch svc kcm-k0rdent-ui -n kcm-system -p '{"spec":{"type":"NodePort","ports":[{"port":3000,"targetPort":3000,"nodePort":30080,"protocol":"TCP"}]}}'
+      # Expose k0rdent UI via a separate NodePort service for NLB access.
+      # We do NOT patch the original kcm-k0rdent-ui ClusterIP service because
+      # the KCM operator reconciles it back to ClusterIP. Instead, we create
+      # an independent service that selects the same pods but is not managed
+      # by Helm/Flux, so it won't be reverted.
+      echo "Creating k0rdent UI NodePort service for external access..."
+
+      # Discover the pod selector from the original ClusterIP service
+      # and reuse it for our external NodePort service
+      SELECTOR=$(kubectl get svc kcm-k0rdent-ui -n kcm-system -o json | \
+        jq -r '.spec.selector | to_entries | map("    " + .key + ": " + .value) | join("\n")')
+      echo "Original service selector:"
+      echo "$SELECTOR"
+
+      # Create a separate NodePort service using the discovered selector
+      cat <<SVCEOF | kubectl apply -f -
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: k0rdent-ui-external
+        namespace: kcm-system
+        labels:
+          app.kubernetes.io/purpose: training-lab-access
+      spec:
+        type: NodePort
+        ports:
+          - port: 3000
+            targetPort: 3000
+            nodePort: 30080
+            protocol: TCP
+        selector:
+      $SELECTOR
+      SVCEOF
+
+      echo "Verifying external UI service..."
+      kubectl get svc k0rdent-ui-external -n kcm-system -o wide
 
       echo "=== k0rdent Enterprise installed ==="
 

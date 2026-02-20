@@ -1,6 +1,6 @@
 #!/bin/bash
-# k0rdent Training Lab Provisioning Script
-# Usage: ./lab-provision.sh <lab-type> <identifier> [options]
+# k0rdent Training Lab Provisioning Script (Per-Student Model)
+# Usage: ./lab-provision.sh <your-name> [options]
 
 set -euo pipefail
 
@@ -23,15 +23,14 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Wait for an EC2 instance to be running and SSH-ready
 wait_for_instance() {
     local instance_id="$1"
-    local max_wait="${2:-300}"  # Default 5 minutes
+    local max_wait="${2:-300}"
     local start_time=$(date +%s)
 
     log_info "Waiting for instance $instance_id to be running..."
 
-    # Wait for instance to be in running state
     while true; do
         local state
-        state=$(aws ec2 describe-instances --instance-ids "$instance_id" \
+        state=$(aws ec2 describe-instances --region "$REGION" --instance-ids "$instance_id" \
             --query 'Reservations[0].Instances[0].State.Name' --output text 2>/dev/null || echo "unknown")
 
         if [[ "$state" == "running" ]]; then
@@ -49,11 +48,10 @@ wait_for_instance() {
         sleep 5
     done
 
-    # Wait for instance status checks to pass
     log_info "Waiting for instance status checks..."
     while true; do
         local status
-        status=$(aws ec2 describe-instance-status --instance-ids "$instance_id" \
+        status=$(aws ec2 describe-instance-status --region "$REGION" --instance-ids "$instance_id" \
             --query 'InstanceStatuses[0].InstanceStatus.Status' --output text 2>/dev/null || echo "initializing")
 
         if [[ "$status" == "ok" ]]; then
@@ -76,41 +74,35 @@ wait_for_instance() {
 
 usage() {
     cat <<EOF
-k0rdent Training Lab Provisioning Script
+k0rdent Training Lab Provisioning Script (Per-Student)
 
-Usage: $0 <lab-type> <your-name> [options]
+Usage: $0 <your-name> [options]
 
-Lab Types:
-  k0rdent <your-name>         Provision k0rdent Enterprise management cluster (Week 1)
-  metal3 <your-name>          Provision Metal3 dev environment (Week 2: BMaaS)
-  kubevirt <your-name>        Provision KubeVirt lab environment (Week 3: VMaaS)
-  gpu <session-id>            Provision GPU lab environment (Week 4-5: AI workloads)
-  gpu-advanced <session-id>   Provision advanced GPU lab (8x A100)
+Arguments:
+  <your-name>                 Your unique identifier (e.g., 'john-doe', 'crusu')
 
 Options:
-  --region <region>           AWS region (or set AWS_REGION env var)
-  --spot                      Use spot instances for cost savings
-  --no-spot                   Use on-demand instances (default, more reliable)
-  --workers <n>               Number of workers (kubevirt only, default: 2)
-  --nodes <n>                 Number of nodes (k0rdent only, default: 1)
+  --region <region>           AWS region (required on first run)
+  --gpu                       Enable GPU lab environment
+  --metal3                    Enable Metal3 dev environment
+  --kubevirt                  Enable KubeVirt lab environment
+  --nodes <n>                 Number of k0rdent management nodes (default: 1)
   --auto-approve              Skip confirmation prompts
-  --plan-only                 Only show Terraform plan, don't apply
+  --plan-only                 Show plan without applying
   --help                      Show this help message
 
-Quick Start (Week 1 - k0rdent Enterprise):
-  $0 k0rdent john-doe --auto-approve
+Quick Start (Week 1):
+  $0 john-doe --region us-east-1 --auto-approve
 
   This will automatically:
-    1. Create S3 bucket for Terraform state
-    2. Provision shared infrastructure (VPC, bastion) if not exists
-    3. Provision k0s + k0rdent Enterprise management cluster
-    4. Save SSH keys to config/keys/
+    1. Create per-student S3 bucket for state/artifacts
+    2. Provision VPC, bastion, IAM, k0rdent cluster
+    3. Save SSH keys to config/keys/
 
 Examples:
-  $0 k0rdent john-doe                   # Week 1: k0rdent management cluster
-  $0 metal3 john-doe                    # Week 2: Metal3/BMaaS lab
-  $0 kubevirt john-doe --workers 3      # Week 3: KubeVirt/VMaaS lab
-  $0 gpu cohort-2024-q1                 # Week 4-5: Shared GPU lab
+  $0 john-doe --region us-east-1                  # Week 1: base lab
+  $0 john-doe --gpu                               # Add GPU lab
+  $0 john-doe --metal3 --kubevirt                  # Add Metal3 + KubeVirt
 
 EOF
     exit 1
@@ -137,288 +129,66 @@ check_prerequisites() {
     log_success "Prerequisites check passed"
 }
 
-load_config() {
-    if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
-        source "$CONFIG_DIR/lab-config.env"
-        log_info "Loaded configuration from lab-config.env"
-    fi
-
-    # If no region set yet via --region flag, try saved config
-    if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
-        REGION="$LAB_REGION"
-        log_info "Using region from saved config: $REGION"
-    fi
-}
-
-save_config() {
-    mkdir -p "$CONFIG_DIR"
-    cat > "$CONFIG_DIR/lab-config.env" <<EOF
-# k0rdent Training Lab Configuration
-# Auto-generated by lab-provision.sh
-
-# AWS Region used for provisioning (last deployed region)
-LAB_REGION="${REGION}"
-
-# AWS Region where the S3 state bucket is located (stable across deployments)
-LAB_BUCKET_REGION="${BUCKET_REGION}"
-
-# Last updated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-EOF
-    log_info "Saved configuration to lab-config.env"
-}
-
-get_tfstate_bucket() {
+get_student_bucket() {
+    local engineer_id="$1"
+    local region="$2"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-training-tfstate-${account_id}"
+    echo "k0rdent-lab-${engineer_id}-${account_id}-${region}"
 }
 
-# Detect the actual AWS region of the S3 state bucket.
-# The Terraform S3 backend region must match the bucket's real location,
-# which may differ from the region where resources are being deployed.
-get_bucket_region() {
-    local bucket_name
-    bucket_name=$(get_tfstate_bucket)
-    local location
-    location=$(aws s3api get-bucket-location --bucket "$bucket_name" \
-        --query LocationConstraint --output text 2>/dev/null)
-    # get-bucket-location returns "None" for us-east-1 (the original S3 region)
-    if [[ "$location" == "None" || -z "$location" ]]; then
-        echo "us-east-1"
-    else
-        echo "$location"
-    fi
-}
+ensure_student_bucket() {
+    local bucket_name="$1"
 
-ensure_tfstate_bucket() {
-    local bucket_name
-    bucket_name=$(get_tfstate_bucket)
-
-    if ! aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
-        log_info "Creating Terraform state bucket: $bucket_name"
-
-        if [[ "$REGION" == "us-east-1" ]]; then
-            aws s3api create-bucket --bucket "$bucket_name" --region "$REGION"
-        else
-            aws s3api create-bucket --bucket "$bucket_name" --region "$REGION" \
-                --create-bucket-configuration LocationConstraint="$REGION"
-        fi
-
-        aws s3api put-bucket-versioning --bucket "$bucket_name" \
-            --versioning-configuration Status=Enabled
-
-        aws s3api put-bucket-encryption --bucket "$bucket_name" \
-            --server-side-encryption-configuration \
-            '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-
-        BUCKET_REGION="$REGION"
-        log_success "Created bucket: $bucket_name (region: $BUCKET_REGION)"
-    else
-        BUCKET_REGION=$(get_bucket_region)
-        log_info "Using existing bucket: $bucket_name (region: $BUCKET_REGION)"
-    fi
-}
-
-# Create images and artifacts S3 buckets if they don't exist.
-# These are global buckets (created once in BUCKET_REGION, shared across regions).
-# Managed by the script rather than Terraform to avoid cross-region API failures.
-ensure_s3_buckets() {
-    local account_id
-    account_id=$(aws sts get-caller-identity --query Account --output text)
-
-    for bucket_type in "images" "artifacts"; do
-        local bucket_name="${PROJECT_NAME:-k0rdent-training}-${bucket_type}-${account_id}"
-
-        if aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
-            log_info "S3 bucket already exists: $bucket_name"
-        else
-            log_info "Creating S3 bucket: $bucket_name in ${BUCKET_REGION}..."
-
-            if [[ "$BUCKET_REGION" == "us-east-1" ]]; then
-                aws s3api create-bucket --bucket "$bucket_name" --region "$BUCKET_REGION"
-            else
-                aws s3api create-bucket --bucket "$bucket_name" --region "$BUCKET_REGION" \
-                    --create-bucket-configuration LocationConstraint="$BUCKET_REGION"
-            fi
-
-            aws s3api put-bucket-encryption --bucket "$bucket_name" \
-                --server-side-encryption-configuration \
-                '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-
-            # Add lifecycle rule to artifacts bucket (expire after 30 days)
-            if [[ "$bucket_type" == "artifacts" ]]; then
-                aws s3api put-bucket-lifecycle-configuration --bucket "$bucket_name" \
-                    --lifecycle-configuration '{"Rules":[{"ID":"expire-old-artifacts","Status":"Enabled","Filter":{},"Expiration":{"Days":30}}]}'
-            fi
-
-            log_success "Created bucket: $bucket_name"
-        fi
-    done
-}
-
-# Check if shared infrastructure exists by looking for VPC with our tag
-check_shared_infrastructure() {
-    local vpc_id
-    vpc_id=$(aws ec2 describe-vpcs \
-        --filters "Name=tag:Project,Values=k0rdent-training" \
-        --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "None")
-
-    if [[ "$vpc_id" != "None" && -n "$vpc_id" ]]; then
-        return 0  # Shared infra exists
-    else
-        return 1  # Shared infra does not exist
-    fi
-}
-
-# Ensure bastion SSH key is available locally (fetch from S3 state if needed)
-ensure_bastion_key() {
-    local key_dir="$CONFIG_DIR/keys"
-    local key_file="$key_dir/bastion-${REGION}.pem"
-
-    if [[ -f "$key_file" ]] && [[ -s "$key_file" ]]; then
+    if aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
+        log_info "Using existing bucket: $bucket_name"
         return 0
     fi
 
-    log_info "Bastion SSH key not found locally, retrieving from Terraform state..."
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
+    log_info "Creating student bucket: $bucket_name in $REGION"
 
-    local ssh_key
-    ssh_key=$(aws s3 cp "s3://${tfstate_bucket}/${REGION}/shared/terraform.tfstate" - 2>/dev/null \
-        | jq -r '.outputs.bastion_ssh_private_key.value // empty' 2>/dev/null)
-
-    if [[ -z "$ssh_key" ]]; then
-        log_warn "Could not retrieve bastion SSH key from state"
-        return 1
-    fi
-
-    mkdir -p "$key_dir"
-    echo "$ssh_key" > "$key_file"
-    chmod 600 "$key_file"
-    log_success "Bastion SSH key saved to: $key_file"
-}
-
-# Auto-provision shared infrastructure if it doesn't exist
-ensure_shared_infrastructure() {
-    if check_shared_infrastructure; then
-        log_info "Shared infrastructure already exists, skipping..."
-        ensure_bastion_key || true
-        return 0
-    fi
-
-    log_warn "Shared infrastructure not found. Provisioning automatically..."
-    echo ""
-    log_info "This creates: VPC, subnets, bastion host, S3 buckets, IAM roles"
-    log_info "One-time cost: ~\$35/month (NAT Gateway)"
-    echo ""
-
-    # If not auto-approve, ask for confirmation
-    if [[ "$AUTO_APPROVE" != "true" ]]; then
-        read -p "Proceed with shared infrastructure setup? [y/N]: " confirm
-        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-            log_error "Shared infrastructure is required. Please run with --auto-approve or confirm."
-            exit 1
-        fi
-    fi
-
-    # Temporarily set auto-approve for shared provisioning
-    local original_auto_approve="$AUTO_APPROVE"
-    AUTO_APPROVE="true"
-
-    provision_shared
-
-    AUTO_APPROVE="$original_auto_approve"
-
-    echo ""
-    log_success "Shared infrastructure ready! Continuing with your lab environment..."
-    echo ""
-}
-
-provision_shared() {
-    log_info "Provisioning shared infrastructure..."
-
-    ensure_tfstate_bucket
-    ensure_s3_buckets
-
-    local env_dir="$TERRAFORM_DIR/environments/shared"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
-    cd "$env_dir"
-
-    # Initialize Terraform (reconfigure to handle different backends)
-    # BUCKET_REGION = where the S3 bucket lives; REGION = where resources are deployed
-    terraform init -reconfigure \
-        -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/shared/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}"
-
-    # Remove legacy S3 resources from state (now managed by script, not Terraform).
-    # These state rm calls are no-ops if the resources aren't in state.
-    terraform state rm 'module.shared_infra.data.aws_s3_bucket.tfstate' 2>/dev/null || true
-    terraform state rm 'module.shared_infra.aws_s3_bucket.images' 2>/dev/null || true
-    terraform state rm 'module.shared_infra.aws_s3_bucket.artifacts' 2>/dev/null || true
-    terraform state rm 'module.shared_infra.aws_s3_bucket_lifecycle_configuration.artifacts' 2>/dev/null || true
-
-    if [[ "$PLAN_ONLY" == "true" ]]; then
-        terraform plan -var-file="terraform.tfvars" 2>/dev/null || terraform plan
-        return 0
-    fi
-
-    local apply_args=""
-    [[ "$AUTO_APPROVE" == "true" ]] && apply_args="-auto-approve"
-
-    # Use terraform.tfvars if it exists, otherwise use CLI vars
-    if [[ -f "terraform.tfvars" ]]; then
-        terraform apply $apply_args -var-file="terraform.tfvars"
+    if [[ "$REGION" == "us-east-1" ]]; then
+        aws s3api create-bucket --bucket "$bucket_name" --region "$REGION"
     else
-        terraform apply $apply_args \
-            -var="region=${REGION}" \
-            -var="allowed_ssh_cidrs=${ALLOWED_SSH_CIDRS:-[\"0.0.0.0/0\"]}"
+        aws s3api create-bucket --bucket "$bucket_name" --region "$REGION" \
+            --create-bucket-configuration LocationConstraint="$REGION"
     fi
 
-    # Save bastion SSH key (region-scoped — each region has its own bastion)
-    local key_dir="$CONFIG_DIR/keys"
-    mkdir -p "$key_dir"
-    terraform output -raw bastion_ssh_private_key > "$key_dir/bastion-${REGION}.pem"
-    chmod 600 "$key_dir/bastion-${REGION}.pem"
+    aws s3api put-bucket-versioning --bucket "$bucket_name" \
+        --versioning-configuration Status=Enabled
 
-    log_success "Shared infrastructure provisioned!"
-    log_info "VPC ID: $(terraform output -raw vpc_id)"
-    log_info "Bastion IP: $(terraform output -raw bastion_public_ip)"
-    log_info "Artifacts Bucket: $(terraform output -raw artifacts_bucket)"
-    log_info "Bastion SSH key saved to: $key_dir/bastion-${REGION}.pem"
+    aws s3api put-bucket-encryption --bucket "$bucket_name" \
+        --server-side-encryption-configuration \
+        '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 
-    # Save region to config for lab-connect.sh
-    save_config
+    log_success "Created bucket: $bucket_name"
 }
 
-provision_metal3() {
+provision_lab() {
     local engineer_id="$1"
-    log_info "Provisioning Metal3 dev environment for $engineer_id..."
+    log_info "Provisioning lab environment for $engineer_id..."
 
-    ensure_tfstate_bucket
-    ensure_shared_infrastructure
+    local bucket
+    bucket=$(get_student_bucket "$engineer_id" "$REGION")
+    ensure_student_bucket "$bucket"
 
-    local env_dir="$TERRAFORM_DIR/environments/metal3-dev"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
+    local env_dir="$TERRAFORM_DIR/environments/student-lab"
     cd "$env_dir"
 
-    # Use -reconfigure to allow switching between different engineer_ids
     terraform init -reconfigure \
-        -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/metal3-dev/${engineer_id}/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}"
+        -backend-config="bucket=${bucket}" \
+        -backend-config="key=terraform.tfstate" \
+        -backend-config="region=${REGION}"
 
     if [[ "$PLAN_ONLY" == "true" ]]; then
         terraform plan \
             -var="engineer_id=${engineer_id}" \
-            -var="tfstate_bucket=${tfstate_bucket}" \
-            -var="bucket_region=${BUCKET_REGION}" \
             -var="region=${REGION}" \
-            -var="use_spot_instances=${USE_SPOT}"
+            -var="student_bucket=${bucket}" \
+            -var="node_count=${NODE_COUNT}" \
+            -var="enable_gpu_lab=${ENABLE_GPU}" \
+            -var="enable_metal3=${ENABLE_METAL3}" \
+            -var="enable_kubevirt=${ENABLE_KUBEVIRT}"
         return 0
     fi
 
@@ -427,252 +197,83 @@ provision_metal3() {
 
     terraform apply $apply_args \
         -var="engineer_id=${engineer_id}" \
-        -var="tfstate_bucket=${tfstate_bucket}" \
-        -var="bucket_region=${BUCKET_REGION}" \
         -var="region=${REGION}" \
-        -var="use_spot_instances=${USE_SPOT}"
+        -var="student_bucket=${bucket}" \
+        -var="node_count=${NODE_COUNT}" \
+        -var="enable_gpu_lab=${ENABLE_GPU}" \
+        -var="enable_metal3=${ENABLE_METAL3}" \
+        -var="enable_kubevirt=${ENABLE_KUBEVIRT}"
 
-    # Get instance ID and wait for it to be ready
-    local instance_id
-    instance_id=$(terraform output -raw controller_instance_id 2>/dev/null || echo "")
-    if [[ -n "$instance_id" ]]; then
-        wait_for_instance "$instance_id" 300
-    fi
-
-    # Save SSH key
-    local key_dir="$CONFIG_DIR/keys"
-    mkdir -p "$key_dir"
-    terraform output -raw ssh_private_key > "$key_dir/${engineer_id}-metal3.pem"
-    chmod 600 "$key_dir/${engineer_id}-metal3.pem"
-
-    log_success "Metal3 dev environment provisioned for $engineer_id!"
-    log_info "Controller IP: $(terraform output -raw controller_private_ip)"
-    log_info "SSH key saved to: $key_dir/${engineer_id}-metal3.pem"
-    log_info "Connect via: ./lab-connect.sh metal3 $engineer_id"
-}
-
-provision_kubevirt() {
-    local engineer_id="$1"
-    log_info "Provisioning KubeVirt lab environment for $engineer_id..."
-
-    ensure_tfstate_bucket
-    ensure_shared_infrastructure
-
-    local env_dir="$TERRAFORM_DIR/environments/kubevirt-lab"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
-    cd "$env_dir"
-
-    terraform init -reconfigure \
-        -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/kubevirt-lab/${engineer_id}/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}"
-
-    if [[ "$PLAN_ONLY" == "true" ]]; then
-        terraform plan \
-            -var="engineer_id=${engineer_id}" \
-            -var="tfstate_bucket=${tfstate_bucket}" \
-            -var="bucket_region=${BUCKET_REGION}" \
-            -var="region=${REGION}" \
-            -var="worker_count=${WORKER_COUNT}" \
-            -var="use_spot_instances=${USE_SPOT}"
-        return 0
-    fi
-
-    local apply_args=""
-    [[ "$AUTO_APPROVE" == "true" ]] && apply_args="-auto-approve"
-
-    terraform apply $apply_args \
-        -var="engineer_id=${engineer_id}" \
-        -var="tfstate_bucket=${tfstate_bucket}" \
-        -var="bucket_region=${BUCKET_REGION}" \
-        -var="region=${REGION}" \
-        -var="worker_count=${WORKER_COUNT}" \
-        -var="use_spot_instances=${USE_SPOT}"
-
-    local key_dir="$CONFIG_DIR/keys"
-    mkdir -p "$key_dir"
-    terraform output -raw ssh_private_key > "$key_dir/${engineer_id}-kubevirt.pem"
-    chmod 600 "$key_dir/${engineer_id}-kubevirt.pem"
-
-    log_success "KubeVirt lab environment provisioned for $engineer_id!"
-    log_info "Controller IP: $(terraform output -raw controller_private_ip)"
-    log_info "Worker IPs: $(terraform output -json worker_private_ips)"
-    log_info "SSH key saved to: $key_dir/${engineer_id}-kubevirt.pem"
-}
-
-provision_gpu() {
-    local session_id="$1"
-    local advanced="${2:-false}"
-
-    if [[ "$advanced" == "true" ]]; then
-        log_info "Provisioning advanced GPU lab (8x A100) for session $session_id..."
-    else
-        log_info "Provisioning shared GPU lab (4x V100) for session $session_id..."
-    fi
-
-    ensure_tfstate_bucket
-    ensure_shared_infrastructure
-
-    local env_dir="$TERRAFORM_DIR/environments/gpu-lab"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
-    cd "$env_dir"
-
-    terraform init -reconfigure \
-        -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/gpu-lab/${session_id}/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}"
-
-    local enable_advanced="false"
-    [[ "$advanced" == "true" ]] && enable_advanced="true"
-
-    if [[ "$PLAN_ONLY" == "true" ]]; then
-        terraform plan \
-            -var="lab_session_id=${session_id}" \
-            -var="tfstate_bucket=${tfstate_bucket}" \
-            -var="bucket_region=${BUCKET_REGION}" \
-            -var="region=${REGION}" \
-            -var="enable_advanced_gpu=${enable_advanced}" \
-            -var="use_spot_instances=${USE_SPOT}"
-        return 0
-    fi
-
-    local apply_args=""
-    [[ "$AUTO_APPROVE" == "true" ]] && apply_args="-auto-approve"
-
-    terraform apply $apply_args \
-        -var="lab_session_id=${session_id}" \
-        -var="tfstate_bucket=${tfstate_bucket}" \
-        -var="bucket_region=${BUCKET_REGION}" \
-        -var="region=${REGION}" \
-        -var="enable_advanced_gpu=${enable_advanced}" \
-        -var="use_spot_instances=${USE_SPOT}"
-
-    local key_dir="$CONFIG_DIR/keys"
-    mkdir -p "$key_dir"
-    terraform output -raw ssh_private_key > "$key_dir/${session_id}-gpu.pem"
-    chmod 600 "$key_dir/${session_id}-gpu.pem"
-
-    log_success "GPU lab environment provisioned for session $session_id!"
-
-    if [[ -n "$(terraform output -raw shared_gpu_private_ip 2>/dev/null)" ]]; then
-        log_info "Shared GPU IP: $(terraform output -raw shared_gpu_private_ip)"
-    fi
-
-    if [[ "$advanced" == "true" ]] && [[ -n "$(terraform output -raw advanced_gpu_private_ip 2>/dev/null)" ]]; then
-        log_info "Advanced GPU IP: $(terraform output -raw advanced_gpu_private_ip)"
-    fi
-
-    log_info "SSH key saved to: $key_dir/${session_id}-gpu.pem"
-}
-
-provision_k0rdent() {
-    local engineer_id="$1"
-    log_info "Provisioning k0rdent Enterprise management cluster for $engineer_id..."
-
-    ensure_tfstate_bucket
-    ensure_shared_infrastructure
-
-    local env_dir="$TERRAFORM_DIR/environments/k0rdent"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
-    cd "$env_dir"
-
-    terraform init -reconfigure \
-        -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/k0rdent/${engineer_id}/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}"
-
-    if [[ "$PLAN_ONLY" == "true" ]]; then
-        terraform plan \
-            -var="engineer_id=${engineer_id}" \
-            -var="tfstate_bucket=${tfstate_bucket}" \
-            -var="bucket_region=${BUCKET_REGION}" \
-            -var="region=${REGION}" \
-            -var="node_count=${NODE_COUNT}"
-        return 0
-    fi
-
-    local apply_args=""
-    [[ "$AUTO_APPROVE" == "true" ]] && apply_args="-auto-approve"
-
-    terraform apply $apply_args \
-        -var="engineer_id=${engineer_id}" \
-        -var="tfstate_bucket=${tfstate_bucket}" \
-        -var="bucket_region=${BUCKET_REGION}" \
-        -var="region=${REGION}" \
-        -var="node_count=${NODE_COUNT}"
-
-    # Get instance ID and wait for it to be ready
+    # Wait for primary instance
     local instance_id
     instance_id=$(terraform output -json mgmt_node_ids 2>/dev/null | jq -r '.[0]' || echo "")
     if [[ -n "$instance_id" && "$instance_id" != "null" ]]; then
-        wait_for_instance "$instance_id" 600  # 10 min for k0rdent setup
+        wait_for_instance "$instance_id" 600
     fi
 
-    # Save SSH key
+    # Save SSH keys locally
     local key_dir="$CONFIG_DIR/keys"
     mkdir -p "$key_dir"
     terraform output -raw ssh_private_key > "$key_dir/${engineer_id}-k0rdent.pem"
     chmod 600 "$key_dir/${engineer_id}-k0rdent.pem"
+    terraform output -raw bastion_ssh_private_key > "$key_dir/${engineer_id}-bastion.pem"
+    chmod 600 "$key_dir/${engineer_id}-bastion.pem"
 
-    log_success "k0rdent Enterprise management cluster provisioned for $engineer_id!"
+    # Save per-region config for connect/status/destroy scripts
+    mkdir -p "$CONFIG_DIR"
+    cat > "$CONFIG_DIR/lab-config-${REGION}.env" <<ENVEOF
+LAB_REGION="${REGION}"
+LAB_ENGINEER_ID="${engineer_id}"
+LAB_BUCKET="${bucket}"
+ENVEOF
+    # Also save a "last used" pointer for convenience (scripts without --region)
+    cat > "$CONFIG_DIR/lab-config.env" <<ENVEOF
+LAB_REGION="${REGION}"
+LAB_ENGINEER_ID="${engineer_id}"
+LAB_BUCKET="${bucket}"
+ENVEOF
+
+    log_success "Lab environment provisioned for $engineer_id!"
+    log_info "Bastion IP: $(terraform output -raw bastion_public_ip)"
     log_info "Primary node IP: $(terraform output -raw primary_node_private_ip)"
-    log_info "SSH key saved to: $key_dir/${engineer_id}-k0rdent.pem"
-    log_info "Connect via: ./lab-connect.sh k0rdent $engineer_id"
+    log_info "SSH key: $key_dir/${engineer_id}-k0rdent.pem"
+    log_info "Connect via: ./lab-connect.sh $engineer_id"
     echo ""
-    log_info "k0rdent initialization is running in the background."
-    log_info "After connecting, check progress with: tail -f /var/log/k0rdent-init.log"
-    log_info "Once complete, access k0rdent UI:"
-    log_info "  URL:      $(terraform output -raw ui_url 2>/dev/null || echo 'run: terraform output ui_url')"
+    log_info "k0rdent UI:"
+    log_info "  URL:      $(terraform output -raw ui_url 2>/dev/null || echo 'initializing...')"
     log_info "  Password: run: terraform output ui_password"
 }
 
 # Default values
-REGION=""  # Resolved after argument parsing
-BUCKET_REGION=""  # Detected from S3 bucket; used for backend-config
-USE_SPOT="false"
-WORKER_COUNT="2"
+REGION=""
 NODE_COUNT="1"
+ENABLE_GPU="false"
+ENABLE_METAL3="false"
+ENABLE_KUBEVIRT="false"
 AUTO_APPROVE="false"
 PLAN_ONLY="false"
+IDENTIFIER=""
 
 # Parse arguments
 [[ $# -eq 0 ]] && usage
 
-COMMAND=""
-IDENTIFIER=""
-
 while [[ $# -gt 0 ]]; do
     case $1 in
-        shared|k0rdent|metal3|kubevirt|gpu|gpu-advanced)
-            # Note: 'shared' is kept for manual/advanced use but auto-provisioned when needed
-            COMMAND="$1"
-            shift
-            if [[ "$COMMAND" != "shared" ]] && [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; then
-                IDENTIFIER="$1"
-                shift
-            fi
-            ;;
         --region)
             REGION="$2"
             shift 2
             ;;
-        --spot)
-            USE_SPOT="true"
+        --gpu)
+            ENABLE_GPU="true"
             shift
             ;;
-        --no-spot)
-            USE_SPOT="false"
+        --metal3)
+            ENABLE_METAL3="true"
             shift
             ;;
-        --workers)
-            WORKER_COUNT="$2"
-            shift 2
+        --kubevirt)
+            ENABLE_KUBEVIRT="true"
+            shift
             ;;
         --nodes)
             NODE_COUNT="$2"
@@ -689,30 +290,38 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             usage
             ;;
-        *)
+        -*)
             log_error "Unknown option: $1"
             usage
+            ;;
+        *)
+            if [[ -z "$IDENTIFIER" ]]; then
+                IDENTIFIER="$1"
+            else
+                log_error "Unexpected argument: $1"
+                usage
+            fi
+            shift
             ;;
     esac
 done
 
 # Validate
-if [[ -z "$COMMAND" ]]; then
-    log_error "No command specified"
+if [[ -z "$IDENTIFIER" ]]; then
+    log_error "Your name/identifier is required"
     usage
 fi
 
-if [[ "$COMMAND" != "shared" ]] && [[ -z "$IDENTIFIER" ]]; then
-    log_error "Identifier required for $COMMAND"
-    usage
+# Resolve region: CLI flag takes priority, then saved config, then env vars
+if [[ -z "$REGION" ]]; then
+    # Load default config for region detection
+    if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
+        source "$CONFIG_DIR/lab-config.env"
+    fi
+    if [[ -n "${LAB_REGION:-}" ]]; then
+        REGION="$LAB_REGION"
+    fi
 fi
-
-# Execute
-check_prerequisites
-load_config
-
-# Resolve region: --region flag already set REGION during arg parsing.
-# Otherwise try env vars, then saved config (loaded above), then AWS CLI default.
 if [[ -z "$REGION" ]]; then
     REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
 fi
@@ -728,64 +337,6 @@ if [[ -z "$REGION" ]]; then
 fi
 log_info "Using AWS region: $REGION"
 
-# Migrate legacy (non-region-scoped) state keys to the new format.
-# Runs automatically on first use after the multi-region update.
-migrate_legacy_state_keys() {
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
-    # Only migrate if the bucket exists
-    if ! aws s3api head-bucket --bucket "$tfstate_bucket" 2>/dev/null; then
-        return 0
-    fi
-
-    # Check if legacy shared state exists and new one does not
-    if aws s3api head-object --bucket "$tfstate_bucket" --key "shared/terraform.tfstate" &>/dev/null; then
-        if ! aws s3api head-object --bucket "$tfstate_bucket" --key "${REGION}/shared/terraform.tfstate" &>/dev/null; then
-            log_info "Migrating legacy state key: shared/ -> ${REGION}/shared/"
-            aws s3 cp "s3://${tfstate_bucket}/shared/terraform.tfstate" \
-                "s3://${tfstate_bucket}/${REGION}/shared/terraform.tfstate" --quiet
-            log_success "Migrated shared infrastructure state to region-scoped key"
-        fi
-    fi
-
-    # Migrate lab-type state keys for the current identifier
-    if [[ -n "${IDENTIFIER:-}" ]]; then
-        local lab_prefixes=("k0rdent" "metal3-dev" "kubevirt-lab" "gpu-lab")
-        for prefix in "${lab_prefixes[@]}"; do
-            local old_key="${prefix}/${IDENTIFIER}/terraform.tfstate"
-            local new_key="${REGION}/${prefix}/${IDENTIFIER}/terraform.tfstate"
-            if aws s3api head-object --bucket "$tfstate_bucket" --key "$old_key" &>/dev/null; then
-                if ! aws s3api head-object --bucket "$tfstate_bucket" --key "$new_key" &>/dev/null; then
-                    log_info "Migrating legacy state key: ${prefix}/${IDENTIFIER}/ -> ${REGION}/${prefix}/${IDENTIFIER}/"
-                    aws s3 cp "s3://${tfstate_bucket}/${old_key}" \
-                        "s3://${tfstate_bucket}/${new_key}" --quiet
-                    log_success "Migrated ${prefix} state to region-scoped key"
-                fi
-            fi
-        done
-    fi
-}
-
-migrate_legacy_state_keys
-
-case $COMMAND in
-    shared)
-        provision_shared
-        ;;
-    k0rdent)
-        provision_k0rdent "$IDENTIFIER"
-        ;;
-    metal3)
-        provision_metal3 "$IDENTIFIER"
-        ;;
-    kubevirt)
-        provision_kubevirt "$IDENTIFIER"
-        ;;
-    gpu)
-        provision_gpu "$IDENTIFIER"
-        ;;
-    gpu-advanced)
-        provision_gpu "$IDENTIFIER" "true"
-        ;;
-esac
+# Execute
+check_prerequisites
+provision_lab "$IDENTIFIER"

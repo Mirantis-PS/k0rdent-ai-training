@@ -10,34 +10,25 @@ Terraform-based infrastructure provisioning for k0rdent AI training labs.
 - Terraform >= 1.5.0
 - bash shell
 
-### Initial Setup
+### Provision Your Lab
 
-1. Configure lab settings:
+Each student gets a fully isolated environment (VPC, bastion, k0rdent cluster):
+
 ```bash
-cp config/lab-config.env.example config/lab-config.env
-# Edit lab-config.env with your settings
-```
+# Provision your student lab environment
+./scripts/lab-provision.sh <your-name> --region <your-region> --auto-approve
 
-2. Provision shared infrastructure:
-```bash
-./scripts/lab-provision.sh shared
-```
-
-3. Provision lab environments for engineers:
-```bash
-# Metal3 dev environment
-./scripts/lab-provision.sh metal3 engineer-01
-
-# KubeVirt lab environment
-./scripts/lab-provision.sh kubevirt engineer-01
-
-# GPU lab (shared instance for cohort)
-./scripts/lab-provision.sh gpu cohort-2026-q1
+# Examples:
+./scripts/lab-provision.sh john-doe --region us-east-1 --auto-approve
+./scripts/lab-provision.sh john-doe --gpu                   # Add GPU support
+./scripts/lab-provision.sh john-doe --metal3 --kubevirt     # Add Metal3 + KubeVirt
 ```
 
 ## Lab Types
 
-### Metal3 Dev Environment
+All lab types are provisioned via the single `lab-provision.sh` script with feature flags.
+
+### Metal3 Dev Environment (`--metal3`)
 Simulated bare metal provisioning with:
 - k0s cluster with Metal3 operator
 - Ironic for bare metal provisioning
@@ -46,7 +37,7 @@ Simulated bare metal provisioning with:
 
 **Instance Type:** m5.2xlarge (8 vCPU, 32GB RAM)
 
-### KubeVirt Lab Environment
+### KubeVirt Lab Environment (`--kubevirt`)
 VM workloads on Kubernetes:
 - k0s cluster with KubeVirt
 - CDI for VM image management
@@ -57,8 +48,8 @@ VM workloads on Kubernetes:
 - Controller: m5.xlarge (4 vCPU, 16GB)
 - Workers: m5.2xlarge (8 vCPU, 32GB)
 
-### GPU Lab Environment
-Shared GPU instance for AI workloads:
+### GPU Lab Environment (`--gpu`)
+GPU instance for AI workloads:
 - k0s cluster with NVIDIA GPU Operator
 - Multi-user namespaces with resource quotas
 - vLLM inference templates
@@ -71,55 +62,53 @@ Shared GPU instance for AI workloads:
 ## CLI Scripts
 
 ### lab-provision.sh
-Provision lab environments.
+Provision your student lab environment.
 
 ```bash
-# Shared infrastructure
-./scripts/lab-provision.sh shared
+# Base lab (Week 1)
+./scripts/lab-provision.sh <your-name> --region us-east-1 --auto-approve
 
-# Per-engineer environments
-./scripts/lab-provision.sh metal3 <engineer-id> [--spot|--no-spot]
-./scripts/lab-provision.sh kubevirt <engineer-id> [--workers N]
+# With GPU support
+./scripts/lab-provision.sh <your-name> --gpu
 
-# Session-based environments
-./scripts/lab-provision.sh gpu <session-id>
-./scripts/lab-provision.sh gpu-advanced <session-id>  # 8x A100
+# With Metal3 + KubeVirt
+./scripts/lab-provision.sh <your-name> --metal3 --kubevirt
+
+# Plan only (no changes)
+./scripts/lab-provision.sh <your-name> --plan-only
 ```
 
 ### lab-status.sh
 Check environment status.
 
 ```bash
-./scripts/lab-status.sh all
-./scripts/lab-status.sh metal3 engineer-01
-./scripts/lab-status.sh list
+./scripts/lab-status.sh <your-name>
+./scripts/lab-status.sh <your-name> --json
 ```
 
 ### lab-connect.sh
 Connect to lab instances.
 
 ```bash
-# Direct SSH
-./scripts/lab-connect.sh metal3 engineer-01
-./scripts/lab-connect.sh kubevirt engineer-01 --worker 0
+# SSH to management cluster (auto-detects bastion)
+./scripts/lab-connect.sh <your-name>
 
-# With bastion jump
-./scripts/lab-connect.sh metal3 engineer-01 --bastion <bastion-ip>
+# Show k0rdent UI password
+./scripts/lab-connect.sh <your-name> --show-password
 
 # Create tunnel for kubectl
-./scripts/lab-connect.sh kubevirt engineer-01 --tunnel 6443:6443
+./scripts/lab-connect.sh <your-name> --tunnel 6443:6443
 
-# Copy kubeconfig
-./scripts/lab-connect.sh metal3 engineer-01 --copy-kubeconfig
+# Copy kubeconfig to local machine
+./scripts/lab-connect.sh <your-name> --copy-kubeconfig
 ```
 
 ### lab-destroy.sh
 Destroy lab environments.
 
 ```bash
-./scripts/lab-destroy.sh metal3 engineer-01
-./scripts/lab-destroy.sh all-engineer engineer-01
-./scripts/lab-destroy.sh gpu cohort-2026-q1
+./scripts/lab-destroy.sh <your-name> --auto-approve
+./scripts/lab-destroy.sh <your-name> --auto-approve --delete-bucket
 ```
 
 ## Directory Structure
@@ -127,27 +116,28 @@ Destroy lab environments.
 ```
 lab-infrastructure/
 ├── config/
-│   ├── lab-config.env         # Local configuration
+│   ├── lab-config.env         # Local configuration (auto-created)
 │   ├── keys/                  # SSH keys (gitignored)
 │   └── kubeconfig/            # Kubeconfigs (gitignored)
 ├── scripts/
-│   ├── lab-provision.sh       # Provision environments
+│   ├── lab-provision.sh       # Provision student environment
 │   ├── lab-status.sh          # Check status
 │   ├── lab-connect.sh         # Connect to instances
-│   └── lab-destroy.sh         # Destroy environments
+│   └── lab-destroy.sh         # Destroy environment
 ├── terraform/
 │   ├── modules/
-│   │   ├── shared-infra/      # VPC, S3, IAM
-│   │   ├── metal3-dev/        # Metal3 environment
-│   │   ├── kubevirt-lab/      # KubeVirt environment
-│   │   └── gpu-lab/           # GPU environment
+│   │   ├── networking/        # VPC, subnets, NAT, security groups
+│   │   ├── iam/               # IAM roles, policies, instance profiles
+│   │   ├── bastion/           # SSH jump host
+│   │   ├── k0rdent-mgmt/     # k0rdent management cluster
+│   │   ├── gpu-lab/           # GPU environment (optional)
+│   │   ├── metal3-dev/        # Metal3 environment (optional)
+│   │   └── kubevirt-lab/      # KubeVirt environment (optional)
 │   └── environments/
-│       ├── shared/            # Shared infra config
-│       ├── metal3-dev/        # Metal3 env config
-│       ├── kubevirt-lab/      # KubeVirt env config
-│       └── gpu-lab/           # GPU lab config
+│       └── student-lab/       # Per-student environment (single entry point)
 └── docs/
-    └── architecture-design.md
+    ├── architecture-design.md
+    └── troubleshooting.md
 ```
 
 ## Cost Management
@@ -175,22 +165,10 @@ This is the single reference for lab infrastructure costs.
 | GPU Lab - 4 hour session | ~$18.00 (spot) |
 | **Forgotten GPU Lab - 24 hours** | **~$108 (spot) / ~$294 (on-demand)** |
 
-### Spot Instances
-
-The k0rdent management cluster uses **on-demand instances by default** for reliability during long-running operations (cluster provisioning, Helm installs). Other lab types (Metal3, KubeVirt, GPU) support spot instances for cost savings:
-
-```bash
-# Enable spot instances for non-k0rdent labs (~60-70% savings)
-./scripts/lab-provision.sh metal3 your-name --spot
-
-# Use on-demand if spot unavailable
-./scripts/lab-provision.sh metal3 your-name --no-spot
-```
-
 ### Best Practices
 
 - **Always destroy** environments when not in use
-- Check `./scripts/lab-status.sh all` regularly for forgotten environments
+- Check `./scripts/lab-status.sh your-name` regularly
 - Use `--plan-only` flag before major changes
 - Never leave GPU environments running overnight
 
@@ -199,9 +177,8 @@ The k0rdent management cluster uses **on-demand instances by default** for relia
 For quick diagnostics:
 
 ```bash
-./scripts/lab-status.sh all          # Check all environments
-./scripts/lab-status.sh k0rdent your-name  # Check specific environment
-./scripts/lab-status.sh list         # List all state files
+./scripts/lab-status.sh your-name          # Check your environment
+./scripts/lab-status.sh your-name --json   # JSON output for debugging
 ```
 
 For comprehensive troubleshooting (AWS credentials, SSH issues, Terraform state, GPU problems), see the **[Troubleshooting Guide](docs/troubleshooting.md)**.

@@ -5,9 +5,8 @@ terraform {
   required_version = ">= 1.5.0"
   required_providers {
     aws = {
-      source                = "hashicorp/aws"
-      version               = "~> 5.0"
-      configuration_aliases = [aws.s3]
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
     }
     tls = {
       source  = "hashicorp/tls"
@@ -54,7 +53,7 @@ locals {
   node_names = [for i in range(var.node_count) : "${var.project_name}-mgmt-${var.engineer_id}-${i}"]
 
   # Cloud-init user data
-  node_user_data = base64encode(templatefile("${path.module}/templates/mgmt-cloud-init.yaml", {
+  node_user_data = base64gzip(templatefile("${path.module}/templates/mgmt-cloud-init.yaml", {
     engineer_id      = var.engineer_id
     k0s_version      = var.k0s_version
     k0rdent_version  = var.k0rdent_version
@@ -316,7 +315,6 @@ resource "aws_lb_target_group_attachment" "k0rdent_ui" {
 # Store SSH key in S3 for retrieval by provisioning scripts
 #------------------------------------------------------------------------------
 resource "aws_s3_object" "ssh_private_key" {
-  provider     = aws.s3
   bucket       = var.artifacts_bucket
   key          = "ssh-keys/${var.engineer_id}/mgmt/id_ed25519"
   content      = tls_private_key.mgmt.private_key_openssh
@@ -330,7 +328,6 @@ resource "aws_s3_object" "ssh_private_key" {
 }
 
 resource "aws_s3_object" "ssh_public_key" {
-  provider     = aws.s3
   bucket       = var.artifacts_bucket
   key          = "ssh-keys/${var.engineer_id}/mgmt/id_ed25519.pub"
   content      = tls_private_key.mgmt.public_key_openssh
@@ -345,7 +342,6 @@ resource "aws_s3_object" "ssh_public_key" {
 # Store k0sctl configuration in S3
 #------------------------------------------------------------------------------
 resource "aws_s3_object" "k0sctl_config" {
-  provider     = aws.s3
   bucket       = var.artifacts_bucket
   key          = "k0sctl/${var.engineer_id}/k0sctl.yaml"
   content      = local.k0sctl_yaml

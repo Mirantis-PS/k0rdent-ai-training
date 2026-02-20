@@ -1,11 +1,10 @@
 #!/bin/bash
-# k0rdent Training Lab Status Script
-# Usage: ./lab-status.sh [lab-type] [identifier]
+# k0rdent Training Lab Status Script (Per-Student Model)
+# Usage: ./lab-status.sh <your-name> [options]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TERRAFORM_DIR="$SCRIPT_DIR/../terraform"
 CONFIG_DIR="$SCRIPT_DIR/../config"
 
 # Colors
@@ -23,311 +22,178 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 usage() {
     cat <<EOF
-k0rdent Training Lab Status Script
+k0rdent Training Lab Status Script (Per-Student)
 
-Usage: $0 [command] [options]
+Usage: $0 <your-name> [options]
 
-Commands:
-  all                         Show status of all environments
-  shared                      Show shared infrastructure status
-  metal3 <engineer-id>        Show Metal3 dev environment status
-  kubevirt <engineer-id>      Show KubeVirt lab status
-  gpu <session-id>            Show GPU lab status
-  list                        List all provisioned environments
+Arguments:
+  <your-name>                 Your unique identifier (same as used in lab-provision.sh)
 
 Options:
-  --region <region>           AWS region (or set AWS_REGION env var)
+  --region <region>           AWS region (auto-detected from saved config)
   --json                      Output in JSON format
   --help                      Show this help message
 
 Examples:
-  $0 all
-  $0 metal3 engineer-01
-  $0 list
-  $0 gpu cohort-2024-q1 --json
+  $0 john-doe
+  $0 john-doe --json
 
 EOF
     exit 1
 }
 
-get_tfstate_bucket() {
+get_student_bucket() {
+    local engineer_id="$1"
+    local region="$2"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-training-tfstate-${account_id}"
-}
-
-# Detect the actual AWS region of the S3 state bucket
-get_bucket_region() {
-    local bucket_name
-    bucket_name=$(get_tfstate_bucket)
-    local location
-    location=$(aws s3api get-bucket-location --bucket "$bucket_name" \
-        --query LocationConstraint --output text 2>/dev/null)
-    if [[ "$location" == "None" || -z "$location" ]]; then
-        echo "us-east-1"
-    else
-        echo "$location"
-    fi
+    echo "k0rdent-lab-${engineer_id}-${account_id}-${region}"
 }
 
 check_instance_status() {
     local instance_id="$1"
-    local status
-
-    status=$(aws ec2 describe-instances \
+    aws ec2 describe-instances --region "$REGION" \
         --instance-ids "$instance_id" \
         --query 'Reservations[0].Instances[0].State.Name' \
-        --output text 2>/dev/null || echo "unknown")
-
-    echo "$status"
+        --output text 2>/dev/null || echo "unknown"
 }
 
-show_shared_status() {
-    log_info "Shared Infrastructure Status"
-    echo "================================"
-
-    local env_dir="$TERRAFORM_DIR/environments/shared"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
-    cd "$env_dir" 2>/dev/null || {
-        log_error "Shared infrastructure not found"
-        return 1
-    }
-
-    terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/shared/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
-
-    if terraform output vpc_id &>/dev/null; then
-        echo -e "${GREEN}Status:${NC} Provisioned"
-        echo -e "${CYAN}VPC ID:${NC} $(terraform output -raw vpc_id)"
-        echo -e "${CYAN}NAT Gateway IP:${NC} $(terraform output -raw nat_gateway_ip)"
-        echo -e "${CYAN}TFState Bucket:${NC} $(terraform output -raw tfstate_bucket)"
-        echo -e "${CYAN}Artifacts Bucket:${NC} $(terraform output -raw artifacts_bucket)"
-        echo -e "${CYAN}Images Bucket:${NC} $(terraform output -raw images_bucket)"
-    else
-        echo -e "${YELLOW}Status:${NC} Not provisioned"
-    fi
-    echo ""
-}
-
-show_metal3_status() {
+show_status() {
     local engineer_id="$1"
-    log_info "Metal3 Dev Environment Status - $engineer_id"
-    echo "================================================"
+    local bucket
+    bucket=$(get_student_bucket "$engineer_id" "$REGION")
 
-    local env_dir="$TERRAFORM_DIR/environments/metal3-dev"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
+    echo ""
+    echo "=========================================="
+    echo " Lab Status: $engineer_id"
+    echo " Region: $REGION"
+    echo " Bucket: $bucket"
+    echo "=========================================="
+    echo ""
 
-    cd "$env_dir" 2>/dev/null || {
-        log_error "Metal3 environment directory not found"
-        return 1
-    }
-
-    terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/metal3-dev/${engineer_id}/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
-
-    if terraform output controller_instance_id &>/dev/null; then
-        local instance_id
-        instance_id=$(terraform output -raw controller_instance_id)
-        local status
-        status=$(check_instance_status "$instance_id")
-
-        case $status in
-            running)
-                echo -e "${GREEN}Status:${NC} Running"
-                ;;
-            stopped)
-                echo -e "${YELLOW}Status:${NC} Stopped"
-                ;;
-            *)
-                echo -e "${RED}Status:${NC} $status"
-                ;;
-        esac
-
-        echo -e "${CYAN}Instance ID:${NC} $instance_id"
-        echo -e "${CYAN}Private IP:${NC} $(terraform output -raw controller_private_ip)"
-        echo ""
-
-        local connection_info
-        connection_info=$(terraform output -json connection_info 2>/dev/null || echo "{}")
-        echo -e "${CYAN}k0s Version:${NC} $(echo "$connection_info" | jq -r '.k0s_version // "N/A"')"
-        echo -e "${CYAN}Metal3 Version:${NC} $(echo "$connection_info" | jq -r '.metal3_version // "N/A"')"
-    else
-        echo -e "${YELLOW}Status:${NC} Not provisioned"
+    # Check if bucket exists
+    if ! aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
+        log_warn "No student bucket found. Environment not provisioned."
+        return 0
     fi
+
+    # Check if state exists
+    local state_content
+    state_content=$(aws s3 cp "s3://${bucket}/terraform.tfstate" - --region "$REGION" 2>/dev/null || echo "")
+    if [[ -z "$state_content" ]]; then
+        log_warn "No Terraform state found. Environment not provisioned."
+        return 0
+    fi
+
+    # Bastion
+    local bastion_ip
+    bastion_ip=$(echo "$state_content" | jq -r '.outputs.bastion_public_ip.value // empty')
+    if [[ -n "$bastion_ip" ]]; then
+        echo -e "${GREEN}Bastion:${NC} $bastion_ip"
+    fi
+
+    # VPC
+    local vpc_id
+    vpc_id=$(echo "$state_content" | jq -r '.outputs.vpc_id.value // empty')
+    if [[ -n "$vpc_id" ]]; then
+        echo -e "${CYAN}VPC:${NC} $vpc_id"
+    fi
+
+    # NAT Gateway
+    local nat_ip
+    nat_ip=$(echo "$state_content" | jq -r '.outputs.nat_gateway_ip.value // empty')
+    if [[ -n "$nat_ip" ]]; then
+        echo -e "${CYAN}NAT Gateway:${NC} $nat_ip"
+    fi
+
+    echo ""
+
+    # k0rdent management cluster
+    local primary_ip
+    primary_ip=$(echo "$state_content" | jq -r '.outputs.primary_node_private_ip.value // empty')
+    if [[ -n "$primary_ip" ]]; then
+        echo -e "${GREEN}k0rdent Management Cluster${NC}"
+
+        local node_ids
+        node_ids=$(echo "$state_content" | jq -r '.outputs.mgmt_node_ids.value // [] | .[]' 2>/dev/null)
+        for node_id in $node_ids; do
+            local status
+            status=$(check_instance_status "$node_id")
+            case $status in
+                running)  echo -e "  ${GREEN}$node_id${NC}: running" ;;
+                stopped)  echo -e "  ${YELLOW}$node_id${NC}: stopped" ;;
+                *)        echo -e "  ${RED}$node_id${NC}: $status" ;;
+            esac
+        done
+
+        echo -e "  ${CYAN}Primary IP:${NC} $primary_ip"
+
+        local ui_url
+        ui_url=$(echo "$state_content" | jq -r '.outputs.ui_url.value // empty')
+        if [[ -n "$ui_url" ]]; then
+            echo -e "  ${CYAN}UI URL:${NC} $ui_url"
+        fi
+    fi
+
+    echo ""
+
+    # Optional: GPU lab
+    local gpu_ip
+    gpu_ip=$(echo "$state_content" | jq -r '.outputs.shared_gpu_private_ip.value // empty')
+    if [[ -n "$gpu_ip" && "$gpu_ip" != "null" ]]; then
+        echo -e "${GREEN}GPU Lab:${NC} $gpu_ip"
+    fi
+
+    # Optional: Metal3
+    local metal3_ip
+    metal3_ip=$(echo "$state_content" | jq -r '.outputs.metal3_controller_ip.value // empty')
+    if [[ -n "$metal3_ip" && "$metal3_ip" != "null" ]]; then
+        echo -e "${GREEN}Metal3:${NC} $metal3_ip"
+    fi
+
+    # Optional: KubeVirt
+    local kubevirt_ip
+    kubevirt_ip=$(echo "$state_content" | jq -r '.outputs.kubevirt_controller_ip.value // empty')
+    if [[ -n "$kubevirt_ip" && "$kubevirt_ip" != "null" ]]; then
+        echo -e "${GREEN}KubeVirt:${NC} $kubevirt_ip"
+    fi
+
+    echo ""
+    echo "Connect: ./lab-connect.sh $engineer_id"
     echo ""
 }
 
-show_kubevirt_status() {
+show_status_json() {
     local engineer_id="$1"
-    log_info "KubeVirt Lab Status - $engineer_id"
-    echo "========================================"
+    local bucket
+    bucket=$(get_student_bucket "$engineer_id" "$REGION")
 
-    local env_dir="$TERRAFORM_DIR/environments/kubevirt-lab"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
+    local state_content
+    state_content=$(aws s3 cp "s3://${bucket}/terraform.tfstate" - --region "$REGION" 2>/dev/null || echo "{}")
 
-    cd "$env_dir" 2>/dev/null || {
-        log_error "KubeVirt environment directory not found"
-        return 1
-    }
-
-    terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/kubevirt-lab/${engineer_id}/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
-
-    if terraform output controller_instance_id &>/dev/null; then
-        local instance_id
-        instance_id=$(terraform output -raw controller_instance_id)
-        local status
-        status=$(check_instance_status "$instance_id")
-
-        case $status in
-            running)
-                echo -e "${GREEN}Status:${NC} Running"
-                ;;
-            stopped)
-                echo -e "${YELLOW}Status:${NC} Stopped"
-                ;;
-            *)
-                echo -e "${RED}Status:${NC} $status"
-                ;;
-        esac
-
-        echo -e "${CYAN}Controller ID:${NC} $instance_id"
-        echo -e "${CYAN}Controller IP:${NC} $(terraform output -raw controller_private_ip)"
-
-        local worker_ips
-        worker_ips=$(terraform output -json worker_private_ips 2>/dev/null || echo "[]")
-        echo -e "${CYAN}Worker IPs:${NC} $worker_ips"
-
-        local connection_info
-        connection_info=$(terraform output -json connection_info 2>/dev/null || echo "{}")
-        echo -e "${CYAN}k0s Version:${NC} $(echo "$connection_info" | jq -r '.k0s_version // "N/A"')"
-        echo -e "${CYAN}KubeVirt Version:${NC} $(echo "$connection_info" | jq -r '.kubevirt_version // "N/A"')"
-    else
-        echo -e "${YELLOW}Status:${NC} Not provisioned"
-    fi
-    echo ""
+    echo "$state_content" | jq '{
+        engineer_id: "'"$engineer_id"'",
+        region: "'"$REGION"'",
+        bucket: "'"$bucket"'",
+        bastion_ip: (.outputs.bastion_public_ip.value // null),
+        vpc_id: (.outputs.vpc_id.value // null),
+        primary_node_ip: (.outputs.primary_node_private_ip.value // null),
+        ui_url: (.outputs.ui_url.value // null),
+        mgmt_node_ids: (.outputs.mgmt_node_ids.value // []),
+        gpu_ip: (.outputs.shared_gpu_private_ip.value // null),
+        metal3_ip: (.outputs.metal3_controller_ip.value // null),
+        kubevirt_ip: (.outputs.kubevirt_controller_ip.value // null)
+    }' 2>/dev/null || echo '{"error": "No state found"}'
 }
 
-show_gpu_status() {
-    local session_id="$1"
-    log_info "GPU Lab Status - $session_id"
-    echo "================================"
-
-    local env_dir="$TERRAFORM_DIR/environments/gpu-lab"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
-    cd "$env_dir" 2>/dev/null || {
-        log_error "GPU lab environment directory not found"
-        return 1
-    }
-
-    terraform init -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${REGION}/gpu-lab/${session_id}/terraform.tfstate" \
-        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
-
-    if terraform output gpu_info &>/dev/null; then
-        local gpu_info
-        gpu_info=$(terraform output -json gpu_info 2>/dev/null || echo "{}")
-
-        local shared_enabled
-        shared_enabled=$(echo "$gpu_info" | jq -r '.shared_enabled // false')
-
-        if [[ "$shared_enabled" == "true" ]]; then
-            local shared_ip
-            shared_ip=$(terraform output -raw shared_gpu_private_ip 2>/dev/null || echo "N/A")
-
-            if [[ -n "$shared_ip" ]] && [[ "$shared_ip" != "N/A" ]]; then
-                echo -e "${GREEN}Shared GPU (4x V100):${NC} Active"
-                echo -e "${CYAN}  Instance Type:${NC} $(echo "$gpu_info" | jq -r '.shared_type')"
-                echo -e "${CYAN}  Private IP:${NC} $shared_ip"
-            else
-                echo -e "${YELLOW}Shared GPU:${NC} Not running"
-            fi
-        fi
-
-        local advanced_enabled
-        advanced_enabled=$(echo "$gpu_info" | jq -r '.advanced_enabled // false')
-
-        if [[ "$advanced_enabled" == "true" ]]; then
-            local advanced_ip
-            advanced_ip=$(terraform output -raw advanced_gpu_private_ip 2>/dev/null || echo "N/A")
-
-            if [[ -n "$advanced_ip" ]] && [[ "$advanced_ip" != "N/A" ]]; then
-                echo -e "${GREEN}Advanced GPU (8x A100):${NC} Active"
-                echo -e "${CYAN}  Instance Type:${NC} $(echo "$gpu_info" | jq -r '.advanced_type')"
-                echo -e "${CYAN}  Private IP:${NC} $advanced_ip"
-            fi
-        fi
-
-        local connection_info
-        connection_info=$(terraform output -json connection_info 2>/dev/null || echo "{}")
-        echo -e "${CYAN}Engineer Slots:${NC} $(echo "$connection_info" | jq -r '.engineer_slots // "N/A"')"
-        echo -e "${CYAN}Spot Enabled:${NC} $(echo "$gpu_info" | jq -r '.spot_enabled // false')"
-    else
-        echo -e "${YELLOW}Status:${NC} Not provisioned"
-    fi
-    echo ""
-}
-
-list_environments() {
-    log_info "Listing all provisioned environments..."
-    echo ""
-
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
-    echo "Terraform State Bucket: $tfstate_bucket"
-    echo ""
-
-    # List all state files in S3
-    echo "Provisioned Environments:"
-    echo "========================="
-
-    aws s3 ls "s3://${tfstate_bucket}/" --recursive 2>/dev/null | \
-        grep "terraform.tfstate" | \
-        awk '{print $4}' | \
-        sed 's|/terraform.tfstate||' | \
-        while read -r env; do
-            echo "  - $env"
-        done || echo "  (none found)"
-
-    echo ""
-}
-
-# Load config if exists (created by lab-provision.sh)
-if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
-    source "$CONFIG_DIR/lab-config.env"
-fi
-
-# Default values - region resolved after arg parsing
+# Default values
 REGION=""
-BUCKET_REGION=""
 JSON_OUTPUT="false"
-
-# Parse arguments
-COMMAND=""
 IDENTIFIER=""
 
+# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        all|shared|metal3|kubevirt|gpu|list)
-            COMMAND="$1"
-            shift
-            if [[ "$COMMAND" != "all" ]] && [[ "$COMMAND" != "shared" ]] && [[ "$COMMAND" != "list" ]]; then
-                if [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; then
-                    IDENTIFIER="$1"
-                    shift
-                fi
-            fi
-            ;;
         --region)
             REGION="$2"
             shift 2
@@ -339,18 +205,36 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             usage
             ;;
-        *)
+        -*)
             log_error "Unknown option: $1"
             usage
+            ;;
+        *)
+            if [[ -z "$IDENTIFIER" ]]; then
+                IDENTIFIER="$1"
+            else
+                log_error "Unexpected argument: $1"
+                usage
+            fi
+            shift
             ;;
     esac
 done
 
-[[ -z "$COMMAND" ]] && COMMAND="all"
+# Validate
+if [[ -z "$IDENTIFIER" ]]; then
+    log_error "Your name/identifier is required"
+    usage
+fi
 
-# Resolve region: --region flag > saved LAB_REGION > env vars > AWS CLI default
-if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
-    REGION="$LAB_REGION"
+# Resolve region
+if [[ -z "$REGION" ]]; then
+    if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
+        source "$CONFIG_DIR/lab-config.env"
+    fi
+    if [[ -n "${LAB_REGION:-}" ]]; then
+        REGION="$LAB_REGION"
+    fi
 fi
 if [[ -z "$REGION" ]]; then
     REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
@@ -359,36 +243,13 @@ if [[ -z "$REGION" ]]; then
     REGION=$(aws configure get region 2>/dev/null || true)
 fi
 if [[ -z "$REGION" ]]; then
-    log_error "No AWS region specified. Use one of:"
-    log_error "  --region <region>              (e.g. --region eu-west-1)"
-    log_error "  export AWS_REGION=<region>     (environment variable)"
-    log_error "  aws configure set region <region>  (AWS CLI default)"
+    log_error "No AWS region specified. Use --region or set AWS_REGION"
     exit 1
 fi
 
-BUCKET_REGION=$(get_bucket_region)
-
-case $COMMAND in
-    all)
-        show_shared_status
-        list_environments
-        ;;
-    shared)
-        show_shared_status
-        ;;
-    metal3)
-        [[ -z "$IDENTIFIER" ]] && { log_error "Engineer ID required"; usage; }
-        show_metal3_status "$IDENTIFIER"
-        ;;
-    kubevirt)
-        [[ -z "$IDENTIFIER" ]] && { log_error "Engineer ID required"; usage; }
-        show_kubevirt_status "$IDENTIFIER"
-        ;;
-    gpu)
-        [[ -z "$IDENTIFIER" ]] && { log_error "Session ID required"; usage; }
-        show_gpu_status "$IDENTIFIER"
-        ;;
-    list)
-        list_environments
-        ;;
-esac
+# Execute
+if [[ "$JSON_OUTPUT" == "true" ]]; then
+    show_status_json "$IDENTIFIER"
+else
+    show_status "$IDENTIFIER"
+fi

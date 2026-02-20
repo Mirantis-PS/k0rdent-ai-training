@@ -26,7 +26,7 @@ If your SSH session dropped or you're returning the next day:
 
 ```bash
 cd lab-infrastructure
-./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region>
+./scripts/lab-connect.sh <your-engineer-id>
 kubectl get nodes && kubectl get pods -n kcm-system
 ```
 
@@ -41,7 +41,7 @@ The k0rdent UI is exposed via a Network Load Balancer (NLB) and accessible direc
 From your local machine:
 
 ```bash
-cd lab-infrastructure/terraform/environments/k0rdent
+cd lab-infrastructure/terraform/environments/student-lab
 
 # Get the UI URL
 terraform output ui_url
@@ -54,7 +54,7 @@ Open the URL in your browser and login with:
 - **Username:** `admin`
 - **Password:** the output from the command above
 
-> **Tip:** You can also run `./scripts/lab-connect.sh k0rdent <your-engineer-id> --region <your-region> --show-password` to retrieve the password.
+> **Tip:** You can also run `./scripts/lab-connect.sh <your-engineer-id> --show-password` to retrieve the password.
 
 ## Part 2: Understanding k0rdent UI Access Architecture
 

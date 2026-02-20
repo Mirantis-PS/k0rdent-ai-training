@@ -33,11 +33,11 @@ resource "tls_private_key" "bastion" {
 }
 
 resource "aws_key_pair" "bastion" {
-  key_name   = "${var.project_name}-bastion"
+  key_name   = "${var.project_name}-${var.engineer_id}-bastion"
   public_key = tls_private_key.bastion.public_key_openssh
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-bastion"
+    Name = "${var.project_name}-${var.engineer_id}-bastion"
   })
 }
 
@@ -83,7 +83,7 @@ resource "aws_instance" "bastion" {
   }))
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-bastion"
+    Name = "${var.project_name}-${var.engineer_id}-bastion"
   })
 
   lifecycle {
@@ -101,7 +101,7 @@ resource "aws_eip" "bastion" {
   domain   = "vpc"
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-bastion-eip"
+    Name = "${var.project_name}-${var.engineer_id}-bastion-eip"
   })
 }
 
@@ -109,7 +109,7 @@ resource "aws_eip" "bastion" {
 # CloudWatch Logs
 #------------------------------------------------------------------------------
 resource "aws_cloudwatch_log_group" "bastion" {
-  name              = "/k0rdent-training/bastion"
+  name              = "/k0rdent-training/${var.engineer_id}/bastion"
   retention_in_days = 7
 
   tags = local.common_tags

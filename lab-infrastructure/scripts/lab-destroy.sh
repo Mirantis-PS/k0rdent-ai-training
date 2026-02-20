@@ -1,6 +1,6 @@
 #!/bin/bash
-# k0rdent Training Lab Destroy Script
-# Usage: ./lab-destroy.sh <lab-type> <identifier> [options]
+# k0rdent Training Lab Destroy Script (Per-Student Model)
+# Usage: ./lab-destroy.sh <your-name> [options]
 
 set -euo pipefail
 
@@ -22,56 +22,34 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 usage() {
     cat <<EOF
-k0rdent Training Lab Destroy Script
+k0rdent Training Lab Destroy Script (Per-Student)
 
-Usage: $0 <lab-type> <identifier> [options]
+Usage: $0 <your-name> [options]
 
-Lab Types:
-  shared                      Destroy shared infrastructure (CAUTION!)
-  k0rdent <engineer-id>       Destroy k0rdent management cluster
-  metal3 <engineer-id>        Destroy Metal3 dev environment
-  kubevirt <engineer-id>      Destroy KubeVirt lab environment
-  gpu <session-id>            Destroy GPU lab environment
-  all-engineer <engineer-id>  Destroy all environments for an engineer
-  all-session <session-id>    Destroy all session-based environments
+Arguments:
+  <your-name>                 Your unique identifier (same as used in lab-provision.sh)
 
 Options:
-  --region <region>           AWS region (or set AWS_REGION env var)
+  --region <region>           AWS region (auto-detected from saved config)
   --auto-approve              Skip confirmation prompts
-  --keep-state                Keep Terraform state files
+  --delete-bucket             Also delete the student's S3 bucket
   --help                      Show this help message
 
 Examples:
-  $0 k0rdent engineer-01
-  $0 metal3 engineer-01
-  $0 kubevirt engineer-01 --auto-approve
-  $0 gpu cohort-2024-q1
-  $0 all-engineer engineer-01
-
-WARNING: Destroying 'shared' infrastructure will affect ALL lab environments!
+  $0 john-doe
+  $0 john-doe --auto-approve
+  $0 john-doe --auto-approve --delete-bucket
 
 EOF
     exit 1
 }
 
-get_tfstate_bucket() {
+get_student_bucket() {
+    local engineer_id="$1"
+    local region="$2"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-training-tfstate-${account_id}"
-}
-
-# Detect the actual AWS region of the S3 state bucket
-get_bucket_region() {
-    local bucket_name
-    bucket_name=$(get_tfstate_bucket)
-    local location
-    location=$(aws s3api get-bucket-location --bucket "$bucket_name" \
-        --query LocationConstraint --output text 2>/dev/null)
-    if [[ "$location" == "None" || -z "$location" ]]; then
-        echo "us-east-1"
-    else
-        echo "$location"
-    fi
+    echo "k0rdent-lab-${engineer_id}-${account_id}-${region}"
 }
 
 confirm_destroy() {
@@ -92,203 +70,59 @@ confirm_destroy() {
     fi
 }
 
-cleanup_local_files() {
-    local identifier="$1"
-    local lab_type="$2"
+destroy_lab() {
+    local engineer_id="$1"
+    local bucket
+    bucket=$(get_student_bucket "$engineer_id" "$REGION")
 
-    # Remove SSH key
-    local key_file="$CONFIG_DIR/keys/${identifier}-${lab_type}.pem"
-    if [[ -f "$key_file" ]]; then
-        rm -f "$key_file"
-        log_info "Removed SSH key: $key_file"
-    fi
+    confirm_destroy "all lab resources for $engineer_id in $REGION"
 
-    # Remove kubeconfig
-    local kubeconfig="$CONFIG_DIR/kubeconfig/${identifier}.kubeconfig"
-    if [[ -f "$kubeconfig" ]]; then
-        rm -f "$kubeconfig"
-        log_info "Removed kubeconfig: $kubeconfig"
-    fi
-}
-
-destroy_environment() {
-    local lab_type="$1"
-    local identifier="$2"
-    local state_key="$3"
-
-    local env_dir="$TERRAFORM_DIR/environments/${lab_type}"
-    local tfstate_bucket
-    tfstate_bucket=$(get_tfstate_bucket)
-
+    local env_dir="$TERRAFORM_DIR/environments/student-lab"
     cd "$env_dir"
 
-    log_info "Initializing Terraform..."
-    terraform init \
-        -backend-config="bucket=${tfstate_bucket}" \
-        -backend-config="key=${state_key}" \
-        -backend-config="region=${BUCKET_REGION}" &>/dev/null || true
+    log_info "Initializing Terraform (bucket: $bucket, region: $REGION)..."
+    terraform init -reconfigure \
+        -backend-config="bucket=${bucket}" \
+        -backend-config="key=terraform.tfstate" \
+        -backend-config="region=${REGION}" &>/dev/null || true
 
-    # Check if state exists
-    if ! terraform state list &>/dev/null; then
-        log_warn "No state found for $identifier. Environment may not exist."
+    if ! terraform state list &>/dev/null 2>&1; then
+        log_warn "No state found for $engineer_id."
         return 0
     fi
-
-    log_info "Destroying $lab_type environment: $identifier"
 
     local destroy_args=""
     [[ "$AUTO_APPROVE" == "true" ]] && destroy_args="-auto-approve"
 
-    # Get required variables
-    case $lab_type in
-        k0rdent)
-            terraform destroy $destroy_args \
-                -var="engineer_id=${identifier}" \
-                -var="tfstate_bucket=${tfstate_bucket}" \
-                -var="bucket_region=${BUCKET_REGION}" \
-                -var="region=${REGION}"
-            cleanup_local_files "$identifier" "k0rdent"
-            ;;
-        metal3-dev)
-            terraform destroy $destroy_args \
-                -var="engineer_id=${identifier}" \
-                -var="tfstate_bucket=${tfstate_bucket}" \
-                -var="bucket_region=${BUCKET_REGION}" \
-                -var="region=${REGION}"
-            cleanup_local_files "$identifier" "metal3"
-            ;;
-        kubevirt-lab)
-            terraform destroy $destroy_args \
-                -var="engineer_id=${identifier}" \
-                -var="tfstate_bucket=${tfstate_bucket}" \
-                -var="bucket_region=${BUCKET_REGION}" \
-                -var="region=${REGION}"
-            cleanup_local_files "$identifier" "kubevirt"
-            ;;
-        gpu-lab)
-            terraform destroy $destroy_args \
-                -var="lab_session_id=${identifier}" \
-                -var="tfstate_bucket=${tfstate_bucket}" \
-                -var="bucket_region=${BUCKET_REGION}" \
-                -var="region=${REGION}"
-            cleanup_local_files "$identifier" "gpu"
-            ;;
-        shared)
-            terraform destroy $destroy_args \
-                -var="region=${REGION}"
-            ;;
-    esac
+    terraform destroy $destroy_args \
+        -var="engineer_id=${engineer_id}" \
+        -var="region=${REGION}" \
+        -var="student_bucket=${bucket}"
 
-    # Optionally remove state
-    if [[ "$KEEP_STATE" != "true" ]]; then
-        log_info "State will be removed from S3 by Terraform"
+    # Clean up local files
+    rm -f "$CONFIG_DIR/keys/${engineer_id}-k0rdent.pem"
+    rm -f "$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
+    rm -f "$CONFIG_DIR/kubeconfig/${engineer_id}.kubeconfig"
+    rm -f "$CONFIG_DIR/lab-config-${REGION}.env"
+
+    # Optionally delete the S3 bucket
+    if [[ "$DELETE_BUCKET" == "true" ]]; then
+        log_info "Deleting student bucket: $bucket"
+        aws s3 rb "s3://${bucket}" --force 2>/dev/null || true
     fi
 
-    log_success "Environment $identifier destroyed!"
+    log_success "All resources for $engineer_id in $REGION destroyed!"
 }
 
-destroy_shared() {
-    confirm_destroy "SHARED INFRASTRUCTURE (VPC, S3, IAM)"
-
-    echo ""
-    log_warn "This will destroy all shared resources!"
-    log_warn "All lab environments will become non-functional!"
-    echo ""
-
-    read -p "Are you ABSOLUTELY sure? Type 'yes-destroy-shared': " final_confirm
-
-    if [[ "$final_confirm" != "yes-destroy-shared" ]]; then
-        log_warn "Destruction cancelled"
-        exit 0
-    fi
-
-    destroy_environment "shared" "shared" "${REGION}/shared/terraform.tfstate"
-}
-
-destroy_k0rdent() {
-    local engineer_id="$1"
-    confirm_destroy "k0rdent management cluster for $engineer_id"
-    destroy_environment "k0rdent" "$engineer_id" "${REGION}/k0rdent/${engineer_id}/terraform.tfstate"
-}
-
-destroy_metal3() {
-    local engineer_id="$1"
-    confirm_destroy "Metal3 dev environment for $engineer_id"
-    destroy_environment "metal3-dev" "$engineer_id" "${REGION}/metal3-dev/${engineer_id}/terraform.tfstate"
-}
-
-destroy_kubevirt() {
-    local engineer_id="$1"
-    confirm_destroy "KubeVirt lab environment for $engineer_id"
-    destroy_environment "kubevirt-lab" "$engineer_id" "${REGION}/kubevirt-lab/${engineer_id}/terraform.tfstate"
-}
-
-destroy_gpu() {
-    local session_id="$1"
-    confirm_destroy "GPU lab environment for $session_id"
-    destroy_environment "gpu-lab" "$session_id" "${REGION}/gpu-lab/${session_id}/terraform.tfstate"
-}
-
-destroy_all_engineer() {
-    local engineer_id="$1"
-
-    confirm_destroy "ALL environments for $engineer_id"
-
-    log_info "Destroying all environments for $engineer_id..."
-
-    # Destroy k0rdent management cluster
-    log_info "Checking k0rdent environment..."
-    destroy_environment "k0rdent" "$engineer_id" "${REGION}/k0rdent/${engineer_id}/terraform.tfstate" || true
-
-    # Destroy Metal3
-    log_info "Checking Metal3 environment..."
-    destroy_environment "metal3-dev" "$engineer_id" "${REGION}/metal3-dev/${engineer_id}/terraform.tfstate" || true
-
-    # Destroy KubeVirt
-    log_info "Checking KubeVirt environment..."
-    destroy_environment "kubevirt-lab" "$engineer_id" "${REGION}/kubevirt-lab/${engineer_id}/terraform.tfstate" || true
-
-    log_success "All environments for $engineer_id destroyed!"
-}
-
-destroy_all_session() {
-    local session_id="$1"
-
-    confirm_destroy "ALL environments for session $session_id"
-
-    log_info "Destroying all environments for session $session_id..."
-
-    # Destroy GPU lab
-    destroy_environment "gpu-lab" "$session_id" "${REGION}/gpu-lab/${session_id}/terraform.tfstate" || true
-
-    log_success "All environments for session $session_id destroyed!"
-}
-
-# Load config if exists (created by lab-provision.sh)
-if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
-    source "$CONFIG_DIR/lab-config.env"
-fi
-
-# Default values - region resolved after arg parsing
+# Default values
 REGION=""
-BUCKET_REGION=""
 AUTO_APPROVE="false"
-KEEP_STATE="false"
-
-# Parse arguments
-COMMAND=""
+DELETE_BUCKET="false"
 IDENTIFIER=""
 
+# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        shared|k0rdent|metal3|kubevirt|gpu|all-engineer|all-session)
-            COMMAND="$1"
-            shift
-            if [[ "$COMMAND" != "shared" ]] && [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; then
-                IDENTIFIER="$1"
-                shift
-            fi
-            ;;
         --region)
             REGION="$2"
             shift 2
@@ -297,34 +131,43 @@ while [[ $# -gt 0 ]]; do
             AUTO_APPROVE="true"
             shift
             ;;
-        --keep-state)
-            KEEP_STATE="true"
+        --delete-bucket)
+            DELETE_BUCKET="true"
             shift
             ;;
         --help|-h)
             usage
             ;;
-        *)
+        -*)
             log_error "Unknown option: $1"
             usage
+            ;;
+        *)
+            if [[ -z "$IDENTIFIER" ]]; then
+                IDENTIFIER="$1"
+            else
+                log_error "Unexpected argument: $1"
+                usage
+            fi
+            shift
             ;;
     esac
 done
 
 # Validate
-if [[ -z "$COMMAND" ]]; then
-    log_error "Command required"
+if [[ -z "$IDENTIFIER" ]]; then
+    log_error "Your name/identifier is required"
     usage
 fi
 
-if [[ "$COMMAND" != "shared" ]] && [[ -z "$IDENTIFIER" ]]; then
-    log_error "Identifier required"
-    usage
-fi
-
-# Resolve region: --region flag > saved LAB_REGION > env vars > AWS CLI default
-if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
-    REGION="$LAB_REGION"
+# Resolve region
+if [[ -z "$REGION" ]]; then
+    if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
+        source "$CONFIG_DIR/lab-config.env"
+    fi
+    if [[ -n "${LAB_REGION:-}" ]]; then
+        REGION="$LAB_REGION"
+    fi
 fi
 if [[ -z "$REGION" ]]; then
     REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
@@ -333,37 +176,10 @@ if [[ -z "$REGION" ]]; then
     REGION=$(aws configure get region 2>/dev/null || true)
 fi
 if [[ -z "$REGION" ]]; then
-    log_error "No AWS region specified. Use one of:"
-    log_error "  --region <region>              (e.g. --region eu-west-1)"
-    log_error "  export AWS_REGION=<region>     (environment variable)"
-    log_error "  aws configure set region <region>  (AWS CLI default)"
+    log_error "No AWS region specified. Use --region or set AWS_REGION"
     exit 1
 fi
 log_info "Using AWS region: $REGION"
 
-BUCKET_REGION=$(get_bucket_region)
-
 # Execute
-case $COMMAND in
-    shared)
-        destroy_shared
-        ;;
-    k0rdent)
-        destroy_k0rdent "$IDENTIFIER"
-        ;;
-    metal3)
-        destroy_metal3 "$IDENTIFIER"
-        ;;
-    kubevirt)
-        destroy_kubevirt "$IDENTIFIER"
-        ;;
-    gpu)
-        destroy_gpu "$IDENTIFIER"
-        ;;
-    all-engineer)
-        destroy_all_engineer "$IDENTIFIER"
-        ;;
-    all-session)
-        destroy_all_session "$IDENTIFIER"
-        ;;
-esac
+destroy_lab "$IDENTIFIER"

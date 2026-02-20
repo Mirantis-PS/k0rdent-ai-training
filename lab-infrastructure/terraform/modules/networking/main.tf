@@ -1,5 +1,5 @@
-# Shared Infrastructure Module
-# Creates VPC, subnets, S3 buckets, and IAM roles for k0rdent training labs
+# Per-Student Networking Module
+# Creates VPC, subnets, NAT gateway, and security groups for one student
 
 terraform {
   required_version = ">= 1.5.0"
@@ -16,28 +16,16 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-data "aws_caller_identity" "current" {}
-
 locals {
-  azs    = slice(data.aws_availability_zones.available.names, 0, 3)
-  gpu_az = local.gpu_az != "" ? local.gpu_az : local.azs[0]
+  azs              = slice(data.aws_availability_zones.available.names, 0, 3)
+  effective_gpu_az = var.gpu_az != "" ? var.gpu_az : local.azs[0]
+  name_prefix      = "${var.project_name}-${var.engineer_id}"
 
-  account_id = data.aws_caller_identity.current.account_id
-
-  # S3 bucket names and ARNs computed directly — no AWS API calls needed.
-  # Buckets are created by lab-provision.sh (ensure_s3_buckets), not Terraform.
-  tfstate_bucket_name   = "${var.project_name}-tfstate-${local.account_id}"
-  tfstate_bucket_arn    = "arn:aws:s3:::${local.tfstate_bucket_name}"
-  images_bucket_name    = "${var.project_name}-images-${local.account_id}"
-  images_bucket_arn     = "arn:aws:s3:::${local.images_bucket_name}"
-  artifacts_bucket_name = "${var.project_name}-artifacts-${local.account_id}"
-  artifacts_bucket_arn  = "arn:aws:s3:::${local.artifacts_bucket_name}"
-
-  common_tags = {
-    Project     = "k0rdent-training"
-    Environment = "lab"
-    ManagedBy   = "terraform"
-  }
+  common_tags = merge(var.tags, {
+    Project    = var.project_name
+    EngineerID = var.engineer_id
+    ManagedBy  = "terraform"
+  })
 }
 
 #------------------------------------------------------------------------------
@@ -49,7 +37,7 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-vpc"
+    Name = "${local.name_prefix}-vpc"
   })
 }
 
@@ -57,7 +45,7 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-igw"
+    Name = "${local.name_prefix}-igw"
   })
 }
 
@@ -73,7 +61,7 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-public-${local.azs[count.index]}"
+    Name = "${local.name_prefix}-public-${local.azs[count.index]}"
     Type = "public"
   })
 }
@@ -87,7 +75,7 @@ resource "aws_route_table" "public" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-public-rt"
+    Name = "${local.name_prefix}-public-rt"
   })
 }
 
@@ -109,7 +97,7 @@ resource "aws_subnet" "private" {
   availability_zone = local.azs[count.index]
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-private-${local.azs[count.index]}"
+    Name = "${local.name_prefix}-private-${local.azs[count.index]}"
     Type = "private"
   })
 }
@@ -120,10 +108,10 @@ resource "aws_subnet" "private" {
 resource "aws_subnet" "gpu" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, 100)
-  availability_zone = local.gpu_az
+  availability_zone = local.effective_gpu_az
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-gpu-${local.gpu_az}"
+    Name = "${local.name_prefix}-gpu-${local.effective_gpu_az}"
     Type = "gpu"
   })
 }
@@ -135,7 +123,7 @@ resource "aws_eip" "nat" {
   domain = "vpc"
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-nat-eip"
+    Name = "${local.name_prefix}-nat-eip"
   })
 
   depends_on = [aws_internet_gateway.main]
@@ -146,7 +134,7 @@ resource "aws_nat_gateway" "main" {
   subnet_id     = aws_subnet.public[0].id
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-nat"
+    Name = "${local.name_prefix}-nat"
   })
 
   depends_on = [aws_internet_gateway.main]
@@ -161,7 +149,7 @@ resource "aws_route_table" "private" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-private-rt"
+    Name = "${local.name_prefix}-private-rt"
   })
 }
 
@@ -178,21 +166,12 @@ resource "aws_route_table_association" "gpu" {
 }
 
 #------------------------------------------------------------------------------
-# S3 Buckets
-#------------------------------------------------------------------------------
-# All S3 buckets are created by lab-provision.sh (ensure_s3_buckets) and referenced
-# here only via computed locals. This avoids cross-region S3 API call failures when
-# the AWS provider region differs from the bucket's actual region.
-# Legacy S3 resources are removed from state by the provisioning script
-# (migrate_s3_state) before terraform apply.
-
-#------------------------------------------------------------------------------
 # Security Groups
 #------------------------------------------------------------------------------
 
 # Bastion Security Group
 resource "aws_security_group" "bastion" {
-  name        = "${var.project_name}-bastion-sg"
+  name        = "${local.name_prefix}-bastion-sg"
   description = "Security group for bastion host"
   vpc_id      = aws_vpc.main.id
 
@@ -212,13 +191,13 @@ resource "aws_security_group" "bastion" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-bastion-sg"
+    Name = "${local.name_prefix}-bastion-sg"
   })
 }
 
 # Lab Instance Security Group
 resource "aws_security_group" "lab_instance" {
-  name        = "${var.project_name}-lab-instance-sg"
+  name        = "${local.name_prefix}-lab-instance-sg"
   description = "Security group for lab instances"
   vpc_id      = aws_vpc.main.id
 
@@ -246,13 +225,13 @@ resource "aws_security_group" "lab_instance" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-lab-instance-sg"
+    Name = "${local.name_prefix}-lab-instance-sg"
   })
 }
 
 # K8s Cluster Security Group
 resource "aws_security_group" "k8s_cluster" {
-  name        = "${var.project_name}-k8s-cluster-sg"
+  name        = "${local.name_prefix}-k8s-cluster-sg"
   description = "Security group for k0s cluster nodes"
   vpc_id      = aws_vpc.main.id
 
@@ -328,13 +307,13 @@ resource "aws_security_group" "k8s_cluster" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-k8s-cluster-sg"
+    Name = "${local.name_prefix}-k8s-cluster-sg"
   })
 }
 
 # GPU Lab Security Group
 resource "aws_security_group" "gpu_lab" {
-  name        = "${var.project_name}-gpu-lab-sg"
+  name        = "${local.name_prefix}-gpu-lab-sg"
   description = "Security group for GPU lab instances"
   vpc_id      = aws_vpc.main.id
 
@@ -362,6 +341,6 @@ resource "aws_security_group" "gpu_lab" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-gpu-lab-sg"
+    Name = "${local.name_prefix}-gpu-lab-sg"
   })
 }

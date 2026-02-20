@@ -6,13 +6,10 @@ This is the single reference for troubleshooting lab provisioning and connectivi
 
 ```bash
 # Check your environment status
-./scripts/lab-status.sh all
+./scripts/lab-status.sh your-name
 
-# Check specific environment
-./scripts/lab-status.sh k0rdent your-name
-
-# List all provisioned environments
-./scripts/lab-status.sh list
+# JSON output for debugging
+./scripts/lab-status.sh your-name --json
 ```
 
 ## AWS Credentials Issues
@@ -59,7 +56,7 @@ aws sso login --profile your-profile
 **Solution:**
 ```bash
 # Get the lock ID from the error message, then:
-cd lab-infrastructure/terraform/environments/<your-env>
+cd lab-infrastructure/terraform/environments/student-lab
 terraform force-unlock LOCK_ID
 ```
 
@@ -69,11 +66,11 @@ terraform force-unlock LOCK_ID
 
 **Solution:**
 ```bash
-# Check if bucket exists
-aws s3 ls | grep k0rdent-training-tfstate
+# Check if your student bucket exists (bucket name: k0rdent-lab-<your-name>-<account-id>-<region>)
+aws s3 ls | grep k0rdent-lab-your-name
 
 # If missing, the provisioning script will create it automatically
-./scripts/lab-provision.sh k0rdent your-name --auto-approve
+./scripts/lab-provision.sh your-name --region us-east-1 --auto-approve
 ```
 
 ### Error: `Error: Invalid provider configuration`
@@ -101,7 +98,7 @@ aws configure set region us-east-1
 **Diagnostics:**
 ```bash
 # Check instance status
-./scripts/lab-status.sh k0rdent your-name
+./scripts/lab-status.sh your-name
 
 # Check security groups in AWS Console
 aws ec2 describe-security-groups --group-ids sg-xxx
@@ -123,13 +120,10 @@ chmod 600 config/keys/*.pem
 # Each environment uses its OWN SSH key:
 ```
 
-| Environment | SSH Key | Username |
-|-------------|---------|----------|
-| Bastion | `bastion.pem` | `ubuntu` |
-| k0rdent | `k0rdent-<id>-key.pem` | `ubuntu` |
-| Metal3 | `metal3-key.pem` | `ubuntu` |
-| KubeVirt | `kubevirt-key.pem` | `ubuntu` |
-| GPU Lab | `gpu-key.pem` | `ubuntu` |
+| Component | SSH Key | Username |
+|-----------|---------|----------|
+| Bastion | `<your-name>-bastion.pem` | `ec2-user` |
+| Management cluster | `<your-name>-k0rdent.pem` | `ubuntu` |
 
 ### Error: `Host key verification failed`
 
@@ -150,7 +144,7 @@ ssh -i metal3-key.pem \
   ubuntu@METAL3_PRIVATE_IP
 
 # Or use the lab-connect script which handles this automatically
-./scripts/lab-connect.sh metal3 your-name
+./scripts/lab-connect.sh your-name
 ```
 
 **Debug SSH:**
@@ -173,8 +167,8 @@ ssh -v -i key.pem ubuntu@IP
 
 **Solution:**
 ```bash
-# Use on-demand instances instead
-./scripts/lab-provision.sh metal3 your-name --no-spot
+# Re-provision (may land in a different AZ with capacity)
+./scripts/lab-provision.sh your-name --metal3
 ```
 
 ### Error: `VcpuLimitExceeded`
@@ -183,7 +177,7 @@ ssh -v -i key.pem ubuntu@IP
 
 **Solution:**
 1. Request limit increase in AWS Console (Service Quotas)
-2. Or destroy unused environments: `./scripts/lab-destroy.sh all`
+2. Or destroy your environment: `./scripts/lab-destroy.sh your-name --auto-approve`
 
 ## k0rdent Installation Issues
 
@@ -293,11 +287,11 @@ sudo k0s kubectl get nodes
 
 **Solution:**
 ```bash
-# Destroy in correct order
-./scripts/lab-destroy.sh k0rdent your-name --auto-approve
-./scripts/lab-destroy.sh metal3 your-name --auto-approve
-# Shared infrastructure last (if no other engineers using it)
-./scripts/lab-destroy.sh shared --auto-approve
+# Destroy your entire student environment (single command)
+./scripts/lab-destroy.sh your-name --auto-approve
+
+# To also remove the S3 state bucket:
+./scripts/lab-destroy.sh your-name --auto-approve --delete-bucket
 ```
 
 ### Orphaned Resources
@@ -311,8 +305,8 @@ aws ec2 describe-instances --filters "Name=tag:Project,Values=k0rdent-training"
 # Terminate orphaned instances
 aws ec2 terminate-instances --instance-ids i-xxx
 
-# Delete orphaned S3 state
-aws s3 rm s3://k0rdent-training-tfstate-xxx/k0rdent/your-name/ --recursive
+# Delete orphaned S3 state bucket
+aws s3 rb s3://k0rdent-lab-your-name-<account-id>-<region> --force
 ```
 
 ## Getting Help
