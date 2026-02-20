@@ -17,7 +17,7 @@ output "primary_node_ip" {
 
 output "ssh_private_key" {
   description = "SSH private key for accessing instances"
-  value       = tls_private_key.mgmt.private_key_pem
+  value       = tls_private_key.mgmt.private_key_openssh
   sensitive   = true
 }
 
@@ -64,15 +64,15 @@ output "ssh_key_s3_path" {
 output "connection_info" {
   description = "Connection information for the management cluster"
   value = {
-    engineer_id      = var.engineer_id
-    node_ips         = aws_instance.mgmt_node[*].private_ip
-    primary_ip       = aws_instance.mgmt_node[0].private_ip
-    ssh_user         = "ubuntu"
-    ssh_key_name     = aws_key_pair.mgmt.key_name
-    k0s_version      = var.k0s_version
-    k0rdent_version  = var.k0rdent_version
-    flux_version     = var.flux_version
-    api_endpoint     = "https://${aws_instance.mgmt_node[0].private_ip}:6443"
+    engineer_id     = var.engineer_id
+    node_ips        = aws_instance.mgmt_node[*].private_ip
+    primary_ip      = aws_instance.mgmt_node[0].private_ip
+    ssh_user        = "ubuntu"
+    ssh_key_name    = aws_key_pair.mgmt.key_name
+    k0s_version     = var.k0s_version
+    k0rdent_version = var.k0rdent_version
+    flux_version    = var.flux_version
+    api_endpoint    = "https://${aws_instance.mgmt_node[0].private_ip}:6443"
   }
 }
 
@@ -90,4 +90,9 @@ output "ui_password" {
   description = "k0rdent UI password (generated or provided)"
   value       = local.effective_ui_password
   sensitive   = true
+}
+
+output "ui_url" {
+  description = "k0rdent UI URL via NLB"
+  value       = "http://${aws_lb.k0rdent_ui.dns_name}"
 }

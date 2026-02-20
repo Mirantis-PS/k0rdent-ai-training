@@ -16,7 +16,7 @@ YOUR MACHINE
      | SSH (lab-connect.sh)
      v
 +--------------+
-|   Bastion    |  (shared, from Week 1)
+|   Bastion    |  (per-student, from Week 1)
 |   Host       |
 +------+-------+
        |
@@ -60,34 +60,34 @@ Before starting Week 5 labs, you must have completed:
 
 You will need:
 - AWS credentials with EC2 GPU instance permissions (p3/p4d families)
-- Shared infrastructure already provisioned (`./scripts/lab-provision.sh shared`)
+- Your student lab environment provisioned (from Week 1)
 - Your management cluster accessible via `lab-connect.sh`
 
 ---
 
 ## Step 1: Provision the GPU Lab Environment
 
-### Option A: Shared GPU Instance (Recommended for most labs)
+### Option A: Standard GPU Instance (Recommended for most labs)
 
-From your local machine, provision a shared GPU instance that supports up to 15 engineers:
+From your local machine, add GPU support to your student lab:
 
 ```bash
 cd lab-infrastructure
 
-# Provision GPU lab (uses p3.8xlarge with 4x V100 by default)
-./scripts/lab-provision.sh gpu <your-cohort-id>
+# Add GPU lab to your environment (uses p3.8xlarge with 4x V100 by default)
+./scripts/lab-provision.sh <your-engineer-id> --gpu
 
 # Example:
-./scripts/lab-provision.sh gpu cohort-2025-q1
+./scripts/lab-provision.sh john-doe --gpu
 ```
 
 ### Option B: Advanced GPU Instance (For distributed training labs)
 
-For Labs 5.13-5.15 (RDMA, distributed training), use the advanced configuration:
+For Labs 5.13-5.15 (RDMA, distributed training), override the instance type in Terraform variables to use p4d.24xlarge with 8x A100. Provision with:
 
 ```bash
-# Provision advanced GPU lab (p4d.24xlarge with 8x A100)
-./scripts/lab-provision.sh gpu-advanced <your-cohort-id>
+# Add GPU lab with advanced configuration
+./scripts/lab-provision.sh <your-engineer-id> --gpu
 ```
 
 ### What Happens During Provisioning
@@ -109,7 +109,7 @@ The provisioning script automates:
 
 ```bash
 # Connect to the GPU lab instance (via bastion)
-./scripts/lab-connect.sh gpu <your-cohort-id>
+./scripts/lab-connect.sh <your-engineer-id>
 ```
 
 Once connected, verify the environment is fully initialized:
@@ -222,7 +222,7 @@ kubectl delete pod gpu-test
 
 > **Note:** If the GPU lab was provisioned via `lab-provision.sh`, the GPU Operator is already installed locally on the GPU instance. This step shows the **k0rdent-native approach** for production environments, where the GPU Operator is deployed as a ServiceTemplate from the management cluster.
 
-On your **management cluster** (connect via `./scripts/lab-connect.sh k0rdent <your-engineer-id>`):
+On your **management cluster** (connect via `./scripts/lab-connect.sh <your-engineer-id>`):
 
 ### 4.1 Install GPU Operator ServiceTemplate
 
@@ -284,8 +284,8 @@ If your SSH session drops or you're returning another day:
 # From your local machine
 cd lab-infrastructure
 
-# Reconnect to GPU lab
-./scripts/lab-connect.sh gpu <your-cohort-id>
+# Reconnect to your lab
+./scripts/lab-connect.sh <your-engineer-id>
 
 # Verify GPU environment is still healthy
 nvidia-smi
@@ -293,7 +293,7 @@ kubectl get nodes
 kubectl get pods -n gpu-operator
 ```
 
-> **Instance lifecycle:** GPU lab instances may be terminated if using spot pricing. If your instance was terminated, re-provision with `./scripts/lab-provision.sh gpu <your-cohort-id>`. Cloud-init will restore the full environment in 10-15 minutes.
+> **Instance lifecycle:** GPU lab instances may be terminated if using spot pricing. If your instance was terminated, re-provision with `./scripts/lab-provision.sh <your-engineer-id> --gpu`. Cloud-init will restore the full environment in 10-15 minutes.
 
 ---
 
@@ -310,20 +310,18 @@ GPU instances are the most expensive resources in this training:
 
 1. **Destroy when not in use.** Do not leave GPU instances running overnight.
    ```bash
-   ./scripts/lab-destroy.sh gpu <your-cohort-id>
+   ./scripts/lab-destroy.sh <your-engineer-id> --auto-approve
    ```
 
 2. **Use spot instances** (enabled by default). Accept occasional interruptions for 60% savings.
 
 3. **Use the standard GPU lab** (p3.8xlarge) for Labs 5.1-5.12. Only provision the advanced lab (p4d.24xlarge) for Labs 5.13-5.15.
 
-4. **Share the instance.** The GPU lab supports up to 15 engineers. Coordinate with your cohort to share a single instance.
-
 ### Check Running Costs
 
 ```bash
 # From your local machine
-./scripts/lab-status.sh gpu <your-cohort-id>
+./scripts/lab-status.sh <your-engineer-id>
 ```
 
 ---
@@ -392,8 +390,8 @@ aws ec2 describe-instance-type-offerings \
   --filters "Name=instance-type,Values=p3.8xlarge" \
   --region $AWS_REGION
 
-# If no capacity, try a different AZ or switch to on-demand
-./scripts/lab-provision.sh gpu <cohort-id> --no-spot
+# If no capacity, try a different AZ or region
+./scripts/lab-provision.sh <your-engineer-id> --gpu
 ```
 
 ### nvidia-smi Shows No GPUs
@@ -441,13 +439,13 @@ kubectl get pods --all-namespaces -o json | \
 
 ```bash
 # Check if instance was terminated
-./scripts/lab-status.sh gpu <your-cohort-id>
+./scripts/lab-status.sh <your-engineer-id>
 
 # If terminated, re-provision (cloud-init restores everything)
-./scripts/lab-provision.sh gpu <your-cohort-id>
+./scripts/lab-provision.sh <your-engineer-id> --gpu
 
 # Wait for initialization, then reconnect
-./scripts/lab-connect.sh gpu <your-cohort-id>
+./scripts/lab-connect.sh <your-engineer-id>
 ```
 
 ---
@@ -460,19 +458,17 @@ Destroy the GPU instance to avoid unnecessary costs:
 
 ```bash
 # From your local machine
-./scripts/lab-destroy.sh gpu <your-cohort-id>
+./scripts/lab-destroy.sh <your-engineer-id> --auto-approve
 ```
 
 ### After Completing All Week 5 Labs
 
 ```bash
-# Destroy GPU lab
-./scripts/lab-destroy.sh gpu <your-cohort-id>
+# Destroy your entire lab environment
+./scripts/lab-destroy.sh <your-engineer-id> --auto-approve
 
-# Keep management cluster if continuing to Week 6
-# Otherwise destroy everything:
-# ./scripts/lab-destroy.sh k0rdent <your-engineer-id>
-# ./scripts/lab-destroy.sh shared --force
+# To also remove the S3 state bucket:
+# ./scripts/lab-destroy.sh <your-engineer-id> --auto-approve --delete-bucket
 ```
 
 ---
