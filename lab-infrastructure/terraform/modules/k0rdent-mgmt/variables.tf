@@ -27,6 +27,11 @@ variable "subnet_id" {
   type        = string
 }
 
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for the internet-facing NLB"
+  type        = list(string)
+}
+
 variable "security_group_ids" {
   description = "Security group IDs for instances"
   type        = list(string)
@@ -104,16 +109,6 @@ variable "flux_version" {
 
 variable "artifacts_bucket" {
   description = "S3 bucket for lab artifacts"
-  type        = string
-}
-
-variable "images_bucket" {
-  description = "S3 bucket for OS images"
-  type        = string
-}
-
-variable "tfstate_bucket" {
-  description = "S3 bucket for Terraform state"
   type        = string
 }
 

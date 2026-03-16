@@ -26,7 +26,7 @@ locals {
   # Get controller IP regardless of spot vs on-demand
   controller_private_ip = var.use_spot_instances ? (
     length(aws_spot_instance_request.controller_spot) > 0 ? aws_spot_instance_request.controller_spot[0].private_ip : ""
-  ) : (
+    ) : (
     length(aws_instance.controller) > 0 ? aws_instance.controller[0].private_ip : ""
   )
 

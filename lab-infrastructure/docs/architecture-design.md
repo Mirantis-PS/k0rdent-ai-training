@@ -4,6 +4,8 @@
 **Date:** December 2025
 **Status:** Draft for Review
 
+> **Note (February 2026):** The infrastructure has been refactored from a shared multi-tenant model to per-student isolation. The current implementation uses a single `environments/student-lab/` with feature flags (`--gpu`, `--metal3`, `--kubevirt`) instead of separate environments. Each student gets their own VPC, bastion, S3 bucket, and k0rdent cluster. See the [Lab Infrastructure README](../README.md) for current usage. The architectural concepts in this document (GitOps, progressive learning, weekly progression) remain valid.
+
 ---
 
 ## Table of Contents
@@ -745,10 +747,8 @@ Deployed once, used by all engineer environments.
 │  ├── Single subnet: 10.0.0.0/20 (4,094 IPs)                    │
 │  └── Internet Gateway + NAT (for private instances)             │
 │                                                                 │
-│  S3 Buckets:                                                    │
-│  ├── k0rdent-training-tfstate      # Terraform state           │
-│  ├── k0rdent-training-images       # OS images, ISOs           │
-│  └── k0rdent-training-artifacts    # Outputs, logs             │
+│  S3 Buckets (per-student):                                      │
+│  └── k0rdent-lab-<id>-<account>    # Per-student state/artifacts│
 │                                                                 │
 │  IAM:                                                           │
 │  ├── k0rdent-lab-provisioner       # For Terraform             │
@@ -782,11 +782,13 @@ Deployed once, used by all engineer environments.
 ```
 terraform/
 ├── modules/
-│   ├── shared-infra/           # VPC, S3, IAM (deployed once)
+│   ├── networking/             # VPC, subnets, NAT, security groups
 │   │   ├── main.tf
-│   │   ├── vpc.tf
-│   │   ├── s3.tf
-│   │   ├── iam.tf              # Including CAPA IAM
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
+│   ├── iam/                    # IAM roles, policies, instance profiles
+│   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
 │   │
@@ -948,9 +950,9 @@ terraform/
 #   --region <r>     AWS region (default: us-east-1)
 #
 # Examples:
-#   lab-provision.sh shared --auto-approve          # Admin: setup shared infra
-#   lab-provision.sh mgmt engineer-01               # Provision management cluster
-#   lab-provision.sh all engineer-01 --auto-approve # Full environment
+#   lab-provision.sh john-doe --region us-east-1 --auto-approve  # Base lab
+#   lab-provision.sh john-doe --gpu                              # Add GPU support
+#   lab-provision.sh john-doe --metal3 --kubevirt                # Add Metal3 + KubeVirt
 ```
 
 **Outputs:**
@@ -962,44 +964,39 @@ terraform/
 
 ```bash
 #!/bin/bash
-# Usage: lab-connect.sh <component> <engineer-id> [options]
-#
-# Components:
-#   mgmt [node]      Connect to management cluster (node 0-2)
-#   bm-sim           Connect to bare metal simulator
-#   bastion          Connect to bastion host
+# Usage: lab-connect.sh <your-name> [options]
 #
 # Options:
 #   --copy-kubeconfig   Download kubeconfig instead of SSH
-#   --port-forward      Setup port forwarding for API access
+#   --show-password     Show k0rdent UI password
+#   --tunnel <L:R>      Create SSH tunnel
 #
 # Examples:
-#   lab-connect.sh mgmt engineer-01              # SSH to mgmt node 0
-#   lab-connect.sh mgmt engineer-01 1            # SSH to mgmt node 1
-#   lab-connect.sh mgmt engineer-01 --copy-kubeconfig
+#   lab-connect.sh john-doe                      # SSH to management cluster
+#   lab-connect.sh john-doe --copy-kubeconfig    # Download kubeconfig
+#   lab-connect.sh john-doe --show-password      # Show UI password
 ```
 
 #### lab-status.sh
 
 ```bash
 #!/bin/bash
-# Usage: lab-status.sh [component] [engineer-id]
+# Usage: lab-status.sh <your-name> [options]
 #
 # Examples:
-#   lab-status.sh                     # List all environments
-#   lab-status.sh mgmt engineer-01    # Status of specific mgmt cluster
-#   lab-status.sh all engineer-01     # All components for engineer
+#   lab-status.sh john-doe             # Check environment status
+#   lab-status.sh john-doe --json      # JSON output for automation
 ```
 
 #### lab-destroy.sh
 
 ```bash
 #!/bin/bash
-# Usage: lab-destroy.sh <component> <engineer-id> [--force]
+# Usage: lab-destroy.sh <your-name> [options]
 #
 # Examples:
-#   lab-destroy.sh mgmt engineer-01
-#   lab-destroy.sh all engineer-01 --force
+#   lab-destroy.sh john-doe --auto-approve
+#   lab-destroy.sh john-doe --auto-approve --delete-bucket
 ```
 
 ### 9.2 Cloud-Init Templates
@@ -1258,7 +1255,7 @@ locals {
 
 ### Phase 1: Foundation (Week 1)
 
-- [ ] Update shared-infra module with CAPA IAM roles
+- [ ] Update networking/iam modules with CAPA IAM roles
 - [ ] Create k0rdent-mgmt Terraform module
 - [ ] Write mgmt-cloud-init.yaml template
 - [ ] Create k0rdent-lab-template git repository
@@ -1438,8 +1435,8 @@ git push --force origin main
 
 For full rebuild:
 ```bash
-lab-destroy.sh all <engineer-id>
-lab-provision.sh all <engineer-id>
+lab-destroy.sh <engineer-id> --auto-approve
+lab-provision.sh <engineer-id> --region <region> --auto-approve
 # Re-bootstrap Flux
 ```
 ```
