@@ -53,7 +53,7 @@ These labs are validated against the following versions. If your environment use
 
 | Component | Version | Used In |
 |-----------|---------|---------|
-| k0rdent Enterprise | 1.2.1 | Lab 1.1 (auto-installed) |
+| k0rdent Enterprise | 1.2.2 | Lab 1.1 (auto-installed); upgrade to 1.2.3 in Lab 1.8 |
 | k0s | v1.32.4+k0s.0 | Lab 1.1 (auto-installed) |
 | Flux | v2.4.0 | Lab 1.1 (auto-installed) |
 | clusterctl | v1.9.0 | Lab 1.1 (auto-installed) |

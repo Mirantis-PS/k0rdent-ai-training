@@ -4,6 +4,8 @@
 
 This curriculum prepares engineers to implement Mirantis k0rdent for customers, enabling them to build AI infrastructure products including Bare Metal as a Service (BMaaS), Virtual Machines as a Service (VMaaS), Kubernetes as a Service (KaaS), and Models as a Service (MaaS).
 
+> **Scope:** This training covers **k0rdent Enterprise** exclusively (Mirantis commercial distribution). Open-source k0rdent documentation (`docs.k0rdent.io`) may differ in features and CRD versions. **k0rdent AI** is introduced in Week 5.
+
 ## Program Structure
 
 | Attribute | Value |

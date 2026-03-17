@@ -76,7 +76,7 @@ Open your browser to: **https://catalog.k0rdent.io/**
 
 ### Explore Categories
 
-The catalog organizes 150+ services into categories:
+The catalog organizes 100+ services into categories:
 
 | Category | Description | Example Services |
 |----------|-------------|-----------------|
@@ -658,7 +658,7 @@ Before completing this lab, verify:
 ## Summary
 
 In this lab, you:
-- Explored the k0rdent Service Catalog (150+ services)
+- Explored the k0rdent Service Catalog (100+ services)
 - Installed ServiceTemplates from the catalog
 - Created a MultiClusterService to deploy services at scale
 - Deployed cert-manager, ingress-nginx, and kyverno

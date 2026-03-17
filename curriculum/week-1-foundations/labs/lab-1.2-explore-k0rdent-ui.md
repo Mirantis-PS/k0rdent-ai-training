@@ -273,7 +273,7 @@ spec:
 
 The Management object's `spec.core.kcm.config` section is passed as Helm values to the k0rdent deployment. The `k0rdent-ui` key maps to the UI subchart, and `auth.oidc` replaces `auth.basic` entirely.
 
-> **Note:** The OIDC configuration above is for the **k0rdent UI application** itself. k0rdent also supports OIDC for the **Kubernetes API server** (for kubectl access) using the `StructuredAuthenticationConfiguration` feature gate — see the [k0rdent Authentication documentation](https://docs.k0rdent.io/latest/admin/installation/auth/) for details on Okta and Entra ID integration.
+> **Note:** The OIDC configuration above is for the **k0rdent UI application** itself. k0rdent also supports OIDC for the **Kubernetes API server** (for kubectl access) using the `StructuredAuthenticationConfiguration` feature gate — see the [k0rdent Enterprise Authentication documentation](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/installation/auth/) for details on Okta and Entra ID integration.
 
 #### Step 5: DNS
 
@@ -419,7 +419,7 @@ k0rdent Enterprise uses an **external Service Catalog** model for deploying appl
 
 Open your browser to: **https://catalog.k0rdent.io/**
 
-The catalog provides **150+ validated services** across categories:
+The catalog provides **100+ validated services** across categories:
 
 | Category | Example Services |
 |----------|-----------------|
@@ -484,7 +484,7 @@ Key fields:
 | Aspect | Bundled Templates (Old) | External Catalog (Current) |
 |--------|------------------------|---------------------------|
 | **Updates** | Tied to k0rdent releases | Updated independently |
-| **Selection** | Limited set | 150+ services |
+| **Selection** | Limited set | 100+ services |
 | **Customization** | Difficult | Easy version selection |
 | **Enterprise** | Mixed | Clear Enterprise-only marking |
 
@@ -634,7 +634,7 @@ Document your management cluster setup:
 ## My k0rdent Management Cluster
 
 - **Engineer ID:** [your-id]
-- **k0rdent Version:** 1.2.1
+- **k0rdent Version:** 1.2.2
 - **k0s Version:** v1.32.4
 - **Instance Type:** t3.xlarge
 - **Region:** [your-region]

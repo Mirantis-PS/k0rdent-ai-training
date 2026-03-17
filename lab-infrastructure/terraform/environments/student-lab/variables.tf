@@ -69,7 +69,7 @@ variable "k0s_version" {
 variable "k0rdent_version" {
   description = "k0rdent Enterprise version"
   type        = string
-  default     = "1.2.1"
+  default     = "1.2.2"
 }
 
 variable "ui_password" {

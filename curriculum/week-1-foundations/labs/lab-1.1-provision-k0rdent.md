@@ -124,7 +124,7 @@ Choose a region with good availability. Common choices:
 | Instance Type | t3.xlarge (4 vCPU, 16GB RAM) |
 | OS | Ubuntu 22.04 LTS |
 | Kubernetes | k0s v1.32.4 |
-| k0rdent | Enterprise v1.2.1 |
+| k0rdent | Enterprise v1.2.2 |
 
 ## Part 2: Verify Prerequisites
 
