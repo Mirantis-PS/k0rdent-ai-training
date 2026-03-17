@@ -283,12 +283,9 @@ For production environments, network policies should allow:
 - Kubernetes API server to webhook services
 - Ingress from managed clusters for status updates
 
-```bash
-# PRODUCTION ONLY - First, label the namespace
-kubectl label namespace kcm-system name=kcm-system --overwrite
-
-# Create network policies that allow required traffic
-cat << 'EOF' | kubectl apply -f -
+```yaml
+# PRODUCTION REFERENCE — do not apply during training
+# Save as: network-policy-kcm.yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -309,14 +306,32 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: kube-system
-  # Allow all traffic to webhook ports
+  # Allow all traffic to webhook ports (CRITICAL — without this,
+  # cluster provisioning breaks with webhook timeout errors)
   - ports:
     - port: 9443
       protocol: TCP
-EOF
 ```
 
-> **Note:** For this training lab, we recommend **skipping network policies** to avoid blocking k0rdent operations. Apply them only after completing all cluster provisioning labs.
+**Applying After Week 1 (optional exercise):**
+
+If you want to practice applying network policies after completing Labs 1.5-1.8:
+
+```bash
+# Label the namespace first
+kubectl label namespace kcm-system name=kcm-system --overwrite
+
+# Apply the policy
+kubectl apply -f network-policy-kcm.yaml
+
+# Verify provisioning still works by checking webhook connectivity
+kubectl get clusterdeployments -A
+```
+
+> **Recovery:** If network policies break webhook traffic, remove them immediately:
+> ```
+> kubectl delete networkpolicy -n kcm-system --all
+> ```
 
 ### Pod Security Standards
 
