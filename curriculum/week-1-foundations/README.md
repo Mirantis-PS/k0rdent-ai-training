@@ -1,6 +1,6 @@
 # Week 1: k0rdent Enterprise Installation & Configuration
 
-**Duration:** 24.5 hours
+**Duration:** 26.5 hours
 **Focus:** k0rdent Enterprise deployment, architecture understanding, production-ready configuration
 
 ## Learning Objectives
@@ -22,13 +22,14 @@ By the end of this week, you will be able to:
 | 1 | Theory: k0rdent Architecture Deep Dive | 2h | Video/Reading |
 | 1 | Lab 1.1: Provision k0rdent Management Cluster | 3h | Hands-on |
 | 2 | Theory: k0rdent Components (KCM, KSM, KOF) | 2h | Video/Reading |
-| 2 | Lab 1.2: Explore k0rdent UI and Configuration | 2h | Hands-on |
+| 2 | Lab 1.2: Explore k0rdent UI and Configuration | 2.5h | Hands-on |
 | 3 | Theory: Infrastructure Providers and Cluster API | 1.5h | Video/Reading |
 | 3 | Lab 1.3: Configure AWS Infrastructure Provider | 3h | Hands-on |
 | 4 | Lab 1.4: Production Configuration and RBAC | 3h | Hands-on |
 | 4 | Lab 1.5: Provision Your First Managed Cluster | 2.5h | Hands-on |
 | 5 | Lab 1.6: Deploy KOF (Observability & FinOps) | 3h | Hands-on |
 | 5 | Lab 1.7: Multi-Cluster Services | 2h | Hands-on |
+| 5 | Lab 1.8: Upgrade k0rdent Enterprise | 1.5h | Hands-on |
 | 5 | Week 1 Assessment | 0.5h | Quiz |
 
 ## Theory Content
@@ -46,6 +47,7 @@ By the end of this week, you will be able to:
 - [Lab 1.5 - Provision Your First Managed Cluster](labs/lab-1.5-provision-managed-cluster.md)
 - [Lab 1.6 - Deploy KOF (Observability & FinOps)](labs/lab-1.6-deploy-kof.md)
 - [Lab 1.7 - Multi-Cluster Services](labs/lab-1.7-multicluster-services.md)
+- [Lab 1.8 - Upgrade k0rdent Enterprise](labs/lab-1.8-upgrade-k0rdent.md)
 
 ## Version Compatibility
 

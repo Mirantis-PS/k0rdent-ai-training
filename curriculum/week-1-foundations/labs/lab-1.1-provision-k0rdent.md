@@ -15,7 +15,7 @@ In this lab, you will:
 ## Prerequisites
 
 - AWS CLI v2 installed
-- Terraform >= 1.5.0 installed
+- Terraform >= 1.8.0 installed
 - Your own copy of this training repository (fork or template)
 - Basic terminal/shell knowledge
 
@@ -133,7 +133,7 @@ From the root of your cloned training repository:
 ```bash
 cd lab-infrastructure
 
-# Check Terraform version (>= 1.5.0 required)
+# Check Terraform version (>= 1.8.0 required)
 terraform --version
 
 # Check AWS CLI (v2 required)
@@ -394,7 +394,7 @@ ls /opt/k0rdent-lab/.init-complete && echo "Done!"
 
 **Common issues:**
 - **AWS credentials:** Re-run `aws configure` or check `aws sts get-caller-identity`
-- **Terraform errors:** Check version with `terraform --version` (needs >= 1.5.0)
+- **Terraform errors:** Check version with `terraform --version` (needs >= 1.8.0)
 - **SSH connection:** Ensure correct key permissions (`chmod 600 config/keys/*.pem`)
 - **Pods not starting:** Check with `kubectl describe pod <name> -n kcm-system`
 
