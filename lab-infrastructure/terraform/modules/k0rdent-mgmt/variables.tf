@@ -27,11 +27,6 @@ variable "subnet_id" {
   type        = string
 }
 
-variable "public_subnet_ids" {
-  description = "Public subnet IDs for the internet-facing NLB"
-  type        = list(string)
-}
-
 variable "security_group_ids" {
   description = "Security group IDs for instances"
   type        = list(string)
