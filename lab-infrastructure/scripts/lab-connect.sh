@@ -33,6 +33,8 @@ Options:
   --tunnel <local:remote>     Create SSH tunnel (e.g., 8080:8080)
   --copy-kubeconfig           Copy kubeconfig to local machine
   --show-password             Show k0rdent UI password
+  --ui-url            Show k0rdent UI URL (via Envoy Gateway) and exit
+  --show-gateway      Show Gateway API resource status and exit
   --help                      Show this help message
 
 Examples:
@@ -199,6 +201,8 @@ REGION=""
 TUNNEL=""
 COPY_KUBECONFIG="false"
 SHOW_PASSWORD="false"
+SHOW_UI_URL="false"
+SHOW_GATEWAY="false"
 IDENTIFIER=""
 
 # Parse arguments
@@ -218,6 +222,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --show-password)
             SHOW_PASSWORD="true"
+            shift
+            ;;
+        --ui-url)
+            SHOW_UI_URL="true"
+            shift
+            ;;
+        --show-gateway)
+            SHOW_GATEWAY="true"
             shift
             ;;
         --help|-h)
@@ -264,18 +276,72 @@ fi
 if [[ "$SHOW_PASSWORD" == "true" ]]; then
     BUCKET=$(get_student_bucket "$IDENTIFIER")
     UI_PASSWORD=$(get_state_output "$BUCKET" "ui_password")
-    UI_URL=$(get_state_output "$BUCKET" "ui_url")
+    # UI URL is now served via Envoy Gateway, not Terraform output
+    UI_URL="Retrieve via: ./lab-connect.sh $IDENTIFIER --ui-url"
     if [[ -n "$UI_PASSWORD" ]]; then
         echo ""
         log_success "k0rdent UI Password: $UI_PASSWORD"
         echo ""
         echo "UI Access:"
-        echo "  URL:   ${UI_URL:-run: terraform output ui_url}"
+        echo "  URL:   ${UI_URL}"
         echo "  Login: admin / $UI_PASSWORD"
     else
         log_error "Could not retrieve UI password"
         exit 1
     fi
+    exit 0
+fi
+
+# Show Gateway UI URL and exit if requested
+if [[ "$SHOW_UI_URL" == "true" ]]; then
+    KEY_FILE=$(get_ssh_key "$IDENTIFIER")
+    IP=$(get_instance_ip "$IDENTIFIER")
+    BASTION=$(get_bastion_ip)
+    ensure_bastion_key "$IDENTIFIER"
+    BASTION_KEY="$CONFIG_DIR/keys/${IDENTIFIER}-bastion.pem"
+
+    SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+    PROXY_CMD="ssh ${SSH_OPTS} -i ${BASTION_KEY} -W %h:%p ubuntu@${BASTION}"
+
+    GW_ADDR=$(ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
+        "kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'" 2>/dev/null || true)
+    UI_PASSWORD=$(ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
+        "kubectl get secret -n kcm-system kcm-k0rdent-ui-basic-auth -o jsonpath='{.data.password}' | base64 -d" 2>/dev/null || true)
+
+    if [[ -n "$GW_ADDR" ]]; then
+        echo ""
+        log_success "k0rdent UI"
+        echo "  URL:       http://${GW_ADDR}"
+        echo "  Username:  admin"
+        echo "  Password:  ${UI_PASSWORD:-unknown}"
+        echo ""
+    else
+        log_error "Gateway LB address not available. Is initialization complete?"
+        log_info "Check: ssh into node and run: kubectl get gateway -n kcm-system"
+        exit 1
+    fi
+    exit 0
+fi
+
+# Show Gateway status and exit if requested
+if [[ "$SHOW_GATEWAY" == "true" ]]; then
+    KEY_FILE=$(get_ssh_key "$IDENTIFIER")
+    IP=$(get_instance_ip "$IDENTIFIER")
+    BASTION=$(get_bastion_ip)
+    ensure_bastion_key "$IDENTIFIER"
+    BASTION_KEY="$CONFIG_DIR/keys/${IDENTIFIER}-bastion.pem"
+
+    SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+    PROXY_CMD="ssh ${SSH_OPTS} -i ${BASTION_KEY} -W %h:%p ubuntu@${BASTION}"
+
+    echo ""
+    log_info "Gateway API Resources:"
+    ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
+        "kubectl get gatewayclass,gateway,httproute -A -o wide" 2>/dev/null
+    echo ""
+    log_info "Envoy Gateway Pods:"
+    ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
+        "kubectl get pods -n envoy-gateway-system -o wide" 2>/dev/null
     exit 0
 fi
 
