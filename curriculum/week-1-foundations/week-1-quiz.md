@@ -80,12 +80,12 @@ b) Scale down CAPI controllers to zero replicas
 c) Take an etcd backup and export k0rdent resource definitions
 d) Upgrade all workload clusters to the latest Kubernetes version first
 
-### 11. In a production environment, how should the k0rdent UI be exposed to users?
+### 11. What is the recommended way to expose the k0rdent UI in production?
 
-a) Patch the ClusterIP service to NodePort and access directly on the node IP
-b) Use `kubectl port-forward` from a shared bastion host with open SSH access
-c) Deploy an ingress controller, create an Ingress resource with TLS, and configure OIDC authentication
-d) Expose the UI pod via a hostNetwork binding on port 443
+a) kubectl port-forward
+b) NodePort service with a static port
+c) Gateway API (Gateway + HTTPRoute) with TLS and OIDC authentication
+d) Direct pod IP access with a load balancer
 
 ### 12. The RemoteMachine provider in k0smotron differs from cloud-based CAPI providers in a specific way regarding credentials. What is that difference?
 
@@ -141,7 +141,7 @@ Answer each question in 1-3 sentences.
 
 10. **c)** -- The recommended pre-upgrade steps are: take an etcd backup (`k0s etcd backup`) and export k0rdent resource definitions to YAML files. This ensures you can restore to a known-good state if the upgrade fails. Deleting ClusterDeployments (a) would destroy running clusters. Scaling down controllers (b) is unnecessary. Upgrading workload clusters first (d) is not required and is independent of the management plane upgrade.
 
-11. **c)** -- Production environments should use an ingress controller (e.g., ingress-nginx from the Service Catalog), an Ingress resource with TLS termination via cert-manager or a corporate CA, and OIDC authentication via the Management CRD's `auth.oidc` configuration. Patching the service to NodePort (a) conflicts with Helm-managed resources and lacks TLS. Port-forwarding (b) is not scalable. HostNetwork (d) bypasses Kubernetes networking and is insecure.
+11. **c)** Gateway API (Gateway + HTTPRoute) with TLS and OIDC authentication -- Gateway API is the Kubernetes-native successor to Ingress, providing role-based separation and richer routing capabilities.
 
 12. **c)** -- The RemoteMachine provider is the only provider where the Credential CRD references a Kubernetes Secret (containing an SSH private key) directly, without an intermediate provider identity CRD like AWSClusterStaticIdentity or VSphereClusterIdentity. It still requires credentials (eliminating a), uses SSH keys not OAuth2 (b), and uses Secrets not ConfigMaps (d).
 

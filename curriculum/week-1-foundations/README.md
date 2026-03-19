@@ -82,16 +82,16 @@ These labs are validated against the following versions. If your environment use
     connect.sh)   |       |
                   v       v
               +--------------+     +---------------------+
-              |   Bastion    |     |   NLB               |
-              |   Host       |     |   (k0rdent UI:80)   |
+              |   Bastion    |     | AWS NLB (auto-      |
+              |   Host       |     | provisioned by CCM) |
               +------+-------+     +----------+----------+
                      |                        |
-                     | SSH jump               | NodePort 30080
+                     | SSH jump               | Envoy Gateway
                      v                        v
          +-------------------------------------------+
          |  Management Cluster         Labs 1.1-1.4  |
          |  (k0s + k0rdent)                          |
-         |                                           |
+         |  Envoy Gateway → k0rdent UI (:3000)       |
          |  KCM  |  KSM  |  KOF     Lab 1.6 (KOF)   |
          |  CAPI providers           Lab 1.3 (AWS)   |
          +-------------------+-----------------------+
@@ -114,7 +114,7 @@ These labs are validated against the following versions. If your environment use
 |----------|-------------|-------------|
 | Management cluster (t3.xlarge) | ~$0.17/hr | Labs 1.1-1.7 |
 | NAT Gateway | ~$0.045/hr | Labs 1.1-1.7 |
-| NLB (k0rdent UI) | ~$0.023/hr | Labs 1.1-1.7 |
+| AWS NLB (k0rdent UI via Envoy Gateway) | ~$0.023/hr | Labs 1.1-1.7 |
 | Managed cluster (2x t3.medium) | ~$0.15/hr | Labs 1.5-1.7 |
 | **Total (all running)** | **~$0.39/hr** | |
 
