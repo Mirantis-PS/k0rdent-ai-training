@@ -54,14 +54,16 @@ locals {
 
   # Cloud-init user data
   node_user_data = base64encode(templatefile("${path.module}/templates/mgmt-cloud-init.yaml", {
-    engineer_id      = var.engineer_id
-    k0s_version      = var.k0s_version
-    k0rdent_version  = var.k0rdent_version
-    ui_password      = local.effective_ui_password
-    flux_version     = var.flux_version
-    artifacts_bucket = var.artifacts_bucket
-    region           = var.region
-    ssh_public_key   = tls_private_key.mgmt.public_key_openssh
+    engineer_id           = var.engineer_id
+    k0s_version           = var.k0s_version
+    k0rdent_version       = var.k0rdent_version
+    ui_password           = local.effective_ui_password
+    flux_version          = var.flux_version
+    artifacts_bucket      = var.artifacts_bucket
+    region                = var.region
+    ssh_public_key        = tls_private_key.mgmt.public_key_openssh
+    gateway_api_version   = var.gateway_api_version
+    envoy_gateway_version = var.envoy_gateway_version
   }))
 
   # Generate k0sctl configuration

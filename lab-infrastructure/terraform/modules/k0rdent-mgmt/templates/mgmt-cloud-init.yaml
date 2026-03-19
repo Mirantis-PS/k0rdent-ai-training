@@ -50,6 +50,8 @@ write_files:
       K0RDENT_UI_PASSWORD=${ui_password}
       ARTIFACTS_BUCKET=${artifacts_bucket}
       AWS_REGION=${region}
+      GATEWAY_API_VERSION=${gateway_api_version}
+      ENVOY_GATEWAY_VERSION=${envoy_gateway_version}
       NODE_IP=$(hostname -I | awk '{print $1}')
     permissions: '0644'
 
@@ -232,42 +234,85 @@ write_files:
       # Wait for KCM operator
       kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=kcm -n kcm-system --timeout=600s || true
 
-      # Expose k0rdent UI via a separate NodePort service for NLB access.
-      # We do NOT patch the original kcm-k0rdent-ui ClusterIP service because
-      # the KCM operator reconciles it back to ClusterIP. Instead, we create
-      # an independent service that selects the same pods but is not managed
-      # by Helm/Flux, so it won't be reverted.
-      echo "Creating k0rdent UI NodePort service for external access..."
+      # =================================================================
+      # Install Envoy Gateway for k0rdent UI exposure
+      # Uses Gateway API (the Kubernetes-native successor to Ingress)
+      # AWS CCM will auto-provision a LoadBalancer for the Gateway
+      # =================================================================
 
-      # Discover the pod selector from the original ClusterIP service
-      # and reuse it for our external NodePort service
-      SELECTOR=$(kubectl get svc kcm-k0rdent-ui -n kcm-system -o json | \
-        jq -r '.spec.selector | to_entries | map("    " + .key + ": " + .value) | join("\n")')
-      echo "Original service selector:"
-      echo "$SELECTOR"
+      echo "Installing Gateway API CRDs $GATEWAY_API_VERSION..."
+      kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/$GATEWAY_API_VERSION/standard-install.yaml"
 
-      # Create a separate NodePort service using the discovered selector
-      cat <<SVCEOF | kubectl apply -f -
-      apiVersion: v1
-      kind: Service
+      echo "Installing Envoy Gateway $ENVOY_GATEWAY_VERSION..."
+      helm install envoy-gateway oci://docker.io/envoyproxy/gateway-helm \
+        --version "$ENVOY_GATEWAY_VERSION" \
+        --namespace envoy-gateway-system \
+        --create-namespace \
+        --wait --timeout 5m
+
+      echo "Waiting for Envoy Gateway controller..."
+      kubectl wait deployment/envoy-gateway -n envoy-gateway-system \
+        --for=condition=Available --timeout=120s
+
+      echo "Creating Gateway API resources for k0rdent UI..."
+      cat <<GWEOF | kubectl apply -f -
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: GatewayClass
       metadata:
-        name: k0rdent-ui-external
-        namespace: kcm-system
-        labels:
-          app.kubernetes.io/purpose: training-lab-access
+        name: envoy-gateway
       spec:
-        type: NodePort
-        ports:
-          - port: 3000
-            targetPort: 3000
-            nodePort: 30080
-            protocol: TCP
-        selector:
-      $SELECTOR
-      SVCEOF
+        controllerName: gateway.envoyproxy.io/gatewayclass-controller
+      ---
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: k0rdent-gateway
+        namespace: kcm-system
+      spec:
+        gatewayClassName: envoy-gateway
+        listeners:
+          - name: http
+            protocol: HTTP
+            port: 80
+      ---
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: k0rdent-ui
+        namespace: kcm-system
+      spec:
+        parentRefs:
+          - name: k0rdent-gateway
+            namespace: kcm-system
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+            backendRefs:
+              - name: kcm-k0rdent-ui
+                port: 3000
+      GWEOF
 
-      echo "Verifying external UI service..."
-      kubectl get svc k0rdent-ui-external -n kcm-system -o wide
+      echo "Waiting for Gateway LoadBalancer address..."
+      GW_ADDR=""
+      for i in $(seq 1 60); do
+        GW_ADDR=$(kubectl get gateway k0rdent-gateway -n kcm-system \
+          -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || true)
+        if [ -n "$GW_ADDR" ]; then
+          echo "k0rdent UI available at: http://$GW_ADDR"
+          break
+        fi
+        echo -n "."
+        sleep 5
+      done
+
+      if [ -z "$GW_ADDR" ]; then
+        echo "WARNING: Gateway LB address not yet available. Check: kubectl get gateway -n kcm-system"
+      fi
+
+      echo "Gateway resources:"
+      kubectl get gateway,httproute -n kcm-system -o wide
 
       echo "=== k0rdent Enterprise installed ==="
 
@@ -342,9 +387,12 @@ write_files:
       echo ""
 
       echo "=== k0rdent UI Access ==="
-      echo "The k0rdent UI is exposed via a Network Load Balancer."
-      echo "  Get the URL: terraform output ui_url  (from k0rdent environment)"
+      echo "The k0rdent UI is exposed via Envoy Gateway (Gateway API)."
+      echo "  Get the URL: kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'"
       echo "  Login: admin / <terraform output ui_password>"
+      echo ""
+      echo "=== Gateway API Resources ==="
+      kubectl get gateway,httproute -n kcm-system -o wide 2>/dev/null || echo "Gateway resources not yet available"
       echo ""
 
       echo "=============================================="
@@ -444,7 +492,7 @@ write_files:
         echo "  kubectl get clustertemplates   - List available templates"
         echo "  kubectl get clusterdeployment  - List deployed clusters"
         echo ""
-        echo "k0rdent UI: exposed via NLB (see terraform output ui_url)"
+        echo "k0rdent UI: exposed via Envoy Gateway (kubectl get gateway -n kcm-system)"
         echo ""
       else
         echo "================================================"
@@ -470,8 +518,8 @@ write_files:
          ```
 
       2. **Access k0rdent UI:**
-         The UI is exposed via a Network Load Balancer.
-         Get the URL: `terraform output ui_url` (from k0rdent environment)
+         The UI is exposed via Envoy Gateway (Gateway API).
+         Get the URL: `kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'`
          Login: admin / `terraform output ui_password`
 
       3. **Check k0rdent components:**
