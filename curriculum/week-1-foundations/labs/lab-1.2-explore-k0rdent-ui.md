@@ -7,7 +7,7 @@
 
 In this lab, you will:
 - Navigate the k0rdent Enterprise UI
-- Understand how the UI is exposed (training vs. production)
+- Understand how the UI is exposed via Envoy Gateway and the Gateway API
 - Understand the dashboard and key metrics
 - Explore cluster templates
 - Understand the external Service Catalog model
@@ -58,199 +58,83 @@ Open the URL in your browser and login with:
 
 ## Part 2: Understanding k0rdent UI Access Architecture
 
-Now that you've accessed the UI, let's understand how the k0rdent UI is exposed to your browser, why the training lab uses a simplified approach, and how to do it properly in a production enterprise environment.
+### How the UI is Exposed
 
-### The k0rdent UI Service
+k0rdent Enterprise exposes its UI through the **Kubernetes Gateway API** using **Envoy Gateway** as the implementation.
 
-The k0rdent UI is a web application deployed as a Pod in the `kcm-system` namespace. By default, k0rdent creates a **ClusterIP** Service (`kcm-k0rdent-ui`) on port 3000:
+#### Training Lab Architecture
+
+```
+Student Browser (HTTP)
+    │
+    ▼
+AWS NLB (auto-provisioned by AWS Cloud Controller Manager)
+    │ port 80
+    ▼
+Envoy Gateway (envoy-gateway-system namespace)
+    │ Gateway listener on port 80
+    ▼
+HTTPRoute (kcm-system namespace)
+    │ path: / → kcm-k0rdent-ui:3000
+    ▼
+k0rdent UI Pod (ClusterIP, Helm-managed)
+```
+
+**Key resources:**
+
+| Resource | Name | Namespace | Purpose |
+|----------|------|-----------|---------|
+| GatewayClass | `envoy-gateway` | cluster-scoped | Defines Envoy Gateway as the controller |
+| Gateway | `k0rdent-gateway` | `kcm-system` | Listens on port 80 (HTTP) |
+| HTTPRoute | `k0rdent-ui` | `kcm-system` | Routes `/` to `kcm-k0rdent-ui:3000` |
+
+#### Exercise: Examine the Training Setup
 
 ```bash
-# Inspect the UI service (from your SSH session)
-kubectl get svc kcm-k0rdent-ui -n kcm-system -o wide
+# View the GatewayClass (cluster-scoped)
+kubectl get gatewayclass envoy-gateway -o yaml
+
+# View the Gateway and its LoadBalancer address
+kubectl get gateway k0rdent-gateway -n kcm-system -o yaml
+
+# View the HTTPRoute
+kubectl get httproute k0rdent-ui -n kcm-system -o yaml
+
+# View the auto-provisioned Envoy proxy pods
+kubectl get pods -n envoy-gateway-system
+
+# View the LoadBalancer service (created by Envoy Gateway controller)
+kubectl get svc -n envoy-gateway-system
 ```
 
-A ClusterIP service is only reachable from **inside** the cluster. This is the default for good reason — the management UI should not be casually exposed to the internet. The official k0rdent documentation describes two access methods:
+> **Discussion:** Notice how the original `kcm-k0rdent-ui` ClusterIP service is untouched — Envoy Gateway routes to it directly. This means the Helm chart can reconcile freely without affecting external access.
 
-1. **`kubectl port-forward`** — forward the service port to your local machine
-2. **Kubernetes Ingress** — create an Ingress resource to route external HTTP(S) traffic to the service
+### Production Upgrade Path
 
-### How the Training Lab Exposes the UI
+The training lab uses HTTP with basic auth. Production deployments add **TLS termination** and **OIDC authentication** to the same Gateway resources.
 
-For this training environment, we use a simplified approach to avoid the complexity of deploying an ingress controller:
-
-```
-Your Browser
-    │
-    │ HTTP (:80)
-    ▼
-┌───────────────────┐
-│  Network Load     │  Terraform-managed (aws_lb)
-│  Balancer (NLB)   │
-└────────┬──────────┘
-         │
-         │ TCP → NodePort :30080
-         ▼
-┌───────────────────┐
-│  k0rdent UI Pod   │  Patched from ClusterIP to NodePort
-│  (kcm-system)     │  after Helm installation
-└───────────────────┘
-```
-
-The training lab cloud-init script patches the ClusterIP service to a NodePort after k0rdent installs:
-
-```bash
-# This runs automatically during provisioning (you don't need to run this)
-kubectl patch svc kcm-k0rdent-ui -n kcm-system \
-  -p '{"spec":{"type":"NodePort","ports":[{"port":3000,"targetPort":3000,"nodePort":30080,"protocol":"TCP"}]}}'
-```
-
-A Terraform-managed NLB then routes external traffic on port 80 to NodePort 30080 on the EC2 instance.
-
-**Why this is acceptable for training but not for production:**
-
-| Concern | Training Lab | Production |
-|---------|-------------|------------|
-| **TLS** | HTTP only (no encryption) | HTTPS with valid certificates required |
-| **Authentication** | Basic auth (username/password) | OIDC with corporate identity provider |
-| **Service ownership** | `kubectl patch` modifies a Helm-managed resource | Separate Ingress resource, no conflict |
-| **Reconciliation** | Works because initial install is direct `helm install`, not Flux-managed | Flux/KCM would revert manual patches |
-| **DNS** | Raw NLB hostname | Proper DNS record (e.g., `k0rdent.company.com`) |
-| **Access control** | Open to anyone with the URL | Network policies, WAF, IP allowlists |
-
-### Production Architecture: Ingress + TLS + OIDC
-
-In a production enterprise environment, the k0rdent UI should be exposed through a **Kubernetes Ingress** backed by an ingress controller, with TLS termination and OIDC authentication. This pattern works across all infrastructure providers — AWS, Azure, vSphere, bare metal:
-
-```
-User Browser
-    │
-    │ HTTPS (k0rdent.company.com)
-    ▼
-┌──────────────────────┐
-│  Load Balancer       │  Cloud LB (NLB/ALB/Azure LB) or MetalLB
-│  (L4 or L7)         │
-└──────────┬───────────┘
-           │
-           │ :443
-           ▼
-┌──────────────────────┐
-│  Ingress Controller  │  ingress-nginx, deployed via k0rdent
-│  (ingress-nginx)     │  Service Catalog
-└──────────┬───────────┘
-           │
-           │ Ingress routing rule
-           ▼
-┌──────────────────────┐
-│  kcm-k0rdent-ui      │  ClusterIP :3000 (untouched)
-│  (kcm-system)        │
-└──────────────────────┘
-```
-
-The key principle: **never modify the service managed by the Helm chart**. Instead, layer infrastructure on top of it. The Ingress resource is yours to manage — k0rdent's reconciliation loop only owns the `kcm-k0rdent-ui` Service, not your Ingress.
-
-#### Step 1: Deploy an Ingress Controller via the Service Catalog
-
-k0rdent's own Service Catalog provides `ingress-nginx` as a ServiceTemplate. You can deploy it to the management cluster itself using a `MultiClusterService`:
+#### Step 1: Add TLS to the Gateway
 
 ```yaml
-# Install the ingress-nginx ServiceTemplate from the catalog
-# (See Part 5 of this lab for Service Catalog details)
-
-# Then deploy it to the management cluster using MultiClusterService:
-apiVersion: k0rdent.mirantis.com/v1beta1
-kind: MultiClusterService
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
 metadata:
-  name: mgmt-ingress
-spec:
-  clusterSelector:
-    matchLabels:
-      k0rdent.mirantis.com/management-cluster: "true"
-      sveltos-agent: present
-  serviceSpec:
-    services:
-      - template: ingress-nginx-4-11-3
-        name: ingress-nginx
-        namespace: ingress-nginx
-```
-
-This is the k0rdent-native way to deploy services to the management cluster. Alternatively, deploy ingress-nginx directly via Helm during provisioning if you want tighter control over the installation timing.
-
-#### Step 2: Create an Ingress Resource for the UI
-
-Once the ingress controller is running, create an Ingress resource that routes traffic to the k0rdent UI service:
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: k0rdent-ui
+  name: k0rdent-gateway
   namespace: kcm-system
-  annotations:
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - k0rdent.company.com
-      secretName: k0rdent-ui-tls    # Provided by cert-manager or manually
-  rules:
-    - host: k0rdent.company.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: kcm-k0rdent-ui
-                port:
-                  number: 3000
+  gatewayClassName: envoy-gateway
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: k0rdent-ui-tls
 ```
 
-This Ingress resource is **not managed by k0rdent's Helm chart** — it's a separate resource you control. The KCM operator will never touch it, so there is no reconciliation conflict.
-
-#### Step 3: TLS Certificates
-
-For TLS, you have several options depending on your environment:
-
-| Method | Best For | How |
-|--------|----------|-----|
-| **cert-manager + Let's Encrypt** | Internet-facing clusters | Deploy cert-manager (available in Service Catalog), annotate the Ingress with `cert-manager.io/cluster-issuer` |
-| **Cloud provider certificates** | AWS (ACM), Azure (Key Vault) | Terminate TLS at the load balancer level, before traffic reaches the ingress controller |
-| **Corporate CA** | Enterprise environments | Create a TLS Secret from your internal CA certificate and key, reference it in the Ingress `tls.secretName` |
-
-Example with cert-manager (provider-agnostic):
-
-```yaml
-# ClusterIssuer for Let's Encrypt
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: platform-team@company.com
-    privateKeySecretRef:
-      name: letsencrypt-prod-key
-    solvers:
-      - http01:
-          ingress:
-            class: nginx
-```
-
-Then add the annotation to your Ingress:
-
-```yaml
-metadata:
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-```
-
-cert-manager will automatically provision and renew the TLS certificate.
-
-#### Step 4: OIDC Authentication (Replace Basic Auth)
-
-For production, replace basic auth with OIDC to integrate with your corporate identity provider (Okta, Azure AD/Entra ID, Google Workspace, etc.). The k0rdent UI supports OIDC natively via the Management custom resource:
+#### Step 2: Configure OIDC Authentication
 
 ```yaml
 apiVersion: k0rdent.mirantis.com/v1beta1
@@ -271,53 +155,186 @@ spec:
               clientSecret: "<your-client-secret>"
 ```
 
-The Management object's `spec.core.kcm.config` section is passed as Helm values to the k0rdent deployment. The `k0rdent-ui` key maps to the UI subchart, and `auth.oidc` replaces `auth.basic` entirely.
+#### Production Checklist
 
-> **Note:** The OIDC configuration above is for the **k0rdent UI application** itself. k0rdent also supports OIDC for the **Kubernetes API server** (for kubectl access) using the `StructuredAuthenticationConfiguration` feature gate — see the [k0rdent Enterprise Authentication documentation](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/installation/auth/) for details on Okta and Entra ID integration.
-
-#### Step 5: DNS
-
-Point a DNS record at your load balancer. This is provider-specific:
-
-- **AWS**: Route53 alias record pointing to the NLB/ALB
-- **Azure**: Azure DNS A record or CNAME
-- **vSphere/Bare Metal**: Internal DNS (CoreDNS, BIND, or Active Directory DNS)
-- **Any cloud**: External-dns controller can automate this from Ingress annotations
-
-#### Complete Production Checklist
-
-- [ ] Ingress controller deployed (via Service Catalog or Helm)
-- [ ] TLS certificates provisioned (cert-manager, cloud provider, or internal CA)
-- [ ] Ingress resource created in `kcm-system` namespace
-- [ ] OIDC configured in the Management object (replacing basic auth)
-- [ ] DNS record pointing to load balancer
+- [ ] TLS certificates provisioned (see TLS patterns below)
+- [ ] Gateway listener updated to HTTPS (port 443)
+- [ ] OIDC configured in the Management object
+- [ ] DNS record pointing to the LoadBalancer address
 - [ ] Network policies restricting UI access to corporate networks
-- [ ] k0rdent UI ClusterIP service left **untouched** (no patches)
+- [ ] HTTP → HTTPS redirect configured (optional HTTPRoute)
 
-### Exercise: Examine the Training Lab Setup
+### Alternative Deployment Patterns
 
-From your SSH session, compare the training setup with what a production deployment would look like:
+Different customer environments require different approaches to LoadBalancer provisioning. The Gateway API resources (GatewayClass, Gateway, HTTPRoute) stay the same — only the infrastructure layer changes.
+
+#### Envoy Gateway + AWS CCM (Training Default)
+
+Used in the training lab. AWS Cloud Controller Manager auto-provisions a Network Load Balancer when the Gateway creates a `type: LoadBalancer` service.
+
+**When to use:** AWS cloud environments with CCM configured.
+
+**How it works:** Install Envoy Gateway → create Gateway → CCM provisions NLB automatically.
+
+#### Envoy Gateway + MetalLB
+
+For on-premises or bare-metal environments without a cloud LoadBalancer.
+
+**When to use:** On-prem data centers, bare-metal clusters, home labs.
 
 ```bash
-# 1. Check the current service type (should show NodePort in training)
-kubectl get svc kcm-k0rdent-ui -n kcm-system -o jsonpath='{.spec.type}'
-echo
+# Install MetalLB
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.9/config/manifests/metallb-native.yaml
 
-# 2. Check if an ingress controller exists (none in training lab)
-kubectl get pods -A | grep ingress || echo "No ingress controller deployed"
-
-# 3. View the Management object's UI configuration
-kubectl get management kcm -n kcm-system -o jsonpath='{.spec.core.kcm.config}' | jq . 2>/dev/null || echo "Default config (no customization)"
-
-# 4. Check for any Ingress resources (none in training lab)
-kubectl get ingress -A || echo "No Ingress resources"
+# Configure IP pool
+cat <<EOF | kubectl apply -f -
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: lab-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.1.240-192.168.1.250
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: lab-l2
+  namespace: metallb-system
+EOF
 ```
 
-Questions to answer:
-- [ ] What service type is the k0rdent UI using in this training environment?
-- [ ] Why would a `kubectl patch` on a Helm-managed service be reverted in a Flux-managed deployment?
-- [ ] What are two advantages of using an Ingress resource over NodePort + NLB?
-- [ ] Why is OIDC preferred over basic auth in an enterprise setting?
+The Gateway and HTTPRoute resources remain identical — MetalLB assigns an IP from the pool instead of a cloud NLB hostname.
+
+#### Envoy Gateway + NodePort + External Load Balancer
+
+For restricted cloud environments where CCM is not available or LoadBalancer services are not permitted.
+
+**When to use:** Air-gapped environments, restricted cloud accounts, environments behind an existing external load balancer.
+
+```yaml
+# Override Envoy Gateway's service type via Helm values
+# helm install envoy-gateway ... --set service.type=NodePort
+```
+
+Then configure the external load balancer to route to the NodePort allocated by Kubernetes.
+
+#### kubectl port-forward
+
+For quick local access without any infrastructure.
+
+**When to use:** Developer laptops, quick debugging, temporary access.
+
+```bash
+kubectl port-forward svc/kcm-k0rdent-ui -n kcm-system 8080:3000
+# Access at http://localhost:8080
+```
+
+No Gateway needed — direct access to the ClusterIP service.
+
+### TLS Configuration Patterns
+
+All patterns configure TLS at the Gateway listener level. The HTTPRoute and backend service remain unchanged.
+
+#### cert-manager + Let's Encrypt
+
+Automated certificate issuance and renewal. Best for public-facing deployments.
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@company.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: k0rdent-gateway
+                namespace: kcm-system
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: k0rdent-ui-tls
+  namespace: kcm-system
+spec:
+  secretName: k0rdent-ui-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - k0rdent.company.com
+```
+
+#### cert-manager + Internal CA
+
+For enterprises with existing PKI infrastructure.
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: internal-ca
+spec:
+  ca:
+    secretName: internal-ca-key-pair
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: k0rdent-ui-tls
+  namespace: kcm-system
+spec:
+  secretName: k0rdent-ui-tls
+  issuerRef:
+    name: internal-ca
+    kind: ClusterIssuer
+  dnsNames:
+    - k0rdent.company.com
+```
+
+#### AWS ACM (via NLB Annotation)
+
+AWS-native approach — no in-cluster cert management. TLS terminates at the NLB.
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: k0rdent-gateway
+  namespace: kcm-system
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456:certificate/abc-123"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+spec:
+  gatewayClassName: envoy-gateway
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+```
+
+> **Note:** With ACM, TLS terminates at the NLB. Traffic between NLB and Envoy Gateway is unencrypted inside the VPC. For end-to-end encryption, use cert-manager instead.
+
+#### Manual TLS Secret
+
+Bring your own certificate from any source.
+
+```bash
+kubectl create secret tls k0rdent-ui-tls \
+  --cert=path/to/tls.crt \
+  --key=path/to/tls.key \
+  -n kcm-system
+```
+
+Then reference `k0rdent-ui-tls` in the Gateway's TLS listener configuration (same as the cert-manager examples above).
 
 ---
 
@@ -656,8 +673,8 @@ Document your management cluster setup:
 Before completing this lab, verify:
 
 - [ ] Successfully logged into k0rdent UI
-- [ ] Understood how the training lab exposes the UI (NLB + NodePort)
-- [ ] Can explain the production approach (Ingress + TLS + OIDC)
+- [ ] Understood how the training lab exposes the UI (Envoy Gateway + Gateway API)
+- [ ] Can explain the production upgrade path (TLS + OIDC on the same Gateway)
 - [ ] Explored dashboard and understood key metrics
 - [ ] Reviewed at least one cluster template
 - [ ] Browsed the Service Catalog at catalog.k0rdent.io
@@ -670,7 +687,7 @@ Before completing this lab, verify:
 
 In this lab, you:
 - Navigated the k0rdent Enterprise UI
-- Learned how the UI is exposed in training (NLB + NodePort) vs. production (Ingress + TLS + OIDC)
+- Learned how the UI is exposed via Envoy Gateway and the Gateway API, with production upgrade paths for TLS and OIDC
 - Explored cluster templates
 - Learned about the external Service Catalog model (catalog.k0rdent.io)
 - Reviewed management cluster configuration
