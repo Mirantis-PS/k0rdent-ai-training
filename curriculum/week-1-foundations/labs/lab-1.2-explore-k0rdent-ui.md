@@ -34,27 +34,22 @@ kubectl get nodes && kubectl get pods -n kcm-system
 
 ## Part 1: Access the k0rdent UI
 
-The k0rdent UI is exposed via a Network Load Balancer (NLB) and accessible directly from your browser.
+The k0rdent UI is exposed via **Envoy Gateway** (using the Kubernetes Gateway API) and accessible directly from your browser.
 
 ### Get the URL and Login
 
-From your local machine:
+The UI URL was printed at the end of provisioning. To retrieve it again:
 
 ```bash
-cd lab-infrastructure/terraform/environments/student-lab
-
-# Get the UI URL
-terraform output ui_url
-
-# Get the UI password
-terraform output -raw ui_password
+# Get the UI URL and credentials
+./scripts/lab-connect.sh <your-engineer-id> --ui-url
 ```
 
 Open the URL in your browser and login with:
 - **Username:** `admin`
-- **Password:** the output from the command above
+- **Password:** shown in the command output above
 
-> **Tip:** You can also run `./scripts/lab-connect.sh <your-engineer-id> --show-password` to retrieve the password.
+> **Tip:** To see the full Gateway API resource status, run `./scripts/lab-connect.sh <your-engineer-id> --show-gateway`.
 
 ## Part 2: Understanding k0rdent UI Access Architecture
 
