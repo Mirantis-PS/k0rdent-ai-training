@@ -85,6 +85,18 @@ variable "flux_version" {
   default     = "v2.4.0"
 }
 
+variable "gateway_api_version" {
+  description = "Gateway API CRD version"
+  type        = string
+  default     = "v1.2.1"
+}
+
+variable "envoy_gateway_version" {
+  description = "Envoy Gateway Helm chart version"
+  type        = string
+  default     = "v1.2.6"
+}
+
 # Training metadata
 variable "cohort_id" {
   description = "Training cohort ID"

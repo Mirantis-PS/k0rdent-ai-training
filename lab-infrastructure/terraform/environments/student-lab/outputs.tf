@@ -45,9 +45,9 @@ output "connection_info" {
   value       = module.k0rdent_mgmt.connection_info
 }
 
-output "ui_url" {
-  description = "k0rdent UI URL"
-  value       = module.k0rdent_mgmt.ui_url
+output "ui_access" {
+  description = "How to retrieve the k0rdent UI URL"
+  value       = module.k0rdent_mgmt.ui_access
 }
 
 output "ui_password" {

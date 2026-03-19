@@ -75,7 +75,6 @@ module "k0rdent_mgmt" {
 
   vpc_id                = module.networking.vpc_id
   subnet_id             = module.networking.private_subnet_ids[0]
-  public_subnet_ids     = module.networking.public_subnet_ids
   security_group_ids    = [module.networking.lab_instance_security_group_id]
   instance_profile_name = module.iam.lab_instance_profile_name
   bastion_sg_id         = module.networking.bastion_security_group_id
@@ -87,7 +86,9 @@ module "k0rdent_mgmt" {
   k0s_version     = var.k0s_version
   k0rdent_version = var.k0rdent_version
   ui_password     = var.ui_password
-  flux_version    = var.flux_version
+  flux_version          = var.flux_version
+  gateway_api_version   = var.gateway_api_version
+  envoy_gateway_version = var.envoy_gateway_version
 
   artifacts_bucket = var.student_bucket
 
