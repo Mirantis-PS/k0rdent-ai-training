@@ -260,38 +260,46 @@ kubectl get credentials -A
 
 ## Part 7: Access the k0rdent UI
 
-The k0rdent UI is exposed via a Network Load Balancer (NLB), so you can access it directly from your browser -- no SSH tunnels or port-forwarding required.
+The provisioning script waits for k0rdent and Envoy Gateway to be fully operational before printing the UI URL.
 
-### Get the UI URL
+**How the UI is exposed:**
 
-From your local machine (where you ran the provisioning script):
-
-```bash
-cd lab-infrastructure/terraform/environments/student-lab
-terraform output ui_url
+```
+Browser (HTTP) → AWS NLB (auto-provisioned) → Envoy Gateway → HTTPRoute → k0rdent UI (:3000)
 ```
 
-This outputs the NLB URL, e.g., `http://k0rdent-ui-xxxx.elb.us-east-1.amazonaws.com`
+Envoy Gateway uses the Kubernetes Gateway API to route traffic. AWS Cloud Controller Manager automatically provisions a Network Load Balancer for the Gateway's Service.
 
-### Get the UI Password
+**The URL is printed at the end of provisioning:**
 
-```bash
-# Option A: Terraform output
-cd lab-infrastructure/terraform/environments/student-lab
-terraform output -raw ui_password
-
-# Option B: Helper script
-./scripts/lab-connect.sh <your-engineer-id> --show-password
+```
+============================================
+  k0rdent UI
+  URL:       http://xxxxx.elb.us-east-1.amazonaws.com
+  Username:  admin
+  Password:  <generated>
+============================================
 ```
 
-### Login
+**To retrieve the URL later:**
 
-1. Open the NLB URL in your browser
-2. Login with:
-   - **Username:** `admin`
-   - **Password:** the password from the command above
+```bash
+# Get UI URL and credentials
+./scripts/lab-connect.sh <your-name> --ui-url
 
-> **Note:** The NLB URL uses HTTP (port 80). The NLB may take 2-3 minutes after provisioning to become healthy. If you get a connection error, wait and retry.
+# View Gateway API resource status
+./scripts/lab-connect.sh <your-name> --show-gateway
+```
+
+**From inside the cluster (via SSH):**
+
+```bash
+# Get the Gateway LB address
+kubectl get gateway k0rdent-gateway -n kcm-system
+
+# View all Gateway API resources
+kubectl get gatewayclass,gateway,httproute -A
+```
 
 ## Part 8: Explore k0rdent Resources
 
