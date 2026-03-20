@@ -29,9 +29,31 @@
 - [x] 3.5 Standardize template name patterns across theory files
 - [x] 3.6 Fix Lab 1.2 duration and update Week 1 totals (done in Phase 2 commit)
 
+## Envoy Gateway UI Exposure ✅ COMPLETE
+
+**Plan:** [docs/plans/2026-03-18-envoy-gateway-ui-exposure-design.md](../docs/plans/2026-03-18-envoy-gateway-ui-exposure-design.md)
+
+- [x] 1. Remove NLB resources from k0rdent-mgmt Terraform module
+- [x] 2. Add Gateway API and Envoy Gateway version variables
+- [x] 3. Replace NodePort with Envoy Gateway in cloud-init
+- [x] 4. Update lab-provision.sh to wait for Gateway LB URL
+- [x] 5. Add --ui-url and --show-gateway flags to lab-connect.sh
+- [x] 6. Add Gateway API & Envoy Gateway theory section
+- [x] 7. Update Lab 1.1 provisioning docs
+- [x] 8. Rewrite Lab 1.2 access architecture section
+- [x] 9. Update Week 1 README and Quiz
+
+10 commits on main (`6c94b65..6643051`).
+
 ## Review
 
-All three phases complete. 3 commits on main:
+Week 1 Improvements: 3 commits on main:
 - `78197e0` Phase 1: Critical accuracy fixes (10 files)
 - `4ba5920` Phase 2: Missing content additions (5 files, 1 new lab)
 - `a580820` Phase 3: Broken references and polish (5 files, 3 new files)
+
+Envoy Gateway: 10 commits on main:
+- Terraform: NLB removed, NodePort range opened, Gateway version vars
+- Cloud-init: Envoy Gateway Helm install + Gateway API resources
+- Scripts: lab-provision waits for LB URL, lab-connect gets --ui-url/--show-gateway
+- Docs: Theory, Lab 1.1, Lab 1.2 rewrite, README, Quiz updated
