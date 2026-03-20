@@ -53,7 +53,7 @@ locals {
   node_names = [for i in range(var.node_count) : "${var.project_name}-mgmt-${var.engineer_id}-${i}"]
 
   # Cloud-init user data
-  node_user_data = base64encode(templatefile("${path.module}/templates/mgmt-cloud-init.yaml", {
+  node_user_data = base64gzip(templatefile("${path.module}/templates/mgmt-cloud-init.yaml", {
     engineer_id           = var.engineer_id
     k0s_version           = var.k0s_version
     k0rdent_version       = var.k0rdent_version
