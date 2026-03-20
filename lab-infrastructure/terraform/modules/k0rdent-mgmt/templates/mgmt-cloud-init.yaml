@@ -100,7 +100,8 @@ write_files:
       EOF
 
       # Install k0s as controller+worker (single node)
-      sudo k0s install controller --config /etc/k0s/k0s.yaml --enable-worker
+      # --enable-cloud-provider tells kubelet to use external cloud provider (AWS CCM)
+      sudo k0s install controller --config /etc/k0s/k0s.yaml --enable-worker --enable-cloud-provider
       sudo k0s start
 
       # Wait for k0s to be ready
@@ -202,6 +203,32 @@ write_files:
 
       echo "=== Cluster is ready ==="
       kubectl get nodes -o wide
+
+      # =================================================================
+      # Deploy AWS Cloud Controller Manager
+      # Required for auto-provisioning LoadBalancer services (Envoy Gateway)
+      # Uses the EC2 instance profile for AWS credentials (no secrets needed)
+      # =================================================================
+      echo "Installing AWS Cloud Controller Manager..."
+
+      helm install aws-cloud-controller-manager \
+        oci://registry.k8s.io/provider-aws/helm/aws-cloud-controller-manager \
+        --namespace kube-system \
+        --set args="{--v=2,--cloud-provider=aws,--configure-cloud-routes=false}" \
+        --set nodeSelector."node-role\.kubernetes\.io/control-plane"="" \
+        --set tolerations[0].key=node-role.kubernetes.io/control-plane \
+        --set tolerations[0].effect=NoSchedule \
+        --set tolerations[1].key=node.cloudprovider.kubernetes.io/uninitialized \
+        --set tolerations[1].value=true \
+        --set tolerations[1].effect=NoSchedule \
+        --wait --timeout 3m
+
+      echo "Waiting for AWS CCM to be ready..."
+      kubectl wait deployment/aws-cloud-controller-manager -n kube-system \
+        --for=condition=Available --timeout=120s || true
+
+      echo "AWS Cloud Controller Manager installed"
+      kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-cloud-controller-manager
 
   - path: /opt/k0rdent-lab/scripts/04-install-k0rdent.sh
     permissions: '0755'
