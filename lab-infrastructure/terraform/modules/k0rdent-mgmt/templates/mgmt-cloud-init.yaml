@@ -196,10 +196,13 @@ write_files:
       echo "Waiting for CoreDNS..."
       kubectl wait --for=condition=Available deployment/coredns -n kube-system --timeout=300s || true
 
-      # Remove master taint for single-node
-      echo "Removing master taint..."
+      # Remove taints for single-node (allows all pods to schedule)
+      echo "Removing node taints for single-node setup..."
       kubectl taint nodes --all node-role.kubernetes.io/master- 2>/dev/null || true
       kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null || true
+      # Remove cloud-provider uninitialized taint so CCM and other pods can schedule
+      # CCM will re-initialize the node with provider ID after it starts
+      kubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized- 2>/dev/null || true
 
       echo "=== Cluster is ready ==="
       kubectl get nodes -o wide
@@ -218,12 +221,6 @@ write_files:
         aws-cloud-controller-manager/aws-cloud-controller-manager \
         --namespace kube-system \
         --set args="{--v=2\,--cloud-provider=aws\,--configure-cloud-routes=false}" \
-        --set nodeSelector."node-role\.kubernetes\.io/control-plane"="" \
-        --set tolerations[0].key=node-role.kubernetes.io/control-plane \
-        --set tolerations[0].effect=NoSchedule \
-        --set tolerations[1].key=node.cloudprovider.kubernetes.io/uninitialized \
-        --set-string tolerations[1].value=true \
-        --set tolerations[1].effect=NoSchedule \
         --wait --timeout 3m
 
       echo "Waiting for AWS CCM to be ready..."
