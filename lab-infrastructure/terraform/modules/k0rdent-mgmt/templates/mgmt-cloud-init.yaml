@@ -217,18 +217,32 @@ write_files:
       helm repo add aws-cloud-controller-manager https://kubernetes.github.io/cloud-provider-aws
       helm repo update
 
+      # Create a minimal values file to avoid Helm --set escaping issues
+      cat <<CCMEOF > /tmp/ccm-values.yaml
+      args:
+        - --v=2
+        - --cloud-provider=aws
+        - --configure-cloud-routes=false
+      nodeSelector: {}
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+        - effect: NoSchedule
+          key: node.cloudprovider.kubernetes.io/uninitialized
+          value: "true"
+      hostNetworking: true
+      CCMEOF
+
       helm install aws-cloud-controller-manager \
         aws-cloud-controller-manager/aws-cloud-controller-manager \
         --namespace kube-system \
-        --set args="{--v=2\,--cloud-provider=aws\,--configure-cloud-routes=false}" \
+        -f /tmp/ccm-values.yaml \
         --wait --timeout 3m
 
-      echo "Waiting for AWS CCM to be ready..."
-      kubectl wait deployment/aws-cloud-controller-manager -n kube-system \
-        --for=condition=Available --timeout=120s || true
-
-      echo "AWS Cloud Controller Manager installed"
-      kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-cloud-controller-manager
+      echo "Waiting for AWS CCM to initialize node..."
+      sleep 10
+      kubectl get nodes -o wide
+      kubectl get pods -n kube-system | grep cloud
 
   - path: /opt/k0rdent-lab/scripts/04-install-k0rdent.sh
     permissions: '0755'
@@ -252,6 +266,7 @@ write_files:
         --create-namespace \
         --set k0rdent-ui.enabled=true \
         --set k0rdent-ui.auth.basic.password="$K0RDENT_UI_PASSWORD" \
+        --set cert-manager.startupapicheck.timeout=5m \
         --wait \
         --timeout 15m
 
