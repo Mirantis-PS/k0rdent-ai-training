@@ -218,20 +218,21 @@ write_files:
       helm repo update
 
       # Create a minimal values file to avoid Helm --set escaping issues
-      cat <<CCMEOF > /tmp/ccm-values.yaml
-      args:
-        - --v=2
-        - --cloud-provider=aws
-        - --configure-cloud-routes=false
-      nodeSelector: {}
-      tolerations:
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/control-plane
-        - effect: NoSchedule
-          key: node.cloudprovider.kubernetes.io/uninitialized
-          value: "true"
-      hostNetworking: true
-      CCMEOF
+      # Note: heredoc content must be left-aligned (no leading spaces)
+      cat > /tmp/ccm-values.yaml <<'CCMEOF'
+args:
+  - --v=2
+  - --cloud-provider=aws
+  - --configure-cloud-routes=false
+nodeSelector: {}
+tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+  - effect: NoSchedule
+    key: node.cloudprovider.kubernetes.io/uninitialized
+    value: "true"
+hostNetworking: true
+CCMEOF
 
       helm install aws-cloud-controller-manager \
         aws-cloud-controller-manager/aws-cloud-controller-manager \
