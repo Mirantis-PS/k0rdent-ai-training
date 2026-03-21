@@ -211,10 +211,13 @@ write_files:
       # =================================================================
       echo "Installing AWS Cloud Controller Manager..."
 
+      helm repo add aws-cloud-controller-manager https://kubernetes.github.io/cloud-provider-aws
+      helm repo update
+
       helm install aws-cloud-controller-manager \
-        oci://registry.k8s.io/provider-aws/helm/aws-cloud-controller-manager \
+        aws-cloud-controller-manager/aws-cloud-controller-manager \
         --namespace kube-system \
-        --set args="{--v=2,--cloud-provider=aws,--configure-cloud-routes=false}" \
+        --set args="{--v=2\,--cloud-provider=aws\,--configure-cloud-routes=false}" \
         --set nodeSelector."node-role\.kubernetes\.io/control-plane"="" \
         --set tolerations[0].key=node-role.kubernetes.io/control-plane \
         --set tolerations[0].effect=NoSchedule \
