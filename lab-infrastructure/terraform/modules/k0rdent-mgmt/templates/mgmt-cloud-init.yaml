@@ -168,6 +168,22 @@ write_files:
 
       echo "=== CLI tools installed ==="
 
+  - path: /tmp/ccm-values.yaml
+    permissions: '0644'
+    content: |
+      args:
+        - --v=2
+        - --cloud-provider=aws
+        - --configure-cloud-routes=false
+      nodeSelector: {}
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+        - effect: NoSchedule
+          key: node.cloudprovider.kubernetes.io/uninitialized
+          value: "true"
+      hostNetworking: true
+
   - path: /opt/k0rdent-lab/scripts/03-wait-for-cluster.sh
     permissions: '0755'
     content: |
@@ -217,23 +233,7 @@ write_files:
       helm repo add aws-cloud-controller-manager https://kubernetes.github.io/cloud-provider-aws
       helm repo update
 
-      # Create a minimal values file to avoid Helm --set escaping issues
-      # Note: heredoc content must be left-aligned (no leading spaces)
-      cat > /tmp/ccm-values.yaml <<'CCMEOF'
-args:
-  - --v=2
-  - --cloud-provider=aws
-  - --configure-cloud-routes=false
-nodeSelector: {}
-tolerations:
-  - effect: NoSchedule
-    key: node-role.kubernetes.io/control-plane
-  - effect: NoSchedule
-    key: node.cloudprovider.kubernetes.io/uninitialized
-    value: "true"
-hostNetworking: true
-CCMEOF
-
+      # Values file written by cloud-init write_files to /tmp/ccm-values.yaml
       helm install aws-cloud-controller-manager \
         aws-cloud-controller-manager/aws-cloud-controller-manager \
         --namespace kube-system \
@@ -243,7 +243,7 @@ CCMEOF
       echo "Waiting for AWS CCM to initialize node..."
       sleep 10
       kubectl get nodes -o wide
-      kubectl get pods -n kube-system | grep cloud
+      kubectl get pods -n kube-system | grep cloud || true
 
   - path: /opt/k0rdent-lab/scripts/04-install-k0rdent.sh
     permissions: '0755'
@@ -295,7 +295,7 @@ CCMEOF
 
       echo "Waiting for Envoy Gateway controller..."
       kubectl wait deployment/envoy-gateway -n envoy-gateway-system \
-        --for=condition=Available --timeout=120s
+        --for=condition=Available --timeout=120s || true
 
       echo "Creating Gateway API resources for k0rdent UI..."
       cat <<GWEOF | kubectl apply -f -
