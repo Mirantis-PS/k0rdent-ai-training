@@ -222,7 +222,7 @@ write_files:
         --set tolerations[0].key=node-role.kubernetes.io/control-plane \
         --set tolerations[0].effect=NoSchedule \
         --set tolerations[1].key=node.cloudprovider.kubernetes.io/uninitialized \
-        --set tolerations[1].value=true \
+        --set-string tolerations[1].value=true \
         --set tolerations[1].effect=NoSchedule \
         --wait --timeout 3m
 
