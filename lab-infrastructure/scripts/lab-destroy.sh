@@ -69,6 +69,85 @@ confirm_destroy() {
     fi
 }
 
+get_state_output() {
+    local bucket="$1"
+    local output_name="$2"
+    aws s3 cp "s3://${bucket}/terraform.tfstate" - 2>/dev/null \
+        | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
+}
+
+# Clean up CCM-provisioned LoadBalancers before destroying infrastructure.
+# The AWS CCM creates ELBs at runtime (not managed by Terraform). If we
+# destroy the EC2 instance first, the CCM pod dies and the ELB is orphaned.
+# The fix: SSH in and delete the Gateway/Services so CCM cleans up the ELB.
+cleanup_load_balancers() {
+    local engineer_id="$1"
+    local bucket="$2"
+
+    log_info "Cleaning up CCM-provisioned LoadBalancers..."
+
+    # Get connection details from Terraform state
+    local bastion_ip mgmt_ip
+    bastion_ip=$(get_state_output "$bucket" "bastion_public_ip")
+    mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
+
+    if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
+        log_warn "Could not get IPs from state. Skipping LB cleanup."
+        return 0
+    fi
+
+    # Get SSH keys
+    local mgmt_key="$CONFIG_DIR/keys/${engineer_id}-k0rdent.pem"
+    local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
+
+    if [[ ! -f "$mgmt_key" || ! -f "$bastion_key" ]]; then
+        # Try to retrieve from state
+        local ssh_key bastion_ssh_key
+        ssh_key=$(get_state_output "$bucket" "ssh_private_key")
+        bastion_ssh_key=$(get_state_output "$bucket" "bastion_ssh_private_key")
+
+        if [[ -n "$ssh_key" ]]; then
+            mkdir -p "$CONFIG_DIR/keys"
+            echo "$ssh_key" > "$mgmt_key"
+            chmod 600 "$mgmt_key"
+        fi
+        if [[ -n "$bastion_ssh_key" ]]; then
+            mkdir -p "$CONFIG_DIR/keys"
+            echo "$bastion_ssh_key" > "$bastion_key"
+            chmod 600 "$bastion_key"
+        fi
+    fi
+
+    if [[ ! -f "$mgmt_key" || ! -f "$bastion_key" ]]; then
+        log_warn "SSH keys not available. Skipping LB cleanup."
+        return 0
+    fi
+
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10"
+    local proxy_cmd="ssh ${ssh_opts} -i ${bastion_key} -W %h:%p ec2-user@${bastion_ip}"
+
+    # Delete Gateway resources so CCM removes the ELB
+    log_info "Deleting Gateway API resources (triggers CCM to remove ELB)..."
+    ssh ${ssh_opts} -i "$mgmt_key" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+        'export KUBECONFIG=/home/ubuntu/.kube/config
+         kubectl delete gateway --all -n kcm-system --timeout=60s 2>/dev/null || true
+         kubectl delete httproute --all -n kcm-system --timeout=30s 2>/dev/null || true
+         kubectl delete gatewayclass --all --timeout=30s 2>/dev/null || true
+         # Wait for CCM to finish deleting the ELB
+         echo "Waiting for LoadBalancer cleanup..."
+         for i in $(seq 1 24); do
+             LB_COUNT=$(kubectl get svc -A --field-selector spec.type=LoadBalancer --no-headers 2>/dev/null | wc -l)
+             if [ "$LB_COUNT" -eq 0 ]; then
+                 echo "All LoadBalancers cleaned up"
+                 break
+             fi
+             echo -n "."
+             sleep 5
+         done' 2>/dev/null || log_warn "Could not SSH to clean up LBs (instance may already be down)"
+
+    log_success "LoadBalancer cleanup complete"
+}
+
 destroy_lab() {
     local engineer_id="$1"
     local bucket
@@ -89,6 +168,9 @@ destroy_lab() {
         log_warn "No state found for $engineer_id."
         return 0
     fi
+
+    # Clean up CCM-provisioned LoadBalancers BEFORE destroying infrastructure
+    cleanup_load_balancers "$engineer_id" "$bucket"
 
     local destroy_args=""
     [[ "$AUTO_APPROVE" == "true" ]] && destroy_args="-auto-approve"
