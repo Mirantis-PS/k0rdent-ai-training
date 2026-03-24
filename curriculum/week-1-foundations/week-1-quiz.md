@@ -112,6 +112,8 @@ Answer each question in 1-3 sentences.
 
 ### 18. Explain how RBAC and namespace isolation work together in k0rdent to support multi-team access to shared management infrastructure. Include the role of the `k0rdent.mirantis.com/project` label.
 
+### 19. A student provisions a management cluster and the k0rdent UI Gateway shows `PROGRAMMED: True` with an ELB hostname, but the ELB has zero registered instances and HTTP requests fail. Explain the four AWS tags that CCM requires and why a missing `providerID` on the node prevents instance registration.
+
 ---
 
 ## Answer Key
@@ -158,5 +160,7 @@ Answer each question in 1-3 sentences.
 17. etcd contains all Kubernetes state, including k0rdent CRDs, ClusterDeployments, credentials, and template definitions. If an upgrade corrupts CRDs or introduces breaking schema changes, the backup ensures recovery to a known-good state. Use Helm rollback (`helm rollback kcm <revision>`) as the first response to a failed upgrade, since it reverts the Helm release and restarts controllers without affecting other cluster state. Use etcd restore only as a last resort when Helm rollback itself fails or CRD data is corrupted beyond what a Helm rollback can fix, keeping in mind that etcd restore reverts ALL cluster state (not just k0rdent) to the backup point.
 
 18. k0rdent uses Kubernetes namespaces as tenant boundaries. Each team gets a dedicated namespace (e.g., `team-platform`, `team-ml`) labeled with `k0rdent.mirantis.com/project=<project-name>` to identify the project. RBAC Roles scoped to these namespaces (e.g., `k0rdent-project-admin`) grant teams permission to create and manage ClusterDeployments and MultiClusterServices only within their own namespace. ClusterRoles like `k0rdent-cluster-viewer` provide read-only fleet visibility. The Provider Identity CRD's `allowedNamespaces` field further restricts which namespaces can use specific cloud credentials, and ResourceQuotas limit the number of clusters and compute resources each team can consume.
+
+19. CCM requires four tags to function: (1) `kubernetes.io/cluster/<cluster-name>=owned` on the EC2 instance, so CCM can determine which cluster the instance belongs to (without it, CCM refuses to start with "ClusterID not found"); (2) `kubernetes.io/role/elb=1` on public subnets, so CCM knows where to place internet-facing load balancers; (3) `kubernetes.io/role/internal-elb=1` on private subnets for internal load balancers; (4) `kubernetes.io/cluster/<cluster-name>=owned` on subnets so CCM only uses subnets belonging to its cluster. The `providerID` (format: `aws:///az/instance-id`) is critical because CCM uses it to map a Kubernetes node to its EC2 instance. When CCM creates an ELB and calls `RegisterInstances`, it needs the EC2 instance ID — which it extracts from the providerID. Without it, CCM creates the ELB but registers zero instances, resulting in a load balancer that accepts connections but has no backends to forward to.
 
 </details>
