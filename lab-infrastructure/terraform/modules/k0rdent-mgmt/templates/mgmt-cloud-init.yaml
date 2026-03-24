@@ -100,8 +100,12 @@ write_files:
       EOF
 
       # Install k0s as controller+worker (single node)
-      # --enable-cloud-provider tells kubelet to use external cloud provider (AWS CCM)
-      sudo k0s install controller --config /etc/k0s/k0s.yaml --enable-worker --enable-cloud-provider
+      # NOTE: We intentionally do NOT use --enable-cloud-provider here.
+      # That flag defers node IP/providerID setup to the CCM, but the AWS CCM
+      # cannot match node hostnames to EC2 instances without an InternalIP.
+      # Without the flag, kubelet sets InternalIP normally and CCM can still
+      # manage LoadBalancers by matching nodes via IP address.
+      sudo k0s install controller --config /etc/k0s/k0s.yaml --enable-worker
       sudo k0s start
 
       # Wait for k0s to be ready
@@ -175,7 +179,8 @@ write_files:
         - --v=2
         - --cloud-provider=aws
         - --configure-cloud-routes=false
-      nodeSelector: {}
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/control-plane
@@ -212,13 +217,10 @@ write_files:
       echo "Waiting for CoreDNS..."
       kubectl wait --for=condition=Available deployment/coredns -n kube-system --timeout=300s || true
 
-      # Remove taints for single-node (allows all pods to schedule)
+      # Remove control-plane taints for single-node (allows workload pods to schedule)
       echo "Removing node taints for single-node setup..."
       kubectl taint nodes --all node-role.kubernetes.io/master- 2>/dev/null || true
       kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null || true
-      # Remove cloud-provider uninitialized taint so CCM and other pods can schedule
-      # CCM will re-initialize the node with provider ID after it starts
-      kubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized- 2>/dev/null || true
 
       echo "=== Cluster is ready ==="
       kubectl get nodes -o wide
@@ -240,8 +242,19 @@ write_files:
         -f /tmp/ccm-values.yaml \
         --wait --timeout 3m
 
-      echo "Waiting for AWS CCM to initialize node..."
-      sleep 10
+      echo "Waiting for AWS CCM to be ready..."
+      kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=aws-cloud-controller-manager -n kube-system --timeout=120s || true
+
+      # Set providerID on the node so CCM can map it to the EC2 instance.
+      # CCM's automatic instance discovery via private-dns-name doesn't work
+      # reliably with k0s hostnames, so we set this explicitly from IMDS.
+      INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+      AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+      NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+      echo "Setting providerID on node $NODE_NAME: aws:///$AZ/$INSTANCE_ID"
+      kubectl patch node "$NODE_NAME" --type=merge \
+        -p "{\"spec\":{\"providerID\":\"aws:///$AZ/$INSTANCE_ID\"}}"
+
       kubectl get nodes -o wide
       kubectl get pods -n kube-system | grep cloud || true
 
@@ -260,6 +273,9 @@ write_files:
       kubectl create namespace kcm-system --dry-run=client -o yaml | kubectl apply -f -
 
       # Install k0rdent Enterprise via Helm
+      # NOTE: We intentionally omit --wait because the cert-manager startupapicheck
+      # post-install job can exceed its backoff limit and cause Helm to return an error
+      # even though all pods are running fine. We verify readiness explicitly below.
       echo "Installing k0rdent Enterprise Helm chart..."
       helm install kcm oci://registry.mirantis.com/k0rdent-enterprise/charts/k0rdent-enterprise \
         --version ${k0rdent_version} \
@@ -268,8 +284,12 @@ write_files:
         --set k0rdent-ui.enabled=true \
         --set k0rdent-ui.auth.basic.password="$K0RDENT_UI_PASSWORD" \
         --set cert-manager.startupapicheck.timeout=5m \
-        --wait \
-        --timeout 15m
+        --timeout 15m \
+      || echo "WARN: Helm install returned error (cert-manager startupapicheck may have timed out). Checking actual pod status..."
+
+      # Verify cert-manager and KCM are actually running regardless of Helm exit code
+      echo "Waiting for cert-manager webhook..."
+      kubectl wait --for=condition=Available deployment -l app.kubernetes.io/instance=kcm,app.kubernetes.io/name=cert-manager -n kcm-system --timeout=300s
 
       echo "=== k0rdent Enterprise installation initiated ==="
       echo "Waiting for KCM components to be ready..."

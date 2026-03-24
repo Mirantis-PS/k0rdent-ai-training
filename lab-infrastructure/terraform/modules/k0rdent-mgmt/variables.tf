@@ -42,6 +42,12 @@ variable "bastion_sg_id" {
   type        = string
 }
 
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for tagging (CCM LoadBalancer discovery)"
+  type        = list(string)
+  default     = []
+}
+
 #------------------------------------------------------------------------------
 # Cluster Configuration
 #------------------------------------------------------------------------------
