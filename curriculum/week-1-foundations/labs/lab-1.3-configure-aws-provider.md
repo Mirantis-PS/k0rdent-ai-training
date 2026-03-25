@@ -161,7 +161,33 @@ kubectl create secret generic aws-cluster-identity-secret \
   -n kcm-system
 ```
 
-> **Warning:** SSO session tokens expire (typically after 1-12 hours). For long-running cluster operations, IAM user credentials (Option A) are more reliable. If you use SSO and your session expires during cluster provisioning, you'll need to refresh the secret with new credentials.
+> **Warning:** SSO session tokens expire (typically after 1-12 hours). For long-running cluster operations, IAM user credentials (Option A) are more reliable.
+
+#### Refreshing Expired SSO Credentials
+
+If your SSO session expires during cluster provisioning, CAPA will start logging `AuthFailure` errors. To refresh:
+
+```bash
+# 1. Re-login to SSO (from your LOCAL machine, not the bastion)
+aws sso login --profile your-sso-profile
+eval "$(aws configure export-credentials --format env --profile your-sso-profile)"
+
+# 2. Update the secret via SSH (avoids terminal paste corruption of the long SessionToken)
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -i <path-to-mgmt-key> \
+  -o "ProxyCommand=ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i <path-to-bastion-key> -W %h:%p ec2-user@<bastion-ip>" \
+  ubuntu@<mgmt-ip> \
+  "kubectl delete secret aws-cluster-identity-secret -n kcm-system && \
+   kubectl create secret generic aws-cluster-identity-secret -n kcm-system \
+     --from-literal=AccessKeyID='$AWS_ACCESS_KEY_ID' \
+     --from-literal=SecretAccessKey='$AWS_SECRET_ACCESS_KEY' \
+     --from-literal=SessionToken='$AWS_SESSION_TOKEN'"
+
+# 3. Restart CAPA to pick up the new credentials (it caches the AWS session)
+ssh ... ubuntu@<mgmt-ip> "kubectl rollout restart deployment capa-controller-manager -n kcm-system"
+```
+
+> **Why from your local machine?** The SessionToken is ~1000 characters. Pasting it directly into a terminal on the bastion can truncate or corrupt the value. Sending it via SSH from your local machine preserves the full token.
 
 ### Step 2: Create AWSClusterStaticIdentity
 
