@@ -88,17 +88,31 @@ echo "ServiceTemplates: $(kubectl get servicetemplates -n kcm-system --no-header
 
 ### Step 3: Pre-Upgrade Backup
 
+Create an on-demand backup using the ManagementBackup CRD (configured in Lab 1.4):
+
 ```bash
-# Backup etcd (from Lab 1.4)
-# On the management cluster node:
-k0s etcd backup /tmp/etcd-pre-upgrade-backup.tar.gz
+# Trigger an on-demand backup before upgrading
+cat <<EOF | kubectl apply -f -
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ManagementBackup
+metadata:
+  name: pre-upgrade-$(date +%Y%m%d)
+spec:
+  storageLocation: aws-s3
+EOF
 
-# Export k0rdent resources
-kubectl get management,credentials,clustertemplates,servicetemplates -n kcm-system -o yaml > /tmp/k0rdent-resources-backup.yaml
+# Wait for backup to complete
+kubectl get backup -n kcm-system --watch
+# Wait until phase shows "Completed", then press Ctrl+C
 
-# If you have managed clusters, backup their definitions too
-kubectl get clusterdeployments -A -o yaml > /tmp/clusterdeployments-backup.yaml
+# Verify the backup exists
+kubectl get backup -n kcm-system | grep pre-upgrade
 ```
+
+> **If you skipped Lab 1.4 backup setup:** You can still take a manual etcd snapshot as a fallback:
+> ```bash
+> sudo k0s etcd snapshot save /tmp/etcd-pre-upgrade.db
+> ```
 
 ### Step 4: Review Release Notes
 
@@ -118,8 +132,8 @@ Before upgrading, always review the release notes for breaking changes:
 
 > **Checkpoint:** Before proceeding, verify:
 > - [ ] All pods in kcm-system are Running
-> - [ ] etcd backup completed successfully
-> - [ ] Resource exports saved
+> - [ ] ManagementBackup completed successfully
+> - [ ] Pre-upgrade state documented
 > - [ ] Release notes reviewed (no blocking changes)
 
 ---
@@ -130,29 +144,32 @@ Before upgrading, always review the release notes for breaking changes:
 
 ```bash
 # Upgrade k0rdent Enterprise to v1.2.3
-helm upgrade kcm oci://ghcr.io/k0rdent/kcm/charts/kcm \
+helm upgrade kcm oci://registry.mirantis.com/k0rdent-enterprise/charts/k0rdent-enterprise \
   --version 1.2.3 \
   -n kcm-system \
-  --wait \
-  --timeout 10m
-
-# Expected output:
-# Release "kcm" has been upgraded. Happy Helming!
+  --timeout 15m
 ```
 
-> **Note:** The `--wait` flag ensures Helm waits for all pods to become ready before reporting success. The `--timeout 10m` prevents hanging on slow rollouts.
+> **Note:** We intentionally omit `--wait` because the cert-manager startupapicheck post-install job can time out and cause Helm to report failure even though the upgrade succeeded. We verify readiness explicitly in the next steps instead.
 
 ### Step 2: Monitor the Rollout
 
 ```bash
+# Verify cert-manager is healthy (may report Helm error due to startupapicheck)
+kubectl wait --for=condition=Available deployment \
+  -l app.kubernetes.io/instance=kcm,app.kubernetes.io/name=cert-manager \
+  -n kcm-system --timeout=300s
+
 # Watch pods restart with new version
 kubectl get pods -n kcm-system -w
-
-# Wait for all pods to reach Running state
 # Controllers will restart one by one (rolling update)
 # This typically takes 2-5 minutes
-
 # Press Ctrl+C once all pods show Running and READY
+
+# Verify the KCM controller is ready
+kubectl wait --for=condition=Available deployment \
+  kcm-k0rdent-enterprise-controller-manager \
+  -n kcm-system --timeout=300s
 ```
 
 ### Step 3: Verify Upgrade Success
@@ -234,32 +251,70 @@ kubectl get svc -n kof | grep grafana
 
 ## Part 4: Rollback Procedure (Reference)
 
-If an upgrade fails or causes issues, you can roll back:
+If an upgrade fails or causes issues, you have three options in order of preference:
 
-### Option A: Helm Rollback
+### Option A: Helm Rollback (First Response)
 
 ```bash
 # List Helm release history
 helm history kcm -n kcm-system
 
 # Roll back to previous revision
-helm rollback kcm <PREVIOUS_REVISION> -n kcm-system --wait --timeout 10m
+helm rollback kcm <PREVIOUS_REVISION> -n kcm-system --timeout 10m
 
 # Verify rollback
 helm list -n kcm-system
 kubectl get pods -n kcm-system
 ```
 
-### Option B: etcd Restore (Last Resort)
+Helm rollback reverts the release and restarts controllers. This is fast and non-destructive.
 
-If Helm rollback fails and CRDs are corrupted:
+### Option B: Velero Restore (If CRDs Are Corrupted)
+
+If Helm rollback doesn't fix the issue (e.g., CRD schema changes broke resources):
+
+```bash
+# Disable admission webhooks to prevent conflicts during restore
+kubectl patch managements kcm --type=merge \
+  --patch='{"spec":{"core":{"kcm":{"config":{"admissionWebhook":{"enabled": false}}}}}}'
+kubectl wait management kcm --for=condition=Ready=True --timeout=10m
+
+# List available backups
+kubectl get backup -n kcm-system
+
+# Restore from the pre-upgrade backup
+cat <<EOF | kubectl apply -f -
+apiVersion: velero.io/v1
+kind: Restore
+metadata:
+  name: restore-pre-upgrade
+  namespace: kcm-system
+spec:
+  backupName: pre-upgrade-$(date +%Y%m%d)
+  existingResourcePolicy: update
+  includedNamespaces:
+  - '*'
+EOF
+
+# Wait for restore to complete
+kubectl -n kcm-system wait restores.velero.io restore-pre-upgrade \
+  --for=jsonpath='{.status.phase}'='Completed' --timeout=10m
+
+# Re-enable admission webhooks
+kubectl patch managements kcm --type=merge \
+  --patch='{"spec":{"core":{"kcm":{"config":{"admissionWebhook":{"enabled": true}}}}}}'
+```
+
+### Option C: etcd Restore (Last Resort)
+
+If both Helm rollback and Velero restore fail:
 
 ```bash
 # Stop k0s
 sudo k0s stop
 
-# Restore etcd from backup
-sudo k0s etcd restore /tmp/etcd-pre-upgrade-backup.tar.gz
+# Restore etcd from snapshot (if you took one in Step 3)
+sudo k0s etcd restore /tmp/etcd-pre-upgrade.db
 
 # Start k0s
 sudo k0s start
@@ -269,7 +324,7 @@ kubectl get nodes
 kubectl get pods -n kcm-system
 ```
 
-> **Warning:** etcd restore is destructive — it reverts ALL cluster state to the backup point, not just k0rdent. Only use as a last resort.
+> **Warning:** etcd restore is destructive — it reverts ALL cluster state (not just k0rdent) to the backup point. Use only as a last resort.
 
 ---
 
@@ -330,18 +385,18 @@ kubectl describe clusterdeployment <name> -n <namespace> | grep -A10 "Conditions
 
 ## Knowledge Check
 
-1. Why should you back up etcd before upgrading k0rdent?
-2. What Helm flag ensures the upgrade waits for pods to be ready?
-3. How would you roll back a failed upgrade?
+1. Why should you create a ManagementBackup before upgrading k0rdent?
+2. Why do we omit the `--wait` flag from the Helm upgrade command?
+3. What are the three rollback options, in order of preference?
 4. What should you check after upgrading to confirm managed clusters are unaffected?
 5. Why is reviewing release notes important before upgrading?
 
 <details>
 <summary><strong>Answer Key</strong> (click to expand)</summary>
 
-1. etcd contains all Kubernetes state including k0rdent CRDs and configurations. A backup ensures you can restore to a known-good state if the upgrade corrupts data or fails catastrophically.
-2. The `--wait` flag. Combined with `--timeout`, it ensures Helm doesn't report success until all pods are ready (or fails if they don't become ready in time).
-3. Use `helm rollback kcm <PREVIOUS_REVISION> -n kcm-system --wait`. If that fails, restore from etcd backup as a last resort.
+1. ManagementBackup (via Velero) captures all k0rdent CRDs, CAPI resources, Flux sources, and secrets to S3. If the upgrade corrupts CRDs or breaks the management plane, you can restore to the exact pre-upgrade state — including reconnecting to managed clusters that kept running independently.
+2. The cert-manager startupapicheck post-install job can exceed its backoff limit and cause Helm to report failure even though all pods are running fine. We verify readiness explicitly with `kubectl wait` instead.
+3. (a) Helm rollback — fast, reverts the release; (b) Velero restore — restores CRDs and resources from backup; (c) etcd restore — last resort, reverts ALL cluster state.
 4. Check that ClusterDeployments still show Ready status, managed cluster nodes are Ready, and system pods on managed clusters are Running. The management cluster upgrade should not affect running workload clusters.
 5. Release notes document breaking changes, deprecated features, new required permissions, and changed defaults. Skipping this step can lead to unexpected behavior or failed upgrades.
 
@@ -354,10 +409,10 @@ kubectl describe clusterdeployment <name> -n <namespace> | grep -A10 "Conditions
 In this lab, you:
 
 - Assessed the current k0rdent Enterprise version and cluster health
-- Created pre-upgrade backups (etcd + resource exports)
-- Upgraded k0rdent Enterprise from v1.2.2 to v1.2.3 via Helm
-- Verified the upgrade succeeded and existing resources were unaffected
-- Learned the rollback procedure for failed upgrades
+- Created a pre-upgrade ManagementBackup via Velero
+- Upgraded k0rdent Enterprise from v1.2.2 to v1.2.3 via Helm (Enterprise registry)
+- Verified the upgrade with explicit readiness checks (not `--wait`)
+- Learned three rollback options: Helm rollback, Velero restore, etcd restore
 - Reviewed production upgrade best practices
 
 ---
