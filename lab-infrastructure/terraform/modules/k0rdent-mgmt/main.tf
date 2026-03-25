@@ -205,7 +205,8 @@ resource "aws_security_group" "mgmt_cluster" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-mgmt-cluster-${var.engineer_id}"
+    Name                                                    = "${var.project_name}-mgmt-cluster-${var.engineer_id}"
+    "kubernetes.io/cluster/k0rdent-mgmt-${var.engineer_id}" = "owned"
   })
 }
 
@@ -247,37 +248,6 @@ resource "aws_instance" "mgmt_node" {
   lifecycle {
     ignore_changes = [ami]
   }
-}
-
-#------------------------------------------------------------------------------
-# Subnet Tags for AWS CCM LoadBalancer Discovery
-# CCM needs kubernetes.io/cluster/<name> and kubernetes.io/role/elb tags
-# to discover which subnets to place LoadBalancers in.
-#------------------------------------------------------------------------------
-resource "aws_ec2_tag" "private_subnet_cluster" {
-  resource_id = var.subnet_id
-  key         = "kubernetes.io/cluster/k0rdent-mgmt-${var.engineer_id}"
-  value       = "owned"
-}
-
-resource "aws_ec2_tag" "private_subnet_internal_elb" {
-  resource_id = var.subnet_id
-  key         = "kubernetes.io/role/internal-elb"
-  value       = "1"
-}
-
-resource "aws_ec2_tag" "public_subnet_cluster" {
-  for_each    = toset(var.public_subnet_ids)
-  resource_id = each.value
-  key         = "kubernetes.io/cluster/k0rdent-mgmt-${var.engineer_id}"
-  value       = "owned"
-}
-
-resource "aws_ec2_tag" "public_subnet_elb" {
-  for_each    = toset(var.public_subnet_ids)
-  resource_id = each.value
-  key         = "kubernetes.io/role/elb"
-  value       = "1"
 }
 
 #------------------------------------------------------------------------------
