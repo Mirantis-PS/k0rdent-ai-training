@@ -78,14 +78,14 @@ wait_for_gateway_url() {
     local mgmt_ip="$2"
     local key_file="$3"
     local bastion_key="$4"
-    local max_wait="${5:-600}"
+    local max_wait="${5:-1200}"  # 20 min default (cloud-init takes ~15 min)
     local start_time=$(date +%s)
 
-    log_info "Waiting for k0rdent initialization to complete..."
+    log_info "Waiting for k0rdent initialization to complete (up to $((max_wait / 60)) min)..."
 
-    # SSH options for bastion jump
-    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-    local proxy_cmd="ssh ${ssh_opts} -i ${bastion_key} -W %h:%p ubuntu@${bastion_ip}"
+    # SSH options for bastion jump (bastion is Amazon Linux = ec2-user)
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10"
+    local proxy_cmd="ssh ${ssh_opts} -i ${bastion_key} -W %h:%p ec2-user@${bastion_ip}"
 
     while true; do
         local init_done
@@ -107,18 +107,24 @@ wait_for_gateway_url() {
         sleep 15
     done
 
-    # Retrieve Gateway LB URL
-    log_info "Retrieving Gateway LoadBalancer URL..."
-    local gw_addr
-    gw_addr=$(ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
-        "kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'" 2>/dev/null || true)
+    # Poll for Gateway LB URL (CCM needs ~30-60s after init to provision the ELB)
+    log_info "Waiting for Gateway LoadBalancer address..."
+    local gw_addr=""
+    for i in $(seq 1 24); do  # 24 × 10s = 4 min
+        gw_addr=$(ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+            "kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'" 2>/dev/null || true)
 
-    if [[ -n "$gw_addr" ]]; then
-        echo "http://${gw_addr}"
-    else
-        log_warn "Gateway LB address not available yet"
-        echo ""
-    fi
+        if [[ -n "$gw_addr" ]]; then
+            echo "http://${gw_addr}"
+            return 0
+        fi
+
+        echo -n "."
+        sleep 10
+    done
+
+    log_warn "Gateway LB address not available after 4 min. Retrieve later: ./lab-connect.sh <id> --ui-url"
+    echo ""
 }
 
 usage() {
