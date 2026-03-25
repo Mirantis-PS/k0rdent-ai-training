@@ -223,31 +223,20 @@ k0rdent ships with **Velero** built into the Helm chart. Velero handles backup a
 
 ### Step 1: Configure Backup Storage
 
-Velero needs a storage location (S3 bucket) for backup data. Create the credentials secret and BackupStorageLocation:
+Velero needs a storage location (S3 bucket) for backup data. In the training lab, the EC2 instance profile already has S3 permissions, so Velero can use it directly without static credentials.
 
 ```bash
-# Create AWS credentials for Velero (uses the same credentials as CAPA)
-# Format required by Velero's AWS plugin
-cat <<EOF > /tmp/velero-credentials
-[default]
-aws_access_key_id = $(kubectl get secret aws-cluster-identity-secret -n kcm-system -o jsonpath='{.data.AccessKeyID}' | base64 -d)
-aws_secret_access_key = $(kubectl get secret aws-cluster-identity-secret -n kcm-system -o jsonpath='{.data.SecretAccessKey}' | base64 -d)
-EOF
+source /opt/k0rdent-lab/config/lab-info.env
 
-# Create the Velero credentials secret
+# Create an empty credentials file (Velero requires the secret to exist,
+# but with an empty [default] profile it falls back to the instance profile)
 kubectl create secret generic cloud-credentials \
   -n kcm-system \
-  --from-file=cloud=/tmp/velero-credentials \
+  --from-literal=cloud=$'[default]\n' \
   --dry-run=client -o yaml | kubectl apply -f -
-
-# Clean up the temp file
-rm -f /tmp/velero-credentials
 ```
 
 ```bash
-# Get the region from the lab config
-source /opt/k0rdent-lab/config/lab-info.env
-
 # Create the BackupStorageLocation pointing to your S3 bucket
 cat <<EOF | kubectl apply -f -
 apiVersion: velero.io/v1
@@ -267,6 +256,8 @@ spec:
     prefix: velero-backups
 EOF
 ```
+
+> **How credentials work here:** The Velero pod runs on an EC2 instance with an IAM instance profile that grants S3 access to the student bucket. When the AWS SDK finds empty static credentials, it falls back to the EC2 instance metadata service (IMDS) and uses the instance profile. In production, you would use IRSA (IAM Roles for Service Accounts) or explicit credentials instead.
 
 ### Step 2: Ensure the Velero AWS Plugin is Loaded
 
