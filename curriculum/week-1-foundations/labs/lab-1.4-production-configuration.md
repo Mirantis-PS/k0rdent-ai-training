@@ -268,29 +268,30 @@ spec:
 EOF
 ```
 
-### Step 2: Install the Velero AWS Plugin
+### Step 2: Ensure the Velero AWS Plugin is Loaded
 
-Velero needs the AWS plugin to interact with S3. Add it as an init container on the Velero deployment:
+Velero needs the AWS plugin to interact with S3. Check if it's already installed, and add it if not:
 
 ```bash
-# Patch the Velero deployment to add the AWS plugin
-kubectl patch deployment velero -n kcm-system --type=json -p='[
-  {
-    "op": "add",
-    "path": "/spec/template/spec/initContainers/-",
-    "value": {
-      "name": "velero-plugin-for-aws",
-      "image": "velero/velero-plugin-for-aws:v1.11.0",
-      "imagePullPolicy": "IfNotPresent",
-      "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
+# Check if the AWS plugin is already configured
+if kubectl get deployment velero -n kcm-system -o jsonpath='{.spec.template.spec.initContainers[*].name}' | grep -q velero-plugin-for-aws; then
+  echo "AWS plugin already installed"
+else
+  echo "Installing AWS plugin..."
+  kubectl patch deployment velero -n kcm-system --type=json -p='[
+    {
+      "op": "add",
+      "path": "/spec/template/spec/initContainers/-",
+      "value": {
+        "name": "velero-plugin-for-aws",
+        "image": "velero/velero-plugin-for-aws:v1.11.0",
+        "imagePullPolicy": "IfNotPresent",
+        "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
+      }
     }
-  }
-]'
-```
-
-```bash
-# Wait for Velero to restart with the plugin loaded
-kubectl rollout status deployment/velero -n kcm-system --timeout=120s
+  ]'
+  kubectl rollout status deployment/velero -n kcm-system --timeout=120s
+fi
 ```
 
 ```bash
