@@ -72,40 +72,77 @@ wait_for_instance() {
     return 0
 }
 
-# Wait for cloud-init and retrieve Gateway LB URL
+# Wait for cloud-init, stream progress, and retrieve Gateway LB URL
 wait_for_gateway_url() {
     local bastion_ip="$1"
     local mgmt_ip="$2"
     local key_file="$3"
     local bastion_key="$4"
     local max_wait="${5:-1200}"  # 20 min default (cloud-init takes ~15 min)
-    local start_time=$(date +%s)
-
-    log_info "Waiting for k0rdent initialization to complete (up to $((max_wait / 60)) min)..."
 
     # SSH options for bastion jump (bastion is Amazon Linux = ec2-user)
     local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10"
     local proxy_cmd="ssh ${ssh_opts} -i ${bastion_key} -W %h:%p ec2-user@${bastion_ip}"
 
-    while true; do
-        local init_done
-        init_done=$(ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
-            "test -f /opt/k0rdent-lab/.init-complete && echo yes || echo no" 2>/dev/null || echo "no")
-
-        if [[ "$init_done" == "yes" ]]; then
-            log_success "k0rdent initialization complete"
+    # Wait for SSH to become available (instance needs ~60s to boot)
+    log_info "Waiting for SSH access to management node..."
+    local ssh_ready="false"
+    for i in $(seq 1 20); do
+        if ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+            "echo ok" 2>/dev/null | grep -q ok; then
+            ssh_ready="true"
             break
         fi
-
-        local elapsed=$(($(date +%s) - start_time))
-        if [[ $elapsed -ge $max_wait ]]; then
-            log_warn "Timeout waiting for init (${max_wait}s). Check logs on the instance."
-            return 1
-        fi
-
         echo -n "."
-        sleep 15
+        sleep 5
     done
+    echo ""
+
+    if [[ "$ssh_ready" != "true" ]]; then
+        log_warn "Could not SSH to management node. Check bastion/instance status."
+        return 1
+    fi
+
+    # Stream init log in real-time until .init-complete marker appears
+    log_info "Streaming initialization progress (live)..."
+    echo ""
+    ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+        "timeout ${max_wait} bash -c '
+            # Wait for log file to appear
+            while [ ! -f /var/log/k0rdent-init.log ]; do sleep 2; done
+            # Stream log, filtering for key progress lines
+            tail -f /var/log/k0rdent-init.log 2>/dev/null | while IFS= read -r line; do
+                case \"\$line\" in
+                    *\"[1/6]\"*|*\"[2/6]\"*|*\"[3/6]\"*|*\"[4/6]\"*|*\"[5/6]\"*|*\"[6/6]\"*)
+                        echo \"  \$line\" ;;
+                    *\"=== \"*\" ===\"*)
+                        echo \"  \$line\" ;;
+                    *\"Installing \"*|*\"Waiting for \"*|*\"Helm install\"*|*\"Creating \"*)
+                        echo \"  \$line\" ;;
+                    *\"STATUS: deployed\"*)
+                        echo \"  \$line\" ;;
+                    *\"providerID\"*)
+                        echo \"  \$line\" ;;
+                    *\"WARN:\"*|*\"ERROR:\"*)
+                        echo \"  \$line\" ;;
+                    *\"Installation Complete\"*|*\"Lab initialization complete\"*)
+                        echo \"  \$line\"
+                        break ;;
+                esac
+            done
+        '" 2>/dev/null || true
+    echo ""
+
+    # Verify init completed
+    local init_done
+    init_done=$(ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+        "test -f /opt/k0rdent-lab/.init-complete && echo yes || echo no" 2>/dev/null || echo "no")
+
+    if [[ "$init_done" != "yes" ]]; then
+        log_warn "Initialization did not complete within ${max_wait}s. Check: tail -f /var/log/k0rdent-init.log"
+        return 1
+    fi
+    log_success "k0rdent initialization complete"
 
     # Poll for Gateway LB URL (CCM needs ~30-60s after init to provision the ELB)
     log_info "Waiting for Gateway LoadBalancer address..."
