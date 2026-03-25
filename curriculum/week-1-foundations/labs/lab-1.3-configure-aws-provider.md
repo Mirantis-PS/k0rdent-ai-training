@@ -173,15 +173,19 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
 kind: AWSClusterStaticIdentity
 metadata:
   name: aws-cluster-identity
+  labels:
+    k0rdent.mirantis.com/component: "kcm"
 spec:
   secretRef: aws-cluster-identity-secret
   allowedNamespaces:
+    list:
+    - kcm-system
     selector:
       matchLabels: {}
 EOF
 ```
 
-> **Important:** The `allowedNamespaces.selector` with empty `matchLabels: {}` permits **all namespaces** to use this identity. This is appropriate for training. In production, restrict access using specific labels (e.g., `matchLabels: {k0rdent.mirantis.com/project: "my-team"}`) or use `allowedNamespaces.list` to enumerate specific namespaces.
+> **Important:** The `allowedNamespaces.list` explicitly permits `kcm-system` to use this identity. The `selector` with empty `matchLabels: {}` also matches all namespaces, but CAPA v1beta2 requires the `list` field to be set for explicit namespace authorization. In production, restrict access to specific tenant namespaces (e.g., `list: [team-platform, team-ml]`).
 
 ### Step 3: Create k0rdent Credential Object
 
