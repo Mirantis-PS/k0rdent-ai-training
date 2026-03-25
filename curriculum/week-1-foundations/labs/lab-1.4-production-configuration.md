@@ -245,6 +245,9 @@ rm -f /tmp/velero-credentials
 ```
 
 ```bash
+# Get the region from the lab config
+source /opt/k0rdent-lab/config/lab-info.env
+
 # Create the BackupStorageLocation pointing to your S3 bucket
 cat <<EOF | kubectl apply -f -
 apiVersion: velero.io/v1
@@ -255,58 +258,63 @@ metadata:
 spec:
   provider: aws
   config:
-    region: $(kubectl get nodes -o jsonpath='{.items[0].metadata.labels.topology\.kubernetes\.io/region}' 2>/dev/null || echo "eu-west-1")
+    region: $AWS_REGION
   credential:
     name: cloud-credentials
     key: cloud
   objectStorage:
-    bucket: $(source /opt/k0rdent-lab/config/lab-info.env && echo "$ARTIFACTS_BUCKET")
+    bucket: $ARTIFACTS_BUCKET
     prefix: velero-backups
 EOF
 ```
 
+### Step 2: Install the Velero AWS Plugin
+
+Velero needs the AWS plugin to interact with S3. Add it as an init container on the Velero deployment:
+
 ```bash
-# Verify the storage location is available
+# Patch the Velero deployment to add the AWS plugin
+kubectl patch deployment velero -n kcm-system --type=json -p='[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/initContainers/-",
+    "value": {
+      "name": "velero-plugin-for-aws",
+      "image": "velero/velero-plugin-for-aws:v1.11.0",
+      "imagePullPolicy": "IfNotPresent",
+      "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
+    }
+  }
+]'
+```
+
+```bash
+# Wait for Velero to restart with the plugin loaded
+kubectl rollout status deployment/velero -n kcm-system --timeout=120s
+```
+
+```bash
+# Verify the BackupStorageLocation is now Available
 kubectl get backupstoragelocation -n kcm-system
 ```
 
-You should see `aws-s3` with phase `Available`.
+You should see `aws-s3` with phase `Available`. If it still shows `Unavailable`, wait 30 seconds — Velero validates the BSL periodically.
 
-### Step 2: Configure Velero Plugin
-
-Tell k0rdent to load the AWS plugin for Velero by patching the Management object:
-
-```bash
-kubectl patch management kcm --type=merge -p '{
-  "spec": {
-    "core": {
-      "kcm": {
-        "config": {
-          "velero": {
-            "initContainers": [{
-              "name": "velero-plugin-for-aws",
-              "image": "velero/velero-plugin-for-aws:v1.11.0",
-              "imagePullPolicy": "IfNotPresent",
-              "volumeMounts": [{
-                "mountPath": "/target",
-                "name": "plugins"
-              }]
-            }]
-          }
-        }
-      }
-    }
-  }
-}'
-```
-
-```bash
-# Wait for Velero pod to restart with the plugin
-kubectl rollout status deployment/velero -n kcm-system --timeout=120s 2>/dev/null || \
-  echo "Velero pod restarting..."
-sleep 15
-kubectl get pods -n kcm-system | grep velero
-```
+> **Production note:** For a permanent configuration, add the plugin via the Management object so it survives Helm reconciliation:
+> ```yaml
+> spec:
+>   core:
+>     kcm:
+>       config:
+>         velero:
+>           initContainers:
+>           - name: velero-plugin-for-aws
+>             image: velero/velero-plugin-for-aws:v1.11.0
+>             imagePullPolicy: IfNotPresent
+>             volumeMounts:
+>             - mountPath: /target
+>               name: plugins
+> ```
 
 ### Step 3: Create a Scheduled Backup
 
