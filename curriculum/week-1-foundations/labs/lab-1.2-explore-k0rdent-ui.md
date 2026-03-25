@@ -544,6 +544,19 @@ kyverno-3-2-6   true    30s
 
 This is the same template that appears when you create a ClusterDeployment and add services to it — the UI reads from the ServiceTemplate CRDs in the cluster.
 
+### Alternative: Install a ServiceTemplate from the UI
+
+You can also install ServiceTemplates directly from the k0rdent UI without writing any YAML:
+
+1. Click **Addons** in the left sidebar
+2. Browse the available services from the catalog
+3. Select a service (e.g., cert-manager, external-secrets) and click **Install**
+4. The UI creates both the HelmRepository (if needed) and the ServiceTemplate for you
+
+> **Try it:** Install one additional service from the Addons menu and verify it appears under **Templates > Service Templates**.
+
+Both approaches — kubectl and the UI — create the same Kubernetes resources. The UI is convenient for discovery and one-off installs; kubectl/YAML is better for automation and GitOps workflows.
+
 ### Examine the ServiceTemplate Structure
 
 ```bash
