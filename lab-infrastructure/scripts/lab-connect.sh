@@ -305,8 +305,9 @@ if [[ "$SHOW_UI_URL" == "true" ]]; then
 
     GW_ADDR=$(ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
         "kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'" 2>/dev/null || true)
-    UI_PASSWORD=$(ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
-        "kubectl get secret -n kcm-system kcm-k0rdent-ui-basic-auth -o jsonpath='{.data.password}' | base64 -d" 2>/dev/null || true)
+    # Password is stored in Terraform state, not in a Kubernetes secret
+    BUCKET=$(get_student_bucket "$IDENTIFIER")
+    UI_PASSWORD=$(get_state_output "$BUCKET" "ui_password")
 
     if [[ -n "$GW_ADDR" ]]; then
         echo ""
