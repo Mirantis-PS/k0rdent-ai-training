@@ -301,7 +301,7 @@ if [[ "$SHOW_UI_URL" == "true" ]]; then
     BASTION_KEY="$CONFIG_DIR/keys/${IDENTIFIER}-bastion.pem"
 
     SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-    PROXY_CMD="ssh ${SSH_OPTS} -i ${BASTION_KEY} -W %h:%p ubuntu@${BASTION}"
+    PROXY_CMD="ssh ${SSH_OPTS} -i ${BASTION_KEY} -W %h:%p ec2-user@${BASTION}"
 
     GW_ADDR=$(ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
         "kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'" 2>/dev/null || true)
@@ -332,7 +332,7 @@ if [[ "$SHOW_GATEWAY" == "true" ]]; then
     BASTION_KEY="$CONFIG_DIR/keys/${IDENTIFIER}-bastion.pem"
 
     SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-    PROXY_CMD="ssh ${SSH_OPTS} -i ${BASTION_KEY} -W %h:%p ubuntu@${BASTION}"
+    PROXY_CMD="ssh ${SSH_OPTS} -i ${BASTION_KEY} -W %h:%p ec2-user@${BASTION}"
 
     echo ""
     log_info "Gateway API Resources:"
