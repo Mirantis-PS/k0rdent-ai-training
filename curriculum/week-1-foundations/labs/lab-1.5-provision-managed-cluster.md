@@ -154,7 +154,7 @@ spec:
     worker:
       instanceType: t3.medium
       rootVolumeSize: 50
-    sshKeyName: k0rdent-clusters
+    # sshKeyName: k0rdent-clusters  # Optional — only needed for direct SSH to nodes
     clusterIdentity:
       name: aws-cluster-identity
       namespace: kcm-system
@@ -165,9 +165,9 @@ EOF
 
 > **Important Configuration Notes:**
 > - **template**: Must match an available ClusterTemplate. Run `kubectl get clustertemplates -n kcm-system | grep aws` to find it.
-> - **region**: Must match the region where you created your SSH key pair (Lab 1.3).
-> - **sshKeyName**: Must match the key pair name you imported to AWS (Lab 1.3).
+> - **region**: The AWS region where the managed cluster will be provisioned.
 > - **clusterIdentity**: References your AWSClusterStaticIdentity created in Lab 1.3.
+> - **sshKeyName** (commented out): Only needed if you want direct SSH access to managed cluster nodes. If included, the key pair must exist in the target region (see Lab 1.3, Part 6).
 
 ### Apply the ClusterDeployment
 

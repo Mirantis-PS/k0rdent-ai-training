@@ -303,40 +303,48 @@ echo "Ready for cluster provisioning in Lab 1.5"
 
 > **What you're verifying:** The Credential object is what ClusterDeployments reference. If this chain is broken (wrong secret name, missing identity, etc.), cluster provisioning will fail with credential errors in Lab 1.5.
 
-## Part 6: Create SSH Key Pair for Managed Clusters
+## Part 6: SSH Key Pair for Managed Clusters (Optional)
 
-When k0rdent provisions a managed cluster via CAPA, it launches EC2 instances that need an SSH key pair for node access. This key pair must exist in the **target region** where the managed cluster will be deployed.
+The `sshKeyName` field in a ClusterDeployment is **optional**. If omitted, CAPA creates EC2 instances without an SSH key — k0rdent manages the nodes via CAPI, so direct SSH access isn't required for normal operations.
 
-> **Management cluster vs managed clusters:** The management cluster's SSH keys are handled by Terraform (Lab 1.1). This step creates a separate key pair for the clusters that k0rdent will provision.
+**When you need it:**
+- Debugging node-level issues (kubelet logs, networking, disk)
+- Advanced troubleshooting that requires shell access to managed cluster nodes
+
+**When you can skip it:**
+- Standard cluster operations (scaling, upgrades, service deployment)
+- The training labs in this course (Lab 1.5 does not require it)
+
+If you want SSH access to managed cluster nodes, create a key pair now:
 
 ```bash
-# Generate a key pair (run from your LOCAL machine, not the bastion)
+# Generate a key pair (run from your LOCAL machine)
 ssh-keygen -t ed25519 -f /tmp/k0rdent-clusters -N ""
 
 # Import to the region where you'll deploy managed clusters
-# Repeat for each region you plan to use
 aws ec2 import-key-pair \
   --key-name k0rdent-clusters \
   --public-key-material fileb:///tmp/k0rdent-clusters.pub \
   --region us-east-1
 
-# Save the private key for later SSH access to managed cluster nodes
+# Save the private key
 mkdir -p ~/.ssh
 mv /tmp/k0rdent-clusters ~/.ssh/
 mv /tmp/k0rdent-clusters.pub ~/.ssh/
 chmod 600 ~/.ssh/k0rdent-clusters
-
-# Verify
-aws ec2 describe-key-pairs --key-names k0rdent-clusters --region us-east-1
 ```
 
-> **Key pair name:** The ClusterDeployment spec references this key by name (`sshKeyName: k0rdent-clusters`). If you use a different name, update the ClusterDeployment accordingly in Lab 1.5.
+Then include it in your ClusterDeployment spec:
 
-> **Multiple regions:** SSH key pairs are region-specific. If you deploy clusters to `eu-west-1`, you need to import the key pair there too:
-> ```bash
-> aws ec2 import-key-pair --key-name k0rdent-clusters \
->   --public-key-material fileb://~/.ssh/k0rdent-clusters.pub --region eu-west-1
-> ```
+```yaml
+spec:
+  config:
+    sshKeyName: "k0rdent-clusters"  # Optional - omit if you don't need SSH access
+    bastion:
+      enabled: true  # Recommended when using sshKeyName
+```
+
+> **Region-specific:** SSH key pairs exist per-region. If you deploy clusters to multiple regions, import the key pair in each one.
 
 ## Part 7: Review Available Cluster Templates
 
@@ -357,7 +365,7 @@ kubectl get clustertemplate -n kcm-system -l provider=aws -o yaml | head -100
 Note the configurable parameters:
 - `region` - AWS region
 - `instanceType` - EC2 instance type
-- `sshKeyName` - SSH key pair name
+- `sshKeyName` - SSH key pair name (optional — for node SSH access)
 - `k8sVersion` - Kubernetes version
 
 ## Part 8: Provider Security Best Practices
@@ -409,7 +417,7 @@ Before completing this lab, verify:
 - [ ] k0rdent Credential object created
 - [ ] CAPA controller running and healthy
 - [ ] Full credential chain verified (Secret → Identity → Credential)
-- [ ] SSH key pair created in target region(s)
+- [ ] (Optional) SSH key pair created if you need node SSH access
 - [ ] Can list AWS cluster templates
 - [ ] Understand credential rotation process
 
