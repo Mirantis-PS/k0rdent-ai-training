@@ -463,7 +463,40 @@ kubectl get servicetemplates -A
 
 ### Install a ServiceTemplate
 
-A ServiceTemplate is a YAML manifest that tells k0rdent which Helm chart to deploy and where to find it. The `k0rdent-catalog` HelmRepository (already installed with k0rdent Enterprise) provides access to the full service catalog.
+A ServiceTemplate is a YAML manifest that tells k0rdent which Helm chart to deploy and where to find it. It references a **HelmRepository** — a Flux source object that points to an OCI registry containing Helm charts.
+
+Two resources are needed:
+1. **HelmRepository** — connects k0rdent to the external catalog (`ghcr.io/k0rdent/catalog/charts`)
+2. **ServiceTemplate** — declares which chart and version to make available
+
+#### Step 1: Create the Catalog HelmRepository
+
+```bash
+# Connect k0rdent to the external service catalog
+cat <<EOF | kubectl apply -f -
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: k0rdent-catalog
+  namespace: kcm-system
+  labels:
+    k0rdent.mirantis.com/managed: "true"
+spec:
+  type: oci
+  url: oci://ghcr.io/k0rdent/catalog/charts
+  interval: 10m0s
+  provider: generic
+EOF
+```
+
+```bash
+# Verify the repository is ready
+kubectl get helmrepositories -n kcm-system
+```
+
+> **What this does:** Creates a Flux HelmRepository that points to the k0rdent community catalog. The `k0rdent.mirantis.com/managed: "true"` label tells k0rdent to track this repository. Once created, any ServiceTemplate can reference charts from this catalog.
+
+#### Step 2: Create a ServiceTemplate
 
 Let's install **Kyverno** (a Kubernetes-native policy engine) as our example:
 
@@ -490,15 +523,17 @@ EOF
 ```
 
 ```bash
-# Verify it's installed and valid
+# Verify it's installed and valid (may take ~30s for Flux to fetch the chart)
 kubectl get servicetemplates -n kcm-system
 ```
 
 You should see:
 ```
 NAME            VALID   AGE
-kyverno-3-2-6   true    10s
+kyverno-3-2-6   true    30s
 ```
+
+> **If VALID shows `false`:** Wait 30 seconds and check again. Flux needs to fetch the chart metadata from the OCI registry to validate the ServiceTemplate.
 
 ### View the ServiceTemplate in the UI
 
@@ -519,7 +554,7 @@ kubectl get servicetemplate kyverno-3-2-6 -n kcm-system -o yaml
 Key fields:
 - **spec.helm.chartSpec.chart**: The Helm chart name from the catalog
 - **spec.helm.chartSpec.version**: Pinned chart version
-- **spec.helm.chartSpec.sourceRef**: Points to the `k0rdent-catalog` HelmRepository (installed by k0rdent Enterprise)
+- **spec.helm.chartSpec.sourceRef**: Points to the `k0rdent-catalog` HelmRepository (created in Step 1)
 - **status.valid**: `true` means k0rdent verified the chart exists in the referenced repository
 
 > **How it works:** When you add this ServiceTemplate to a ClusterDeployment or MultiClusterService, k0rdent's KSM (via Sveltos) pulls the Helm chart from the catalog and deploys it to the target cluster(s). The ServiceTemplate itself doesn't install anything — it just makes the service *available* for deployment.
