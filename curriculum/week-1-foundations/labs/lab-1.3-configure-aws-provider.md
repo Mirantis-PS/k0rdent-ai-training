@@ -303,7 +303,42 @@ echo "Ready for cluster provisioning in Lab 1.5"
 
 > **What you're verifying:** The Credential object is what ClusterDeployments reference. If this chain is broken (wrong secret name, missing identity, etc.), cluster provisioning will fail with credential errors in Lab 1.5.
 
-## Part 6: Review Available Cluster Templates
+## Part 6: Create SSH Key Pair for Managed Clusters
+
+When k0rdent provisions a managed cluster via CAPA, it launches EC2 instances that need an SSH key pair for node access. This key pair must exist in the **target region** where the managed cluster will be deployed.
+
+> **Management cluster vs managed clusters:** The management cluster's SSH keys are handled by Terraform (Lab 1.1). This step creates a separate key pair for the clusters that k0rdent will provision.
+
+```bash
+# Generate a key pair (run from your LOCAL machine, not the bastion)
+ssh-keygen -t ed25519 -f /tmp/k0rdent-clusters -N ""
+
+# Import to the region where you'll deploy managed clusters
+# Repeat for each region you plan to use
+aws ec2 import-key-pair \
+  --key-name k0rdent-clusters \
+  --public-key-material fileb:///tmp/k0rdent-clusters.pub \
+  --region us-east-1
+
+# Save the private key for later SSH access to managed cluster nodes
+mkdir -p ~/.ssh
+mv /tmp/k0rdent-clusters ~/.ssh/
+mv /tmp/k0rdent-clusters.pub ~/.ssh/
+chmod 600 ~/.ssh/k0rdent-clusters
+
+# Verify
+aws ec2 describe-key-pairs --key-names k0rdent-clusters --region us-east-1
+```
+
+> **Key pair name:** The ClusterDeployment spec references this key by name (`sshKeyName: k0rdent-clusters`). If you use a different name, update the ClusterDeployment accordingly in Lab 1.5.
+
+> **Multiple regions:** SSH key pairs are region-specific. If you deploy clusters to `eu-west-1`, you need to import the key pair there too:
+> ```bash
+> aws ec2 import-key-pair --key-name k0rdent-clusters \
+>   --public-key-material fileb://~/.ssh/k0rdent-clusters.pub --region eu-west-1
+> ```
+
+## Part 7: Review Available Cluster Templates
 
 With the AWS provider configured, review templates available for AWS:
 
@@ -325,7 +360,7 @@ Note the configurable parameters:
 - `sshKeyName` - SSH key pair name
 - `k8sVersion` - Kubernetes version
 
-## Part 7: Provider Security Best Practices
+## Part 8: Provider Security Best Practices
 
 ### Principle of Least Privilege
 
@@ -374,6 +409,7 @@ Before completing this lab, verify:
 - [ ] k0rdent Credential object created
 - [ ] CAPA controller running and healthy
 - [ ] Full credential chain verified (Secret → Identity → Credential)
+- [ ] SSH key pair created in target region(s)
 - [ ] Can list AWS cluster templates
 - [ ] Understand credential rotation process
 
@@ -405,6 +441,7 @@ In this lab, you:
 - Understood CAPI provider architecture
 - Created AWS credentials using the three-layer model (Secret → Identity → Credential)
 - Verified the CAPA controller and credential chain are healthy
+- Created SSH key pairs for managed cluster node access
 - Reviewed available AWS cluster templates
 - Learned security best practices for credential management
 
