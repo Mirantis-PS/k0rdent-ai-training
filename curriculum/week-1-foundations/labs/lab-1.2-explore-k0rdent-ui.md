@@ -447,7 +447,7 @@ The catalog provides **100+ validated services** across categories:
 ### Exercise: Explore the Catalog
 
 Take 10 minutes to browse the catalog:
-- [ ] Find the ingress-nginx service and note its available versions
+- [ ] Find the Kyverno service and note its available versions
 - [ ] Locate the AI/Machine Learning category
 - [ ] Identify at least one Enterprise-only service
 
@@ -461,35 +461,77 @@ kubectl get servicetemplates -A
 # Templates are installed from the catalog as needed
 ```
 
-### Install a ServiceTemplate from the Catalog
+### Install a ServiceTemplate
 
-To use a service, you first install its ServiceTemplate from the catalog:
+A ServiceTemplate is a YAML manifest that tells k0rdent which Helm chart to deploy and where to find it. The `k0rdent-catalog` HelmRepository (already installed with k0rdent Enterprise) provides access to the full service catalog.
+
+Let's install **Kyverno** (a Kubernetes-native policy engine) as our example:
 
 ```bash
-# Example: Install the ingress-nginx ServiceTemplate
-helm install ingress-nginx-service-template \
-  oci://ghcr.io/k0rdent/catalog/charts/ingress-nginx-service-template \
-  --version 4.11.0 \
-  -n kcm-system
+# Create a ServiceTemplate for Kyverno
+cat <<EOF | kubectl apply -f -
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ServiceTemplate
+metadata:
+  name: kyverno-3-2-6
+  namespace: kcm-system
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  helm:
+    chartSpec:
+      chart: kyverno
+      version: 3.2.6
+      interval: 10m0s
+      sourceRef:
+        kind: HelmRepository
+        name: k0rdent-catalog
+EOF
+```
 
-# Verify it's now available
+```bash
+# Verify it's installed and valid
 kubectl get servicetemplates -n kcm-system
 ```
 
-> **Note:** We'll cover deploying services to managed clusters in detail in **Lab 1.7: Multi-Cluster Service Deployment**.
+You should see:
+```
+NAME            VALID   AGE
+kyverno-3-2-6   true    10s
+```
 
-### ServiceTemplate Structure
+### View the ServiceTemplate in the UI
 
-Once installed, examine a ServiceTemplate:
+1. Open the k0rdent UI in your browser
+2. Navigate to **Templates** in the left sidebar
+3. Switch to the **Service Templates** tab
+4. You should see `kyverno-3-2-6` listed with its chart version and validation status
+
+This is the same template that appears when you create a ClusterDeployment and add services to it — the UI reads from the ServiceTemplate CRDs in the cluster.
+
+### Examine the ServiceTemplate Structure
 
 ```bash
-# View the installed ServiceTemplate
-kubectl get servicetemplate ingress-nginx-4-11-0 -n kcm-system -o yaml
+# View the full ServiceTemplate
+kubectl get servicetemplate kyverno-3-2-6 -n kcm-system -o yaml
 ```
 
 Key fields:
-- **spec.helm.chartSpec**: References the Helm chart to deploy
-- **spec.helm.chartSpec.sourceRef**: Points to the HelmRepository
+- **spec.helm.chartSpec.chart**: The Helm chart name from the catalog
+- **spec.helm.chartSpec.version**: Pinned chart version
+- **spec.helm.chartSpec.sourceRef**: Points to the `k0rdent-catalog` HelmRepository (installed by k0rdent Enterprise)
+- **status.valid**: `true` means k0rdent verified the chart exists in the referenced repository
+
+> **How it works:** When you add this ServiceTemplate to a ClusterDeployment or MultiClusterService, k0rdent's KSM (via Sveltos) pulls the Helm chart from the catalog and deploys it to the target cluster(s). The ServiceTemplate itself doesn't install anything — it just makes the service *available* for deployment.
+
+> **Note:** We'll cover deploying services to managed clusters in detail in **Lab 1.7: Multi-Cluster Service Deployment**.
+
+### Clean Up (Optional)
+
+```bash
+# Remove the ServiceTemplate if you want to clean up
+kubectl delete servicetemplate kyverno-3-2-6 -n kcm-system
+```
 
 ### Why External Catalog?
 
@@ -673,7 +715,7 @@ Before completing this lab, verify:
 - [ ] Explored dashboard and understood key metrics
 - [ ] Reviewed at least one cluster template
 - [ ] Browsed the Service Catalog at catalog.k0rdent.io
-- [ ] Understood the external catalog model for ServiceTemplates
+- [ ] Installed a ServiceTemplate (Kyverno) and viewed it in the UI
 - [ ] Understood management cluster configuration
 - [ ] Learned credential management concepts
 - [ ] Practiced kubectl commands for k0rdent resources
