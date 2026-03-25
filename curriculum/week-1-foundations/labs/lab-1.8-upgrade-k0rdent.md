@@ -1,17 +1,17 @@
 # Lab 1.8: Upgrade k0rdent Enterprise
 
-**Duration:** 1.5 hours (active: ~45min, waiting for upgrade rollout: ~45min)
+**Duration:** 1.5 hours (active: ~45min, waiting for rollout: ~45min)
 **Type:** Hands-on Lab
 
 ## Objectives
 
 In this lab, you will:
-- Verify the current k0rdent Enterprise version and cluster health
-- Perform a pre-upgrade backup of critical state
-- Upgrade k0rdent Enterprise from v1.2.2 to v1.2.3 via Helm
-- Verify the upgrade completed successfully
-- Confirm existing ClusterDeployments and services are unaffected
-- Document a rollback procedure
+- Understand the three upgrade layers in k0rdent (management plane, managed clusters, services)
+- Perform a pre-upgrade backup using ManagementBackup
+- Upgrade k0rdent Enterprise via the Release CRD
+- Upgrade a managed cluster's Kubernetes version via ClusterTemplateChain
+- Verify all upgrades completed successfully
+- Document rollback procedures for each layer
 
 ## Prerequisites
 
@@ -31,16 +31,17 @@ kubectl get nodes && kubectl get pods -n kcm-system
 
 ---
 
-## Why Upgrades Matter
+## Understanding k0rdent Upgrades
 
-In production, k0rdent Enterprise receives regular updates with bug fixes, security patches, and new features. Engineers must be comfortable with the upgrade process because:
+k0rdent has **three independent upgrade layers**. Each uses a different mechanism:
 
-- **Security:** Patches address CVEs in controllers and dependencies
-- **Compatibility:** New Kubernetes versions may require updated CAPI providers
-- **Features:** New ClusterTemplate and ServiceTemplate versions ship with upgrades
-- **Stability:** Bug fixes improve reconciliation reliability
+| Layer | What Changes | How to Upgrade | Controlled By |
+|-------|-------------|----------------|---------------|
+| **Management plane** | KCM controllers, CAPI providers, Flux, Sveltos | `Release` CRD → patch `Management` object | Platform admin |
+| **Managed clusters** | Kubernetes version, node OS, cluster topology | Change `template` in `ClusterDeployment` | Platform admin / team lead |
+| **Services** | Helm chart versions on managed clusters | Change `template` in service spec | Application team |
 
-> **Production Best Practice:** Always upgrade in a staging environment first. Use the N-1 strategy (stay one patch behind latest) to benefit from community testing.
+> **Key insight:** Upgrading the management plane does NOT automatically upgrade managed clusters or their services. Each layer is independent — managed clusters keep running even if the management plane is upgraded or temporarily down.
 
 ---
 
@@ -49,49 +50,36 @@ In production, k0rdent Enterprise receives regular updates with bug fixes, secur
 ### Step 1: Verify Current Version
 
 ```bash
-# Check the installed k0rdent Helm release
-helm list -n kcm-system
+# Check the current Release
+kubectl get releases
+# Note the current release name (e.g., kcm-0-2-5 or k0rdent-enterprise-1-2-2)
 
-# Note the current chart version and app version
-# Expected: kcm-<version> with APP VERSION 1.2.2
-
-# Check the Management object
-kubectl get management kcm -n kcm-system -o jsonpath='{.spec.release}' && echo
+# Check the Management object's release reference
+kubectl get management kcm -o jsonpath='{.spec.release}' && echo ""
 
 # Verify all controllers are healthy
-kubectl get pods -n kcm-system
-# All pods should be Running with READY x/x
+kubectl get pods -n kcm-system | grep -v Running
+# No output = all pods are Running (good)
 ```
 
 ### Step 2: Document Current State
 
-Before upgrading, capture the current state for comparison:
-
 ```bash
-# Save current CRD versions
+# Save current state for comparison
 kubectl get crds | grep k0rdent.mirantis.com > /tmp/pre-upgrade-crds.txt
-
-# Save current cluster deployments status
 kubectl get clusterdeployments -A -o wide > /tmp/pre-upgrade-clusters.txt
-
-# Save current service templates
-kubectl get servicetemplates -n kcm-system > /tmp/pre-upgrade-servicetemplates.txt
-
-# Save current cluster templates
 kubectl get clustertemplates -n kcm-system > /tmp/pre-upgrade-clustertemplates.txt
 
-# Count current resources for post-upgrade comparison
+# Count resources
 echo "CRDs: $(kubectl get crds | grep k0rdent | wc -l)"
 echo "ClusterTemplates: $(kubectl get clustertemplates -n kcm-system --no-headers | wc -l)"
-echo "ServiceTemplates: $(kubectl get servicetemplates -n kcm-system --no-headers | wc -l)"
+echo "Releases: $(kubectl get releases --no-headers | wc -l)"
 ```
 
 ### Step 3: Pre-Upgrade Backup
 
-Create an on-demand backup using the ManagementBackup CRD (configured in Lab 1.4):
-
 ```bash
-# Trigger an on-demand backup before upgrading
+# Create an on-demand backup
 cat <<EOF | kubectl apply -f -
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ManagementBackup
@@ -101,188 +89,249 @@ spec:
   storageLocation: aws-s3
 EOF
 
-# Wait for backup to complete
+# Wait for completion
 kubectl get backup -n kcm-system --watch
-# Wait until phase shows "Completed", then press Ctrl+C
-
-# Verify the backup exists
-kubectl get backup -n kcm-system | grep pre-upgrade
+# Wait until phase shows "Completed", then Ctrl+C
 ```
 
-> **If you skipped Lab 1.4 backup setup:** You can still take a manual etcd snapshot as a fallback:
+> **If Velero isn't configured (skipped Lab 1.4 backup):** Take a manual etcd snapshot:
 > ```bash
 > sudo k0s etcd snapshot save /tmp/etcd-pre-upgrade.db
 > ```
 
 ### Step 4: Review Release Notes
 
-Before upgrading, always review the release notes for breaking changes:
-
 ```bash
-# In a real scenario, you would check:
-# https://docs.mirantis.com/k0rdent-enterprise/latest/release-notes/
+# Check what releases are available
+kubectl get releases
 
+# In a real scenario, review release notes at:
+# https://docs.k0rdent.io/latest/admin/upgrade/
+#
 # Key things to look for:
 # - Breaking API changes (CRD field removals/renames)
-# - Deprecated features
-# - New required permissions
+# - New provider versions
 # - Changed default values
-# - Provider version updates
+# - Deprecated features
 ```
 
 > **Checkpoint:** Before proceeding, verify:
 > - [ ] All pods in kcm-system are Running
-> - [ ] ManagementBackup completed successfully
+> - [ ] ManagementBackup completed (or etcd snapshot taken)
 > - [ ] Pre-upgrade state documented
-> - [ ] Release notes reviewed (no blocking changes)
+> - [ ] Release notes reviewed
 
 ---
 
-## Part 2: Perform the Upgrade
+## Part 2: Upgrade the Management Plane
 
-### Step 1: Run the Helm Upgrade
+k0rdent upgrades are **CRD-driven**, not Helm-driven. You create a `Release` object that defines the target version and all provider template versions, then point the `Management` object to it.
+
+### Step 1: Check Available Releases
+
+The Helm chart installation may have already created Release objects for available versions:
 
 ```bash
-# Upgrade k0rdent Enterprise to v1.2.3
-helm upgrade kcm oci://registry.mirantis.com/k0rdent-enterprise/charts/k0rdent-enterprise \
-  --version 1.2.3 \
-  -n kcm-system \
-  --timeout 15m
+# List all releases
+kubectl get releases
+
+# View a release's contents
+kubectl get release <release-name> -o yaml | head -30
 ```
 
-> **Note:** We intentionally omit `--wait` because the cert-manager startupapicheck post-install job can time out and cause Helm to report failure even though the upgrade succeeded. We verify readiness explicitly in the next steps instead.
+### Step 2: Create a New Release (if needed)
 
-### Step 2: Monitor the Rollout
+If the target release doesn't exist yet, create it. A Release specifies the k0rdent version and all provider template versions:
+
+```yaml
+# Example Release object (version numbers are illustrative)
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: Release
+metadata:
+  name: kcm-0-2-6
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  version: 0.2.6
+  kcm:
+    template: kcm-0-2-6
+  capi:
+    template: cluster-api-1-9-4
+  providers:
+    - name: cluster-api-provider-aws
+      template: cluster-api-provider-aws-2-7-1
+    - name: cluster-api-provider-k0sproject-k0smotron
+      template: cluster-api-provider-k0sproject-k0smotron-1-0-1
+    # ... other providers
+```
+
+> **Note:** In practice, the new Helm chart version creates the Release object for you during `helm upgrade`. You typically don't create it manually.
+
+### Step 3: Trigger the Upgrade
+
+Point the Management object to the new release:
 
 ```bash
-# Verify cert-manager is healthy (may report Helm error due to startupapicheck)
+# Set the release name (adjust to your target version)
+RELEASE_NAME="<new-release-name>"
+
+# Patch the Management object
+kubectl patch managements.k0rdent.mirantis.com kcm \
+  --patch "{\"spec\":{\"release\":\"${RELEASE_NAME}\"}}" \
+  --type=merge
+```
+
+### Step 4: Monitor the Upgrade
+
+```bash
+# Watch the Management object status
+kubectl get management kcm --watch
+# Wait for READY to become True
+
+# Watch pods restart
+kubectl get pods -n kcm-system -w
+# Controllers restart one by one (rolling update)
+# This typically takes 3-10 minutes
+# Press Ctrl+C once all pods show Running
+
+# Verify cert-manager is healthy
 kubectl wait --for=condition=Available deployment \
   -l app.kubernetes.io/instance=kcm,app.kubernetes.io/name=cert-manager \
   -n kcm-system --timeout=300s
 
-# Watch pods restart with new version
-kubectl get pods -n kcm-system -w
-# Controllers will restart one by one (rolling update)
-# This typically takes 2-5 minutes
-# Press Ctrl+C once all pods show Running and READY
-
-# Verify the KCM controller is ready
+# Verify KCM controller is healthy
 kubectl wait --for=condition=Available deployment \
   kcm-k0rdent-enterprise-controller-manager \
   -n kcm-system --timeout=300s
 ```
 
-### Step 3: Verify Upgrade Success
+### Step 5: Verify Upgrade Success
 
 ```bash
-# Confirm new version
-helm list -n kcm-system
-# APP VERSION should now show 1.2.3
+# Confirm the Management object points to the new release
+kubectl get management kcm -o jsonpath='{.spec.release}' && echo ""
 
-# Verify Management object updated
-kubectl get management kcm -n kcm-system -o jsonpath='{.spec.release}' && echo
+# Check Management readiness
+kubectl get management kcm
+# READY should be True
 
-# Check all controllers are healthy
-kubectl get pods -n kcm-system
-# All pods should be Running — no CrashLoopBackOff or Error states
+# Verify all controllers are healthy
+kubectl get pods -n kcm-system | grep -v Running
+# No output = all pods Running
 
-# Verify CRDs were updated
-kubectl get crds | grep k0rdent.mirantis.com > /tmp/post-upgrade-crds.txt
-diff /tmp/pre-upgrade-crds.txt /tmp/post-upgrade-crds.txt
-# Review any new or changed CRDs
-```
-
----
-
-## Part 3: Post-Upgrade Validation
-
-### Step 1: Verify Existing Resources
-
-```bash
-# Check cluster deployments are still healthy
-kubectl get clusterdeployments -A -o wide
-# Status should still show Ready for all clusters
-
-# Compare with pre-upgrade state
-diff /tmp/pre-upgrade-clusters.txt <(kubectl get clusterdeployments -A -o wide)
-# Differences should only be in AGE or minor status updates
-
-# Check cluster templates — new versions may be available
+# Check for new ClusterTemplates (upgrades often ship new template versions)
 kubectl get clustertemplates -n kcm-system
-echo "ClusterTemplates before: $(cat /tmp/pre-upgrade-clustertemplates.txt | wc -l)"
-echo "ClusterTemplates after: $(kubectl get clustertemplates -n kcm-system --no-headers | wc -l)"
+echo "Before: $(cat /tmp/pre-upgrade-clustertemplates.txt | wc -l) templates"
+echo "After: $(kubectl get clustertemplates -n kcm-system --no-headers | wc -l) templates"
 
-# Check service templates — new versions may be available
-kubectl get servicetemplates -n kcm-system
-echo "ServiceTemplates before: $(cat /tmp/pre-upgrade-servicetemplates.txt | wc -l)"
-echo "ServiceTemplates after: $(kubectl get servicetemplates -n kcm-system --no-headers | wc -l)"
-```
-
-### Step 2: Verify Managed Cluster Connectivity (if running)
-
-If you still have the managed cluster from Lab 1.5:
-
-```bash
-# Get kubeconfig for managed cluster
-kubectl get secret -n kcm-system managed-cluster-01-kubeconfig -o jsonpath='{.data.value}' | base64 -d > /tmp/managed-kubeconfig
-
-# Test connectivity
-kubectl --kubeconfig /tmp/managed-kubeconfig get nodes
-# Nodes should be Ready
-
-kubectl --kubeconfig /tmp/managed-kubeconfig get pods -A
-# System pods should be Running
-```
-
-### Step 3: Verify KOF Stack (if deployed)
-
-If you deployed KOF in Lab 1.6:
-
-```bash
-# Check KOF pods
-kubectl get pods -n kof
-# All should be Running
-
-# Verify Grafana is accessible
-kubectl get svc -n kof | grep grafana
+# Verify existing ClusterDeployments are unaffected
+kubectl get clusterdeployments -A -o wide
 ```
 
 ---
 
-## Part 4: Rollback Procedure (Reference)
+## Part 3: Upgrade a Managed Cluster (Conceptual)
 
-If an upgrade fails or causes issues, you have three options in order of preference:
+Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` controls which upgrade paths are allowed.
 
-### Option A: Helm Rollback (First Response)
+### Step 1: View Available Upgrade Paths
 
 ```bash
-# List Helm release history
-helm history kcm -n kcm-system
+# List ClusterTemplateChains
+kubectl get clustertemplatechains -n kcm-system
 
-# Roll back to previous revision
-helm rollback kcm <PREVIOUS_REVISION> -n kcm-system --timeout 10m
-
-# Verify rollback
-helm list -n kcm-system
-kubectl get pods -n kcm-system
+# View a chain's upgrade paths
+kubectl get clustertemplatechain -n kcm-system -o yaml | grep -A 10 "supportedTemplates"
 ```
 
-Helm rollback reverts the release and restarts controllers. This is fast and non-destructive.
+A chain defines which template versions can upgrade to which:
 
-### Option B: Velero Restore (If CRDs Are Corrupted)
+```yaml
+# Example: aws-standalone-cp chain
+spec:
+  supportedTemplates:
+    - name: aws-standalone-cp-1-0-20      # Current version
+      availableUpgrades:
+        - name: aws-standalone-cp-1-0-21   # Can upgrade to this
+    - name: aws-standalone-cp-1-0-21       # Latest (no further upgrades)
+```
 
-If Helm rollback doesn't fix the issue (e.g., CRD schema changes broke resources):
+### Step 2: Upgrade a ClusterDeployment (if you have one)
+
+If you have a managed cluster from Lab 1.5 and a newer template is available:
 
 ```bash
-# Disable admission webhooks to prevent conflicts during restore
+# Check what template your cluster uses
+kubectl get clusterdeployment managed-cluster-01 -n kcm-system \
+  -o jsonpath='{.spec.template}' && echo ""
+
+# Check if an upgrade is available in the chain
+kubectl get clustertemplatechain -n kcm-system -o yaml | \
+  grep -A 5 "$(kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o jsonpath='{.spec.template}')"
+```
+
+To upgrade, change the template reference:
+
+```bash
+# Example: upgrade from 1-0-20 to 1-0-21
+kubectl patch clusterdeployment managed-cluster-01 -n kcm-system \
+  --patch '{"spec":{"template":"aws-standalone-cp-1-0-21"}}' \
+  --type=merge
+```
+
+CAPI performs a **rolling update** — new nodes are created with the updated template, workloads are drained and migrated, old nodes are removed. This takes 10-20 minutes depending on cluster size.
+
+```bash
+# Monitor the upgrade
+clusterctl describe cluster managed-cluster-01 -n kcm-system
+```
+
+> **Important:** The ClusterTemplateChain prevents invalid upgrade jumps. If you try to set a template that isn't listed in `availableUpgrades`, the ClusterDeployment will be rejected.
+
+### Step 3: Upgrade Services on a Managed Cluster
+
+Services deployed via ServiceTemplates follow the same pattern using `ServiceTemplateChain`:
+
+```yaml
+# Change the service template version in the ClusterDeployment
+spec:
+  serviceSpec:
+    services:
+      - template: kyverno-3-2-7          # Upgraded from kyverno-3-2-6
+        templateChain: kyverno-chain      # Chain validates the upgrade path
+        name: kyverno
+        namespace: kyverno
+```
+
+> **Note:** Service upgrades are covered in detail in Week 2.
+
+---
+
+## Part 4: Rollback Procedures
+
+### Layer 1: Management Plane Rollback
+
+**Option A: Revert the Release** (preferred)
+
+```bash
+# Point Management back to the previous release
+kubectl patch managements.k0rdent.mirantis.com kcm \
+  --patch '{"spec":{"release":"<previous-release-name>"}}' \
+  --type=merge
+
+# Wait for rollback
+kubectl get management kcm --watch
+```
+
+**Option B: Velero Restore** (if CRDs are corrupted)
+
+```bash
+# Disable webhooks to prevent conflicts
 kubectl patch managements kcm --type=merge \
   --patch='{"spec":{"core":{"kcm":{"config":{"admissionWebhook":{"enabled": false}}}}}}'
 kubectl wait management kcm --for=condition=Ready=True --timeout=10m
 
-# List available backups
-kubectl get backup -n kcm-system
-
-# Restore from the pre-upgrade backup
+# Restore from pre-upgrade backup
 cat <<EOF | kubectl apply -f -
 apiVersion: velero.io/v1
 kind: Restore
@@ -296,35 +345,34 @@ spec:
   - '*'
 EOF
 
-# Wait for restore to complete
 kubectl -n kcm-system wait restores.velero.io restore-pre-upgrade \
   --for=jsonpath='{.status.phase}'='Completed' --timeout=10m
 
-# Re-enable admission webhooks
+# Re-enable webhooks
 kubectl patch managements kcm --type=merge \
   --patch='{"spec":{"core":{"kcm":{"config":{"admissionWebhook":{"enabled": true}}}}}}'
 ```
 
-### Option C: etcd Restore (Last Resort)
-
-If both Helm rollback and Velero restore fail:
+**Option C: etcd Restore** (last resort)
 
 ```bash
-# Stop k0s
 sudo k0s stop
-
-# Restore etcd from snapshot (if you took one in Step 3)
 sudo k0s etcd restore /tmp/etcd-pre-upgrade.db
-
-# Start k0s
 sudo k0s start
-
-# Verify cluster is healthy
-kubectl get nodes
-kubectl get pods -n kcm-system
 ```
 
-> **Warning:** etcd restore is destructive — it reverts ALL cluster state (not just k0rdent) to the backup point. Use only as a last resort.
+> **Warning:** etcd restore reverts ALL cluster state, not just k0rdent.
+
+### Layer 2: Managed Cluster Rollback
+
+```bash
+# Revert the ClusterDeployment to the previous template
+kubectl patch clusterdeployment managed-cluster-01 -n kcm-system \
+  --patch '{"spec":{"template":"aws-standalone-cp-1-0-20"}}' \
+  --type=merge
+```
+
+CAPI performs another rolling update back to the original version.
 
 ---
 
@@ -333,72 +381,69 @@ kubectl get pods -n kcm-system
 | Practice | Description |
 |----------|-------------|
 | **Staging first** | Always test upgrades in a non-production environment |
-| **Backup before upgrade** | etcd backup + resource exports (as done in Part 1) |
+| **Backup before upgrade** | ManagementBackup before management plane changes |
 | **Review release notes** | Check for breaking changes and deprecations |
-| **Monitor after upgrade** | Watch controller logs for errors for 30+ minutes |
+| **Upgrade management plane first** | Then templates, then managed clusters, then services |
+| **One cluster at a time** | Don't upgrade all managed clusters simultaneously |
+| **Monitor after upgrade** | Watch controller logs and ClusterDeployment status for 30+ minutes |
 | **Verify managed clusters** | Ensure all workload clusters remain healthy |
-| **Document the process** | Record version, timestamp, any issues encountered |
-| **Plan rollback** | Know the rollback steps before you start |
-| **Maintenance window** | Schedule upgrades during low-activity periods |
+| **Plan rollback** | Know which Release to revert to before you start |
 
 ---
 
 ## Troubleshooting
 
-### Helm upgrade times out
+### Management object stuck in not-ready state
 
 ```bash
-# Check which pods are not ready
-kubectl get pods -n kcm-system | grep -v Running
+# Check Management conditions
+kubectl get management kcm -o jsonpath='{range .status.conditions[*]}{.type}: {.status} - {.message}{"\n"}{end}'
 
-# Check events for failing pods
-kubectl describe pod <pod-name> -n kcm-system
-
-# Common cause: image pull failures (check registry access)
-kubectl logs <pod-name> -n kcm-system
+# Check controller logs
+kubectl logs -n kcm-system deployment/kcm-k0rdent-enterprise-controller-manager --tail=50
 ```
 
-### CRD conflicts after upgrade
+### Provider controllers not upgrading
 
 ```bash
-# Check if CRDs were updated
-kubectl get crds | grep k0rdent
+# Check if the Release has the correct provider templates
+kubectl get release <release-name> -o yaml | grep -A 2 "providers"
 
-# If CRDs are stuck, they may need manual update
-# (This is rare with Helm-managed upgrades)
-kubectl describe crd clusterdeployments.k0rdent.mirantis.com | grep -A5 "Stored Versions"
+# Check individual provider deployments
+kubectl get deployments -n kcm-system | grep -E "capa|capz|capv|capo"
 ```
 
-### Managed clusters show degraded status
+### Managed cluster upgrade stuck
 
 ```bash
-# Check if the provider controllers restarted correctly
-kubectl get pods -n kcm-system | grep capa
+# Check the ClusterDeployment status
+kubectl describe clusterdeployment <name> -n <namespace> | grep -A 10 "Conditions"
 
-# Check ClusterDeployment conditions
-kubectl describe clusterdeployment <name> -n <namespace> | grep -A10 "Conditions"
+# Check if the template chain allows the upgrade
+kubectl get clustertemplatechain -n kcm-system -o yaml | grep -B 2 -A 5 "<template-name>"
 
-# Usually resolves within a few minutes as controllers reconcile
+# Monitor CAPI machine rollout
+clusterctl describe cluster <name> -n <namespace>
 ```
 
 ---
 
 ## Knowledge Check
 
-1. Why should you create a ManagementBackup before upgrading k0rdent?
-2. Why do we omit the `--wait` flag from the Helm upgrade command?
-3. What are the three rollback options, in order of preference?
-4. What should you check after upgrading to confirm managed clusters are unaffected?
-5. Why is reviewing release notes important before upgrading?
+1. What is the difference between upgrading the management plane and upgrading a managed cluster?
+2. How does the `Release` CRD drive the management plane upgrade?
+3. What role does `ClusterTemplateChain` play in managed cluster upgrades?
+4. Why do we create a ManagementBackup before upgrading?
+5. What are the three rollback options for the management plane, in order of preference?
 
 <details>
 <summary><strong>Answer Key</strong> (click to expand)</summary>
 
-1. ManagementBackup (via Velero) captures all k0rdent CRDs, CAPI resources, Flux sources, and secrets to S3. If the upgrade corrupts CRDs or breaks the management plane, you can restore to the exact pre-upgrade state — including reconnecting to managed clusters that kept running independently.
-2. The cert-manager startupapicheck post-install job can exceed its backoff limit and cause Helm to report failure even though all pods are running fine. We verify readiness explicitly with `kubectl wait` instead.
-3. (a) Helm rollback — fast, reverts the release; (b) Velero restore — restores CRDs and resources from backup; (c) etcd restore — last resort, reverts ALL cluster state.
-4. Check that ClusterDeployments still show Ready status, managed cluster nodes are Ready, and system pods on managed clusters are Running. The management cluster upgrade should not affect running workload clusters.
-5. Release notes document breaking changes, deprecated features, new required permissions, and changed defaults. Skipping this step can lead to unexpected behavior or failed upgrades.
+1. The management plane upgrade updates KCM controllers, CAPI providers, and supporting infrastructure (via `Release` + `Management` patch). Managed cluster upgrades change the Kubernetes version and node configuration on workload clusters (via `ClusterDeployment` template change). They are independent — upgrading the management plane does NOT upgrade managed clusters.
+2. The `Release` CRD defines the target k0rdent version and all provider template versions. When you patch the `Management` object's `.spec.release` to point to a new Release, the KCM controller reconciles the difference — upgrading controllers, CAPI providers, and templates to match the Release spec.
+3. `ClusterTemplateChain` defines allowed upgrade paths between ClusterTemplate versions (e.g., `1-0-20` can upgrade to `1-0-21` but not to `1-0-25`). This prevents invalid version jumps and ensures managed clusters follow validated upgrade paths. If you try to set a template not in the chain's `availableUpgrades`, the change is rejected.
+4. ManagementBackup (via Velero) captures all k0rdent CRDs, CAPI resources, and secrets to S3. If the upgrade corrupts the management plane, you can restore to the exact pre-upgrade state and reconnect to managed clusters that kept running independently.
+5. (a) Revert the `Management` object to the previous Release — fastest, just changes the desired state; (b) Velero restore — restores CRDs and resources from the S3 backup; (c) etcd restore — last resort, reverts ALL cluster state.
 
 </details>
 
@@ -408,11 +453,11 @@ kubectl describe clusterdeployment <name> -n <namespace> | grep -A10 "Conditions
 
 In this lab, you:
 
-- Assessed the current k0rdent Enterprise version and cluster health
-- Created a pre-upgrade ManagementBackup via Velero
-- Upgraded k0rdent Enterprise from v1.2.2 to v1.2.3 via Helm (Enterprise registry)
-- Verified the upgrade with explicit readiness checks (not `--wait`)
-- Learned three rollback options: Helm rollback, Velero restore, etcd restore
+- Understood the three upgrade layers: management plane, managed clusters, services
+- Created a pre-upgrade ManagementBackup
+- Learned how to upgrade k0rdent Enterprise via the `Release` CRD and `Management` patch
+- Understood managed cluster upgrades via `ClusterTemplateChain` and template changes
+- Learned rollback procedures for each layer
 - Reviewed production upgrade best practices
 
 ---
