@@ -149,7 +149,8 @@ write_files:
       sudo mv /tmp/k0sctl /usr/local/bin/k0sctl
 
       # Install clusterctl (Cluster API CLI)
-      curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.9.0/clusterctl-linux-amd64 -o /tmp/clusterctl
+      # v1.10+ required for CAPI v1beta2 (shipped with k0rdent Enterprise 1.2.2+)
+      curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.12.4/clusterctl-linux-amd64 -o /tmp/clusterctl
       chmod +x /tmp/clusterctl
       sudo mv /tmp/clusterctl /usr/local/bin/clusterctl
 
