@@ -161,16 +161,16 @@ ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}
 
 log_success "CAPA restarted"
 
-# Verify
-log_info "Verifying CAPA health (waiting 15s)..."
-sleep 15
-CAPA_ERRORS=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
-    "kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tail=5 2>/dev/null | grep -c 'AuthFailure\|RequestExpired' || echo 0")
+# Verify — use --since=30s to only check logs after the restart
+log_info "Verifying CAPA health (waiting 20s)..."
+sleep 20
+CAPA_STATUS=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
+    "kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --since=30s 2>/dev/null | grep -c 'AuthFailure\|RequestExpired' || echo 0")
 
-if [[ "$CAPA_ERRORS" == "0" ]]; then
-    log_success "CAPA is healthy - no credential errors"
+if [[ "$CAPA_STATUS" == "0" ]]; then
+    log_success "CAPA is healthy - no credential errors in recent logs"
 else
-    log_error "CAPA still has credential errors. Check: kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tail=10"
+    log_error "CAPA still has credential errors. Check: kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --since=60s"
 fi
 
 # Summary
