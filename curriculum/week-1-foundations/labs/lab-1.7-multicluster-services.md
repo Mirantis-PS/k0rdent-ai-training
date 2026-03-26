@@ -104,7 +104,34 @@ Each service shows:
 
 ## Part 2: Install ServiceTemplates from Catalog
 
-ServiceTemplates must be installed on the management cluster before they can be deployed.
+ServiceTemplates must be installed on the management cluster before they can be deployed to managed clusters.
+
+### Ensure the Catalog HelmRepository Exists
+
+The ServiceTemplates reference charts from the `k0rdent-catalog` HelmRepository. If you created it in Lab 1.2, it should already exist:
+
+```bash
+kubectl get helmrepositories -n kcm-system | grep k0rdent-catalog
+```
+
+If not found, create it:
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: k0rdent-catalog
+  namespace: kcm-system
+  labels:
+    k0rdent.mirantis.com/managed: "true"
+spec:
+  type: oci
+  url: oci://ghcr.io/k0rdent/catalog/charts
+  interval: 10m0s
+  provider: generic
+EOF
+```
 
 ### Check Existing ServiceTemplates
 
@@ -112,47 +139,69 @@ ServiceTemplates must be installed on the management cluster before they can be 
 # List any existing ServiceTemplates
 kubectl get servicetemplates -n kcm-system
 
-# You may see few or none - this is expected
+# You may already have kyverno-3-2-6 from Lab 1.2
 ```
 
-### Install cert-manager ServiceTemplate
+### Install ServiceTemplates
+
+Create ServiceTemplates for the three services we'll deploy. Each references a chart from the `k0rdent-catalog` HelmRepository:
 
 ```bash
-# Install cert-manager ServiceTemplate
-helm install cert-manager-service-template \
-  oci://ghcr.io/k0rdent/catalog/charts/cert-manager-service-template \
-  --version 1.16.2 \
-  -n kcm-system
-
-# Verify installation
-kubectl get servicetemplate -n kcm-system | grep cert-manager
+cat <<EOF | kubectl apply -f -
+---
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ServiceTemplate
+metadata:
+  name: cert-manager-1-16-2
+  namespace: kcm-system
+spec:
+  helm:
+    chartSpec:
+      chart: cert-manager
+      version: 1.16.2
+      interval: 10m0s
+      sourceRef:
+        kind: HelmRepository
+        name: k0rdent-catalog
+---
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ServiceTemplate
+metadata:
+  name: ingress-nginx-4-11-0
+  namespace: kcm-system
+spec:
+  helm:
+    chartSpec:
+      chart: ingress-nginx
+      version: 4.11.0
+      interval: 10m0s
+      sourceRef:
+        kind: HelmRepository
+        name: k0rdent-catalog
+---
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ServiceTemplate
+metadata:
+  name: kyverno-3-2-6
+  namespace: kcm-system
+spec:
+  helm:
+    chartSpec:
+      chart: kyverno
+      version: 3.2.6
+      interval: 10m0s
+      sourceRef:
+        kind: HelmRepository
+        name: k0rdent-catalog
+EOF
 ```
-
-### Install ingress-nginx ServiceTemplate
 
 ```bash
-# Install ingress-nginx ServiceTemplate
-helm install ingress-nginx-service-template \
-  oci://ghcr.io/k0rdent/catalog/charts/ingress-nginx-service-template \
-  --version 4.11.0 \
-  -n kcm-system
-
-# Verify installation
-kubectl get servicetemplate -n kcm-system | grep ingress-nginx
+# Verify all three are valid (may take ~30s for Flux to validate)
+kubectl get servicetemplates -n kcm-system
 ```
 
-### Install kyverno ServiceTemplate
-
-```bash
-# Install kyverno ServiceTemplate
-helm install kyverno-service-template \
-  oci://ghcr.io/k0rdent/catalog/charts/kyverno-service-template \
-  --version 3.2.6 \
-  -n kcm-system
-
-# Verify installation
-kubectl get servicetemplate -n kcm-system | grep kyverno
-```
+You should see all three with `VALID: true`.
 
 ### Verify All Templates
 
@@ -634,10 +683,10 @@ unset KUBECONFIG
 ### Remove ServiceTemplates (Optional)
 
 ```bash
-# Uninstall ServiceTemplates
-helm uninstall cert-manager-service-template -n kcm-system
-helm uninstall ingress-nginx-service-template -n kcm-system
-helm uninstall kyverno-service-template -n kcm-system
+# Delete ServiceTemplates
+kubectl delete servicetemplate cert-manager-1-16-2 -n kcm-system
+kubectl delete servicetemplate ingress-nginx-4-11-0 -n kcm-system
+kubectl delete servicetemplate kyverno-3-2-6 -n kcm-system
 
 # Verify removal
 kubectl get servicetemplates -n kcm-system
