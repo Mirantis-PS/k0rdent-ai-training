@@ -168,19 +168,26 @@ spec:
 
 ### Step 2: Download and Apply the New Release
 
-Each k0rdent version publishes a `release.yaml` file that contains the new Release object with all the correct provider versions pre-configured.
+Each k0rdent version publishes a `release.yaml` file on the [k0rdent GitHub releases page](https://github.com/k0rdent/kcm/releases). This file contains the Release object with all provider versions pre-configured.
 
 ```bash
+# Browse available versions at: https://github.com/k0rdent/kcm/releases
+# Available versions include: v1.2.0, v1.3.0, v1.4.0, v1.5.0, etc.
+
 # Set the target version
-TARGET_VERSION="v1.2.3"
+TARGET_VERSION="v1.3.0"
 
 # Download and apply the new Release object
 kubectl create -f "https://github.com/k0rdent/kcm/releases/download/${TARGET_VERSION}/release.yaml"
 
 # Verify it was created
 kubectl get releases.k0rdent.mirantis.com
-# You should now see BOTH the old and new release
+# You should now see BOTH the old and new release:
+#   k0rdent-enterprise-1-2-2   true    (current)
+#   kcm-1-3-0                  false   (new, not yet active)
 ```
+
+> **Enterprise vs OSS naming:** Your current release is `k0rdent-enterprise-1-2-2` (installed by the Enterprise Helm chart). The OSS release.yaml creates releases named `kcm-X-Y-Z`. Both work with the same Management object — the name is just a reference.
 
 > **What just happened:** A new Release object now exists in your cluster, but it's not active yet. The Management object still points to the old release. Nothing has changed in the running system.
 
@@ -188,27 +195,29 @@ kubectl get releases.k0rdent.mirantis.com
 
 ```bash
 # Compare old vs new release to see what's changing
-# Old release
+echo "=== Current release providers ==="
 kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-2 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 
-# New release
-kubectl get releases.k0rdent.mirantis.com <new-release-name> \
+echo ""
+echo "=== New release providers ==="
+# Replace kcm-1-3-0 with your actual new release name
+kubectl get releases.k0rdent.mirantis.com kcm-1-3-0 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 ```
 
-This shows you exactly which provider versions will change. Review these against the release notes.
+This shows you exactly which provider versions will change. Review these against the [release notes](https://github.com/k0rdent/kcm/releases).
 
 ### Step 4: Trigger the Upgrade
 
 Point the Management object to the new Release:
 
 ```bash
-# Get the new release name
-RELEASE_NAME=$(kubectl get releases.k0rdent.mirantis.com --no-headers | grep -v "1-2-2" | awk '{print $1}')
+# Get the new release name (the one that's not the current active release)
+RELEASE_NAME=$(kubectl get releases.k0rdent.mirantis.com --no-headers | grep -v "enterprise-1-2-2" | awk '{print $1}')
 echo "Upgrading to: $RELEASE_NAME"
 
-# Patch the Management object
+# Patch the Management object to trigger the upgrade
 kubectl patch managements.k0rdent.mirantis.com kcm \
   --patch "{\"spec\":{\"release\":\"${RELEASE_NAME}\"}}" \
   --type=merge
