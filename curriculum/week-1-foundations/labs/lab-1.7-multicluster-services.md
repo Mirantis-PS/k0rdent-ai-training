@@ -230,41 +230,48 @@ Key fields:
 
 ## Part 3: Label Clusters for Service Targeting
 
-MultiClusterService uses label selectors to target clusters. Let's label our managed cluster(s).
+MultiClusterService uses label selectors to target clusters. The labels it matches against are the **`clusterLabels`** in the ClusterDeployment's `spec.config` — not the Kubernetes metadata labels.
 
 ### Check Current Cluster Labels
 
 ```bash
-# View current ClusterDeployment labels
-kubectl get clusterdeployment -n kcm-system --show-labels
+# View the clusterLabels for each ClusterDeployment
+kubectl get clusterdeployments -n kcm-system \
+  -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.config.clusterLabels}{"\n"}{end}'
+
+# Example output:
+# managed-cluster-01: {"environment":"training"}
+# managed-cluster-02: {"environment":"training","region":"eu-west-1"}
 ```
 
-### Add Labels for Service Targeting
+### Add Labels for Targeted Service Deployment
+
+We'll use two labeling strategies to demonstrate different targeting patterns:
+- `environment: training` — already set on all clusters (deploy baseline services to all)
+- `ingress: "true"` — opt-in label for clusters that need ingress (selective deployment)
 
 ```bash
-# Label managed-cluster-01 for training environment
-kubectl label clusterdeployment managed-cluster-01 \
-  environment=training \
-  tier=standard \
-  services-enabled=true \
-  -n kcm-system
+# Add the ingress opt-in label to cluster-01 only
+kubectl patch clusterdeployment managed-cluster-01 -n kcm-system --type=merge \
+  -p '{"spec":{"config":{"clusterLabels":{"environment":"training","ingress":"true"}}}}'
 
-# If you have a second cluster, label it too
-# kubectl label clusterdeployment managed-cluster-02 \
-#   environment=training \
-#   tier=standard \
-#   services-enabled=true \
-#   -n kcm-system
+# Cluster-02 keeps only environment=training (no ingress)
+# Its labels are already correct from provisioning
 ```
 
 ### Verify Labels
 
 ```bash
-# Confirm labels are applied
-kubectl get clusterdeployment -n kcm-system -l environment=training
+# Confirm labels
+kubectl get clusterdeployments -n kcm-system \
+  -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.config.clusterLabels}{"\n"}{end}'
 
-# Should list managed-cluster-01 (and -02 if created)
+# Expected:
+# managed-cluster-01: {"environment":"training","ingress":"true"}
+# managed-cluster-02: {"environment":"training","region":"eu-west-1"}
 ```
+
+> **Important:** Use `spec.config.clusterLabels` (via `kubectl patch`), not `kubectl label`. The `kubectl label` command sets Kubernetes metadata labels, which MultiClusterService does NOT match against.
 
 ## Part 4: Create MultiClusterService
 
@@ -293,32 +300,61 @@ spec:
   - <other-mcs-name>
 ```
 
-### Create the MultiClusterService
+### Strategy: Two MultiClusterServices with Different Selectors
+
+We'll create two MCS resources to demonstrate both patterns:
+
+| MCS | Selector | Targets | Deploys |
+|-----|----------|---------|---------|
+| `baseline-services` | `environment: training` | **All** training clusters | cert-manager, kyverno |
+| `ingress-services` | `ingress: "true"` | **Only** clusters that opted in | ingress-nginx |
+
+This shows how you can deploy mandatory services to every cluster while keeping optional services targeted to specific clusters.
+
+### Create the Baseline MCS (All Training Clusters)
 
 ```bash
-cat << 'EOF' > /tmp/training-services.yaml
+cat <<EOF | kubectl apply -f -
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: MultiClusterService
 metadata:
-  name: training-baseline-services
-  namespace: kcm-system
+  name: baseline-services
 spec:
   clusterSelector:
     matchLabels:
       environment: training
-      services-enabled: "true"
   serviceSpec:
     services:
-    # cert-manager - Foundation for TLS
     - template: cert-manager-1-16-2
       name: cert-manager
       namespace: cert-manager
       values: |
         installCRDs: true
-        prometheus:
-          enabled: true
+    - template: kyverno-3-2-6
+      name: kyverno
+      namespace: kyverno
+      values: |
+        replicaCount: 1
+    priority: 100
+EOF
+```
 
-    # ingress-nginx - Ingress controller
+This deploys cert-manager and kyverno to **every cluster** with `environment: training` — both managed-cluster-01 and managed-cluster-02.
+
+### Create the Ingress MCS (Selective Targeting)
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: MultiClusterService
+metadata:
+  name: ingress-services
+spec:
+  clusterSelector:
+    matchLabels:
+      ingress: "true"
+  serviceSpec:
+    services:
     - template: ingress-nginx-4-11-0
       name: ingress-nginx
       namespace: ingress-nginx
@@ -327,34 +363,26 @@ spec:
           replicaCount: 1
           service:
             type: LoadBalancer
-          metrics:
-            enabled: true
-
-    # kyverno - Policy engine
-    - template: kyverno-3-2-6
-      name: kyverno
-      namespace: kyverno
-      values: |
-        replicaCount: 1
-        backgroundController:
-          enabled: true
-
     priority: 100
 EOF
-
-# Apply the MultiClusterService
-kubectl apply -f /tmp/training-services.yaml
 ```
 
-### Verify MultiClusterService
+This deploys ingress-nginx **only** to managed-cluster-01 (which has `ingress: "true"`). Managed-cluster-02 doesn't get it.
+
+### Verify Both MultiClusterServices
 
 ```bash
-# Check MCS status
-kubectl get multiclusterservice -n kcm-system
+# Check MCS status — baseline should match 2 clusters, ingress should match 1
+kubectl get multiclusterservice
 
-# View detailed status
-kubectl describe multiclusterservice training-baseline-services -n kcm-system
+# View cluster matching
+kubectl describe multiclusterservice baseline-services | grep -A 5 "Matching Clusters"
+kubectl describe multiclusterservice ingress-services | grep -A 5 "Matching Clusters"
 ```
+
+Expected:
+- `baseline-services` → `2/2` clusters (both have `environment: training`)
+- `ingress-services` → `1/1` cluster (only managed-cluster-01 has `ingress: "true"`)
 
 ## Part 5: Monitor Service Deployment
 
@@ -363,24 +391,24 @@ Services deploy asynchronously to all matched clusters. Monitor the progress.
 ### Watch MultiClusterService Status
 
 ```bash
-# Watch for status updates
-kubectl get multiclusterservice training-baseline-services -n kcm-system -w
+# Watch both MCS for status updates
+kubectl get multiclusterservice -w
 
-# Check conditions
-kubectl get multiclusterservice training-baseline-services -n kcm-system \
-  -o jsonpath='{.status.conditions}' | jq
+# Check conditions on each
+kubectl get multiclusterservice baseline-services \
+  -o jsonpath='{range .status.conditions[*]}{.type}: {.status} - {.message}{"\n"}{end}'
 ```
 
-### Check Services on Managed Cluster
+### Check Services on Managed Clusters
 
-First, verify from the **management cluster** that the MCS is being reconciled:
+First, verify from the **management cluster** that services are being reconciled:
 
 ```bash
-# Check MCS status and conditions (works even without managed cluster access)
-kubectl get multiclusterservice training-baseline-services -n kcm-system -o yaml | grep -A 5 "conditions:"
+# Check ClusterDeployment service status
+kubectl get clusterdeployments -n kcm-system
 
-# Check if HelmReleases were created for the managed cluster
-kubectl get helmreleases -A | grep managed-cluster-01
+# managed-cluster-01 should show SERVICES 3/3 (cert-manager + kyverno + ingress-nginx)
+# managed-cluster-02 should show SERVICES 2/2 (cert-manager + kyverno only)
 ```
 
 > **Fallback:** If your managed cluster is unreachable (e.g., provisioning issues from Lab 1.5), the management-side checks above still validate that k0rdent accepted your MultiClusterService and created the correct HelmRelease objects. The key learning -- how MCS translates to per-cluster HelmReleases via label selectors -- is visible from the management cluster alone.
@@ -639,11 +667,11 @@ To remove a service, edit the MultiClusterService and remove it from the service
 
 ```bash
 # Option 1: Edit directly
-kubectl edit multiclusterservice training-baseline-services -n kcm-system
+kubectl edit multiclusterservice baseline-services
 # Remove the service from the services array
 
-# Option 2: Delete entire MCS (removes all services)
-# kubectl delete multiclusterservice training-baseline-services -n kcm-system
+# Option 2: Delete entire MCS (removes all services from matched clusters)
+# kubectl delete multiclusterservice baseline-services
 ```
 
 ### ServiceTemplateChains for Upgrades
@@ -672,7 +700,8 @@ If you're done with the lab and want to clean up:
 
 ```bash
 # This will remove all deployed services from matched clusters
-kubectl delete multiclusterservice training-baseline-services -n kcm-system
+kubectl delete multiclusterservice baseline-services
+kubectl delete multiclusterservice ingress-services
 
 # Watch services being removed
 export KUBECONFIG=/tmp/managed-cluster-01.kubeconfig
