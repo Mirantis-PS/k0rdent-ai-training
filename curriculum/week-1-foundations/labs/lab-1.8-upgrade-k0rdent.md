@@ -284,63 +284,69 @@ kubectl get clusterdeployments -A -o wide
 
 ---
 
-## Part 3: Upgrade a Managed Cluster (Conceptual)
+## Part 3: Upgrade a Managed Cluster
 
-Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` controls which upgrade paths are allowed.
+Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` CRD controls which upgrade paths are allowed.
 
-### Step 1: View Available Upgrade Paths
+### When Are Upgrade Paths Available?
+
+ClusterTemplateChains are created when a management plane upgrade ships **new template versions**. Check if any exist:
 
 ```bash
-# List ClusterTemplateChains
 kubectl get clustertemplatechains -n kcm-system
-
-# View a chain's upgrade paths
-kubectl get clustertemplatechain -n kcm-system -o yaml | grep -A 10 "supportedTemplates"
 ```
 
-A chain defines which template versions can upgrade to which:
+If you see `No resources found`, no upgrade paths are defined yet — this is normal on a fresh install with a single k0rdent version. Upgrade paths appear after you upgrade the management plane (Part 2), which ships new ClusterTemplate versions alongside the current ones.
+
+### How It Works (Reference)
+
+After a management plane upgrade, you'll see new templates:
+
+```bash
+# Example: after upgrading to Enterprise 1.2.3
+kubectl get clustertemplates -n kcm-system | grep aws-standalone
+# aws-standalone-cp-1-0-20   true   (old, from 1.2.2)
+# aws-standalone-cp-1-0-21   true   (new, from 1.2.3)
+```
+
+A `ClusterTemplateChain` defines the allowed upgrade path:
 
 ```yaml
-# Example: aws-standalone-cp chain
+# Created automatically by the new Release
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ClusterTemplateChain
+metadata:
+  name: aws-standalone-cp
+  namespace: kcm-system
 spec:
   supportedTemplates:
     - name: aws-standalone-cp-1-0-20      # Current version
       availableUpgrades:
-        - name: aws-standalone-cp-1-0-21   # Can upgrade to this
+        - name: aws-standalone-cp-1-0-21   # Allowed upgrade target
     - name: aws-standalone-cp-1-0-21       # Latest (no further upgrades)
 ```
 
-### Step 2: Upgrade a ClusterDeployment (if you have one)
+### Performing the Upgrade
 
-If you have a managed cluster from Lab 1.5 and a newer template is available:
+Once an upgrade path exists, change the template reference:
 
 ```bash
-# Check what template your cluster uses
+# Check current template
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system \
   -o jsonpath='{.spec.template}' && echo ""
 
-# Check if an upgrade is available in the chain
-kubectl get clustertemplatechain -n kcm-system -o yaml | \
-  grep -A 5 "$(kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o jsonpath='{.spec.template}')"
-```
-
-To upgrade, change the template reference:
-
-```bash
-# Example: upgrade from 1-0-20 to 1-0-21
+# Upgrade to the new template
 kubectl patch clusterdeployment managed-cluster-01 -n kcm-system \
   --patch '{"spec":{"template":"aws-standalone-cp-1-0-21"}}' \
   --type=merge
+
+# Monitor the rolling update
+clusterctl describe cluster managed-cluster-01 -n kcm-system
 ```
 
 CAPI performs a **rolling update** — new nodes are created with the updated template, workloads are drained and migrated, old nodes are removed. This takes 10-20 minutes depending on cluster size.
 
-```bash
-# Monitor the upgrade
-clusterctl describe cluster managed-cluster-01 -n kcm-system
-```
-
-> **Important:** The ClusterTemplateChain prevents invalid upgrade jumps. If you try to set a template that isn't listed in `availableUpgrades`, the ClusterDeployment will be rejected.
+> **Safety guardrail:** The ClusterTemplateChain prevents invalid version jumps. If you try to set a template that isn't listed in `availableUpgrades`, the change is rejected. This ensures clusters follow validated upgrade paths only.
 
 ### Step 3: Upgrade Services on a Managed Cluster
 
