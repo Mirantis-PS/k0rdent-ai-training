@@ -47,11 +47,16 @@ k0rdent has **three independent upgrade layers**. Each uses a different mechanis
 
 ## Part 1: Pre-Upgrade Assessment
 
+> **Important:** All commands in this lab run against the **management cluster**. If you previously set `KUBECONFIG` to a managed cluster's kubeconfig (e.g., in Lab 1.5), reset it first:
+> ```bash
+> export KUBECONFIG=/home/ubuntu/.kube/config
+> ```
+
 ### Step 1: Verify Current Version
 
 ```bash
 # Check the current Release
-kubectl get release.k0rdent.mirantis.coms.k0rdent.mirantis.com
+kubectl get releases.k0rdent.mirantis.com
 # Expected: k0rdent-enterprise-1-2-2 (for Enterprise v1.2.2)
 # Note: use the fully qualified name because "releases" conflicts with Flux HelmReleases
 
@@ -74,7 +79,7 @@ kubectl get clustertemplates -n kcm-system > /tmp/pre-upgrade-clustertemplates.t
 # Count resources
 echo "CRDs: $(kubectl get crds | grep k0rdent | wc -l)"
 echo "ClusterTemplates: $(kubectl get clustertemplates -n kcm-system --no-headers | wc -l)"
-echo "Releases: $(kubectl get release.k0rdent.mirantis.coms.k0rdent.mirantis.com --no-headers | wc -l)"
+echo "Releases: $(kubectl get releases.k0rdent.mirantis.com --no-headers | wc -l)"
 ```
 
 ### Step 3: Pre-Upgrade Backup
@@ -104,7 +109,7 @@ kubectl get backup -n kcm-system --watch
 
 ```bash
 # Check what releases are available
-kubectl get release.k0rdent.mirantis.coms.k0rdent.mirantis.com
+kubectl get releases.k0rdent.mirantis.com
 
 # In a real scenario, review release notes at:
 # https://docs.k0rdent.io/latest/admin/upgrade/
@@ -134,7 +139,7 @@ The Helm chart installation may have already created Release objects for availab
 
 ```bash
 # List all releases
-kubectl get release.k0rdent.mirantis.coms.k0rdent.mirantis.com
+kubectl get releases.k0rdent.mirantis.com
 
 # View a release's contents
 kubectl get release.k0rdent.mirantis.com <release-name> -o yaml | head -30
