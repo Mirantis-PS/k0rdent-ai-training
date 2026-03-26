@@ -131,12 +131,11 @@ kubectl get releases.k0rdent.mirantis.com
 
 ## Part 2: Upgrade the Management Plane
 
-k0rdent upgrades are **CRD-driven**. The process has three steps:
-1. **Download** the new Release YAML from the k0rdent releases page
-2. **Apply** it to create the Release object in your cluster
-3. **Patch** the Management object to point to the new Release
+k0rdent Enterprise upgrades are a two-phase process:
+1. **Helm upgrade** — installs the new chart version, which creates a new `Release` object with updated provider templates
+2. **Management reconciliation** — the KCM controller detects the new Release and upgrades all components
 
-The Release object is a manifest that pins the exact version of every component — KCM, CAPI, and all provider controllers. You don't write it manually; it's published as part of each k0rdent release.
+The `Release` object is the key — it pins the exact version of every component (KCM, CAPI, all provider controllers). The Helm chart creates it for you.
 
 ### Step 1: View the Current Release
 
@@ -145,11 +144,12 @@ The Release object is a manifest that pins the exact version of every component 
 kubectl get releases.k0rdent.mirantis.com
 # Expected: k0rdent-enterprise-1-2-2 with READY=true
 
-# Inspect the current release to see what it contains
-kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-2 -o yaml
+# Inspect what it pins
+kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-2 \
+  -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 ```
 
-The Release object pins versions for every component:
+The Release pins versions for every component:
 
 ```yaml
 spec:
@@ -166,66 +166,77 @@ spec:
     # ... all other providers
 ```
 
-### Step 2: Download and Apply the New Release
+### Step 2: Run the Helm Upgrade
 
-Each k0rdent version publishes a `release.yaml` file on the [k0rdent GitHub releases page](https://github.com/k0rdent/kcm/releases). This file contains the Release object with all provider versions pre-configured.
+The Enterprise Helm chart is hosted on `registry.mirantis.com`. Upgrading the chart creates the new Release object and updates the KCM controllers:
 
 ```bash
-# Browse available versions at: https://github.com/k0rdent/kcm/releases
-# Available versions include: v1.2.0, v1.3.0, v1.4.0, v1.5.0, etc.
+# Set target version
+TARGET_VERSION="1.2.3"
 
-# Set the target version
-TARGET_VERSION="v1.3.0"
-
-# Download and apply the new Release object
-kubectl create -f "https://github.com/k0rdent/kcm/releases/download/${TARGET_VERSION}/release.yaml"
-
-# Verify it was created
-kubectl get releases.k0rdent.mirantis.com
-# You should now see BOTH the old and new release:
-#   k0rdent-enterprise-1-2-2   true    (current)
-#   kcm-1-3-0                  false   (new, not yet active)
+# Upgrade the Enterprise Helm chart
+helm upgrade kcm oci://registry.mirantis.com/k0rdent-enterprise/charts/k0rdent-enterprise \
+  --version ${TARGET_VERSION} \
+  -n kcm-system \
+  --timeout 15m
 ```
 
-> **Enterprise vs OSS naming:** Your current release is `k0rdent-enterprise-1-2-2` (installed by the Enterprise Helm chart). The OSS release.yaml creates releases named `kcm-X-Y-Z`. Both work with the same Management object — the name is just a reference.
+> **Why Helm here?** For Enterprise, the Helm chart is the delivery mechanism — it packages the new Release object, updated CRDs, and controller images together. The chart upgrade creates the new Release and updates the Management object automatically.
 
-> **What just happened:** A new Release object now exists in your cluster, but it's not active yet. The Management object still points to the old release. Nothing has changed in the running system.
+> **Note:** We omit `--wait` because the cert-manager startupapicheck post-install hook can time out. We verify readiness explicitly in the next steps.
 
-### Step 3: Understand the Release Contents
+### Step 3: Verify the New Release
 
 ```bash
-# Compare old vs new release to see what's changing
-echo "=== Current release providers ==="
+# Check that a new Release was created
+kubectl get releases.k0rdent.mirantis.com
+# You should see the new release (e.g., k0rdent-enterprise-1-2-3) alongside the old one
+
+# Compare provider versions
+echo "=== Old release ==="
 kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-2 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 
 echo ""
-echo "=== New release providers ==="
-# Replace kcm-1-3-0 with your actual new release name
-kubectl get releases.k0rdent.mirantis.com kcm-1-3-0 \
+echo "=== New release ==="
+NEW_RELEASE=$(kubectl get releases.k0rdent.mirantis.com --no-headers | grep -v "1-2-2" | awk '{print $1}')
+kubectl get releases.k0rdent.mirantis.com ${NEW_RELEASE} \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 ```
 
-This shows you exactly which provider versions will change. Review these against the [release notes](https://github.com/k0rdent/kcm/releases).
+### Step 4: Wait for the New Release to Become Ready
 
-### Step 4: Trigger the Upgrade
-
-Point the Management object to the new Release:
+The new Release needs all its templates to be fetched and validated:
 
 ```bash
-# Get the new release name (the one that's not the current active release)
-RELEASE_NAME=$(kubectl get releases.k0rdent.mirantis.com --no-headers | grep -v "enterprise-1-2-2" | awk '{print $1}')
-echo "Upgrading to: $RELEASE_NAME"
-
-# Patch the Management object to trigger the upgrade
-kubectl patch managements.k0rdent.mirantis.com kcm \
-  --patch "{\"spec\":{\"release\":\"${RELEASE_NAME}\"}}" \
-  --type=merge
+# Wait for the new release to be ready
+NEW_RELEASE=$(kubectl get releases.k0rdent.mirantis.com --no-headers | grep -v "1-2-2" | awk '{print $1}')
+kubectl wait --for=jsonpath='{.status.ready}=true' \
+  releases.k0rdent.mirantis.com/${NEW_RELEASE} --timeout=600s
 ```
 
-> **What happens now:** The KCM controller detects the release change and begins reconciling — upgrading controllers, CAPI providers, and templates to match the new Release spec. This is a rolling update; components restart one by one.
+> **If the Release stays not-ready:** Check its conditions:
+> ```bash
+> kubectl get releases.k0rdent.mirantis.com ${NEW_RELEASE} -o yaml | grep -A 5 conditions
+> ```
 
-### Step 5: Monitor the Upgrade
+### Step 5: Verify the Management Object Updated
+
+The Helm upgrade should have updated the Management object to point to the new Release:
+
+```bash
+# Check which release is active
+kubectl get management kcm -o jsonpath='{.spec.release}' && echo ""
+
+# If it still points to the old release, patch it manually:
+# kubectl patch managements.k0rdent.mirantis.com kcm \
+#   --patch "{\"spec\":{\"release\":\"${NEW_RELEASE}\"}}" \
+#   --type=merge
+```
+
+> **What happens now:** The KCM controller reconciles the Management object against the new Release — upgrading controllers, CAPI providers, and templates. Components restart one by one (rolling update).
+
+### Step 6: Monitor the Upgrade
 
 ```bash
 # Watch the Management object status
@@ -236,10 +247,6 @@ kubectl get management kcm --watch
 kubectl get pods -n kcm-system -w
 # Controllers restart one by one (rolling update)
 # Press Ctrl+C once all pods show Running
-
-# Verify the new Release is ready
-kubectl wait --for=jsonpath='{.status.ready}=true' \
-  releases.k0rdent.mirantis.com/${RELEASE_NAME} --timeout=600s
 
 # Verify cert-manager is healthy
 kubectl wait --for=condition=Available deployment \
@@ -252,7 +259,7 @@ kubectl wait --for=condition=Available deployment \
   -n kcm-system --timeout=300s
 ```
 
-### Step 5: Verify Upgrade Success
+### Step 7: Verify Upgrade Success
 
 ```bash
 # Confirm the Management object points to the new release
@@ -487,7 +494,7 @@ clusterctl describe cluster <name> -n <namespace>
 <summary><strong>Answer Key</strong> (click to expand)</summary>
 
 1. The management plane upgrade updates KCM controllers, CAPI providers, and supporting infrastructure (via `Release` + `Management` patch). Managed cluster upgrades change the Kubernetes version and node configuration on workload clusters (via `ClusterDeployment` template change). They are independent — upgrading the management plane does NOT upgrade managed clusters.
-2. The `Release` CRD defines the target k0rdent version and all provider template versions. When you patch the `Management` object's `.spec.release` to point to a new Release, the KCM controller reconciles the difference — upgrading controllers, CAPI providers, and templates to match the Release spec.
+2. The `Release` CRD defines the target k0rdent version and all provider template versions. For Enterprise, the Helm chart upgrade creates the new Release object automatically. The KCM controller then reconciles the Management object against the new Release — upgrading controllers, CAPI providers, and templates to match. For the OSS edition, you download a `release.yaml` from GitHub and apply it manually, then patch the Management object.
 3. `ClusterTemplateChain` defines allowed upgrade paths between ClusterTemplate versions (e.g., `1-0-20` can upgrade to `1-0-21` but not to `1-0-25`). This prevents invalid version jumps and ensures managed clusters follow validated upgrade paths. If you try to set a template not in the chain's `availableUpgrades`, the change is rejected.
 4. ManagementBackup (via Velero) captures all k0rdent CRDs, CAPI resources, and secrets to S3. If the upgrade corrupts the management plane, you can restore to the exact pre-upgrade state and reconnect to managed clusters that kept running independently.
 5. (a) Revert the `Management` object to the previous Release — fastest, just changes the desired state; (b) Velero restore — restores CRDs and resources from the S3 backup; (c) etcd restore — last resort, reverts ALL cluster state.
