@@ -51,8 +51,9 @@ k0rdent has **three independent upgrade layers**. Each uses a different mechanis
 
 ```bash
 # Check the current Release
-kubectl get releases
-# Note the current release name (e.g., kcm-0-2-5 or k0rdent-enterprise-1-2-2)
+kubectl get release.k0rdent.mirantis.coms.k0rdent.mirantis.com
+# Expected: k0rdent-enterprise-1-2-2 (for Enterprise v1.2.2)
+# Note: use the fully qualified name because "releases" conflicts with Flux HelmReleases
 
 # Check the Management object's release reference
 kubectl get management kcm -o jsonpath='{.spec.release}' && echo ""
@@ -73,7 +74,7 @@ kubectl get clustertemplates -n kcm-system > /tmp/pre-upgrade-clustertemplates.t
 # Count resources
 echo "CRDs: $(kubectl get crds | grep k0rdent | wc -l)"
 echo "ClusterTemplates: $(kubectl get clustertemplates -n kcm-system --no-headers | wc -l)"
-echo "Releases: $(kubectl get releases --no-headers | wc -l)"
+echo "Releases: $(kubectl get release.k0rdent.mirantis.coms.k0rdent.mirantis.com --no-headers | wc -l)"
 ```
 
 ### Step 3: Pre-Upgrade Backup
@@ -103,7 +104,7 @@ kubectl get backup -n kcm-system --watch
 
 ```bash
 # Check what releases are available
-kubectl get releases
+kubectl get release.k0rdent.mirantis.coms.k0rdent.mirantis.com
 
 # In a real scenario, review release notes at:
 # https://docs.k0rdent.io/latest/admin/upgrade/
@@ -133,10 +134,10 @@ The Helm chart installation may have already created Release objects for availab
 
 ```bash
 # List all releases
-kubectl get releases
+kubectl get release.k0rdent.mirantis.coms.k0rdent.mirantis.com
 
 # View a release's contents
-kubectl get release <release-name> -o yaml | head -30
+kubectl get release.k0rdent.mirantis.com <release-name> -o yaml | head -30
 ```
 
 ### Step 2: Create a New Release (if needed)
@@ -148,24 +149,24 @@ If the target release doesn't exist yet, create it. A Release specifies the k0rd
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: Release
 metadata:
-  name: kcm-0-2-6
+  name: k0rdent-enterprise-1-2-3
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  version: 0.2.6
+  version: 1.2.3
   kcm:
-    template: kcm-0-2-6
+    template: kcm-1-2-3
   capi:
-    template: cluster-api-1-9-4
+    template: cluster-api-1-0-7
   providers:
     - name: cluster-api-provider-aws
-      template: cluster-api-provider-aws-2-7-1
+      template: cluster-api-provider-aws-1-0-10
     - name: cluster-api-provider-k0sproject-k0smotron
-      template: cluster-api-provider-k0sproject-k0smotron-1-0-1
+      template: cluster-api-provider-k0sproject-k0smotron-1-0-13
     # ... other providers
 ```
 
-> **Note:** In practice, the new Helm chart version creates the Release object for you during `helm upgrade`. You typically don't create it manually.
+> **Note:** In practice, the Helm chart upgrade creates the Release object for you. You then point the Management object to it. You typically don't create Release objects manually.
 
 ### Step 3: Trigger the Upgrade
 
@@ -407,7 +408,7 @@ kubectl logs -n kcm-system deployment/kcm-k0rdent-enterprise-controller-manager 
 
 ```bash
 # Check if the Release has the correct provider templates
-kubectl get release <release-name> -o yaml | grep -A 2 "providers"
+kubectl get release.k0rdent.mirantis.com <release-name> -o yaml | grep -A 2 "providers"
 
 # Check individual provider deployments
 kubectl get deployments -n kcm-system | grep -E "capa|capz|capv|capo"
