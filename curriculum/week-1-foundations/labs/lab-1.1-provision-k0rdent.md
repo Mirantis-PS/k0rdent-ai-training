@@ -3,6 +3,35 @@
 **Duration:** 3 hours (active: ~1.5h, waiting for provisioning: ~1.5h)
 **Type:** Hands-on Lab
 
+## Table of Contents
+
+- [Objectives](#objectives)
+- [Prerequisites](#prerequisites)
+- [How the Lab Infrastructure Works](#how-the-lab-infrastructure-works)
+- [Resuming This Lab](#resuming-this-lab)
+- [Part 1: Configure AWS Credentials](#part-1-configure-aws-credentials)
+  - [Option A: AWS CLI Profile (Recommended)](#option-a-aws-cli-profile-recommended)
+  - [Option B: Environment Variables](#option-b-environment-variables)
+  - [Option C: AWS SSO](#option-c-aws-sso)
+  - [Region Selection](#region-selection)
+- [Lab Environment](#lab-environment)
+- [Part 2: Verify Prerequisites](#part-2-verify-prerequisites)
+- [Part 3: Provision the k0rdent Management Cluster](#part-3-provision-the-k0rdent-management-cluster)
+  - [Understanding the Output](#understanding-the-output)
+- [Part 4: Connect to the Management Cluster](#part-4-connect-to-the-management-cluster)
+  - [Verify k0rdent Installation](#verify-k0rdent-installation)
+- [Part 5: Verify k0s Cluster](#part-5-verify-k0s-cluster)
+- [Part 6: Verify k0rdent Enterprise Installation](#part-6-verify-k0rdent-enterprise-installation)
+- [Part 7: Access the k0rdent UI](#part-7-access-the-k0rdent-ui)
+- [Part 8: Explore k0rdent Resources](#part-8-explore-k0rdent-resources)
+- [Validation Checklist](#validation-checklist)
+- [Troubleshooting](#troubleshooting)
+  - [k0rdent Installation Issues](#k0rdent-installation-issues)
+- [Clean Up](#clean-up)
+- [Summary](#summary)
+- [Quick Reference: Aliases](#quick-reference-aliases)
+- [Next Lab](#next-lab)
+
 ## Objectives
 
 In this lab, you will:

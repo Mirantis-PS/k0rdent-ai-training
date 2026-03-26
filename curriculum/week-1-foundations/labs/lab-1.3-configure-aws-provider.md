@@ -3,6 +3,41 @@
 **Duration:** 3 hours
 **Type:** Hands-on Lab
 
+## Table of Contents
+
+- [Objectives](#objectives)
+- [Prerequisites](#prerequisites)
+- [Resuming This Lab](#resuming-this-lab)
+- [Part 1: Understanding Infrastructure Providers](#part-1-understanding-infrastructure-providers)
+  - [What are Infrastructure Providers?](#what-are-infrastructure-providers)
+  - [Provider Components](#provider-components)
+- [Part 2: AWS IAM Requirements](#part-2-aws-iam-requirements)
+  - [Required Permissions](#required-permissions)
+  - [Exercise: Verify AWS Permissions](#exercise-verify-aws-permissions)
+- [Part 3: Create AWS Credentials in k0rdent](#part-3-create-aws-credentials-in-k0rdent)
+  - [Step 1: Create AWS Secret](#step-1-create-aws-secret)
+  - [Step 2: Create AWSClusterStaticIdentity](#step-2-create-awsclusterstaticidentity)
+  - [Step 3: Create k0rdent Credential Object](#step-3-create-k0rdent-credential-object)
+- [Part 4: Verify Provider Configuration](#part-4-verify-provider-configuration)
+  - [Check AWS Provider Status](#check-aws-provider-status)
+  - [Verify AWS Provider Controller](#verify-aws-provider-controller)
+- [Part 5: Verify Provider Readiness](#part-5-verify-provider-readiness)
+  - [Check CAPA Controller](#check-capa-controller)
+  - [Verify the Credential Chain](#verify-the-credential-chain)
+- [Part 6: SSH Key Pair for Managed Clusters (Optional)](#part-6-ssh-key-pair-for-managed-clusters-optional)
+- [Part 7: Review Available Cluster Templates](#part-7-review-available-cluster-templates)
+  - [Template Parameters](#template-parameters)
+- [Part 8: Provider Security Best Practices](#part-8-provider-security-best-practices)
+  - [Principle of Least Privilege](#principle-of-least-privilege)
+  - [Credential Rotation](#credential-rotation)
+  - [Multi-Account Access](#multi-account-access)
+- [Validation Checklist](#validation-checklist)
+- [Troubleshooting](#troubleshooting)
+  - [Credential Issues](#credential-issues)
+  - [Provider Controller Issues](#provider-controller-issues)
+- [Summary](#summary)
+- [Next Lab](#next-lab)
+
 ## Objectives
 
 In this lab, you will:

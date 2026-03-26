@@ -3,6 +3,40 @@
 **Duration:** 3 hours
 **Type:** Hands-on Lab
 
+## Table of Contents
+
+- [Objectives](#objectives)
+- [Prerequisites](#prerequisites)
+- [Resuming This Lab](#resuming-this-lab)
+- [Part 1: Production Architecture Overview](#part-1-production-architecture-overview)
+  - [Single vs Multi-Node Management Cluster](#single-vs-multi-node-management-cluster)
+  - [Exercise: Evaluate Your Setup](#exercise-evaluate-your-setup)
+- [Part 2: Configure RBAC for Multi-Team Access](#part-2-configure-rbac-for-multi-team-access)
+  - [Understanding k0rdent RBAC](#understanding-k0rdent-rbac)
+  - [Create Namespaces for Teams](#create-namespaces-for-teams)
+  - [Create Cluster Roles](#create-cluster-roles)
+  - [Create Service Accounts and Bindings](#create-service-accounts-and-bindings)
+- [Part 3: Configure Audit Logging](#part-3-configure-audit-logging)
+  - [Enable Kubernetes Audit Logging](#enable-kubernetes-audit-logging)
+  - [Configure k0s for Audit Logging](#configure-k0s-for-audit-logging)
+- [Part 4: Configure Backup and Recovery](#part-4-configure-backup-and-recovery)
+  - [Step 1: Configure Backup Storage](#step-1-configure-backup-storage)
+  - [Step 2: Ensure the Velero AWS Plugin is Loaded](#step-2-ensure-the-velero-aws-plugin-is-loaded)
+  - [Step 3: Create a Scheduled Backup](#step-3-create-a-scheduled-backup)
+  - [Step 4: Create an On-Demand Backup](#step-4-create-an-on-demand-backup)
+  - [Understanding What Gets Backed Up](#understanding-what-gets-backed-up)
+- [Part 5: Security Hardening](#part-5-security-hardening)
+  - [Network Policies](#network-policies)
+  - [Pod Security Standards](#pod-security-standards)
+  - [Secret Encryption](#secret-encryption)
+- [Part 6: Configure Resource Quotas](#part-6-configure-resource-quotas)
+  - [Set Namespace Quotas](#set-namespace-quotas)
+- [Part 7: Production Readiness Checklist](#part-7-production-readiness-checklist)
+  - [Create Assessment Script](#create-assessment-script)
+- [Validation Checklist](#validation-checklist)
+- [Summary](#summary)
+- [Next Lab](#next-lab)
+
 ## Objectives
 
 In this lab, you will:

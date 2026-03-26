@@ -3,6 +3,42 @@
 **Duration:** 1.5 hours (active: ~45min, waiting for rollout: ~45min)
 **Type:** Hands-on Lab
 
+## Table of Contents
+
+- [Objectives](#objectives)
+- [Prerequisites](#prerequisites)
+- [Resuming This Lab](#resuming-this-lab)
+- [Understanding k0rdent Upgrades](#understanding-k0rdent-upgrades)
+- [Part 1: Pre-Upgrade Assessment](#part-1-pre-upgrade-assessment)
+  - [Step 1: Verify Current Version](#step-1-verify-current-version)
+  - [Step 2: Document Current State](#step-2-document-current-state)
+  - [Step 3: Pre-Upgrade Backup](#step-3-pre-upgrade-backup)
+  - [Step 4: Review Release Notes](#step-4-review-release-notes)
+- [Part 2: Upgrade the Management Plane](#part-2-upgrade-the-management-plane)
+  - [Step 1: View the Current Release](#step-1-view-the-current-release)
+  - [Step 2: Apply the New Release](#step-2-apply-the-new-release)
+  - [Step 3: Wait for the New Release to Become Ready](#step-3-wait-for-the-new-release-to-become-ready)
+  - [Step 4: Compare Provider Versions](#step-4-compare-provider-versions)
+  - [Step 5: Activate the Upgrade](#step-5-activate-the-upgrade)
+  - [Step 6: Monitor the Upgrade](#step-6-monitor-the-upgrade)
+  - [Step 7: Verify Upgrade Success](#step-7-verify-upgrade-success)
+- [Part 3: Upgrade a Managed Cluster](#part-3-upgrade-a-managed-cluster)
+  - [When Are Upgrade Paths Available?](#when-are-upgrade-paths-available)
+  - [How It Works (Reference)](#how-it-works-reference)
+  - [Performing the Upgrade](#performing-the-upgrade)
+  - [Step 3: Upgrade Services on a Managed Cluster](#step-3-upgrade-services-on-a-managed-cluster)
+- [Part 4: Rollback Procedures](#part-4-rollback-procedures)
+  - [Layer 1: Management Plane Rollback](#layer-1-management-plane-rollback)
+  - [Layer 2: Managed Cluster Rollback](#layer-2-managed-cluster-rollback)
+- [Production Upgrade Best Practices](#production-upgrade-best-practices)
+- [Troubleshooting](#troubleshooting)
+  - [Management object stuck in not-ready state](#management-object-stuck-in-not-ready-state)
+  - [Provider controllers not upgrading](#provider-controllers-not-upgrading)
+  - [Managed cluster upgrade stuck](#managed-cluster-upgrade-stuck)
+- [Knowledge Check](#knowledge-check)
+- [Summary](#summary)
+- [Next](#next)
+
 ## Objectives
 
 In this lab, you will:
