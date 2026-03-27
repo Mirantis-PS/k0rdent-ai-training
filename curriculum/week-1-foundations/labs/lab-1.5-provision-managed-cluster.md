@@ -9,37 +9,37 @@
 - [Prerequisites](#prerequisites)
 - [Cost Considerations](#cost-considerations)
 - [Resuming This Lab](#resuming-this-lab)
-- [Part 1: Verify Prerequisites](#part-1-verify-prerequisites)
+- [Part 1: Verify Prerequisites (~10 min)](#part-1-verify-prerequisites-10-min)
   - [Check AWS Credential](#check-aws-credential)
   - [Check AWS Identity](#check-aws-identity)
   - [List Available Cluster Templates](#list-available-cluster-templates)
   - [Verify SSH Key Pair](#verify-ssh-key-pair)
-- [Part 2: Create the ClusterDeployment](#part-2-create-the-clusterdeployment)
+- [Part 2: Create the ClusterDeployment (~10 min)](#part-2-create-the-clusterdeployment-10-min)
   - [Understand ClusterDeployment Structure](#understand-clusterdeployment-structure)
   - [Create Your First Managed Cluster](#create-your-first-managed-cluster)
   - [Apply the ClusterDeployment](#apply-the-clusterdeployment)
-- [Part 3: Monitor Provisioning](#part-3-monitor-provisioning)
+- [Part 3: Monitor Provisioning (~20 min, mostly waiting)](#part-3-monitor-provisioning-20-min-mostly-waiting)
   - [Watch ClusterDeployment Status](#watch-clusterdeployment-status)
   - [Use clusterctl for Detailed Progress](#use-clusterctl-for-detailed-progress)
   - [Monitor CAPI Resources](#monitor-capi-resources)
   - [Check AWS Resources](#check-aws-resources)
   - [Understanding Provisioning Stages](#understanding-provisioning-stages)
   - [Troubleshooting Provisioning Issues](#troubleshooting-provisioning-issues)
-- [Part 4: Access the Managed Cluster](#part-4-access-the-managed-cluster)
+- [Part 4: Access the Managed Cluster (~10 min)](#part-4-access-the-managed-cluster-10-min)
   - [Check Cluster is Ready](#check-cluster-is-ready)
   - [Retrieve Kubeconfig](#retrieve-kubeconfig)
   - [Connect to the Managed Cluster](#connect-to-the-managed-cluster)
   - [Verify Cluster Health](#verify-cluster-health)
   - [Return to Management Cluster](#return-to-management-cluster)
-- [Part 5: Explore the Managed Cluster](#part-5-explore-the-managed-cluster)
+- [Part 5: Explore the Managed Cluster (~10 min)](#part-5-explore-the-managed-cluster-10-min)
   - [Check CNI (Container Network Interface)](#check-cni-container-network-interface)
   - [Verify Node Resources](#verify-node-resources)
   - [Deploy a Test Workload](#deploy-a-test-workload)
-- [Part 6: (Optional) Provision Azure Cluster](#part-6-optional-provision-azure-cluster)
+- [Part 6: (Optional) Provision Azure Cluster (~30 min)](#part-6-optional-provision-azure-cluster-30-min)
   - [Configure Azure Credentials](#configure-azure-credentials)
   - [Create Azure ClusterDeployment](#create-azure-clusterdeployment)
   - [Monitor Azure Cluster](#monitor-azure-cluster)
-- [Part 7: Clean Up](#part-7-clean-up)
+- [Part 7: Clean Up (~10 min)](#part-7-clean-up-10-min)
   - [Delete Managed Cluster(s)](#delete-managed-clusters)
   - [Monitor Deletion](#monitor-deletion)
   - [Verify Complete Cleanup](#verify-complete-cleanup)
@@ -90,7 +90,7 @@ kubectl get clusterdeployment -n kcm-system
 
 ---
 
-## Part 1: Verify Prerequisites
+## Part 1: Verify Prerequisites (~10 min)
 
 Before provisioning, ensure your AWS credentials and templates are ready.
 
@@ -133,9 +133,12 @@ Note the available AWS template names. Common templates include:
 
 > **Important:** The SSH key pair must exist in the **same region** where you'll provision the cluster.
 
+> **Note:** Use the same region you chose for your management cluster in Lab 1.1 (e.g., `eu-west-1`, `us-east-1`). All examples below use `$AWS_REGION` -- set it once and the commands will be consistent.
+
 ```bash
-# Set your target region (must match ClusterDeployment config.region)
-export AWS_REGION="us-east-1"
+# Set your target region — use the SAME region as your management cluster
+# Example: eu-west-1, us-east-1, etc.
+export AWS_REGION="eu-west-1"  # <-- adjust to YOUR region
 
 # Check if your SSH key pair exists in AWS
 aws ec2 describe-key-pairs --key-names k0rdent-clusters --region $AWS_REGION
@@ -146,7 +149,7 @@ aws ec2 describe-key-pairs --key-names k0rdent-clusters --region $AWS_REGION
 #   --public-key-material fileb://~/.ssh/k0rdent-clusters.pub --region $AWS_REGION
 ```
 
-## Part 2: Create the ClusterDeployment
+## Part 2: Create the ClusterDeployment (~10 min)
 
 ### Understand ClusterDeployment Structure
 
@@ -189,7 +192,7 @@ spec:
   dryRun: false
   cleanupOnDeletion: true
   config:
-    region: us-east-1
+    region: ${AWS_REGION}
     publicIP: true
     controlPlaneNumber: 1
     controlPlane:
@@ -210,8 +213,12 @@ EOF
 
 > **Important Configuration Notes:**
 > - **template**: Must match an available ClusterTemplate. Run `kubectl get clustertemplates -n kcm-system | grep aws` to find it.
-> - **region**: The AWS region where the managed cluster will be provisioned.
-> - **clusterIdentity**: References your AWSClusterStaticIdentity created in Lab 1.3.
+> - **region**: Uses `$AWS_REGION` which you set earlier. This must match the region where your management cluster and SSH key pair live.
+> - **clusterIdentity**: References your AWSClusterStaticIdentity created in Lab 1.3. The identity's `allowedNamespaces.list` must include `kcm-system` (see Lab 1.3). If you skipped that, patch it now:
+>   ```bash
+>   kubectl patch awsclusterstaticidentity aws-cluster-identity --type=merge \
+>     -p '{"spec":{"allowedNamespaces":{"list":["kcm-system"]}}}'
+>   ```
 > - **sshKeyName** (commented out): Only needed if you want direct SSH access to managed cluster nodes. If included, the key pair must exist in the target region (see Lab 1.3, Part 6).
 
 ### Apply the ClusterDeployment
@@ -224,9 +231,20 @@ kubectl apply -f /tmp/managed-cluster-01.yaml
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system
 ```
 
-## Part 3: Monitor Provisioning
+## Part 3: Monitor Provisioning (~20 min, mostly waiting)
 
 Cluster provisioning takes 10-20 minutes. Monitor the progress using these methods.
+
+> **AWS SSO users:** If you are using AWS SSO (Identity Center) credentials, your session token may expire during this wait. SSO sessions typically last 1-8 hours depending on your organization's configuration. If you see `ExpiredTokenException` errors in CAPA controller logs or provisioning stalls, refresh your credentials:
+>
+> ```bash
+> # On your local machine, refresh SSO credentials
+> aws sso login --profile <your-profile>
+>
+> # Then update the secret on the management cluster (see Lab 1.3 SSO section)
+> # After updating the secret, restart the CAPA controller to pick up new credentials:
+> kubectl rollout restart deployment capa-controller-manager -n kcm-system
+> ```
 
 ### Watch ClusterDeployment Status
 
@@ -244,6 +262,8 @@ kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o yaml | grep -A
 # Get detailed cluster status (requires clusterctl)
 clusterctl describe cluster managed-cluster-01 -n kcm-system
 ```
+
+> **Note:** In the first few minutes after applying the ClusterDeployment, `clusterctl describe` may show very little output or report that resources are not yet created. This is normal -- CAPI resources are created in stages. Re-run the command every 2-3 minutes to see progress.
 
 This shows:
 - Control plane status
@@ -271,7 +291,7 @@ aws ec2 describe-instances \
   --filters "Name=tag:kubernetes.io/cluster/managed-cluster-01,Values=owned" \
   --query 'Reservations[].Instances[].[InstanceId,State.Name,PrivateIpAddress]' \
   --output table \
-  --region us-east-1
+  --region $AWS_REGION
 ```
 
 ### Understanding Provisioning Stages
@@ -328,14 +348,17 @@ Common issues:
   kubectl patch awsclusterstaticidentity aws-cluster-identity -n kcm-system --type=merge \
     -p '{"spec":{"allowedNamespaces":{"list":["kcm-system"]}}}'
   ```
-- **"AWS was not able to validate the provided access credentials"**: If using AWS SSO, ensure your secret includes `SessionToken`. Refresh credentials and update the secret (see Lab 1.3 SSO section)
+- **"AWS was not able to validate the provided access credentials"**: If using AWS SSO, ensure your secret includes `SessionToken`. Refresh credentials and update the secret (see Lab 1.3 SSO section). After updating the secret, you **must** restart the CAPA controller to pick up the new credentials:
+  ```bash
+  kubectl rollout restart deployment capa-controller-manager -n kcm-system
+  ```
 - **Webhook timeout errors**: If you applied network policies in Lab 1.4, they may block webhooks. Delete them:
   ```bash
   kubectl delete networkpolicy -n kcm-system --all
   ```
 - **Missing clusterIdentity error**: Ensure your ClusterDeployment config includes the `clusterIdentity` section with `name` and `namespace`
 
-## Part 4: Access the Managed Cluster
+## Part 4: Access the Managed Cluster (~10 min)
 
 Once the cluster shows `Ready`, retrieve the kubeconfig.
 
@@ -345,9 +368,11 @@ Once the cluster shows `Ready`, retrieve the kubeconfig.
 # Wait for Ready status
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system
 
-# Status should show Ready: True
+# Status should show Ready: True (may return empty string while provisioning)
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o jsonpath='{.status.ready}'
 ```
+
+> **Note:** The `ready` field will be empty or `false` until all control plane and worker nodes are fully provisioned. If it has been more than 25 minutes and the cluster is still not ready, check the troubleshooting section in Part 3.
 
 ### Retrieve Kubeconfig
 
@@ -379,6 +404,8 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
+> **Note:** You may see some pods in `Pending` or `ContainerCreating` state for 1-2 minutes after first connecting. The Cloud Controller Manager (CCM) and CNI pods may take a moment to initialize. Wait and re-check if not all pods are `Running`.
+
 ### Verify Cluster Health
 
 ```bash
@@ -402,7 +429,7 @@ unset KUBECONFIG
 export KUBECONFIG=/home/ubuntu/.kube/config
 ```
 
-## Part 5: Explore the Managed Cluster
+## Part 5: Explore the Managed Cluster (~10 min)
 
 With access to your managed cluster, explore its configuration.
 
@@ -444,7 +471,7 @@ kubectl get pods -l app=nginx-test -o wide
 kubectl delete deployment nginx-test
 ```
 
-## Part 6: (Optional) Provision Azure Cluster
+## Part 6: (Optional) Provision Azure Cluster (~30 min)
 
 If you have Azure credentials, you can provision a cluster there too.
 
@@ -533,7 +560,7 @@ kubectl apply -f /tmp/azure-cluster-01.yaml
 kubectl get clusterdeployment azure-cluster-01 -n kcm-system -w
 ```
 
-## Part 7: Clean Up
+## Part 7: Clean Up (~10 min)
 
 > **Important:** Clean up resources to avoid unnecessary cloud costs!
 
@@ -558,7 +585,7 @@ aws ec2 describe-instances \
   --filters "Name=tag:kubernetes.io/cluster/managed-cluster-01,Values=owned" \
   --query 'Reservations[].Instances[].[InstanceId,State.Name]' \
   --output table \
-  --region us-east-1
+  --region $AWS_REGION
 ```
 
 ### Verify Complete Cleanup
