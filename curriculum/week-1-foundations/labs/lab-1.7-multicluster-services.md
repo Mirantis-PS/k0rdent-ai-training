@@ -283,48 +283,48 @@ Key fields:
 
 ## Part 3: Label Clusters for Service Targeting
 
-MultiClusterService uses label selectors to target clusters. The labels it matches against are the **`clusterLabels`** in the ClusterDeployment's `spec.config` — not the Kubernetes metadata labels.
+MultiClusterService uses label selectors to target clusters. MultiClusterService matches against ClusterDeployment **metadata labels** (set via `kubectl label`), not `spec.config.clusterLabels`.
 
 ### Check Current Cluster Labels
 
 ```bash
-# View the clusterLabels for each ClusterDeployment
-kubectl get clusterdeployments -n kcm-system \
-  -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.config.clusterLabels}{"\n"}{end}'
+# View the metadata labels on each ClusterDeployment
+kubectl get clusterdeployments -n kcm-system --show-labels
 
 # Example output:
-# managed-cluster-01: {"environment":"training"}
-# managed-cluster-02: {"environment":"training","region":"eu-west-1"}
+# NAME                 READY   STATUS   LABELS
+# managed-cluster-01   True    ...      environment=training,owner=lab-user
 ```
 
 ### Add Labels for Targeted Service Deployment
 
 We'll use two labeling strategies to demonstrate different targeting patterns:
-- `environment: training` — already set on all clusters (deploy baseline services to all)
+- `environment: training` — already set on all clusters via metadata labels (deploy baseline services to all)
 - `ingress: "true"` — opt-in label for clusters that need ingress (selective deployment)
 
 ```bash
-# Add the ingress opt-in label to cluster-01 only
-kubectl patch clusterdeployment managed-cluster-01 -n kcm-system --type=merge \
-  -p '{"spec":{"config":{"clusterLabels":{"environment":"training","ingress":"true"}}}}'
+# Add labels to ClusterDeployment METADATA (MCS matches these, not spec.config.clusterLabels)
+kubectl label clusterdeployment managed-cluster-01 -n kcm-system \
+  environment=training \
+  ingress=true
 
-# Cluster-02 keeps only environment=training (no ingress)
-# Its labels are already correct from provisioning
+# Cluster-02 gets only environment label (no ingress)
+# kubectl label clusterdeployment managed-cluster-02 -n kcm-system \
+#   environment=training
 ```
 
 ### Verify Labels
 
 ```bash
-# Confirm labels
-kubectl get clusterdeployments -n kcm-system \
-  -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.config.clusterLabels}{"\n"}{end}'
+# Confirm metadata labels
+kubectl get clusterdeployments -n kcm-system --show-labels
 
 # Expected:
-# managed-cluster-01: {"environment":"training","ingress":"true"}
-# managed-cluster-02: {"environment":"training","region":"eu-west-1"}
+# managed-cluster-01 should show: environment=training,ingress=true,...
+# managed-cluster-02 should show: environment=training,...
 ```
 
-> **Important:** Use `spec.config.clusterLabels` (via `kubectl patch`), not `kubectl label`. The `kubectl label` command sets Kubernetes metadata labels, which MultiClusterService does NOT match against.
+> **Important:** Use `kubectl label` to set metadata labels on ClusterDeployments. MultiClusterService `clusterSelector` matches against these **metadata labels**, not `spec.config.clusterLabels`. The `spec.config.clusterLabels` field propagates labels to the underlying CAPI Cluster object but is not used by MCS for targeting.
 
 ## Part 4: Create MultiClusterService
 

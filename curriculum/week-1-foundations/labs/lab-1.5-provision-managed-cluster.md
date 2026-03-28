@@ -221,6 +221,8 @@ EOF
 >   ```
 > - **sshKeyName** (commented out): Only needed if you want direct SSH access to managed cluster nodes. If included, the key pair must exist in the target region (see Lab 1.3, Part 6).
 
+> **Metadata labels vs clusterLabels:** The `metadata.labels` on the ClusterDeployment are used by MultiClusterService for cluster targeting via `clusterSelector`. The `spec.config.clusterLabels` propagate to the underlying CAPI Cluster object and are used for other purposes. For MCS to match your cluster, ensure the relevant labels are on the ClusterDeployment's metadata. In the YAML above, `environment: training` is set in both places intentionally.
+
 ### Apply the ClusterDeployment
 
 ```bash

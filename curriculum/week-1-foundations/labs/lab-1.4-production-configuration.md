@@ -305,18 +305,20 @@ if kubectl get deployment velero -n kcm-system -o jsonpath='{.spec.template.spec
   echo "AWS plugin already installed"
 else
   echo "Installing AWS plugin..."
-  kubectl patch deployment velero -n kcm-system --type=json -p='[
-    {
-      "op": "add",
-      "path": "/spec/template/spec/initContainers/-",
-      "value": {
-        "name": "velero-plugin-for-aws",
-        "image": "velero/velero-plugin-for-aws:v1.11.0",
-        "imagePullPolicy": "IfNotPresent",
-        "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
+  kubectl patch deployment velero -n kcm-system --type=strategic -p '{
+    "spec": {
+      "template": {
+        "spec": {
+          "initContainers": [{
+            "name": "velero-plugin-for-aws",
+            "image": "velero/velero-plugin-for-aws:v1.11.0",
+            "imagePullPolicy": "IfNotPresent",
+            "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
+          }]
+        }
       }
     }
-  ]'
+  }'
   kubectl rollout status deployment/velero -n kcm-system --timeout=120s
 fi
 ```
