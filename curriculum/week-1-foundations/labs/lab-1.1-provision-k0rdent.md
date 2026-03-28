@@ -322,6 +322,17 @@ kubectl get credentials -A
 - `clustertemplates.k0rdent.mirantis.com`
 - `credentials.k0rdent.mirantis.com`
 
+### Wait for Management READY
+
+Before proceeding to the next labs, wait for the Management object to finish initializing all CAPI providers. This takes 2-5 minutes after cloud-init completes.
+
+```bash
+# Wait for Management to be fully ready (required before Lab 1.3)
+kubectl wait management kcm --for=condition=Ready=True --timeout=300s
+```
+
+> **Why this matters:** Lab 1.3 requires CAPI CRDs (like `AWSClusterStaticIdentity`) that are only installed after the Management object finishes deploying all providers. If you skip this step, `kubectl apply` commands in Lab 1.3 will fail with "no matches for kind".
+
 ## Part 7: Access the k0rdent UI (~2 min)
 
 The provisioning script waits for k0rdent and Envoy Gateway to be fully operational before printing the UI URL.
