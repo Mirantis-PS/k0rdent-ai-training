@@ -131,12 +131,13 @@ If the GPU Operator is not yet deployed on your managed cluster, install the Ser
 
 ```bash
 # On the management cluster: Install GPU Operator ServiceTemplate from catalog
-helm install gpu-operator-service-template \
-  oci://ghcr.io/k0rdent/catalog/charts/gpu-operator-service-template \
-  --version 25.10.0 \
+# Uses the kgst (k0rdent Generic Service Template) meta-chart
+helm upgrade --install gpu-operator \
+  oci://ghcr.io/k0rdent/catalog/charts/kgst \
+  --set "chart=gpu-operator:25.10.0" \
   -n kcm-system
 
-# Verify the ServiceTemplate is available
+# Verify the ServiceTemplate is available (name format: gpu-operator-25-10-0)
 kubectl get servicetemplate -n kcm-system | grep gpu-operator
 ```
 

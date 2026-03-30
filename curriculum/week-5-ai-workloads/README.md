@@ -908,6 +908,20 @@ data:
 **Duration:** 21 hours
 **Focus:** GPU scheduling, model serving, ML platforms, AI tools, service catalog
 
+#### Choosing Your Path
+
+Week 5 uses a foundation-plus-electives model. The foundation track (Labs 5.1-5.6) is required; elective tracks can be mixed based on your role and available time.
+
+| Combination | Estimated Hours | Fits in 1 Week? |
+|-------------|-----------------|------------------|
+| Foundation only (5.1-5.6) | ~15 hours | Yes |
+| Foundation + Compliance (5.7-5.8) | ~19 hours | Yes |
+| Foundation + ML Platforms (5.9-5.12, all) | ~26.5 hours | No -- exceeds 1 week |
+| Foundation + Advanced (5.13-5.15) | ~27 hours | No -- exceeds 1 week |
+| **Recommended:** Foundation + 1 elective track | 17-24 hours | Usually yes |
+
+> **Tip:** If you have exactly one week, pick Foundation plus one elective track. Engineers who need both ML Platforms and Advanced should plan for two weeks or coordinate with their cohort lead.
+
 ### 6.1 Learning Objectives
 
 By the end of this week, engineers will be able to:
@@ -1039,6 +1053,11 @@ spec:
 - GPU memory fragmentation
 - vLLM OOM errors
 - Health check failures during upgrade
+
+> **Prerequisites and Licensing for Elective Labs**
+>
+> - **Lab 5.11 (Run:AI)** requires a commercial Run:AI license. Contact your instructor for access. If a license is unavailable, use **Lab 5.16 (KAI Scheduler)** as an open-source alternative.
+> - **Labs 5.13-5.15** require A100 40GB+ GPU instances (p4d.24xlarge or equivalent). See the [Lab Environment Setup](labs/README.md) for cost and provisioning details.
 
 #### Lab 5.7 - NVIDIA FIPS Configuration (2 hours)
 

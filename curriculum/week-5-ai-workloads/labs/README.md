@@ -49,6 +49,46 @@ YOUR MACHINE
 
 ---
 
+## Cost and Resource Planning
+
+### GPU Instance Cost Estimates
+
+| Instance | GPUs | GPU Memory | Spot Price | On-Demand | Labs |
+|----------|------|------------|------------|-----------|------|
+| g5.xlarge | 1x A10G | 24GB | ~$0.50/hr | ~$1.00/hr | Lighter labs, experimentation |
+| p3.8xlarge | 4x V100 | 16GB each | ~$4.50/hr | ~$12/hr | Foundation (5.1-5.6) |
+| p3.16xlarge | 8x V100 | 16GB each | ~$9/hr | ~$24/hr | Multi-GPU scheduling labs |
+| p4d.24xlarge | 8x A100 | 40GB each | ~$15/hr | ~$32/hr | Advanced (5.13-5.15) |
+
+**Which instance do I need?**
+- **Labs 5.1-5.6 (Foundation):** p3.8xlarge is sufficient.
+- **Labs 5.7-5.12 (Electives):** Varies by lab -- check each lab's prerequisites section.
+- **Labs 5.13-5.15 (Advanced):** p4d.24xlarge required (A100 40GB+ needed for distributed training and TensorRT-LLM).
+
+### Model Download Warning
+
+Several labs require large model weights from HuggingFace:
+
+| Model | Size | Estimated Download Time |
+|-------|------|------------------------|
+| Llama-2-7B | ~13 GB | 15-30 min |
+| Llama-2-70B | ~140 GB | 45-60 min |
+
+- **Pre-download models during initial setup** rather than waiting when a lab begins. See individual lab prerequisites for which models to pull.
+- **HuggingFace access token required** for gated models (Llama-2, etc.). Request access at [huggingface.co](https://huggingface.co) and set `HUGGING_FACE_HUB_TOKEN` before downloading.
+
+### Budget Guidance
+
+| Track | Estimated Hours | Spot Cost | On-Demand Cost |
+|-------|----------------|-----------|----------------|
+| Foundation (5.1-5.6) | ~15h on p3.8xlarge | ~$70 | ~$180 |
+| Electives (5.7-5.12) | ~10h (varies) | ~$45-150 | ~$120-320 |
+| Advanced (5.13-5.15) | ~9h on p4d.24xlarge | ~$135 | ~$290 |
+
+> **Always destroy instances when not actively working.** A single p4d.24xlarge left running overnight (8h) costs $120-260. Use `./scripts/lab-destroy.sh <your-engineer-id> --auto-approve` after every session.
+
+---
+
 ## Prerequisites
 
 Before starting Week 5 labs, you must have completed:

@@ -268,6 +268,8 @@ Deploy the GPU Operator using k0rdent's ServiceTemplate with UBI image overrides
        priority: 100
    ```
 
+   > **Region note:** FIPS-validated AMIs and configurations are primarily tested in US regions (us-east-1, us-east-2, us-west-2). If deploying in other regions, verify that FIPS-validated AMIs are available.
+
 2. **Option B: Deploy via MultiClusterService for existing clusters**
 
    If the cluster is already provisioned, deploy the GPU Operator via MultiClusterService:
