@@ -29,6 +29,12 @@ variable "allowed_ssh_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "cluster_name" {
+  description = "Kubernetes cluster name for CCM subnet discovery tags (kubernetes.io/cluster/<name>)"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Additional tags for all resources"
   type        = map(string)

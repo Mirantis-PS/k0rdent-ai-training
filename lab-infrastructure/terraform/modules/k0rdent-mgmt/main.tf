@@ -54,14 +54,16 @@ locals {
 
   # Cloud-init user data
   node_user_data = base64gzip(templatefile("${path.module}/templates/mgmt-cloud-init.yaml", {
-    engineer_id      = var.engineer_id
-    k0s_version      = var.k0s_version
-    k0rdent_version  = var.k0rdent_version
-    ui_password      = local.effective_ui_password
-    flux_version     = var.flux_version
-    artifacts_bucket = var.artifacts_bucket
-    region           = var.region
-    ssh_public_key   = tls_private_key.mgmt.public_key_openssh
+    engineer_id           = var.engineer_id
+    k0s_version           = var.k0s_version
+    k0rdent_version       = var.k0rdent_version
+    ui_password           = local.effective_ui_password
+    flux_version          = var.flux_version
+    artifacts_bucket      = var.artifacts_bucket
+    region                = var.region
+    ssh_public_key        = tls_private_key.mgmt.public_key_openssh
+    gateway_api_version   = var.gateway_api_version
+    envoy_gateway_version = var.envoy_gateway_version
   }))
 
   # Generate k0sctl configuration
@@ -184,11 +186,11 @@ resource "aws_security_group" "mgmt_cluster" {
     self        = true
   }
 
-  # NLB health checks and traffic to k0rdent UI NodePort
+  # Envoy Gateway LoadBalancer traffic (CCM-provisioned NLB uses dynamic NodePort)
   ingress {
-    description = "k0rdent UI via NLB"
-    from_port   = 30080
-    to_port     = 30080
+    description = "Envoy Gateway LoadBalancer (dynamic NodePort via CCM)"
+    from_port   = 30000
+    to_port     = 32767
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -203,7 +205,8 @@ resource "aws_security_group" "mgmt_cluster" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-mgmt-cluster-${var.engineer_id}"
+    Name                                                    = "${var.project_name}-mgmt-cluster-${var.engineer_id}"
+    "kubernetes.io/cluster/k0rdent-mgmt-${var.engineer_id}" = "owned"
   })
 }
 
@@ -236,9 +239,10 @@ resource "aws_instance" "mgmt_node" {
   user_data_base64 = local.node_user_data
 
   tags = merge(local.common_tags, {
-    Name      = local.node_names[count.index]
-    Role      = count.index == 0 ? "controller-primary" : "controller"
-    NodeIndex = count.index
+    Name                                                    = local.node_names[count.index]
+    Role                                                    = count.index == 0 ? "controller-primary" : "controller"
+    NodeIndex                                               = count.index
+    "kubernetes.io/cluster/k0rdent-mgmt-${var.engineer_id}" = "owned"
   })
 
   lifecycle {
@@ -256,59 +260,6 @@ resource "aws_cloudwatch_log_group" "mgmt_cluster" {
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-mgmt-logs-${var.engineer_id}"
   })
-}
-
-#------------------------------------------------------------------------------
-# Network Load Balancer for k0rdent UI
-#------------------------------------------------------------------------------
-resource "aws_lb" "k0rdent_ui" {
-  name               = "${var.project_name}-ui-${var.engineer_id}"
-  internal           = false
-  load_balancer_type = "network"
-  subnets            = var.public_subnet_ids
-
-  enable_cross_zone_load_balancing = true
-
-  tags = merge(local.common_tags, {
-    Name = "${var.project_name}-ui-${var.engineer_id}"
-  })
-}
-
-resource "aws_lb_target_group" "k0rdent_ui" {
-  name     = "${var.project_name}-ui-${var.engineer_id}"
-  port     = 30080
-  protocol = "TCP"
-  vpc_id   = var.vpc_id
-
-  health_check {
-    protocol            = "TCP"
-    port                = 30080
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-    interval            = 30
-  }
-
-  tags = merge(local.common_tags, {
-    Name = "${var.project_name}-ui-tg-${var.engineer_id}"
-  })
-}
-
-resource "aws_lb_listener" "k0rdent_ui" {
-  load_balancer_arn = aws_lb.k0rdent_ui.arn
-  port              = 80
-  protocol          = "TCP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.k0rdent_ui.arn
-  }
-}
-
-resource "aws_lb_target_group_attachment" "k0rdent_ui" {
-  count            = var.node_count
-  target_group_arn = aws_lb_target_group.k0rdent_ui.arn
-  target_id        = aws_instance.mgmt_node[count.index].id
-  port             = 30080
 }
 
 #------------------------------------------------------------------------------

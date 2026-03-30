@@ -63,7 +63,13 @@ resource "aws_subnet" "public" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-public-${local.azs[count.index]}"
     Type = "public"
-  })
+    },
+    # CCM LoadBalancer discovery tags (only added when cluster_name is set)
+    var.cluster_name != "" ? {
+      "kubernetes.io/cluster/${var.cluster_name}" = "owned"
+      "kubernetes.io/role/elb"                    = "1"
+    } : {}
+  )
 }
 
 resource "aws_route_table" "public" {
@@ -99,7 +105,13 @@ resource "aws_subnet" "private" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-private-${local.azs[count.index]}"
     Type = "private"
-  })
+    },
+    # CCM LoadBalancer discovery tags (only added when cluster_name is set)
+    var.cluster_name != "" ? {
+      "kubernetes.io/cluster/${var.cluster_name}" = "owned"
+      "kubernetes.io/role/internal-elb"           = "1"
+    } : {}
+  )
 }
 
 #------------------------------------------------------------------------------

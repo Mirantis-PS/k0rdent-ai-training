@@ -72,6 +72,98 @@ wait_for_instance() {
     return 0
 }
 
+# Wait for cloud-init, stream progress, and retrieve Gateway LB URL
+wait_for_gateway_url() {
+    local bastion_ip="$1"
+    local mgmt_ip="$2"
+    local key_file="$3"
+    local bastion_key="$4"
+    local max_wait="${5:-1200}"  # 20 min default (cloud-init takes ~15 min)
+
+    # SSH options for bastion jump (bastion is Amazon Linux = ec2-user)
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10"
+    local proxy_cmd="ssh ${ssh_opts} -i ${bastion_key} -W %h:%p ec2-user@${bastion_ip}"
+
+    # Wait for SSH to become available (instance needs ~60s to boot)
+    log_info "Waiting for SSH access to management node..."
+    local ssh_ready="false"
+    for i in $(seq 1 20); do
+        if ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+            "echo ok" 2>/dev/null | grep -q ok; then
+            ssh_ready="true"
+            break
+        fi
+        echo -n "."
+        sleep 5
+    done
+    echo ""
+
+    if [[ "$ssh_ready" != "true" ]]; then
+        log_warn "Could not SSH to management node. Check bastion/instance status."
+        return 1
+    fi
+
+    # Stream init log in real-time until .init-complete marker appears
+    log_info "Streaming initialization progress (live)..."
+    echo ""
+    ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+        "timeout ${max_wait} bash -c '
+            # Wait for log file to appear
+            while [ ! -f /var/log/k0rdent-init.log ]; do sleep 2; done
+            # Stream log, filtering for key progress lines
+            tail -f /var/log/k0rdent-init.log 2>/dev/null | while IFS= read -r line; do
+                case \"\$line\" in
+                    *\"[1/6]\"*|*\"[2/6]\"*|*\"[3/6]\"*|*\"[4/6]\"*|*\"[5/6]\"*|*\"[6/6]\"*)
+                        echo \"  \$line\" ;;
+                    *\"=== \"*\" ===\"*)
+                        echo \"  \$line\" ;;
+                    *\"Installing \"*|*\"Waiting for \"*|*\"Helm install\"*|*\"Creating \"*)
+                        echo \"  \$line\" ;;
+                    *\"STATUS: deployed\"*)
+                        echo \"  \$line\" ;;
+                    *\"providerID\"*)
+                        echo \"  \$line\" ;;
+                    *\"WARN:\"*|*\"ERROR:\"*)
+                        echo \"  \$line\" ;;
+                    *\"Installation Complete\"*|*\"Lab initialization complete\"*)
+                        echo \"  \$line\"
+                        break ;;
+                esac
+            done
+        '" 2>/dev/null || true
+    echo ""
+
+    # Verify init completed
+    local init_done
+    init_done=$(ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+        "test -f /opt/k0rdent-lab/.init-complete && echo yes || echo no" 2>/dev/null || echo "no")
+
+    if [[ "$init_done" != "yes" ]]; then
+        log_warn "Initialization did not complete within ${max_wait}s. Check: tail -f /var/log/k0rdent-init.log"
+        return 1
+    fi
+    log_success "k0rdent initialization complete"
+
+    # Poll for Gateway LB URL (CCM needs ~30-60s after init to provision the ELB)
+    log_info "Waiting for Gateway LoadBalancer address..."
+    local gw_addr=""
+    for i in $(seq 1 24); do  # 24 × 10s = 4 min
+        gw_addr=$(ssh ${ssh_opts} -i "$key_file" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+            "kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'" 2>/dev/null || true)
+
+        if [[ -n "$gw_addr" ]]; then
+            echo "http://${gw_addr}"
+            return 0
+        fi
+
+        echo -n "."
+        sleep 10
+    done
+
+    log_warn "Gateway LB address not available after 4 min. Retrieve later: ./lab-connect.sh <id> --ui-url"
+    echo ""
+}
+
 usage() {
     cat <<EOF
 k0rdent Training Lab Provisioning Script (Per-Student)
@@ -131,10 +223,9 @@ check_prerequisites() {
 
 get_student_bucket() {
     local engineer_id="$1"
-    local region="$2"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-lab-${engineer_id}-${account_id}-${region}"
+    echo "k0rdent-lab-${engineer_id}-${account_id}"
 }
 
 ensure_student_bucket() {
@@ -169,7 +260,7 @@ provision_lab() {
     log_info "Provisioning lab environment for $engineer_id..."
 
     local bucket
-    bucket=$(get_student_bucket "$engineer_id" "$REGION")
+    bucket=$(get_student_bucket "$engineer_id")
     ensure_student_bucket "$bucket"
 
     local env_dir="$TERRAFORM_DIR/environments/student-lab"
@@ -219,29 +310,44 @@ provision_lab() {
     terraform output -raw bastion_ssh_private_key > "$key_dir/${engineer_id}-bastion.pem"
     chmod 600 "$key_dir/${engineer_id}-bastion.pem"
 
-    # Save per-region config for connect/status/destroy scripts
+    # Save config for connect/status/destroy scripts
     mkdir -p "$CONFIG_DIR"
-    cat > "$CONFIG_DIR/lab-config-${REGION}.env" <<ENVEOF
-LAB_REGION="${REGION}"
-LAB_ENGINEER_ID="${engineer_id}"
-LAB_BUCKET="${bucket}"
-ENVEOF
-    # Also save a "last used" pointer for convenience (scripts without --region)
     cat > "$CONFIG_DIR/lab-config.env" <<ENVEOF
 LAB_REGION="${REGION}"
 LAB_ENGINEER_ID="${engineer_id}"
 LAB_BUCKET="${bucket}"
 ENVEOF
 
-    log_success "Lab environment provisioned for $engineer_id!"
-    log_info "Bastion IP: $(terraform output -raw bastion_public_ip)"
-    log_info "Primary node IP: $(terraform output -raw primary_node_private_ip)"
-    log_info "SSH key: $key_dir/${engineer_id}-k0rdent.pem"
+    local bastion_ip
+    bastion_ip=$(terraform output -raw bastion_public_ip)
+    local mgmt_ip
+    mgmt_ip=$(terraform output -raw primary_node_private_ip)
+    local mgmt_key="$key_dir/${engineer_id}-k0rdent.pem"
+    local bastion_key="$key_dir/${engineer_id}-bastion.pem"
+
+    log_success "Infrastructure provisioned for $engineer_id!"
+    log_info "Bastion IP: $bastion_ip"
+    log_info "Primary node IP: $mgmt_ip"
+    log_info "SSH key: $mgmt_key"
     log_info "Connect via: ./lab-connect.sh $engineer_id"
     echo ""
-    log_info "k0rdent UI:"
-    log_info "  URL:      $(terraform output -raw ui_url 2>/dev/null || echo 'initializing...')"
-    log_info "  Password: run: terraform output ui_password"
+
+    log_info "Waiting for k0rdent + Envoy Gateway to be ready..."
+    local ui_url
+    ui_url=$(wait_for_gateway_url "$bastion_ip" "$mgmt_ip" "$mgmt_key" "$bastion_key")
+
+    local ui_password
+    ui_password=$(terraform output -raw ui_password 2>/dev/null || echo "unknown")
+
+    echo ""
+    echo "============================================"
+    echo "  k0rdent UI"
+    echo "  URL:       ${ui_url:-not yet available -- run: ./lab-connect.sh $engineer_id --ui-url}"
+    echo "  Username:  admin"
+    echo "  Password:  ${ui_password}"
+    echo "============================================"
+    echo ""
+    log_info "To retrieve the URL later: ./lab-connect.sh $engineer_id --ui-url"
 }
 
 # Default values
@@ -312,15 +418,14 @@ if [[ -z "$IDENTIFIER" ]]; then
     usage
 fi
 
-# Resolve region: CLI flag takes priority, then saved config, then env vars
-if [[ -z "$REGION" ]]; then
-    # Load default config for region detection
-    if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
-        source "$CONFIG_DIR/lab-config.env"
-    fi
-    if [[ -n "${LAB_REGION:-}" ]]; then
-        REGION="$LAB_REGION"
-    fi
+# Load saved config
+if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
+    source "$CONFIG_DIR/lab-config.env"
+fi
+
+# Resolve region
+if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
+    REGION="$LAB_REGION"
 fi
 if [[ -z "$REGION" ]]; then
     REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"

@@ -92,7 +92,7 @@ output "ui_password" {
   sensitive   = true
 }
 
-output "ui_url" {
-  description = "k0rdent UI URL via NLB"
-  value       = "http://${aws_lb.k0rdent_ui.dns_name}"
+output "ui_access" {
+  description = "How to retrieve the k0rdent UI URL (available after cloud-init completes)"
+  value       = "Gateway LB URL available after init. Run: ./scripts/lab-connect.sh ${var.engineer_id} --ui-url"
 }

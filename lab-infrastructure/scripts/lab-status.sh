@@ -44,10 +44,16 @@ EOF
 
 get_student_bucket() {
     local engineer_id="$1"
-    local region="$2"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-lab-${engineer_id}-${account_id}-${region}"
+    echo "k0rdent-lab-${engineer_id}-${account_id}"
+}
+
+get_state_output() {
+    local bucket="$1"
+    local output_name="$2"
+    aws s3 cp "s3://${bucket}/terraform.tfstate" - 2>/dev/null \
+        | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
 }
 
 check_instance_status() {
@@ -61,7 +67,7 @@ check_instance_status() {
 show_status() {
     local engineer_id="$1"
     local bucket
-    bucket=$(get_student_bucket "$engineer_id" "$REGION")
+    bucket=$(get_student_bucket "$engineer_id")
 
     echo ""
     echo "=========================================="
@@ -79,7 +85,7 @@ show_status() {
 
     # Check if state exists
     local state_content
-    state_content=$(aws s3 cp "s3://${bucket}/terraform.tfstate" - --region "$REGION" 2>/dev/null || echo "")
+    state_content=$(aws s3 cp "s3://${bucket}/terraform.tfstate" - 2>/dev/null || echo "")
     if [[ -z "$state_content" ]]; then
         log_warn "No Terraform state found. Environment not provisioned."
         return 0
@@ -166,10 +172,10 @@ show_status() {
 show_status_json() {
     local engineer_id="$1"
     local bucket
-    bucket=$(get_student_bucket "$engineer_id" "$REGION")
+    bucket=$(get_student_bucket "$engineer_id")
 
     local state_content
-    state_content=$(aws s3 cp "s3://${bucket}/terraform.tfstate" - --region "$REGION" 2>/dev/null || echo "{}")
+    state_content=$(aws s3 cp "s3://${bucket}/terraform.tfstate" - 2>/dev/null || echo "{}")
 
     echo "$state_content" | jq '{
         engineer_id: "'"$engineer_id"'",
@@ -185,6 +191,11 @@ show_status_json() {
         kubevirt_ip: (.outputs.kubevirt_controller_ip.value // null)
     }' 2>/dev/null || echo '{"error": "No state found"}'
 }
+
+# Load config if exists
+if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
+    source "$CONFIG_DIR/lab-config.env"
+fi
 
 # Default values
 REGION=""
@@ -228,13 +239,8 @@ if [[ -z "$IDENTIFIER" ]]; then
 fi
 
 # Resolve region
-if [[ -z "$REGION" ]]; then
-    if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
-        source "$CONFIG_DIR/lab-config.env"
-    fi
-    if [[ -n "${LAB_REGION:-}" ]]; then
-        REGION="$LAB_REGION"
-    fi
+if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
+    REGION="$LAB_REGION"
 fi
 if [[ -z "$REGION" ]]; then
     REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"

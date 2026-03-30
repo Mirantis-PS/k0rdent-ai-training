@@ -37,6 +37,7 @@ module "networking" {
 
   project_name      = var.project_name
   engineer_id       = var.engineer_id
+  cluster_name      = "k0rdent-mgmt-${var.engineer_id}"
   vpc_cidr          = var.vpc_cidr
   gpu_az            = var.gpu_az
   allowed_ssh_cidrs = var.allowed_ssh_cidrs
@@ -75,7 +76,6 @@ module "k0rdent_mgmt" {
 
   vpc_id                = module.networking.vpc_id
   subnet_id             = module.networking.private_subnet_ids[0]
-  public_subnet_ids     = module.networking.public_subnet_ids
   security_group_ids    = [module.networking.lab_instance_security_group_id]
   instance_profile_name = module.iam.lab_instance_profile_name
   bastion_sg_id         = module.networking.bastion_security_group_id
@@ -84,10 +84,12 @@ module "k0rdent_mgmt" {
   instance_type    = var.instance_type
   root_volume_size = var.root_volume_size
 
-  k0s_version     = var.k0s_version
-  k0rdent_version = var.k0rdent_version
-  ui_password     = var.ui_password
-  flux_version    = var.flux_version
+  k0s_version           = var.k0s_version
+  k0rdent_version       = var.k0rdent_version
+  ui_password           = var.ui_password
+  flux_version          = var.flux_version
+  gateway_api_version   = var.gateway_api_version
+  envoy_gateway_version = var.envoy_gateway_version
 
   artifacts_bucket = var.student_bucket
 

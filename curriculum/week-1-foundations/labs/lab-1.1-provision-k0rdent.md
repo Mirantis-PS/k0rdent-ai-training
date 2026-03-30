@@ -3,6 +3,35 @@
 **Duration:** 3 hours (active: ~1.5h, waiting for provisioning: ~1.5h)
 **Type:** Hands-on Lab
 
+## Table of Contents
+
+- [Objectives](#objectives)
+- [Prerequisites](#prerequisites)
+- [How the Lab Infrastructure Works](#how-the-lab-infrastructure-works)
+- [Resuming This Lab](#resuming-this-lab)
+- [Part 1: Configure AWS Credentials](#part-1-configure-aws-credentials)
+  - [Option A: AWS CLI Profile (Recommended)](#option-a-aws-cli-profile-recommended)
+  - [Option B: Environment Variables](#option-b-environment-variables)
+  - [Option C: AWS SSO](#option-c-aws-sso)
+  - [Region Selection](#region-selection)
+- [Lab Environment](#lab-environment)
+- [Part 2: Verify Prerequisites](#part-2-verify-prerequisites)
+- [Part 3: Provision the k0rdent Management Cluster](#part-3-provision-the-k0rdent-management-cluster)
+  - [Understanding the Output](#understanding-the-output)
+- [Part 4: Connect to the Management Cluster](#part-4-connect-to-the-management-cluster)
+  - [Verify k0rdent Installation](#verify-k0rdent-installation)
+- [Part 5: Verify k0s Cluster](#part-5-verify-k0s-cluster)
+- [Part 6: Verify k0rdent Enterprise Installation](#part-6-verify-k0rdent-enterprise-installation)
+- [Part 7: Access the k0rdent UI](#part-7-access-the-k0rdent-ui)
+- [Part 8: Explore k0rdent Resources](#part-8-explore-k0rdent-resources)
+- [Validation Checklist](#validation-checklist)
+- [Troubleshooting](#troubleshooting)
+  - [k0rdent Installation Issues](#k0rdent-installation-issues)
+- [Clean Up](#clean-up)
+- [Summary](#summary)
+- [Quick Reference: Aliases](#quick-reference-aliases)
+- [Next Lab](#next-lab)
+
 ## Objectives
 
 In this lab, you will:
@@ -15,7 +44,7 @@ In this lab, you will:
 ## Prerequisites
 
 - AWS CLI v2 installed
-- Terraform >= 1.5.0 installed
+- Terraform >= 1.8.0 installed
 - Your own copy of this training repository (fork or template)
 - Basic terminal/shell knowledge
 
@@ -27,48 +56,41 @@ Before provisioning, understand the per-student architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           PER-STUDENT, PER-REGION INFRASTRUCTURE              │
-│       Each student + region gets fully isolated resources      │
+│           PER-STUDENT INFRASTRUCTURE                         │
+│       Each student gets fully isolated resources              │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  john-doe                         jane-doe                   │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐          │
-│  │  us-east-1   │ │  eu-west-1   │ │  us-east-1   │   ...   │
-│  │  Own VPC     │ │  Own VPC     │ │  Own VPC     │          │
-│  │  Own Bastion │ │  Own Bastion │ │  Own Bastion │          │
-│  │  Own S3      │ │  Own S3      │ │  Own S3      │          │
-│  │  k0rdent     │ │  k0rdent     │ │  k0rdent     │          │
-│  └──────────────┘ └──────────────┘ └──────────────┘          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │  john-doe   │  │  jane-doe   │  │  bob-smith  │   ...    │
+│  │  Own VPC    │  │  Own VPC    │  │  Own VPC    │          │
+│  │  Own Bastion│  │  Own Bastion│  │  Own Bastion│          │
+│  │  Own S3     │  │  Own S3     │  │  Own S3     │          │
+│  │  k0rdent    │  │  k0rdent    │  │  k0rdent    │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
 │                                                              │
-│  Each student can deploy to multiple regions independently   │
+│  Each student has completely isolated infrastructure         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Key Points:**
-- Each student gets their own VPC, bastion, S3 bucket, and k0rdent cluster **per region**
+- Each student gets their own VPC, bastion, S3 bucket, and k0rdent cluster
 - Each engineer uses a unique ID (e.g., `john-doe`, `jane-doe`)
 - Running with different IDs creates **completely isolated** environments
-- You can deploy to **multiple AWS regions** independently — each region gets its own S3 bucket and fully isolated infrastructure
-- State is stored in a per-student, per-region S3 bucket: `k0rdent-lab-<your-id>-<account-id>-<region>`
+- State is stored in a per-student S3 bucket: `k0rdent-lab-<your-id>-<account-id>`
 
 ## Resuming This Lab
 
 If your SSH session dropped or you're returning the next day:
 
 ```bash
-# Reconnect to your environment
+# Reconnect to your environment (use the same region you provisioned in)
 cd lab-infrastructure
 ./scripts/lab-connect.sh <your-engineer-id>
-
-# If you have deployments in multiple regions, specify which one:
-./scripts/lab-connect.sh <your-engineer-id> --region eu-west-1
 
 # Verify the cluster is running
 kubectl get nodes
 kubectl get pods -n kcm-system
 ```
-
-> **Note:** Without `--region`, the connect script uses the region from your last provisioned deployment.
 
 ---
 
@@ -131,7 +153,7 @@ Choose a region with good availability. Common choices:
 | Instance Type | t3.xlarge (4 vCPU, 16GB RAM) |
 | OS | Ubuntu 22.04 LTS |
 | Kubernetes | k0s v1.32.4 |
-| k0rdent | Enterprise v1.2.1 |
+| k0rdent | Enterprise v1.2.2 |
 
 ## Part 2: Verify Prerequisites
 
@@ -140,7 +162,7 @@ From the root of your cloned training repository:
 ```bash
 cd lab-infrastructure
 
-# Check Terraform version (>= 1.5.0 required)
+# Check Terraform version (>= 1.8.0 required)
 terraform --version
 
 # Check AWS CLI (v2 required)
@@ -153,7 +175,7 @@ aws sts get-caller-identity
 ## Part 3: Provision the k0rdent Management Cluster
 
 The provisioning script automates the entire setup process including:
-- Creating a per-student, per-region S3 bucket for Terraform state
+- Creating a per-student S3 bucket for Terraform state
 - Provisioning VPC, bastion host, and IAM resources
 - Deploying the k0rdent management cluster
 - Installing k0s and k0rdent Enterprise
@@ -168,24 +190,10 @@ Replace `<your-engineer-id>` with your unique identifier (e.g., `engineer-01`, `
 
 > **Example:** `./scripts/lab-provision.sh john-doe --region us-east-1 --auto-approve`
 
-### Multi-Region Deployments
-
-You can deploy k0rdent clusters to **multiple regions** by running the provisioning script again with a different `--region`. Each region gets completely isolated infrastructure (its own VPC, bastion, S3 bucket, and k0rdent cluster):
-
-```bash
-# Deploy to US East
-./scripts/lab-provision.sh john-doe --region us-east-1 --auto-approve
-
-# Deploy to EU West (independent from the US deployment)
-./scripts/lab-provision.sh john-doe --region eu-west-1 --auto-approve
-```
-
-Each region's state is stored in a separate S3 bucket (`k0rdent-lab-john-doe-123456789012-us-east-1`, `k0rdent-lab-john-doe-123456789012-eu-west-1`), so deployments never interfere with each other.
-
 ### Understanding the Output
 
 The script will display progress as it:
-1. Creates per-student, per-region S3 bucket for Terraform state
+1. Creates per-student S3 bucket for Terraform state
 2. Provisions VPC, subnets, bastion host
 3. Deploys the management cluster EC2 instance
 4. Waits for the instance to be ready
@@ -281,38 +289,46 @@ kubectl get credentials -A
 
 ## Part 7: Access the k0rdent UI
 
-The k0rdent UI is exposed via a Network Load Balancer (NLB), so you can access it directly from your browser -- no SSH tunnels or port-forwarding required.
+The provisioning script waits for k0rdent and Envoy Gateway to be fully operational before printing the UI URL.
 
-### Get the UI URL
+**How the UI is exposed:**
 
-From your local machine (where you ran the provisioning script):
-
-```bash
-cd lab-infrastructure/terraform/environments/student-lab
-terraform output ui_url
+```
+Browser (HTTP) → AWS NLB (auto-provisioned) → Envoy Gateway → HTTPRoute → k0rdent UI (:3000)
 ```
 
-This outputs the NLB URL, e.g., `http://k0rdent-ui-xxxx.elb.us-east-1.amazonaws.com`
+Envoy Gateway uses the Kubernetes Gateway API to route traffic. AWS Cloud Controller Manager automatically provisions a Network Load Balancer for the Gateway's Service.
 
-### Get the UI Password
+**The URL is printed at the end of provisioning:**
 
-```bash
-# Option A: Terraform output
-cd lab-infrastructure/terraform/environments/student-lab
-terraform output -raw ui_password
-
-# Option B: Helper script
-./scripts/lab-connect.sh <your-engineer-id> --show-password
+```
+============================================
+  k0rdent UI
+  URL:       http://xxxxx.elb.us-east-1.amazonaws.com
+  Username:  admin
+  Password:  <generated>
+============================================
 ```
 
-### Login
+**To retrieve the URL later:**
 
-1. Open the NLB URL in your browser
-2. Login with:
-   - **Username:** `admin`
-   - **Password:** the password from the command above
+```bash
+# Get UI URL and credentials
+./scripts/lab-connect.sh <your-name> --ui-url
 
-> **Note:** The NLB URL uses HTTP (port 80). The NLB may take 2-3 minutes after provisioning to become healthy. If you get a connection error, wait and retry.
+# View Gateway API resource status
+./scripts/lab-connect.sh <your-name> --show-gateway
+```
+
+**From inside the cluster (via SSH):**
+
+```bash
+# Get the Gateway LB address
+kubectl get gateway k0rdent-gateway -n kcm-system
+
+# View all Gateway API resources
+kubectl get gatewayclass,gateway,httproute -A
+```
 
 ## Part 8: Explore k0rdent Resources
 
@@ -358,11 +374,8 @@ Before completing this lab, verify:
 For quick diagnostics:
 
 ```bash
-# Check environment status (uses last-provisioned region by default)
+# Check environment status
 ./scripts/lab-status.sh your-name
-
-# Check a specific region
-./scripts/lab-status.sh your-name --region eu-west-1
 ```
 
 **Error: Terraform version too old**
@@ -418,7 +431,7 @@ ls /opt/k0rdent-lab/.init-complete && echo "Done!"
 
 **Common issues:**
 - **AWS credentials:** Re-run `aws configure` or check `aws sts get-caller-identity`
-- **Terraform errors:** Check version with `terraform --version` (needs >= 1.5.0)
+- **Terraform errors:** Check version with `terraform --version` (needs >= 1.8.0)
 - **SSH connection:** Ensure correct key permissions (`chmod 600 config/keys/*.pem`)
 - **Pods not starting:** Check with `kubectl describe pod <name> -n kcm-system`
 
@@ -429,17 +442,7 @@ For comprehensive troubleshooting, see the [Troubleshooting Guide](../../../lab-
 When finished with the lab, you can destroy the environment:
 
 ```bash
-# Destroy the environment in the last-provisioned region
 ./scripts/lab-destroy.sh <your-engineer-id> --auto-approve
-
-# Or specify which region to destroy
-./scripts/lab-destroy.sh <your-engineer-id> --region us-east-1 --auto-approve
-```
-
-If you deployed to multiple regions, each region must be destroyed separately. Add `--delete-bucket` to also remove the S3 state bucket:
-
-```bash
-./scripts/lab-destroy.sh <your-engineer-id> --region eu-west-1 --auto-approve --delete-bucket
 ```
 
 > **Important:** Only destroy if you're done with **all Week 1 labs**, as subsequent labs build on this environment.
@@ -448,7 +451,6 @@ If you deployed to multiple regions, each region must be destroyed separately. A
 
 In this lab, you:
 - Provisioned a k0rdent Enterprise management cluster using automated scripts
-- Learned that deployments are per-student, per-region (you can deploy to multiple AWS regions independently)
 - Connected to the cluster via SSH through a bastion host
 - Verified k0s and k0rdent Enterprise installation
 - Explored the k0rdent UI and Kubernetes resources

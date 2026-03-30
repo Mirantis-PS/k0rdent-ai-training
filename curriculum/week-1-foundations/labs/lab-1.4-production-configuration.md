@@ -3,6 +3,40 @@
 **Duration:** 3 hours
 **Type:** Hands-on Lab
 
+## Table of Contents
+
+- [Objectives](#objectives)
+- [Prerequisites](#prerequisites)
+- [Resuming This Lab](#resuming-this-lab)
+- [Part 1: Production Architecture Overview](#part-1-production-architecture-overview)
+  - [Single vs Multi-Node Management Cluster](#single-vs-multi-node-management-cluster)
+  - [Exercise: Evaluate Your Setup](#exercise-evaluate-your-setup)
+- [Part 2: Configure RBAC for Multi-Team Access](#part-2-configure-rbac-for-multi-team-access)
+  - [Understanding k0rdent RBAC](#understanding-k0rdent-rbac)
+  - [Create Namespaces for Teams](#create-namespaces-for-teams)
+  - [Create Cluster Roles](#create-cluster-roles)
+  - [Create Service Accounts and Bindings](#create-service-accounts-and-bindings)
+- [Part 3: Configure Audit Logging](#part-3-configure-audit-logging)
+  - [Enable Kubernetes Audit Logging](#enable-kubernetes-audit-logging)
+  - [Configure k0s for Audit Logging](#configure-k0s-for-audit-logging)
+- [Part 4: Configure Backup and Recovery](#part-4-configure-backup-and-recovery)
+  - [Step 1: Configure Backup Storage](#step-1-configure-backup-storage)
+  - [Step 2: Ensure the Velero AWS Plugin is Loaded](#step-2-ensure-the-velero-aws-plugin-is-loaded)
+  - [Step 3: Create a Scheduled Backup](#step-3-create-a-scheduled-backup)
+  - [Step 4: Create an On-Demand Backup](#step-4-create-an-on-demand-backup)
+  - [Understanding What Gets Backed Up](#understanding-what-gets-backed-up)
+- [Part 5: Security Hardening](#part-5-security-hardening)
+  - [Network Policies](#network-policies)
+  - [Pod Security Standards](#pod-security-standards)
+  - [Secret Encryption](#secret-encryption)
+- [Part 6: Configure Resource Quotas](#part-6-configure-resource-quotas)
+  - [Set Namespace Quotas](#set-namespace-quotas)
+- [Part 7: Production Readiness Checklist](#part-7-production-readiness-checklist)
+  - [Create Assessment Script](#create-assessment-script)
+- [Validation Checklist](#validation-checklist)
+- [Summary](#summary)
+- [Next Lab](#next-lab)
+
 ## Objectives
 
 In this lab, you will:
@@ -219,51 +253,155 @@ sudo k0s config create
 
 ## Part 4: Configure Backup and Recovery
 
-### Etcd Backup
+k0rdent ships with **Velero** built into the Helm chart. Velero handles backup and restore of the management cluster's state — including all CRDs, secrets, and cluster configurations. k0rdent provides the `ManagementBackup` CRD to manage backup schedules declaratively.
+
+### Step 1: Configure Backup Storage
+
+Velero needs a storage location (S3 bucket) for backup data. In the training lab, the EC2 instance profile already has S3 permissions, so Velero can use it directly without static credentials.
 
 ```bash
-# Create backup script
-cat << 'EOF' | sudo tee /usr/local/bin/etcd-backup.sh
-#!/bin/bash
-BACKUP_DIR="/var/lib/k0s/backups"
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+source /opt/k0rdent-lab/config/lab-info.env
 
-mkdir -p "$BACKUP_DIR"
+# Create an empty credentials file (Velero requires the secret to exist,
+# but with an empty [default] profile it falls back to the instance profile)
+kubectl create secret generic cloud-credentials \
+  -n kcm-system \
+  --from-literal=cloud=$'[default]\n' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
 
-# Take etcd snapshot
-sudo k0s etcd snapshot save "$BACKUP_DIR/etcd-snapshot-$TIMESTAMP.db"
-
-# Keep only last 7 backups
-ls -t "$BACKUP_DIR"/etcd-snapshot-*.db | tail -n +8 | xargs -r rm
-
-echo "Backup completed: $BACKUP_DIR/etcd-snapshot-$TIMESTAMP.db"
+```bash
+# Create the BackupStorageLocation pointing to your S3 bucket
+cat <<EOF | kubectl apply -f -
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: aws-s3
+  namespace: kcm-system
+spec:
+  provider: aws
+  config:
+    region: $AWS_REGION
+  credential:
+    name: cloud-credentials
+    key: cloud
+  objectStorage:
+    bucket: $ARTIFACTS_BUCKET
+    prefix: velero-backups
 EOF
-
-sudo chmod +x /usr/local/bin/etcd-backup.sh
-
-# Test backup
-sudo /usr/local/bin/etcd-backup.sh
 ```
 
-### Schedule Automated Backups
+> **How credentials work here:** The Velero pod runs on an EC2 instance with an IAM instance profile that grants S3 access to the student bucket. When the AWS SDK finds empty static credentials, it falls back to the EC2 instance metadata service (IMDS) and uses the instance profile. In production, you would use IRSA (IAM Roles for Service Accounts) or explicit credentials instead.
+
+### Step 2: Ensure the Velero AWS Plugin is Loaded
+
+Velero needs the AWS plugin to interact with S3. Check if it's already installed, and add it if not:
 
 ```bash
-# Add cron job for daily backups
-echo "0 2 * * * root /usr/local/bin/etcd-backup.sh >> /var/log/etcd-backup.log 2>&1" | \
-  sudo tee /etc/cron.d/etcd-backup
+# Check if the AWS plugin is already configured
+if kubectl get deployment velero -n kcm-system -o jsonpath='{.spec.template.spec.initContainers[*].name}' | grep -q velero-plugin-for-aws; then
+  echo "AWS plugin already installed"
+else
+  echo "Installing AWS plugin..."
+  kubectl patch deployment velero -n kcm-system --type=json -p='[
+    {
+      "op": "add",
+      "path": "/spec/template/spec/initContainers/-",
+      "value": {
+        "name": "velero-plugin-for-aws",
+        "image": "velero/velero-plugin-for-aws:v1.11.0",
+        "imagePullPolicy": "IfNotPresent",
+        "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
+      }
+    }
+  ]'
+  kubectl rollout status deployment/velero -n kcm-system --timeout=120s
+fi
 ```
-
-### Backup k0rdent Resources
 
 ```bash
-# Export all k0rdent resources
-kubectl get management,credential,clustertemplate,servicetemplate \
-  -A -o yaml > k0rdent-resources-backup.yaml
-
-# Export cluster configurations
-kubectl get clusters,machines,machinedeployments \
-  -A -o yaml > cluster-resources-backup.yaml
+# Verify the BackupStorageLocation is now Available
+kubectl get backupstoragelocation -n kcm-system
 ```
+
+You should see `aws-s3` with phase `Available`. If it still shows `Unavailable`, wait 30 seconds — Velero validates the BSL periodically.
+
+> **Production note:** For a permanent configuration, add the plugin via the Management object so it survives Helm reconciliation:
+> ```yaml
+> spec:
+>   core:
+>     kcm:
+>       config:
+>         velero:
+>           initContainers:
+>           - name: velero-plugin-for-aws
+>             image: velero/velero-plugin-for-aws:v1.11.0
+>             imagePullPolicy: IfNotPresent
+>             volumeMounts:
+>             - mountPath: /target
+>               name: plugins
+> ```
+
+### Step 3: Create a Scheduled Backup
+
+Use the `ManagementBackup` CRD to schedule automatic backups:
+
+```bash
+# Create a backup schedule (every 6 hours)
+cat <<EOF | kubectl apply -f -
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ManagementBackup
+metadata:
+  name: kcm
+spec:
+  schedule: "0 */6 * * *"
+  storageLocation: aws-s3
+EOF
+```
+
+```bash
+# Verify the backup schedule
+kubectl get managementbackup
+```
+
+### Step 4: Create an On-Demand Backup
+
+Trigger an immediate backup to verify everything works:
+
+```bash
+# Create an on-demand backup (no schedule = immediate)
+cat <<EOF | kubectl apply -f -
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ManagementBackup
+metadata:
+  name: manual-backup-$(date +%Y%m%d)
+spec:
+  storageLocation: aws-s3
+EOF
+```
+
+```bash
+# Watch the backup progress
+kubectl get backup -n kcm-system --watch
+```
+
+Wait until the phase shows `Completed`. This typically takes 30-60 seconds.
+
+```bash
+# Verify the backup exists in S3
+kubectl get backup -n kcm-system
+```
+
+### Understanding What Gets Backed Up
+
+k0rdent's ManagementBackup captures:
+- All k0rdent CRDs (Management, ClusterDeployments, Credentials, Templates)
+- CAPI resources (Clusters, Machines, MachineDeployments)
+- Flux sources and HelmReleases
+- cert-manager certificates
+- Secrets referenced by the above
+
+> **Restore scenario:** If the management cluster is lost, you provision a fresh k0rdent install, configure the same BackupStorageLocation, and create a `Restore` object pointing to the backup. k0rdent reconnects to the existing managed clusters automatically — they keep running even if the management cluster is down.
 
 ## Part 5: Security Hardening
 
@@ -283,12 +421,9 @@ For production environments, network policies should allow:
 - Kubernetes API server to webhook services
 - Ingress from managed clusters for status updates
 
-```bash
-# PRODUCTION ONLY - First, label the namespace
-kubectl label namespace kcm-system name=kcm-system --overwrite
-
-# Create network policies that allow required traffic
-cat << 'EOF' | kubectl apply -f -
+```yaml
+# PRODUCTION REFERENCE — do not apply during training
+# Save as: network-policy-kcm.yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -309,14 +444,32 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: kube-system
-  # Allow all traffic to webhook ports
+  # Allow all traffic to webhook ports (CRITICAL — without this,
+  # cluster provisioning breaks with webhook timeout errors)
   - ports:
     - port: 9443
       protocol: TCP
-EOF
 ```
 
-> **Note:** For this training lab, we recommend **skipping network policies** to avoid blocking k0rdent operations. Apply them only after completing all cluster provisioning labs.
+**Applying After Week 1 (optional exercise):**
+
+If you want to practice applying network policies after completing Labs 1.5-1.8:
+
+```bash
+# Label the namespace first
+kubectl label namespace kcm-system name=kcm-system --overwrite
+
+# Apply the policy
+kubectl apply -f network-policy-kcm.yaml
+
+# Verify provisioning still works by checking webhook connectivity
+kubectl get clusterdeployments -A
+```
+
+> **Recovery:** If network policies break webhook traffic, remove them immediately:
+> ```
+> kubectl delete networkpolicy -n kcm-system --all
+> ```
 
 ### Pod Security Standards
 
@@ -413,8 +566,8 @@ check "kubectl get clusterrole k0rdent-cluster-admin" "Cluster admin role exists
 check "kubectl get clusterrole k0rdent-cluster-viewer" "Cluster viewer role exists"
 
 # Backup
-check "test -x /usr/local/bin/etcd-backup.sh" "Backup script exists"
-check "test -f /etc/cron.d/etcd-backup" "Backup cron configured"
+check "kubectl get backupstoragelocation aws-s3 -n kcm-system" "Backup storage location configured"
+check "kubectl get managementbackup kcm" "Scheduled backup configured"
 
 # Security (optional for training - network policies can block webhooks)
 # Uncomment for production:
@@ -446,8 +599,9 @@ Before completing this lab, verify:
 
 - [ ] Created team namespaces with proper labels
 - [ ] Configured RBAC roles and bindings
-- [ ] Set up etcd backup script
-- [ ] Configured automated backup schedule
+- [ ] Configured Velero with BackupStorageLocation (S3)
+- [ ] Created scheduled ManagementBackup (every 6 hours)
+- [ ] Completed an on-demand backup successfully
 - [ ] (Optional) Applied network policies - skip for training environments
 - [ ] Set resource quotas for namespaces
 - [ ] Ran production readiness assessment
@@ -456,7 +610,7 @@ Before completing this lab, verify:
 
 In this lab, you:
 - Configured multi-team RBAC policies
-- Set up backup and disaster recovery procedures
+- Configured Velero-based backup with ManagementBackup CRD
 - Applied security hardening measures
 - Created production readiness assessment
 

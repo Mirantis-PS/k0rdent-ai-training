@@ -33,6 +33,8 @@ Options:
   --tunnel <local:remote>     Create SSH tunnel (e.g., 8080:8080)
   --copy-kubeconfig           Copy kubeconfig to local machine
   --show-password             Show k0rdent UI password
+  --ui-url            Show k0rdent UI URL (via Envoy Gateway) and exit
+  --show-gateway      Show Gateway API resource status and exit
   --help                      Show this help message
 
 Examples:
@@ -47,25 +49,21 @@ EOF
 
 get_student_bucket() {
     local engineer_id="$1"
-    local region="$2"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-lab-${engineer_id}-${account_id}-${region}"
+    echo "k0rdent-lab-${engineer_id}-${account_id}"
 }
 
 get_state_output() {
     local bucket="$1"
     local output_name="$2"
-    local content
-    content=$(aws s3 cp "s3://${bucket}/terraform.tfstate" - --region "$REGION" 2>/dev/null || echo "")
-    if [[ -n "$content" ]]; then
-        echo "$content" | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
-    fi
+    aws s3 cp "s3://${bucket}/terraform.tfstate" - 2>/dev/null \
+        | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
 }
 
 get_bastion_ip() {
     local bucket
-    bucket=$(get_student_bucket "$IDENTIFIER" "$REGION")
+    bucket=$(get_student_bucket "$IDENTIFIER")
     get_state_output "$bucket" "bastion_public_ip"
 }
 
@@ -80,7 +78,7 @@ get_ssh_key() {
 
     # Extract from S3 state directly
     local bucket
-    bucket=$(get_student_bucket "$identifier" "$REGION")
+    bucket=$(get_student_bucket "$identifier")
     local ssh_key
     ssh_key=$(get_state_output "$bucket" "ssh_private_key")
 
@@ -105,7 +103,7 @@ ensure_bastion_key() {
 
     log_info "Bastion SSH key not found locally, retrieving from state..."
     local bucket
-    bucket=$(get_student_bucket "$identifier" "$REGION")
+    bucket=$(get_student_bucket "$identifier")
     local ssh_key
     ssh_key=$(get_state_output "$bucket" "bastion_ssh_private_key")
 
@@ -123,7 +121,7 @@ ensure_bastion_key() {
 get_instance_ip() {
     local identifier="$1"
     local bucket
-    bucket=$(get_student_bucket "$identifier" "$REGION")
+    bucket=$(get_student_bucket "$identifier")
     get_state_output "$bucket" "primary_node_private_ip"
 }
 
@@ -193,11 +191,18 @@ copy_kubeconfig() {
     echo "  kubectl get nodes"
 }
 
+# Load config if exists
+if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
+    source "$CONFIG_DIR/lab-config.env"
+fi
+
 # Default values
 REGION=""
 TUNNEL=""
 COPY_KUBECONFIG="false"
 SHOW_PASSWORD="false"
+SHOW_UI_URL="false"
+SHOW_GATEWAY="false"
 IDENTIFIER=""
 
 # Parse arguments
@@ -217,6 +222,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --show-password)
             SHOW_PASSWORD="true"
+            shift
+            ;;
+        --ui-url)
+            SHOW_UI_URL="true"
+            shift
+            ;;
+        --show-gateway)
+            SHOW_GATEWAY="true"
             shift
             ;;
         --help|-h)
@@ -245,13 +258,8 @@ if [[ -z "$IDENTIFIER" ]]; then
 fi
 
 # Resolve region
-if [[ -z "$REGION" ]]; then
-    if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
-        source "$CONFIG_DIR/lab-config.env"
-    fi
-    if [[ -n "${LAB_REGION:-}" ]]; then
-        REGION="$LAB_REGION"
-    fi
+if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
+    REGION="$LAB_REGION"
 fi
 if [[ -z "$REGION" ]]; then
     REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
@@ -266,20 +274,75 @@ fi
 
 # Show password and exit if requested
 if [[ "$SHOW_PASSWORD" == "true" ]]; then
-    BUCKET=$(get_student_bucket "$IDENTIFIER" "$REGION")
+    BUCKET=$(get_student_bucket "$IDENTIFIER")
     UI_PASSWORD=$(get_state_output "$BUCKET" "ui_password")
-    UI_URL=$(get_state_output "$BUCKET" "ui_url")
+    # UI URL is now served via Envoy Gateway, not Terraform output
+    UI_URL="Retrieve via: ./lab-connect.sh $IDENTIFIER --ui-url"
     if [[ -n "$UI_PASSWORD" ]]; then
         echo ""
         log_success "k0rdent UI Password: $UI_PASSWORD"
         echo ""
         echo "UI Access:"
-        echo "  URL:   ${UI_URL:-run: terraform output ui_url}"
+        echo "  URL:   ${UI_URL}"
         echo "  Login: admin / $UI_PASSWORD"
     else
         log_error "Could not retrieve UI password"
         exit 1
     fi
+    exit 0
+fi
+
+# Show Gateway UI URL and exit if requested
+if [[ "$SHOW_UI_URL" == "true" ]]; then
+    KEY_FILE=$(get_ssh_key "$IDENTIFIER")
+    IP=$(get_instance_ip "$IDENTIFIER")
+    BASTION=$(get_bastion_ip)
+    ensure_bastion_key "$IDENTIFIER"
+    BASTION_KEY="$CONFIG_DIR/keys/${IDENTIFIER}-bastion.pem"
+
+    SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+    PROXY_CMD="ssh ${SSH_OPTS} -i ${BASTION_KEY} -W %h:%p ec2-user@${BASTION}"
+
+    GW_ADDR=$(ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
+        "kubectl get gateway k0rdent-gateway -n kcm-system -o jsonpath='{.status.addresses[0].value}'" 2>/dev/null || true)
+    # Password is stored in Terraform state, not in a Kubernetes secret
+    BUCKET=$(get_student_bucket "$IDENTIFIER")
+    UI_PASSWORD=$(get_state_output "$BUCKET" "ui_password")
+
+    if [[ -n "$GW_ADDR" ]]; then
+        echo ""
+        log_success "k0rdent UI"
+        echo "  URL:       http://${GW_ADDR}"
+        echo "  Username:  admin"
+        echo "  Password:  ${UI_PASSWORD:-unknown}"
+        echo ""
+    else
+        log_error "Gateway LB address not available. Is initialization complete?"
+        log_info "Check: ssh into node and run: kubectl get gateway -n kcm-system"
+        exit 1
+    fi
+    exit 0
+fi
+
+# Show Gateway status and exit if requested
+if [[ "$SHOW_GATEWAY" == "true" ]]; then
+    KEY_FILE=$(get_ssh_key "$IDENTIFIER")
+    IP=$(get_instance_ip "$IDENTIFIER")
+    BASTION=$(get_bastion_ip)
+    ensure_bastion_key "$IDENTIFIER"
+    BASTION_KEY="$CONFIG_DIR/keys/${IDENTIFIER}-bastion.pem"
+
+    SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+    PROXY_CMD="ssh ${SSH_OPTS} -i ${BASTION_KEY} -W %h:%p ec2-user@${BASTION}"
+
+    echo ""
+    log_info "Gateway API Resources:"
+    ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
+        "kubectl get gatewayclass,gateway,httproute -A -o wide" 2>/dev/null
+    echo ""
+    log_info "Envoy Gateway Pods:"
+    ssh ${SSH_OPTS} -i "$KEY_FILE" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${IP}" \
+        "kubectl get pods -n envoy-gateway-system -o wide" 2>/dev/null
     exit 0
 fi
 

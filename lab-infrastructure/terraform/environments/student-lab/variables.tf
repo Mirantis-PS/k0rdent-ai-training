@@ -69,7 +69,7 @@ variable "k0s_version" {
 variable "k0rdent_version" {
   description = "k0rdent Enterprise version"
   type        = string
-  default     = "1.2.1"
+  default     = "1.2.2"
 }
 
 variable "ui_password" {
@@ -83,6 +83,18 @@ variable "flux_version" {
   description = "Flux CD version"
   type        = string
   default     = "v2.4.0"
+}
+
+variable "gateway_api_version" {
+  description = "Gateway API CRD version"
+  type        = string
+  default     = "v1.2.1"
+}
+
+variable "envoy_gateway_version" {
+  description = "Envoy Gateway Helm chart version"
+  type        = string
+  default     = "v1.2.6"
 }
 
 # Training metadata
