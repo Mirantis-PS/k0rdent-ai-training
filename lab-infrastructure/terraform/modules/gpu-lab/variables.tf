@@ -36,9 +36,9 @@ variable "instance_profile_name" {
 # Instance Types
 #------------------------------------------------------------------------------
 variable "shared_gpu_instance_type" {
-  description = "Instance type for shared GPU lab (p3.8xlarge = 4x V100)"
+  description = "Instance type for shared GPU lab (g5.12xlarge = 4x A10G)"
   type        = string
-  default     = "p3.8xlarge"
+  default     = "g5.12xlarge"
 }
 
 variable "advanced_gpu_instance_type" {
@@ -65,7 +65,7 @@ variable "enable_advanced_gpu" {
 variable "use_spot_instances" {
   description = "Use spot instances for shared GPU (significant cost savings)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "use_nvidia_ami" {

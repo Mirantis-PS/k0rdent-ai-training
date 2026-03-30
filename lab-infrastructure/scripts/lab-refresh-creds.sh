@@ -84,7 +84,7 @@ fi
 get_student_bucket() {
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-lab-${IDENTIFIER}-${account_id}"
+    echo "k0rdent-lab-${IDENTIFIER}-${account_id}-${REGION}"
 }
 
 get_state_output() {

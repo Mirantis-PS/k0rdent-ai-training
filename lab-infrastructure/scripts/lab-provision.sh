@@ -225,7 +225,7 @@ get_student_bucket() {
     local engineer_id="$1"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-lab-${engineer_id}-${account_id}"
+    echo "k0rdent-lab-${engineer_id}-${account_id}-${REGION}"
 }
 
 ensure_student_bucket() {

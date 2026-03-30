@@ -52,7 +52,7 @@ data "aws_ami" "nvidia_dl" {
 
   filter {
     name   = "name"
-    values = ["*Deep Learning AMI GPU PyTorch*Ubuntu 22.04*"]
+    values = ["Deep Learning*AMI GPU PyTorch*Ubuntu 22.04*"]
   }
 
   filter {
