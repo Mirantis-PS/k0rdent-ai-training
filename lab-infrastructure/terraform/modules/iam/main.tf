@@ -176,6 +176,80 @@ resource "aws_iam_role_policy" "lab_instance" {
           "elasticloadbalancing:SetLoadBalancerPoliciesOfListener"
         ]
         Resource = "*"
+      },
+      #------------------------------------------------------------------------
+      # Cluster API Provider AWS (CAPA) Permissions
+      # Required for k0rdent to provision managed clusters via ClusterDeployment
+      #------------------------------------------------------------------------
+      {
+        Sid    = "CAPIProviderAWSEC2"
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeImages",
+          "ec2:DescribeKeyPairs",
+          "ec2:DescribeLaunchTemplates",
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:DescribeNatGateways",
+          "ec2:DescribeInternetGateways",
+          "ec2:DescribeAddresses",
+          "ec2:DescribeElasticGpus",
+          "ec2:DescribePlacementGroups",
+          "ec2:RunInstances",
+          "ec2:TerminateInstances",
+          "ec2:StopInstances",
+          "ec2:StartInstances",
+          "ec2:AllocateAddress",
+          "ec2:ReleaseAddress",
+          "ec2:AssociateAddress",
+          "ec2:DisassociateAddress",
+          "ec2:CreateLaunchTemplate",
+          "ec2:CreateLaunchTemplateVersion",
+          "ec2:DeleteLaunchTemplate",
+          "ec2:DeleteLaunchTemplateVersions",
+          "ec2:CreateNatGateway",
+          "ec2:DeleteNatGateway",
+          "ec2:CreateInternetGateway",
+          "ec2:DeleteInternetGateway",
+          "ec2:AttachInternetGateway",
+          "ec2:DetachInternetGateway",
+          "ec2:CreateSubnet",
+          "ec2:DeleteSubnet",
+          "ec2:ModifySubnetAttribute",
+          "ec2:CreateVpc",
+          "ec2:DeleteVpc",
+          "ec2:ModifyVpcAttribute",
+          "ec2:CreateRouteTable",
+          "ec2:DeleteRouteTable",
+          "ec2:CreateRoute",
+          "ec2:DeleteRoute",
+          "ec2:AssociateRouteTable",
+          "ec2:DisassociateRouteTable",
+          "ec2:GetConsoleOutput"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "CAPIProviderAWSIAM"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateServiceLinkedRole",
+          "iam:PassRole",
+          "iam:GetInstanceProfile",
+          "iam:ListInstanceProfiles",
+          "iam:AddRoleToInstanceProfile",
+          "iam:RemoveRoleFromInstanceProfile",
+          "iam:CreateInstanceProfile",
+          "iam:DeleteInstanceProfile"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "CAPIProviderAWSSSM"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
       }
     ]
   })

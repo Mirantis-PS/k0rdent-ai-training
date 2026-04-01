@@ -230,6 +230,15 @@ write_files:
       kubectl get nodes -o wide
 
       # =================================================================
+      # Deploy local-path-provisioner (required for k0smotron hosted CP PVCs)
+      # =================================================================
+      echo "Installing local-path-provisioner..."
+      kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.30/deploy/local-path-storage.yaml
+      kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+      kubectl wait --for=condition=Available deployment/local-path-provisioner -n local-path-storage --timeout=120s || true
+      echo "local-path-provisioner installed as default StorageClass"
+
+      # =================================================================
       # Deploy AWS Cloud Controller Manager
       # Required for auto-provisioning LoadBalancer services (Envoy Gateway)
       # Uses the EC2 instance profile for AWS credentials (no secrets needed)
