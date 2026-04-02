@@ -217,6 +217,7 @@ resource "aws_iam_role_policy" "lab_instance" {
           "ec2:ModifySubnetAttribute",
           "ec2:CreateVpc",
           "ec2:DeleteVpc",
+          "ec2:DescribeVpcAttribute",
           "ec2:ModifyVpcAttribute",
           "ec2:CreateRouteTable",
           "ec2:DeleteRouteTable",
