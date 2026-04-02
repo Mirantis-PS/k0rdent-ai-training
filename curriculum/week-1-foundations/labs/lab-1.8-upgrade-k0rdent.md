@@ -618,6 +618,12 @@ In this lab, you:
 
 ---
 
+## Preserving Your Environment
+
+> **Do NOT run `lab-destroy.sh` after completing Week 1.** Your management cluster is reused in all subsequent weeks. Week 5 GPU labs create GPU clusters via `ClusterDeployment` on this same management cluster. Only destroy the management cluster when you're completely done with the entire curriculum.
+>
+> If you need to pause between weeks, simply disconnect. Use `lab-connect.sh` to reconnect when you're ready to continue.
+
 ## Next
 
 Complete the [Week 1 Quiz](../week-1-quiz.md) to finish Week 1.

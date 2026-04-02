@@ -511,7 +511,7 @@ When finished with the lab, you can destroy the environment:
 ./scripts/lab-destroy.sh <your-engineer-id> --auto-approve
 ```
 
-> **Important:** Only destroy if you're done with **all Week 1 labs**, as subsequent labs build on this environment.
+> **Important:** Only destroy if you're done with **all labs in the curriculum**. The management cluster is reused in every subsequent week — Week 5 GPU labs create GPU clusters via ClusterDeployment on this same management cluster. If you need to stop for the day, leave the management cluster running and use `lab-connect.sh` to reconnect later.
 
 ## Summary
 
