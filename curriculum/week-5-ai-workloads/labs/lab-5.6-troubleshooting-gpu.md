@@ -48,6 +48,8 @@ Diagnose and resolve common GPU scheduling failures in AI/ML workloads on k0rden
 - k0rdent management cluster with a GPU-enabled workload cluster provisioned via `ClusterDeployment`
 - GPU Operator deployed via `gpu-operator-25-10-0` ServiceTemplate
 
+> **Lab Hardware:** Students are running on **g5.12xlarge** instances with **4x NVIDIA A10G GPUs** (24 GB VRAM each), connected via PCIe (no NVLink). Keep the 24 GB per-GPU memory limit in mind when sizing models -- see Scenario C for OOM implications.
+
 ## k0rdent Context
 
 On k0rdent-managed clusters, the GPU Operator is deployed via the `gpu-operator-25-10-0` ServiceTemplate (either through `ClusterDeployment.spec.serviceSpec` or `MultiClusterService`). Troubleshooting requires understanding the full stack:
@@ -88,7 +90,7 @@ On k0rdent-managed clusters, the GPU Operator is deployed via the `gpu-operator-
 |------|---------|-------------|
 | `kubectl describe pod` | Scheduling events and errors | Workload cluster |
 | `kubectl logs` | Container logs and crash reasons | Workload cluster |
-| `nvidia-smi` | GPU state, memory, processes | Inside GPU pod or node |
+| `nvidia-smi` | GPU state, memory, processes | Inside GPU pod (via kubectl exec) |
 | `dcgmi diag` | Deep GPU hardware diagnostics | DCGM pod |
 | `dcgmi health` | GPU health monitoring | DCGM pod |
 | `kubectl get clusterdeployment` | Service deployment status | Management cluster |
@@ -255,13 +257,14 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
      -- nvidia-smi
    ```
 
-6. **Verify the containerd config on the node (SSH)**
+6. **Verify the containerd config on the node**
 
    ```bash
-   NODE_IP=$(kubectl get nodes -l nvidia.com/gpu.present=true \
-     -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+   # Use kubectl debug to inspect the node filesystem (mounted at /host/)
+   NODE_NAME=$(kubectl get nodes -l nvidia.com/gpu.present=true \
+     -o jsonpath='{.items[0].metadata.name}')
 
-   ssh ec2-user@${NODE_IP} "cat /etc/k0s/containerd.d/nvidia.toml"
+   kubectl debug node/$NODE_NAME -it --image=busybox -- cat /host/etc/k0s/containerd.d/nvidia.toml
    ```
 
    **Expected content:**
@@ -480,7 +483,7 @@ EOF
    │                                                  │
    │ GPU Memory Required:                             │
    │ Llama-2-13B + 8K ctx ≈ 35-37 GB                 │
-   │ ↳ A10G (24GB): FAILS                            │
+   │ ↳ A10G (24GB): FAILS ← our lab GPU               │
    │ ↳ A100-40GB:   tight (needs lower utilization)  │
    │ ↳ A100-80GB:   OK                               │
    └────────────────────────────────────────────────┘
@@ -747,11 +750,19 @@ kubectl delete deployment vllm-health-test -n gpu-troubleshoot
 3. **Check Xid errors on the node**
 
    ```bash
-   NODE_IP=$(kubectl get nodes -l nvidia.com/gpu.present=true \
-     -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+   # Check dmesg for GPU errors via debug pod
+   NODE_NAME=$(kubectl get nodes -l nvidia.com/gpu.present=true \
+     -o jsonpath='{.items[0].metadata.name}')
 
-   # Check kernel logs for NVIDIA Xid errors
-   ssh ec2-user@${NODE_IP} "sudo dmesg | grep -i 'xid\|nvidia' | tail -20"
+   kubectl debug node/$NODE_NAME -it --image=ubuntu -- bash -c "dmesg | grep -i 'xid\|nvidia' | tail -20"
+   ```
+
+   Or use DCGM exporter metrics (if DCGM is deployed):
+
+   ```bash
+   kubectl exec -n gpu-operator \
+     $(kubectl get pod -n gpu-operator -l app=nvidia-dcgm-exporter -o name | head -1) \
+     -- dcgmi diag -r 1
    ```
 
    **Common Xid error codes:**
@@ -851,7 +862,7 @@ kill %1 2>/dev/null
 
 ## Key Takeaways
 
-1. **k0s containerd paths are the #1 GPU Operator issue** on k0rdent clusters. Always verify `/etc/k0s/containerd.d/nvidia.toml` exists on nodes.
+1. **k0s containerd paths are the #1 GPU Operator issue** on k0rdent clusters. Verify containerd config via `kubectl debug node/` or by checking the nvidia-container-toolkit pod logs.
 2. **Check service deployment status** on the management cluster first (`SveltosHelmReleaseReady` condition) before debugging the workload cluster.
 3. **GPU memory is the most common workload bottleneck** - estimate model requirements before deployment using the Parameters x 2 x 1.2 formula.
 4. **Startup probes are essential for LLM workloads** - model loading can take minutes; liveness/readiness probes only activate after startup succeeds.

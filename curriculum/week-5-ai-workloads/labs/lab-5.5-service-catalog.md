@@ -159,6 +159,8 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
 
 1. **Install an ML Platform Stack**
 
+   > **Note:** Verify the OCI chart path before running. Check [catalog.k0rdent.io](https://catalog.k0rdent.io/) for the latest kgst chart URL. If the path below fails, consult the [k0rdent documentation](https://docs.k0rdent.io/) for updated installation instructions.
+
    ```bash
    # Install KServe CRDs (required before KServe itself)
    helm upgrade --install kserve-crd \
@@ -325,11 +327,16 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
    For sensitive values (database credentials, API tokens), use `valuesFrom` to reference Kubernetes Secrets:
 
    ```bash
-   # Create a Secret with Helm values
-   kubectl create secret generic mlflow-db-values -n kcm-system \
-     --from-literal=values='mlflow:
+   # Create a Secret with Helm values (use --from-file for reliable multi-line YAML)
+   cat <<EOF > /tmp/mlflow-custom-values.yaml
+   mlflow:
      tracking:
-       backendStoreUri: postgresql://mlflow:realpassword@postgres:5432/mlflow'
+       backendStoreUri: postgresql://mlflow:realpassword@postgresql.mlflow:5432/mlflow
+       defaultArtifactRoot: s3://mlflow-artifacts/
+   EOF
+   kubectl create secret generic mlflow-db-values \
+     -n kcm-system \
+     --from-file=values=/tmp/mlflow-custom-values.yaml
    ```
 
    ```yaml
@@ -392,6 +399,18 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
 `ServiceTemplateChain` defines allowed upgrade and rollback paths between ServiceTemplate versions. Once created, the chain spec is **immutable**.
 
 1. **Create a ServiceTemplateChain**
+
+   > **Note:** This chain references `kserve-v0-14-1`, which was not installed in Task 2. For the chain to work, both template versions must exist on the management cluster. Install the older version first:
+   >
+   > ```bash
+   > helm upgrade --install kserve-old \
+   >   oci://ghcr.io/k0rdent/catalog/charts/kgst \
+   >   --set "chart=kserve:v0.14.1" \
+   >   -n kcm-system
+   > ```
+   >
+   > Alternatively, you can modify the chain below to only reference templates you already installed (e.g., use `kserve-crd-v0-15-0` and `kserve-v0-15-0`).
+
    ```yaml
    # Save as kserve-chain.yaml
    apiVersion: k0rdent.mirantis.com/v1beta1
@@ -574,6 +593,24 @@ If both a `MultiClusterService` and a `ClusterDeployment.serviceSpec` manage the
 ```bash
 kubectl get multiclusterservice <name> -n kcm-system \
   -o jsonpath='{.status.services[*].conditions}'
+```
+
+## Cleanup
+
+Remove lab resources:
+
+```bash
+# Delete MultiClusterServices
+kubectl delete multiclusterservice -n kcm-system --all
+
+# Delete ServiceTemplateChains
+kubectl delete servicetemplatechains -n kcm-system --all
+
+# Delete ServiceTemplates installed during this lab
+kubectl delete servicetemplates -n kcm-system -l installed-by=lab-5.5
+
+# Verify
+kubectl get multiclusterservice,servicetemplatechains -n kcm-system
 ```
 
 ## Key Takeaways

@@ -283,7 +283,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
                    secretKeyRef:
                      name: hf-token
                      key: token
-               - name: TRANSFORMERS_CACHE
+               - name: HF_HOME
                  value: /root/.cache/huggingface
              resources:
                limits:
@@ -633,7 +633,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
                    secretKeyRef:
                      name: hf-token
                      key: token
-               - name: TRANSFORMERS_CACHE
+               - name: HF_HOME
                  value: /root/.cache/huggingface
                # NCCL optimizations for NVLink
                - name: NCCL_DEBUG
