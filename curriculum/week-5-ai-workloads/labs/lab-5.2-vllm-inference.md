@@ -229,8 +229,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
      resources:
        requests:
          storage: 50Gi
-     # storageClassName: ebs-csi-default-sc  # CAPA clusters use EBS CSI by default
-     # Omit storageClassName to use the cluster's default StorageClass
+     # Uses the cluster's default StorageClass (ebs-csi-default-sc on CAPA clusters from Lab 5.1)
    ```
 
    ```bash
