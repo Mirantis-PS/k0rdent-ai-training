@@ -298,6 +298,8 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    > you can use Helm directly. This bypasses fleet management but works for
    > single-cluster testing:
    > ```bash
+   > helm repo add milvus https://zilliztech.github.io/milvus-helm/
+   > helm repo update
    > helm install milvus milvus/milvus \
    >   --namespace vector-db \
    >   --values milvus-values.yaml \
@@ -306,6 +308,10 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    > ```
    > Pin `--version` to a known stable chart release. Run `helm search repo
    > milvus/milvus --versions` to find the latest available version.
+   >
+   > **Note:** The Helm chart creates services automatically. Verify with
+   > `kubectl get svc -n vector-db | grep milvus` — you need `milvus` (proxy)
+   > on port 19530 for the port-forward commands in Task 3.
 
 4. **Watch Deployment Progress**
    ```bash
@@ -373,7 +379,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    connections.connect(
        alias="default",
        host="localhost",
-       port="19530"
+       port=19530
    )
 
    # Create new user
@@ -418,7 +424,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    connections.connect(
        alias="default",
        host="localhost",
-       port="19530",
+       port=19530,
        user="mlops",
        password="SecurePassword123!"
    )
@@ -523,7 +529,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    connections.connect(
        alias="default",
        host="localhost",
-       port="19530",
+       port=19530,
        user="mlops",
        password="SecurePassword123!"
    )
@@ -535,7 +541,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    # Generate a query embedding (simulating "GPU machine learning" query)
    # In production, use the same embedding model as for indexing
    query_embedding = np.random.rand(1, 384).astype(np.float32)
-   query_embedding = query_embedding / np.linalg.norm(query_embedding)
+   query_embedding = query_embedding / np.linalg.norm(query_embedding, axis=1, keepdims=True)
 
    # Search parameters
    search_params = {

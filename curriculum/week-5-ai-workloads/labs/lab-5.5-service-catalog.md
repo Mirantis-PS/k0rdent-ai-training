@@ -85,7 +85,7 @@ The k0rdent service catalog is **external to the k0rdent deployment** — it is 
 |----------|----------------|---------|
 | GPU Infrastructure | `gpu-operator-25-10-0` | NVIDIA GPU lifecycle management |
 | Model Serving | `kserve-v0-15-0`, `kserve-crd-v0-15-0` | Serverless inference |
-| Distributed Compute | `kuberay-operator-1-3-2`, `ray-cluster-1-3-2` | Ray clusters |
+| Distributed Compute | `kuberay-operator-1-3-2` | Ray operator (manages RayCluster CRDs) |
 | Multi-host Inference | `lws-0-7-0` | LeaderWorkerSet for vLLM multi-node |
 | Experiment Tracking | `mlflow-1-7-1` | MLflow tracking and registry |
 | Notebooks | `jupyterhub-4-2-0` | Multi-user Jupyter environments |
@@ -606,8 +606,10 @@ kubectl delete multiclusterservice -n kcm-system --all
 # Delete ServiceTemplateChains
 kubectl delete servicetemplatechains -n kcm-system --all
 
-# Delete ServiceTemplates installed during this lab
-kubectl delete servicetemplates -n kcm-system -l installed-by=lab-5.5
+# Delete ServiceTemplates installed during this lab (by uninstalling the Helm releases)
+helm uninstall kserve-crd kserve mlflow kuberay-operator -n kcm-system 2>/dev/null
+# If you also installed the old KServe version in Task 5:
+helm uninstall kserve-old -n kcm-system 2>/dev/null
 
 # Verify
 kubectl get multiclusterservice,servicetemplatechains -n kcm-system

@@ -467,6 +467,7 @@ In a k0rdent-managed environment, JupyterHub can be deployed declaratively acros
          - template: jupyterhub-4-2-0
            name: jupyterhub
            namespace: jupyter
+       priority: 100
    ```
 
    ```bash

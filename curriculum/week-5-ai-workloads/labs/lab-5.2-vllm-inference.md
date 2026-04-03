@@ -229,7 +229,8 @@ Quantization reduces model precision to decrease memory usage and increase throu
      resources:
        requests:
          storage: 50Gi
-     storageClassName: standard  # Adjust for your cluster
+     # storageClassName: ebs-csi-default-sc  # CAPA clusters use EBS CSI by default
+     # Omit storageClassName to use the cluster's default StorageClass
    ```
 
    ```bash
@@ -278,7 +279,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
                - containerPort: 8000
                  name: http
              env:
-               - name: HUGGING_FACE_HUB_TOKEN
+               - name: HF_TOKEN
                  valueFrom:
                    secretKeyRef:
                      name: hf-token
@@ -612,9 +613,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
                # Tensor parallelism across 8 GPUs
                - --tensor-parallel-size
                - "8"
-               # NCCL backend for all-reduce (uses NVLink)
-               - --distributed-executor-backend
-               - "mp"
+               # vLLM auto-selects the distributed backend for tensor parallelism
                - --max-model-len
                - "4096"
                - --gpu-memory-utilization
@@ -628,7 +627,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
              ports:
                - containerPort: 8000
              env:
-               - name: HUGGING_FACE_HUB_TOKEN
+               - name: HF_TOKEN
                  valueFrom:
                    secretKeyRef:
                      name: hf-token
@@ -838,10 +837,18 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
 
 4. **Compare Quantization Methods**
 
-   Deploy all three configurations and benchmark:
+   Deploy all three configurations and set up port-forwards for each:
 
    ```bash
-   # Run comparison benchmark
+   # Set up port-forwards for each deployment (run each in background)
+   kubectl port-forward svc/vllm-llama70b 8001:8000 -n vllm-inference &
+   kubectl port-forward svc/vllm-fp8 8002:8000 -n vllm-inference &
+   kubectl port-forward svc/vllm-awq 8003:8000 -n vllm-inference &
+   ```
+
+   Then run the comparison benchmark:
+
+   ```bash
    python -c "
    import requests
    import time
@@ -906,6 +913,9 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
    # Install vLLM CLI if not already available
    pip install vllm
 
+   # Check available benchmark flags (CLI evolves between versions)
+   vllm bench serve --help
+
    # Run serving benchmark against the running vLLM server
    vllm bench serve \
      --backend openai-chat \
@@ -913,10 +923,11 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
      --base-url http://localhost:8001 \
      --endpoint /v1/chat/completions \
      --num-prompts 100 \
-     --request-rate 10 \
      --dataset-name random \
      --random-output-len 256
    ```
+
+   > **Note:** The benchmark CLI flags may differ between vLLM releases. Always run `vllm bench serve --help` first to verify the exact flags available in your installed version.
 
 2. **Key Metrics to Capture**
 
@@ -1007,11 +1018,39 @@ spec:
     - name: kserve-container
       image: vllm/vllm-openai:v0.11.2
       args:
-        - --port=8080
-        - --gpu-memory-utilization=0.9
+        - --port
+        - "8080"
+        - --gpu-memory-utilization
+        - "0.9"
+      ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+      env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+        - name: HF_HOME
+          value: /root/.cache/huggingface
       resources:
         limits:
           nvidia.com/gpu: 1
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8080
+        initialDelaySeconds: 300
+        periodSeconds: 30
+        failureThreshold: 10
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8080
+        initialDelaySeconds: 60
+        periodSeconds: 10
+        failureThreshold: 30
 ---
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService

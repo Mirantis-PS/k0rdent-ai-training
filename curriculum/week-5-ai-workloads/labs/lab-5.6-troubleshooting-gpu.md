@@ -102,11 +102,14 @@ On k0rdent-managed clusters, the GPU Operator is deployed via the `gpu-operator-
 1. **Extract kubeconfig from the management cluster**
 
    ```bash
-   # On the k0rdent management cluster
-   kubectl get secret ml-gpu-kubeconfig -n kcm-system \
-     -o jsonpath='{.data.value}' | base64 -d > ml-gpu.kubeconfig
+   # On the k0rdent management cluster — find your GPU cluster name first
+   kubectl get clusterdeployments -n kcm-system
 
-   export KUBECONFIG=ml-gpu.kubeconfig
+   # Extract kubeconfig (replace <cluster-name> with your GPU cluster name, e.g., ml-gpu)
+   kubectl get secret <cluster-name>-kubeconfig -n kcm-system \
+     -o jsonpath='{.data.value}' | base64 -d > gpu-cluster.kubeconfig
+
+   export KUBECONFIG=gpu-cluster.kubeconfig
    ```
 
 2. **Verify GPU Operator service status on the management cluster**
@@ -117,9 +120,9 @@ On k0rdent-managed clusters, the GPU Operator is deployed via the `gpu-operator-
    # Switch back to management cluster temporarily
    unset KUBECONFIG
 
-   # Check ClusterDeployment service conditions
-   kubectl get clusterdeployment ml-gpu -n kcm-system \
-     -o jsonpath='{.status.services[0].conditions}' | jq .
+   # Check ClusterDeployment service conditions (replace <cluster-name>)
+   kubectl get clusterdeployment <cluster-name> -n kcm-system \
+     -o jsonpath='{.status.services}' | jq '.[].conditions'
 
    # Look for:
    # - type: Helm → status: "True", reason: Provisioned
@@ -252,8 +255,12 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
    ```bash
    kubectl run gpu-test --image=nvcr.io/nvidia/cuda:12.6.0-base-ubi9 \
      --restart=Never --rm -it \
-     --overrides='{"spec":{"tolerations":[{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"}]}}' \
-     --limits=nvidia.com/gpu=1 \
+     --overrides='{
+       "spec": {
+         "containers": [{"name": "gpu-test", "image": "nvcr.io/nvidia/cuda:12.6.0-base-ubi9", "resources": {"limits": {"nvidia.com/gpu": "1"}}}],
+         "tolerations": [{"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"}]
+       }
+     }' \
      -- nvidia-smi
    ```
 
@@ -757,12 +764,13 @@ kubectl delete deployment vllm-health-test -n gpu-troubleshoot
    kubectl debug node/$NODE_NAME -it --image=ubuntu -- bash -c "dmesg | grep -i 'xid\|nvidia' | tail -20"
    ```
 
-   Or use DCGM exporter metrics (if DCGM is deployed):
+   Or query DCGM exporter metrics directly (if DCGM is deployed):
 
    ```bash
-   kubectl exec -n gpu-operator \
-     $(kubectl get pod -n gpu-operator -l app=nvidia-dcgm-exporter -o name | head -1) \
-     -- dcgmi diag -r 1
+   # Query GPU metrics via the DCGM exporter (alternative to dmesg)
+   kubectl port-forward -n gpu-operator svc/nvidia-dcgm-exporter 9400:9400 &
+   curl -s http://localhost:9400/metrics | grep -E 'DCGM_FI_DEV_(XID_ERRORS|ECC|POWER)' | head -20
+   kill %1 2>/dev/null
    ```
 
    **Common Xid error codes:**
@@ -789,10 +797,12 @@ kubectl delete deployment vllm-health-test -n gpu-troubleshoot
    kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data
 
    # On k0rdent: scale up the ClusterDeployment to add a replacement node
-   # (on management cluster)
+   # (on management cluster — replace <cluster-name> and set workersNumber to current+1)
    unset KUBECONFIG
-   kubectl patch clusterdeployment ml-gpu -n kcm-system \
-     --type merge -p '{"spec":{"config":{"workersNumber":3}}}'
+   kubectl get clusterdeployment <cluster-name> -n kcm-system \
+     -o jsonpath='{.spec.config.workersNumber}'  # Note current count
+   kubectl patch clusterdeployment <cluster-name> -n kcm-system \
+     --type merge -p '{"spec":{"config":{"workersNumber":<current+1>}}}'
    ```
 
 ---

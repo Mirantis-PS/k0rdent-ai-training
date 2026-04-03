@@ -92,17 +92,23 @@ metadata:
   namespace: kcm-system
 spec:
   template: aws-standalone-cp-1-0-20
-  credential: aws-credential
+  credential: aws-cluster-identity-cred
   config:
     clusterLabels: {}
     region: us-east-1
+    controlPlaneNumber: 1               # Template defaults to 3; 1 is sufficient for labs
+    workersNumber: 1                    # Template defaults to 2; 1 GPU node is sufficient
     controlPlane:
       instanceType: t3.medium
       amiID: ami-00de3875b03809ec5      # Ubuntu 22.04
+      rootVolumeSize: 50                # Default 8GB is too small for k0s + system pods
     worker:
       instanceType: g5.12xlarge          # 4x NVIDIA A10G, 24GB each
       amiID: ami-00de3875b03809ec5       # Ubuntu 22.04
+      rootVolumeSize: 100               # NVIDIA driver container is ~3GB; default 8GB causes "no space left on device"
 ```
+
+> **Root volume size:** The template defaults to 8GB root volumes. This is **insufficient** for GPU workloads — the NVIDIA driver container alone is ~3GB, and driver compilation requires additional temporary space. Set `rootVolumeSize: 100` for GPU workers.
 
 ```bash
 kubectl apply -f gpu-cluster.yaml
@@ -161,7 +167,7 @@ After the GPU Operator is installed (Step 4), you can verify GPUs from inside a 
 kubectl run gpu-test \
   --image=nvidia/cuda:12.2.0-base-ubuntu22.04 \
   --restart=Never \
-  --limits='nvidia.com/gpu=1' \
+  --overrides='{"spec":{"containers":[{"name":"gpu-test","image":"nvidia/cuda:12.2.0-base-ubuntu22.04","command":["nvidia-smi"],"resources":{"limits":{"nvidia.com/gpu":"1"}}}]}}' \
   --command -- nvidia-smi
 
 # Check output
@@ -215,7 +221,7 @@ gpu-cluster-md-...  4     # (or 8 for p4d.24xlarge)
 kubectl run gpu-test \
   --image=nvidia/cuda:12.2.0-base-ubuntu22.04 \
   --restart=Never \
-  --limits='nvidia.com/gpu=1' \
+  --overrides='{"spec":{"containers":[{"name":"gpu-test","image":"nvidia/cuda:12.2.0-base-ubuntu22.04","command":["nvidia-smi"],"resources":{"limits":{"nvidia.com/gpu":"1"}}}]}}' \
   --command -- nvidia-smi
 
 # Check output (wait a few seconds for the pod to complete)
