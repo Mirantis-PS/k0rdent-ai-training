@@ -76,11 +76,13 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 1. **Verify Storage Class**
    ```bash
    kubectl get storageclass
+   ```
 
-   # If no default, create local-path provisioner
+   The GPU cluster from Lab 5.1 includes `ebs-csi-default-sc` as the default StorageClass. If you see it listed with `(default)`, skip to the next step. If no default exists:
+
+   ```bash
+   # Only if no default StorageClass exists:
    kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
-
-   # Set as default if needed
    kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
    ```
 
@@ -375,11 +377,14 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    # Save as setup_auth.py
    from pymilvus import connections, utility, Role
 
-   # Connect without auth (first time)
+   # When authorizationEnabled is true, Milvus requires credentials even for initial setup.
+   # The default root credentials are root/Milvus.
    connections.connect(
        alias="default",
        host="localhost",
-       port=19530
+       port=19530,
+       user="root",
+       password="Milvus"
    )
 
    # Create new user
