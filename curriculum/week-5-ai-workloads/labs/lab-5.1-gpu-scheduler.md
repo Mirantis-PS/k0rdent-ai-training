@@ -121,9 +121,27 @@ This lab uses **KAI Scheduler** as the open-source option.
 
 The GPU cluster is deployed via k0rdent ClusterDeployment -- the same pattern from Week 1 Lab 1.5.
 
-### Step 1: Create GPU ClusterDeployment
+### Step 1: Verify Provider Readiness
 
 From the management cluster (SSH via `lab-connect.sh`):
+
+```bash
+# Verify AWS credentials are configured (from Lab 1.3)
+kubectl get credentials -n kcm-system
+# Expected: aws-cluster-identity-cred   READY=true
+
+# Verify CAPA and k0smotron providers are ready
+# On a fresh cluster, providers take 1-2 minutes to initialize after boot
+kubectl get management kcm -o jsonpath='{.status.components.cluster-api-provider-aws.success}'
+# Expected: true
+
+kubectl get management kcm -o jsonpath='{.status.components.cluster-api-provider-k0sproject-k0smotron.success}'
+# Expected: true
+```
+
+> **If either returns empty or false:** Wait 30 seconds and check again. Providers must be fully initialized before creating a ClusterDeployment, or the request will be rejected by the admission webhook.
+
+### Step 2: Create GPU ClusterDeployment
 
 ```bash
 # Check available templates
@@ -180,7 +198,7 @@ kubectl get clusterdeployment gpu-cluster -n kcm-system -w
 
 Wait for `READY: True` before proceeding.
 
-### Step 2: Get GPU Cluster Kubeconfig
+### Step 3: Get GPU Cluster Kubeconfig
 
 ```bash
 kubectl get secret gpu-cluster-kubeconfig -n kcm-system -o jsonpath='{.data.value}' | base64 -d > ~/.kube/gpu-cluster.conf
@@ -195,7 +213,7 @@ gpu-cluster-cp-xxxxx         Ready    control-plane   14m   v1.32.8+k0s   10.0.x
 gpu-cluster-md-xxxxx-yyyyy   Ready    <none>          13m   v1.32.8+k0s   10.0.x.x       Ubuntu 22.04.5 LTS
 ```
 
-### Step 3: Install GPU Operator
+### Step 4: Install GPU Operator
 
 The GPU Operator installs NVIDIA drivers, container toolkit, and device plugin. k0s uses non-standard containerd paths that MUST be configured.
 

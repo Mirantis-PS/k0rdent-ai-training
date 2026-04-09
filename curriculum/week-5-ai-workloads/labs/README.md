@@ -463,11 +463,18 @@ This triggers CAPI to tear down the worker node, control plane node, VPC, and al
 
 ### After Completing All Week 5 Labs
 
+> **IMPORTANT: Decommission all managed clusters BEFORE destroying the management cluster.** The management cluster runs the CAPI controllers that clean up AWS resources (VPC, EC2 instances, ELBs, NAT gateways) for each managed cluster. If you destroy the management cluster first, those resources become orphans — still running and costing money, but no longer managed by anything. You would need to manually find and delete them in the AWS console.
+
 ```bash
-# Delete the GPU cluster (if still running)
+# 1. Delete ALL managed clusters first and wait for cleanup
+kubectl get clusterdeployment -n kcm-system
 kubectl delete clusterdeployment gpu-cluster -n kcm-system
 
-# Optionally destroy your entire lab environment
+# Wait for CAPI to fully tear down AWS resources (~5 minutes)
+kubectl get clusterdeployment -n kcm-system -w
+# Wait until the resource disappears (not just READY=False)
+
+# 2. Only THEN destroy the management cluster
 ./scripts/lab-destroy.sh <your-engineer-id> --auto-approve
 ```
 
