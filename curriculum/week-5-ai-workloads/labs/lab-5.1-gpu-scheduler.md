@@ -1,4 +1,4 @@
-# Lab 5.1 - GPU Scheduler Deployment
+# Lab 5.1 - GPU Scheduler Deployment (Validated)
 
 ---
 
@@ -29,6 +29,7 @@ FOUNDATION (Required)                         CHOOSE YOUR PATH
 **Duration:** 3.5 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab
+**Validation Status:** All commands verified on live infrastructure
 
 ## Objective
 
@@ -36,12 +37,12 @@ Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, e
 
 ## Prerequisites
 
-- k0rdent-managed cluster with GPU nodes provisioned via `ClusterDeployment` (from Week 4)
-- NVIDIA GPU Operator deployed as a ServiceTemplate from the [k0rdent catalog](https://catalog.k0rdent.io/) (see [GPU Operator Setup](#gpu-operator-via-k0rdent) below)
-- At least 2 GPU nodes for scheduling demonstrations
-- kubectl access to the managed cluster with cluster-admin privileges
+- k0rdent management cluster access (via `lab-connect.sh`)
+- AWS credentials configured in the management cluster
+- kubectl access with cluster-admin privileges
+- Familiarity with k0rdent ClusterDeployment (from [Lab 1.5](../../week-1-foundations/labs/lab-1.5-cluster-deployment.md))
 
-> **k0rdent context:** This lab runs on a managed GPU cluster. The GPU Operator should already be deployed via `ClusterDeployment.spec.serviceSpec` or `MultiClusterService`, following the same pattern as cert-manager and ingress-nginx in [Lab 1.7](../../week-1-foundations/labs/lab-1.7-multicluster-services.md).
+> **k0rdent context:** This lab deploys a GPU cluster using the same `ClusterDeployment` pattern students learned in Week 1 Lab 1.5. The only difference is using a GPU instance type (`g5.12xlarge`) for the worker node.
 
 ---
 
@@ -49,28 +50,26 @@ Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, e
 
 ### Understanding GPU Interconnects
 
-Before deploying a GPU scheduler, it's essential to understand the hardware topology that influences scheduling decisions:
+Before deploying a GPU scheduler, it is essential to understand the hardware topology that influences scheduling decisions:
 
 ```
-Multi-GPU Node Architecture (e.g., p4d.24xlarge, ND A100 v4):
+Multi-GPU Node Architecture (e.g., g5.12xlarge with 4x A10G):
 ┌─────────────────────────────────────────────────────────────────┐
-│                        8-GPU Node                                │
+│                        4-GPU Node                               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│    ┌─────┐   NVSwitch    ┌─────┐   NVSwitch    ┌─────┐         │
-│    │GPU 0│◄─────┬───────►│GPU 1│◄─────┬───────►│GPU 2│         │
-│    └──┬──┘      │        └──┬──┘      │        └──┬──┘         │
-│       │    600 GB/s        │    600 GB/s        │              │
-│    ┌──▼──┐      │        ┌──▼──┐      │        ┌──▼──┐         │
-│    │GPU 3│◄─────┴───────►│GPU 4│◄─────┴───────►│GPU 5│         │
-│    └──┬──┘               └──┬──┘               └──┬──┘         │
-│       │                     │                     │             │
-│    ┌──▼──┐               ┌──▼──┐               ┌──▼──┐         │
-│    │GPU 6│◄─────────────►│GPU 7│               │ ... │         │
-│    └─────┘   NVSwitch    └─────┘               └─────┘         │
+│    ┌─────┐              ┌─────┐                                 │
+│    │GPU 0│◄────PCIe────►│GPU 1│                                 │
+│    └──┬──┘    (~12GB/s) └──┬──┘                                 │
+│       │                     │                                    │
+│    ┌──▼──┐              ┌──▼──┐                                 │
+│    │GPU 2│◄────PCIe────►│GPU 3│                                 │
+│    └─────┘              └─────┘                                 │
 │                                                                 │
-│    All GPUs connected via NVSwitch at 600-900 GB/s             │
-│    (vs PCIe at 64 GB/s - 10x difference!)                      │
+│    A10G GPUs connected via PCIe Host Bridge (PHB)              │
+│    No NVLink on A10G — this is expected for inference GPUs     │
+│                                                                 │
+│    For NVLink (V100/A100/H100), bandwidth = 300-900 GB/s       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,18 +78,16 @@ Multi-GPU Node Architecture (e.g., p4d.24xlarge, ND A100 v4):
 **NVIDIA Collective Communications Library (NCCL)** is the standard for GPU-to-GPU communication in distributed AI workloads. It automatically detects and utilizes:
 - **NVLink/NVSwitch** for intra-node communication (600-900 GB/s)
 - **RDMA/InfiniBand/EFA** for inter-node communication (200-400 Gb/s)
-- **PCIe** as fallback (64 GB/s - avoid for AI workloads)
+- **PCIe** as fallback (~12 GB/s for A10G)
 
 ### Why NCCL Configuration Matters
 
-| Communication Type | Bandwidth | Latency | Use Case |
-|-------------------|-----------|---------|----------|
-| NVLink (A100) | 600 GB/s | <1 us | Tensor parallelism |
-| NVSwitch (H100) | 900 GB/s | <1 us | All-reduce within node |
-| InfiniBand | 400 Gb/s | ~2 us | Pipeline parallelism |
-| EFA (AWS) | 400 Gb/s | ~5 us | Data parallelism |
-| PCIe 5.0 | 64 GB/s | ~10 us | **Avoid for multi-GPU** |
-| TCP/Ethernet | 12.5 GB/s | ~50 us | **Never use for AI** |
+| GPU Type | Interconnect | Expected Bus BW | Use Case |
+|----------|-------------|-----------------|----------|
+| A10G (g5) | PCIe | ~3 GB/s | Inference, small training |
+| V100 (p3) | NVLink 2.0 | ~100 GB/s | Training |
+| A100 (p4d) | NVSwitch | ~500 GB/s | Large-scale training |
+| H100 (p5) | NVSwitch | ~800 GB/s | Frontier training |
 
 **Key Insight:** A topology-unaware scheduler might place GPUs across PCIe instead of NVLink, reducing performance by 10x.
 
@@ -118,66 +115,143 @@ The default Kubernetes scheduler has limitations for AI/ML workloads:
 
 This lab uses **KAI Scheduler** as the open-source option.
 
-## Lab Environment
+---
 
-**Cluster Requirements:**
-- k0rdent-managed cluster with 2+ GPU nodes (k0s distribution)
-- GPU Operator v25.10.0+ deployed via k0rdent ServiceTemplate
-- kubectl access to the managed cluster
+## Pre-Lab: Deploy GPU Cluster via k0rdent (15 min + ~15 min wait)
 
-### GPU Operator via k0rdent
+The GPU cluster is deployed via k0rdent ClusterDeployment -- the same pattern from Week 1 Lab 1.5.
 
-If the GPU Operator is not yet deployed on your managed cluster, install the ServiceTemplate and attach it:
+### Step 1: Verify Provider Readiness
+
+From the management cluster (SSH via `lab-connect.sh`):
 
 ```bash
-# On the management cluster: Install GPU Operator ServiceTemplate from catalog
-helm install gpu-operator-service-template \
-  oci://ghcr.io/k0rdent/catalog/charts/gpu-operator-service-template \
-  --version 25.10.0 \
-  -n kcm-system
+# Verify AWS credentials are configured (from Lab 1.3)
+kubectl get credentials -n kcm-system
+# Expected: aws-cluster-identity-cred   READY=true
 
-# Verify the ServiceTemplate is available
-kubectl get servicetemplate -n kcm-system | grep gpu-operator
+# Verify CAPA and k0smotron providers are ready
+# On a fresh cluster, providers take 1-2 minutes to initialize after boot
+kubectl get management kcm -o jsonpath='{.status.components.cluster-api-provider-aws.success}'
+# Expected: true
+
+kubectl get management kcm -o jsonpath='{.status.components.cluster-api-provider-k0sproject-k0smotron.success}'
+# Expected: true
 ```
 
-Then attach it to your managed cluster via `MultiClusterService` or by patching your `ClusterDeployment`:
+> **If either returns empty or false:** Wait 30 seconds and check again. Providers must be fully initialized before creating a ClusterDeployment, or the request will be rejected by the admission webhook.
+
+### Step 2: Create GPU ClusterDeployment
+
+```bash
+# Check available templates
+kubectl get clustertemplates -n kcm-system | grep aws-standalone
+
+# Template to use: aws-standalone-cp-1-0-20
+```
+
+Create the ClusterDeployment:
 
 ```yaml
-# Save as gpu-multicluster-service.yaml
+# Save as gpu-cluster-deployment.yaml
 apiVersion: k0rdent.mirantis.com/v1beta1
-kind: MultiClusterService
+kind: ClusterDeployment
 metadata:
-  name: gpu-operator
+  name: gpu-cluster
   namespace: kcm-system
+  labels:
+    environment: training
+    gpu-enabled: "true"
 spec:
-  clusterSelector:
-    matchLabels:
+  template: aws-standalone-cp-1-0-20
+  credential: aws-cluster-identity-cred
+  dryRun: false
+  cleanupOnDeletion: true
+  config:
+    region: us-east-1
+    controlPlaneNumber: 1
+    controlPlane:
+      amiID: ami-00de3875b03809ec5  # Ubuntu 22.04 (REQUIRED - Amazon Linux 2 not supported by GPU Operator)
+      instanceType: t3.medium
+      rootVolumeSize: 50
+    workersNumber: 1
+    worker:
+      amiID: ami-00de3875b03809ec5  # Ubuntu 22.04
+      instanceType: g5.12xlarge     # 4x NVIDIA A10G, 24GB each
+      rootVolumeSize: 200
+    clusterIdentity:
+      name: aws-cluster-identity
+      namespace: kcm-system
+    clusterLabels:
+      environment: training
       gpu-enabled: "true"
-  serviceSpec:
-    services:
-    - template: gpu-operator-25-10-0
-      name: gpu-operator
-      namespace: gpu-operator
-      values: |
-        toolkit:
-          env:
-            - name: CONTAINERD_CONFIG
-              value: /etc/k0s/containerd.d/nvidia.toml
-            - name: CONTAINERD_SOCKET
-              value: /run/k0s/containerd.sock
-            - name: CONTAINERD_RUNTIME_CLASS
-              value: nvidia
 ```
 
-> **k0s-specific:** Because k0rdent uses k0s as its Kubernetes distribution, the containerd paths differ from standard installations. The toolkit environment variables above are required for GPU Operator to correctly configure the NVIDIA container runtime on k0s nodes. See [NVIDIA k0rdent Partner Validation](https://docs.nvidia.com/datacenter/cloud-native/partner-validated/latest/k0rdent.html) for details.
+> **Why Ubuntu 22.04?** The NVIDIA GPU Operator driver containers do not support Amazon Linux 2. You must use Ubuntu 22.04 AMIs for both control plane and worker nodes.
 
 ```bash
-# Apply and verify (on management cluster)
-kubectl apply -f gpu-multicluster-service.yaml
+kubectl apply -f gpu-cluster-deployment.yaml
 
-# Switch to managed cluster context and verify GPU Operator pods
-kubectl get pods -n gpu-operator
+# Monitor deployment (~15 minutes)
+kubectl get clusterdeployment gpu-cluster -n kcm-system -w
 ```
+
+Wait for `READY: True` before proceeding.
+
+### Step 3: Get GPU Cluster Kubeconfig
+
+```bash
+kubectl get secret gpu-cluster-kubeconfig -n kcm-system -o jsonpath='{.data.value}' | base64 -d > ~/.kube/gpu-cluster.conf
+export KUBECONFIG=~/.kube/gpu-cluster.conf
+kubectl get nodes -o wide
+```
+
+**Expected output:**
+```
+NAME                         STATUS   ROLES           AGE   VERSION       INTERNAL-IP    OS-IMAGE
+gpu-cluster-cp-xxxxx         Ready    control-plane   14m   v1.32.8+k0s   10.0.x.x       Ubuntu 22.04.5 LTS
+gpu-cluster-md-xxxxx-yyyyy   Ready    <none>          13m   v1.32.8+k0s   10.0.x.x       Ubuntu 22.04.5 LTS
+```
+
+### Step 4: Install GPU Operator
+
+The GPU Operator installs NVIDIA drivers, container toolkit, and device plugin. k0s uses non-standard containerd paths that MUST be configured.
+
+```bash
+helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+helm repo update
+
+helm install gpu-operator nvidia/gpu-operator \
+  --namespace gpu-operator \
+  --create-namespace \
+  --version v25.3.0 \
+  --set driver.enabled=true \
+  --set toolkit.enabled=true \
+  --set toolkit.env[0].name=CONTAINERD_CONFIG \
+  --set toolkit.env[0].value=/etc/k0s/containerd.d/nvidia.toml \
+  --set toolkit.env[1].name=CONTAINERD_SOCKET \
+  --set toolkit.env[1].value=/run/k0s/containerd.sock \
+  --set toolkit.env[2].name=CONTAINERD_RUNTIME_CLASS \
+  --set toolkit.env[2].value=nvidia \
+  --set devicePlugin.enabled=true \
+  --set dcgm.enabled=true \
+  --set dcgmExporter.enabled=true \
+  --wait --timeout 15m
+```
+
+> **k0s-specific:** k0s stores containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, NOT the standard paths (`/etc/containerd/` and `/run/containerd/containerd.sock`). Without these toolkit env vars, the toolkit crashes with `containerd.sock: no such file or directory`.
+
+Wait ~8 minutes for NVIDIA driver compilation on the worker node, then verify:
+
+```bash
+kubectl get pods -n gpu-operator
+
+kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
+```
+
+**Expected:** `nvidia.com/gpu: 4` on the worker node.
+
+---
 
 ## Tasks
 
@@ -185,75 +259,111 @@ kubectl get pods -n gpu-operator
 
 1. **Check GPU Operator Status**
    ```bash
-   # Verify GPU Operator pods
+   # Verify GPU Operator pods (all should be Running or Completed)
    kubectl get pods -n gpu-operator
 
    # Check GPU node labels
    kubectl get nodes -l nvidia.com/gpu.present=true -o wide
 
    # Verify GPU resources
-   kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
+   kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
    ```
 
-2. **Verify GPU Availability**
+2. **Expected Output**
+   ```
+   NAME                         GPUs
+   gpu-cluster-cp-xxxxx         <none>
+   gpu-cluster-md-xxxxx-yyyyy   4
+   ```
+
+3. **Run a Quick GPU Test**
    ```bash
-   # List allocatable GPUs per node
-   kubectl get nodes -o custom-columns=\
-   'NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
+   kubectl run gpu-test --image=nvidia/cuda:12.2.0-base-ubuntu22.04 --restart=Never \
+     --overrides='{"spec":{"containers":[{"name":"gpu-test","image":"nvidia/cuda:12.2.0-base-ubuntu22.04","command":["nvidia-smi"],"resources":{"limits":{"nvidia.com/gpu":"1"}}}]}}'
+
+   # Wait for completion, then check logs
+   kubectl logs gpu-test
+   kubectl delete pod gpu-test
    ```
 
-3. **Expected Output**
+4. **Expected nvidia-smi Output**
    ```
-   NAME           GPUs
-   gpu-node-1     1
-   gpu-node-2     1
+   NVIDIA-SMI 570.124.06    Driver Version: 570.124.06    CUDA Version: 12.8
+   NVIDIA A10G              24GB memory
    ```
+
+   > **Note:** g5.12xlarge has 4x NVIDIA A10G GPUs connected via PCIe (PHB). There is NO NVLink on A10G -- this is expected and normal for inference-class GPUs. The GPU topology shows `PHB` (PCIe Host Bridge) connections between all GPUs.
 
 ### Task 2: Deploy KAI Scheduler (45 min)
 
 1. **Install KAI Scheduler from NVIDIA OCI Registry**
 
-   KAI Scheduler is published as an OCI Helm chart by NVIDIA. Install directly from the GitHub Container Registry:
+   KAI Scheduler is published as an OCI Helm chart. Install directly from the GitHub Container Registry:
 
    ```bash
    # Create namespace
    kubectl create namespace kai-scheduler
 
    # Install KAI Scheduler (pin version for reproducibility)
+   # IMPORTANT: The OCI path is ghcr.io/kai-scheduler/ (NOT ghcr.io/nvidia/)
    helm upgrade --install kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-     --version 0.12.11 \
+     oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
+     --version v0.12.10 \
      --namespace kai-scheduler \
      --wait
    ```
 
-   > **Alternative:** You can also install from NVIDIA NGC:
-   > ```bash
-   > helm repo add nvidia-k8s https://helm.ngc.nvidia.com/nvidia/k8s
-   > helm repo update
-   > helm install kai-scheduler nvidia-k8s/kai-scheduler \
-   >   --namespace kai-scheduler --wait
-   > ```
+   > **Reference:** [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
 
 2. **Verify Installation**
    ```bash
-   # Check scheduler pods
    kubectl get pods -n kai-scheduler
-
-   # View scheduler logs
-   kubectl logs -n kai-scheduler -l app=kai-scheduler --tail=50
    ```
 
 3. **Expected Pod Status**
    ```
-   NAME                            READY   STATUS    RESTARTS   AGE
-   kai-scheduler-6d8f9b7c4-xxxxx   1/1     Running   0          2m
-   kai-scheduler-6d8f9b7c4-yyyyy   1/1     Running   0          2m
+   NAME                                    READY   STATUS    RESTARTS   AGE
+   kai-scheduler-default-xxx               1/1     Running   0          2m
+   binder-xxx                              1/1     Running   0          2m
+   pod-grouper-xxx                         1/1     Running   0          2m
+   podgroup-controller-xxx                 1/1     Running   0          2m
+   queue-controller-xxx                    1/1     Running   0          2m
+   admission-xxx                           1/1     Running   0          2m
+   kai-operator-xxx                        1/1     Running   0          2m
    ```
 
 ### Task 3: Configure Scheduler Queues (30 min)
 
-1. **Create Priority Classes**
+KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:AI origins). Queue configuration has several critical requirements discovered during validation.
+
+> **CRITICAL:** Queues MUST have:
+> 1. `parentQueue: default-parent-queue` (leaf queues need a parent)
+> 2. `limit: -1` for ALL resource types (gpu, cpu, memory) -- the default limit is `0`, which blocks all scheduling
+> 3. The parent queue must also have `quota: -1` and `limit: -1` for all resources
+
+1. **Configure the Parent Queue**
+
+   ```bash
+   cat <<EOF | kubectl apply -f -
+   apiVersion: scheduling.run.ai/v2
+   kind: Queue
+   metadata:
+     name: default-parent-queue
+   spec:
+     resources:
+       gpu:
+         quota: -1
+         limit: -1
+       cpu:
+         quota: -1
+         limit: -1
+       memory:
+         quota: -1
+         limit: -1
+   EOF
+   ```
+
+2. **Create Priority Classes**
    ```yaml
    # Save as priority-classes.yaml
    apiVersion: scheduling.k8s.io/v1
@@ -262,7 +372,7 @@ kubectl get pods -n gpu-operator
      name: high-priority-gpu
    value: 1000000
    globalDefault: false
-   description: "High priority GPU workloads - preempts lower priority"
+   description: "High priority GPU workloads"
    preemptionPolicy: PreemptLowerPriority
    ---
    apiVersion: scheduling.k8s.io/v1
@@ -288,9 +398,7 @@ kubectl get pods -n gpu-operator
    kubectl apply -f priority-classes.yaml
    ```
 
-2. **Create Resource Queues**
-
-   KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:AI origins):
+3. **Create Resource Queues**
 
    ```yaml
    # Save as gpu-queues.yaml
@@ -299,47 +407,68 @@ kubectl get pods -n gpu-operator
    metadata:
      name: training-queue
    spec:
+     parentQueue: default-parent-queue
+     priority: 100
      resources:
        gpu:
-         quota: 8
-         overQuotaWeight: 50
-     priority: 100
+         quota: 4
+         limit: -1
+       cpu:
+         quota: 48000
+         limit: -1
+       memory:
+         quota: 200000
+         limit: -1
    ---
    apiVersion: scheduling.run.ai/v2
    kind: Queue
    metadata:
      name: inference-queue
    spec:
+     parentQueue: default-parent-queue
+     priority: 150
      resources:
        gpu:
-         quota: 4
-         overQuotaWeight: 30
-     priority: 150  # Higher priority for latency-sensitive inference
+         quota: 2
+         limit: -1
+       cpu:
+         quota: 24000
+         limit: -1
+       memory:
+         quota: 100000
+         limit: -1
    ---
    apiVersion: scheduling.run.ai/v2
    kind: Queue
    metadata:
      name: dev-queue
    spec:
+     parentQueue: default-parent-queue
+     priority: 50
      resources:
        gpu:
-         quota: 2
-         overQuotaWeight: 20
-     priority: 50
+         quota: 1
+         limit: -1
+       cpu:
+         quota: 8000
+         limit: -1
+       memory:
+         quota: 32000
+         limit: -1
    ```
 
    ```bash
    kubectl apply -f gpu-queues.yaml
    ```
 
-   > **Queue fields explained:**
-   > - `quota`: Maximum GPU allocation for the queue
-   > - `overQuotaWeight`: Relative weight when borrowing unused GPUs from other queues (higher = more share)
-   > - `priority`: Scheduling priority when queues compete for the same resources
+   > **Queue fields explained** (from [KAI Queue docs](https://github.com/NVIDIA/KAI-Scheduler/blob/main/docs/queues/README.md)):
+   > - `quota`: Guaranteed resource allocation (jobs within quota are protected from reclaim)
+   > - `limit`: Hard cap (`-1` = unlimited, `0` = no resources allowed, which is the **DEFAULT**)
+   > - `overQuotaWeight`: Relative weight for borrowing unused resources from other queues
 
-3. **Verify Queues**
+4. **Verify Queues**
    ```bash
-   kubectl get queues -n kai-scheduler
+   kubectl get queues
    ```
 
 ### Task 4: Test Gang Scheduling (30 min)
@@ -356,7 +485,6 @@ Gang scheduling ensures all pods in a job start together or none start, critical
    kind: Job
    metadata:
      name: gang-test
-     namespace: default
    spec:
      completions: 2
      parallelism: 2
@@ -374,8 +502,8 @@ Gang scheduling ensures all pods in a job start together or none start, critical
              args:
                - |
                  echo "Worker started at $(date)"
-                 nvidia-smi
-                 sleep 60
+                 nvidia-smi --query-gpu=name --format=csv,noheader
+                 sleep 30
                  echo "Worker completed at $(date)"
              resources:
                limits:
@@ -384,20 +512,16 @@ Gang scheduling ensures all pods in a job start together or none start, critical
                  nvidia.com/gpu: 1
                  memory: 4Gi
                  cpu: "2"
-         tolerations:
-           - key: nvidia.com/gpu
-             operator: Exists
-             effect: NoSchedule
    ```
 
-   > **How it works:** KAI's PodGrouper automatically groups the 2 pods (parallelism: 2) into a gang. Both must be schedulable before either starts. No manual gang annotations required.
+   > **How it works:** KAI's PodGrouper automatically groups the 2 pods (parallelism: 2) into a gang by owner reference (Job). Both must be schedulable before either starts. No manual gang annotations required.
 
 2. **Submit Gang Job**
    ```bash
    kubectl apply -f gang-test-job.yaml
 
    # Watch pod scheduling
-   kubectl get pods -l job-name=gang-test -w
+   kubectl get pods -l job-name=gang-test -o wide -w
    ```
 
 3. **Verify Gang Behavior**
@@ -410,9 +534,9 @@ Gang scheduling ensures all pods in a job start together or none start, critical
    ```
 
 4. **Expected Behavior**
-   - Both pods scheduled within seconds of each other
-   - If only 1 GPU available, both pods remain Pending (gang constraint)
-   - Scheduler logs show gang scheduling decision
+   - Both pods scheduled within seconds of each other (gang constraint)
+   - Both pods land on the GPU worker node, each with 1 GPU
+   - If insufficient GPUs available, both pods remain Pending (gang constraint)
 
 5. **Clean Up**
    ```bash
@@ -421,7 +545,7 @@ Gang scheduling ensures all pods in a job start together or none start, critical
 
 ### Task 5: Test Priority Preemption (30 min)
 
-> **Note:** This task demonstrates Kubernetes-native `PriorityClass` preemption, which works with KAI Scheduler independently of queue assignment. The pods below intentionally omit `kai.scheduler/queue` labels to show that priority preemption is a Kubernetes built-in feature that KAI Scheduler honors.
+This task demonstrates Kubernetes-native `PriorityClass` preemption with KAI Scheduler. Create low-priority workloads filling GPU capacity, then deploy high-priority to trigger preemption.
 
 1. **Create Low Priority Workload**
    ```yaml
@@ -429,10 +553,9 @@ Gang scheduling ensures all pods in a job start together or none start, critical
    apiVersion: apps/v1
    kind: Deployment
    metadata:
-     name: low-priority-gpu-workload
-     namespace: default
+     name: low-priority-gpu
    spec:
-     replicas: 2
+     replicas: 4
      selector:
        matchLabels:
          app: low-priority-gpu
@@ -440,6 +563,7 @@ Gang scheduling ensures all pods in a job start together or none start, critical
        metadata:
          labels:
            app: low-priority-gpu
+           kai.scheduler/queue: dev-queue
        spec:
          schedulerName: kai-scheduler
          priorityClassName: low-priority-gpu
@@ -454,17 +578,13 @@ Gang scheduling ensures all pods in a job start together or none start, critical
                  nvidia.com/gpu: 1
                  memory: 4Gi
                  cpu: "1"
-         tolerations:
-           - key: nvidia.com/gpu
-             operator: Exists
-             effect: NoSchedule
    ```
 
 2. **Deploy Low Priority Workload**
    ```bash
    kubectl apply -f low-priority-workload.yaml
 
-   # Wait for pods to be running
+   # Wait for pods to fill all 4 GPUs
    kubectl get pods -l app=low-priority-gpu -w
    ```
 
@@ -474,8 +594,7 @@ Gang scheduling ensures all pods in a job start together or none start, critical
    apiVersion: apps/v1
    kind: Deployment
    metadata:
-     name: high-priority-gpu-workload
-     namespace: default
+     name: high-priority-gpu
    spec:
      replicas: 1
      selector:
@@ -485,6 +604,7 @@ Gang scheduling ensures all pods in a job start together or none start, critical
        metadata:
          labels:
            app: high-priority-gpu
+           kai.scheduler/queue: training-queue
        spec:
          schedulerName: kai-scheduler
          priorityClassName: high-priority-gpu
@@ -499,10 +619,6 @@ Gang scheduling ensures all pods in a job start together or none start, critical
                  nvidia.com/gpu: 1
                  memory: 4Gi
                  cpu: "1"
-         tolerations:
-           - key: nvidia.com/gpu
-             operator: Exists
-             effect: NoSchedule
    ```
 
 4. **Submit High Priority and Observe Preemption**
@@ -523,14 +639,14 @@ Gang scheduling ensures all pods in a job start together or none start, critical
 
 6. **Clean Up**
    ```bash
-   kubectl delete deployment low-priority-gpu-workload high-priority-gpu-workload
+   kubectl delete deployment low-priority-gpu high-priority-gpu
    ```
 
-### Task 6: Configure Fractional GPU Sharing (Optional - 20 min)
+### Task 6: Configure Fractional GPU Sharing (20 min)
 
-If your cluster supports GPU time-slicing or MIG:
+Time-slicing multiplies allocatable GPU resources by sharing physical GPUs across multiple pods.
 
-1. **Enable Time-Slicing in GPU Operator**
+1. **Create Time-Slicing ConfigMap**
    ```yaml
    # Save as time-slicing-config.yaml
    apiVersion: v1
@@ -551,56 +667,60 @@ If your cluster supports GPU time-slicing or MIG:
 
    ```bash
    kubectl apply -f time-slicing-config.yaml
+   ```
 
-   # Update ClusterPolicy to use time-slicing
+2. **Patch ClusterPolicy**
+
+   > **IMPORTANT:** Must include BOTH `name` AND `default` fields. The `default: "any"` tells the device plugin which key in the ConfigMap to use. Without it, time-slicing silently does nothing.
+
+   ```bash
    kubectl patch clusterpolicy/cluster-policy \
      --type merge \
-     --patch '{"spec": {"devicePlugin": {"config": {"name": "time-slicing-config"}}}}'
+     --patch '{"spec": {"devicePlugin": {"config": {"name": "time-slicing-config", "default": "any"}}}}'
    ```
 
-2. **Verify Fractional GPUs**
+   > **Reference:** [GPU Operator Time-Slicing docs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
+
+3. **Verify Fractional GPUs**
+
+   Wait ~60 seconds for the device plugin to restart and re-register:
+
    ```bash
-   # After GPU Operator reconciles (may take 2-3 minutes)
-   kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
-
-   # Should show 4x the physical GPU count
+   kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
    ```
+
+   **Expected:** 16 GPUs (4 physical x 4 replicas)
 
 ### Task 7: Configure Enterprise NCCL Settings (30 min)
 
-Proper NCCL configuration is critical for multi-GPU workloads. This task creates a standardized configuration for AI workloads.
+Proper NCCL configuration is critical for multi-GPU workloads. This task creates a standardized configuration and validates GPU communication performance.
 
 1. **Verify GPU Topology**
 
    Before configuring NCCL, understand your node's topology:
 
    ```bash
-   # SSH to a GPU node or exec into a GPU pod
-   nvidia-smi topo -m
+   kubectl run topo-test --image=nvidia/cuda:12.2.0-base-ubuntu22.04 --restart=Never \
+     --overrides='{"spec":{"containers":[{"name":"topo","image":"nvidia/cuda:12.2.0-base-ubuntu22.04","command":["nvidia-smi","topo","-m"],"resources":{"limits":{"nvidia.com/gpu":"4"},"requests":{"nvidia.com/gpu":"4"}}}]}}'
+
+   # Wait for completion
+   kubectl logs topo-test
+   kubectl delete pod topo-test
    ```
 
-   **Expected output for 8-GPU NVSwitch node:**
-
-   For **A100 nodes** (e.g., p4d.24xlarge, 12 NVLinks per GPU):
+   **Expected output for g5.12xlarge (A10G):**
    ```
-           GPU0  GPU1  GPU2  GPU3  GPU4  GPU5  GPU6  GPU7  NIC0  CPU
-   GPU0     X    NV12  NV12  NV12  NV12  NV12  NV12  NV12  SYS   SYS
-   GPU1    NV12   X    NV12  NV12  NV12  NV12  NV12  NV12  SYS   SYS
-   ...
-   ```
-
-   For **H100 nodes** (e.g., p5.48xlarge, 18 NVLinks per GPU):
-   ```
-           GPU0  GPU1  GPU2  GPU3  GPU4  GPU5  GPU6  GPU7  NIC0  CPU
-   GPU0     X    NV18  NV18  NV18  NV18  NV18  NV18  NV18  SYS   SYS
-   GPU1    NV18   X    NV18  NV18  NV18  NV18  NV18  NV18  SYS   SYS
-   ...
+           GPU0    GPU1    GPU2    GPU3    CPU Affinity    NUMA Affinity
+   GPU0     X      PHB     PHB     PHB     0-47            0
+   GPU1    PHB      X      PHB     PHB     0-47            0
+   GPU2    PHB     PHB      X      PHB     0-47            0
+   GPU3    PHB     PHB     PHB      X      0-47            0
    ```
 
    **Legend:**
-   - `NV#` = Number of NVLink connections (NV12 = A100 @ 600 GB/s, NV18 = H100 @ 900 GB/s)
-   - `SYS` = System/PCIe connection (avoid for multi-GPU)
-   - `PHB` = PCIe Host Bridge
+   - `PHB` = PCIe Host Bridge (~12 GB/s) -- this is what A10G uses
+   - `NV#` = Number of NVLink connections (only on V100/A100/H100)
+   - `SYS` = System/QPI connection
 
 2. **Create NCCL Configuration ConfigMap**
 
@@ -610,35 +730,22 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    kind: ConfigMap
    metadata:
      name: nccl-enterprise-config
-     namespace: default
    data:
      # ===== Core NCCL Settings =====
      # Debug level (WARN for production, INFO for troubleshooting)
      NCCL_DEBUG: "WARN"
 
-     # Enable all debug subsystems when troubleshooting
-     # NCCL_DEBUG_SUBSYS: "INIT,COLL,P2P,NET,GRAPH,TUNING"
-
      # ===== P2P (Peer-to-Peer) Configuration =====
      # Force NVLink usage for P2P communication
      NCCL_P2P_LEVEL: "NVL"
 
-     # Disable P2P entirely (use only if NVLink causing issues)
-     # NCCL_P2P_DISABLE: "0"
-
      # ===== RDMA/GPUDirect Configuration =====
      # Enable GPUDirect RDMA (valid: LOC, PIX, PXB, PHB, SYS)
-     # SYS = allow GDR across any system path (maximum reach)
      NCCL_NET_GDR_LEVEL: "SYS"
 
-     # For AWS EFA
-     # FI_EFA_USE_DEVICE_RDMA: "1"
-     # FI_PROVIDER: "efa"
-
-     # For Azure InfiniBand
+     # For InfiniBand
      NCCL_IB_DISABLE: "0"
-     # Prefix match: "mlx5" matches all mlx5_* devices.
-     # Use "=mlx5_0" for exact match of a single device.
+     # Prefix match: "mlx5" matches all mlx5_* devices
      NCCL_IB_HCA: "mlx5"
 
      # ===== Performance Tuning =====
@@ -648,7 +755,7 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
      # Number of CUDA threads for NCCL kernels
      NCCL_NTHREADS: "512"
 
-     # Socket threads for TCP fallback (not usually needed with RDMA)
+     # Socket threads for TCP fallback
      NCCL_SOCKET_NTHREADS: "4"
      NCCL_NSOCKS_PERTHREAD: "4"
 
@@ -656,12 +763,12 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
      # Tree algorithm threshold (0 = always use tree, good for many nodes)
      NCCL_TREE_THRESHOLD: "0"
 
-     # Minimum rings for ring algorithm (legacy; NCCL_MIN_CTAS in NCCL 2.18+)
+     # Minimum rings for ring algorithm
      NCCL_MIN_NRINGS: "4"
 
      # ===== CUDA Optimization =====
-     # Max CUDA streams: 1 for Megatron Tensor/Sequence Parallelism.
-     # Do NOT set to 1 for FSDP workloads. Remove or increase for FSDP.
+     # Max CUDA streams: 1 for Megatron Tensor/Sequence Parallelism
+     # Do NOT set to 1 for FSDP workloads
      CUDA_DEVICE_MAX_CONNECTIONS: "1"
    ```
 
@@ -669,19 +776,16 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    kubectl apply -f nccl-enterprise-config.yaml
    ```
 
-3. **Create NCCL Test Deployment**
+3. **Run NCCL All-Reduce Test**
 
-   Test the NCCL configuration with a multi-GPU workload:
-
-   > **Note:** NCCL performance tests must be built from source or use a dedicated test image. The standard PyTorch NGC container does NOT include pre-built NCCL tests.
+   Use the PyTorch NGC container to build and run NCCL tests:
 
    ```yaml
-   # Save as nccl-config-test.yaml
+   # Save as nccl-test.yaml
    apiVersion: v1
    kind: Pod
    metadata:
      name: nccl-config-test
-     namespace: default
    spec:
      restartPolicy: Never
      containers:
@@ -690,30 +794,20 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
          command: ["bash", "-c"]
          args:
            - |
-             echo "=== NCCL Environment Variables ==="
-             env | grep -E "^NCCL|^FI_|^CUDA" | sort
+             echo "=== NCCL Environment ==="
+             env | grep -E "^NCCL|^CUDA" | sort
 
-             echo ""
              echo "=== GPU Topology ==="
              nvidia-smi topo -m
 
-             echo ""
              echo "=== Building NCCL Tests ==="
-             apt-get update && apt-get install -y build-essential
-             cd /tmp
-             git clone https://github.com/NVIDIA/nccl-tests.git
-             cd nccl-tests
-             make MPI=0 CUDA_HOME=/usr/local/cuda NCCL_HOME=/usr/lib/x86_64-linux-gnu
-             echo "Build complete."
+             apt-get update -qq && apt-get install -y -qq build-essential
+             cd /tmp && git clone https://github.com/NVIDIA/nccl-tests.git
+             cd nccl-tests && make MPI=0 CUDA_HOME=/usr/local/cuda NCCL_HOME=/usr/lib/x86_64-linux-gnu
 
-             echo ""
-             echo "=== Running NCCL All-Reduce Test ==="
+             echo "=== Running All-Reduce ==="
              GPU_COUNT=$(nvidia-smi -L | wc -l)
-             echo "Detected $GPU_COUNT GPUs"
              ./build/all_reduce_perf -b 1M -e 1G -f 2 -g $GPU_COUNT
-
-             echo ""
-             echo "=== Test Complete ==="
          envFrom:
            - configMapRef:
                name: nccl-enterprise-config
@@ -733,38 +827,30 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
          emptyDir:
            medium: Memory
            sizeLimit: 16Gi
-     tolerations:
-       - key: nvidia.com/gpu
-         operator: Exists
-         effect: NoSchedule
    ```
 
-   > **Tip:** For faster iteration, pre-build NCCL tests into a custom container image rather than building at runtime. See [NVIDIA nccl-tests](https://github.com/NVIDIA/nccl-tests) for Dockerfile examples.
-
    ```bash
-   kubectl apply -f nccl-config-test.yaml
+   kubectl apply -f nccl-test.yaml
 
-   # Watch the test
+   # NCCL test takes ~5 minutes (build + run)
    kubectl logs -f nccl-config-test
    ```
 
 4. **Interpret NCCL Test Results**
 
-   Look for these indicators in the output:
-
+   **Expected results for A10G (PCIe):**
    ```
-   # Good - NVLink being used:
-   NCCL INFO P2P using NVLINK
-
-   # Good - High bus bandwidth (600+ GB/s for 4 GPUs):
-   #       busbw: 650.23 GB/s
-
-   # Bad - PCIe fallback:
-   NCCL WARN P2P not available between GPU 0 and GPU 1
-
-   # Bad - TCP fallback:
-   NCCL INFO NET/Socket : Using [0]eth0
+   # Avg bus bandwidth    : 3.22401 GB/s
    ```
+
+   This is PCIe bandwidth. For NVLink GPUs, expect significantly higher:
+
+   | GPU Type | Interconnect | Expected Bus BW |
+   |----------|-------------|-----------------|
+   | A10G (g5) | PCIe | ~3 GB/s |
+   | V100 (p3) | NVLink 2.0 | ~100 GB/s |
+   | A100 (p4d) | NVSwitch | ~500 GB/s |
+   | H100 (p5) | NVSwitch | ~800 GB/s |
 
 5. **NCCL Configuration for Different Scenarios**
 
@@ -785,8 +871,8 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
 
 1. **Access Scheduler Metrics**
    ```bash
-   # Port forward to scheduler metrics
-   kubectl port-forward -n kai-scheduler svc/kai-scheduler-metrics 8080:8080 &
+   # The metrics service is kai-scheduler-default on port 8080
+   kubectl port-forward -n kai-scheduler svc/kai-scheduler-default 8080:8080 &
 
    # Fetch metrics
    curl http://localhost:8080/metrics | grep kai_
@@ -794,34 +880,28 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
 
 2. **Key Metrics to Monitor**
    ```
-   # Scheduling latency
-   kai_scheduling_duration_seconds_bucket
+   # Per-action scheduling latency
+   kai_action_scheduling_latency_milliseconds
 
-   # Queue depth
-   kai_queue_pending_pods
+   # End-to-end scheduling latency
+   kai_e2e_scheduling_latency_milliseconds
 
-   # Preemption counts
-   kai_preemption_total
-
-   # Gang scheduling success rate
-   kai_gang_scheduling_success_total
+   # Per-plugin scheduling latency
+   kai_plugin_scheduling_latency_milliseconds
    ```
 
-3. **Create Scheduler Dashboard (Optional)**
-   ```yaml
-   # If Grafana is available, import dashboard
-   # Metrics provide insight into:
-   # - Scheduling latency distribution
-   # - Queue utilization
-   # - Preemption frequency
-   # - GPU allocation efficiency
+3. **Stop Port Forward**
+   ```bash
+   kill %1
    ```
+
+---
 
 ## Deliverables
 
 ### Basic Deliverables
 - [ ] **Screenshot** of KAI scheduler pods running
-- [ ] **Queue configuration** YAML files
+- [ ] **Queue configuration** YAML files (parent queue + 3 leaf queues)
 - [ ] **Gang scheduling test results** showing both pods scheduled together
 - [ ] **Preemption demo** showing high priority preempting low priority
 - [ ] **Scheduler metrics output** from `/metrics` endpoint
@@ -829,28 +909,69 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
 ### NCCL Configuration Deliverables
 - [ ] **GPU topology output** (`nvidia-smi topo -m`)
 - [ ] **NCCL enterprise ConfigMap** deployed
-- [ ] **NCCL test results** showing NVLink utilization
-- [ ] **Bus bandwidth measurement** (should be 500+ GB/s for 4 GPUs)
+- [ ] **NCCL test results** showing all-reduce bandwidth
+- [ ] **Bus bandwidth measurement** (~3 GB/s for A10G PCIe)
 - [ ] **Documentation** of NCCL settings for your environment
 
 ## Verification Checklist
 
 ### Scheduler
-- [ ] KAI scheduler deployed and running
-- [ ] Priority classes created
-- [ ] Resource queues configured
-- [ ] Gang scheduling working correctly
+- [ ] KAI scheduler deployed and running (7 pods)
+- [ ] Parent queue created with `limit: -1`
+- [ ] Priority classes created (high, normal, low)
+- [ ] Resource queues configured with `parentQueue` and `limit: -1`
+- [ ] Gang scheduling working correctly (both pods start simultaneously)
 - [ ] Priority preemption functioning
 - [ ] Scheduler metrics accessible
 
 ### NCCL/GPU Communication
-- [ ] GPU topology verified (NVLink connections visible)
+- [ ] GPU topology verified (`PHB` connections for A10G)
 - [ ] NCCL ConfigMap applied correctly
-- [ ] NCCL test shows `P2P using NVLINK` (not PCIe)
-- [ ] Bus bandwidth >500 GB/s (4 GPUs) or >800 GB/s (8 GPUs)
-- [ ] No TCP fallback warnings in NCCL output
+- [ ] NCCL all-reduce test completed
+- [ ] Bus bandwidth ~3 GB/s for A10G (PCIe)
+- [ ] Time-slicing enabled (4 physical GPUs -> 16 allocatable)
+
+---
+
+## Cleanup
+
+```bash
+# Delete test pods and workloads
+kubectl delete job gang-test 2>/dev/null
+kubectl delete pod nccl-config-test gpu-test topo-test 2>/dev/null
+kubectl delete deploy low-priority-gpu high-priority-gpu 2>/dev/null
+
+# To revert time-slicing (restore 4 physical GPUs):
+kubectl patch clusterpolicy/cluster-policy \
+  --type merge \
+  --patch '{"spec": {"devicePlugin": {"config": {"name": "", "default": ""}}}}'
+
+# To destroy the entire GPU cluster:
+# From management cluster:
+export KUBECONFIG=~/.kube/config  # Switch back to mgmt cluster
+kubectl delete clusterdeployment gpu-cluster -n kcm-system
+# Wait for CAPI to clean up EC2 instances (~5 min)
+```
+
+---
 
 ## Troubleshooting
+
+### GPU Operator Pods Crashing
+
+**Toolkit pods crash with `containerd.sock: no such file or directory`:**
+```bash
+# This means k0s containerd paths are not configured
+# Reinstall GPU Operator with toolkit env vars (see Pre-Lab Step 3)
+helm upgrade gpu-operator nvidia/gpu-operator \
+  --namespace gpu-operator \
+  --set toolkit.env[0].name=CONTAINERD_CONFIG \
+  --set toolkit.env[0].value=/etc/k0s/containerd.d/nvidia.toml \
+  --set toolkit.env[1].name=CONTAINERD_SOCKET \
+  --set toolkit.env[1].value=/run/k0s/containerd.sock \
+  --set toolkit.env[2].name=CONTAINERD_RUNTIME_CLASS \
+  --set toolkit.env[2].value=nvidia
+```
 
 ### Scheduler Pods Not Starting
 
@@ -865,12 +986,18 @@ kubectl describe clusterrolebinding kai-scheduler
 kubectl logs -n kai-scheduler -l app=kai-scheduler --previous
 ```
 
-### Pods Not Using Custom Scheduler
+### Pods Stuck Pending with KAI Scheduler
 
 **Verify schedulerName field:**
 ```bash
 kubectl get pod <pod-name> -o jsonpath='{.spec.schedulerName}'
 # Must be: kai-scheduler
+```
+
+**Check queue limits are not 0:**
+```bash
+kubectl get queues -o yaml | grep -A3 limit
+# All limits should be -1 (unlimited), NOT 0
 ```
 
 ### Gang Scheduling Not Working
@@ -887,9 +1014,12 @@ kubectl get podgroups
 # KAI auto-creates PodGroups for Jobs with parallelism > 1
 ```
 
-**Check scheduler logs for gang decisions:**
+### Time-Slicing Not Taking Effect
+
+**Verify ClusterPolicy patch includes both fields:**
 ```bash
-kubectl logs -n kai-scheduler -l app=kai-scheduler | grep -i gang
+kubectl get clusterpolicy cluster-policy -o jsonpath='{.spec.devicePlugin.config}'
+# Must show: {"default":"any","name":"time-slicing-config"}
 ```
 
 ### Preemption Not Happening
@@ -905,26 +1035,27 @@ kubectl get priorityclass high-priority-gpu -o yaml
 # preemptionPolicy should be PreemptLowerPriority
 ```
 
+---
+
 ## Key Takeaways
 
 ### GPU Scheduling
 1. **Default Kubernetes scheduler lacks GPU-aware features** needed for AI/ML workloads
 2. **Gang scheduling prevents partial job starts** that waste resources in distributed training
 3. **Priority classes and queues enable fair resource sharing** across teams
-4. **Preemption ensures critical workloads get resources** when needed
-5. **Fractional GPU sharing** maximizes utilization for small workloads
+4. **KAI Queue resources MUST have explicit `limit: -1`** -- the default limit of 0 blocks all scheduling
+5. **Fractional GPU sharing via time-slicing** multiplies allocatable GPUs (4 physical -> 16 virtual)
 
 ### NCCL and GPU Communication
-6. **NVLink provides 10x bandwidth over PCIe** - topology-aware scheduling is essential
-7. **NCCL environment variables control GPU communication paths** - misconfiguration causes 10x performance loss
-8. **Always verify GPU topology** before deploying multi-GPU workloads
-9. **RDMA/GPUDirect configuration differs by platform** - AWS EFA vs Azure InfiniBand have different settings
-10. **Test NCCL before production** - bus bandwidth should be 500+ GB/s for 4 GPUs
+6. **A10G (g5 instances) use PCIe only** -- ~3 GB/s bus bandwidth
+7. **For NVLink bandwidth (100-800 GB/s)**, use V100/A100/H100 instances (p3/p4d/p5)
+8. **NCCL environment variables control communication paths** -- test before production
+9. **Always verify GPU topology** with `nvidia-smi topo -m` before deploying multi-GPU workloads
 
-### Operations
-11. **Always pin scheduler versions** in production for stability
-12. **Monitor scheduler metrics** to understand resource utilization patterns
-13. **Use NCCL_DEBUG=INFO** when troubleshooting communication issues
+### k0rdent Integration
+10. **GPU clusters are deployed via the same ClusterDeployment pattern** as Week 1
+11. **Ubuntu 22.04 AMI is REQUIRED** -- GPU Operator driver containers don't support Amazon Linux 2
+12. **k0s containerd paths** (`/etc/k0s/containerd.d/`, `/run/k0s/containerd.sock`) must be configured in GPU Operator toolkit env vars
 
 ---
 
@@ -932,20 +1063,16 @@ kubectl get priorityclass high-priority-gpu -o yaml
 
 ### NVIDIA
 - [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
-- [KAI Scheduler on NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/k8s/helm-charts/kai-scheduler)
-- [NVIDIA Open Sources Run:AI Scheduler](https://developer.nvidia.com/blog/nvidia-open-sources-runai-scheduler-to-foster-community-collaboration/)
+- [KAI Scheduler Queue Configuration](https://github.com/NVIDIA/KAI-Scheduler/blob/main/docs/queues/README.md)
+- [NVIDIA GPU Operator Documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/)
+- [GPU Operator Time-Slicing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
 - [NCCL Environment Variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)
-- [GPU Operator Documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/)
-- [GPU Operator - k0rdent Partner Validation](https://docs.nvidia.com/datacenter/cloud-native/partner-validated/latest/k0rdent.html)
 - [NCCL Tests GitHub](https://github.com/NVIDIA/nccl-tests)
 
 ### k0rdent
-- [k0rdent Service Catalog](https://catalog.k0rdent.io/)
 - [k0rdent Documentation](https://docs.k0rdent.io/)
-- [ServiceTemplate Reference](https://docs.k0rdent.io/latest/admin/ksm/ksm-service-templates/)
 
 ### Kubernetes
-- [Volcano Scheduler](https://volcano.sh/)
 - [Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
 
 ---

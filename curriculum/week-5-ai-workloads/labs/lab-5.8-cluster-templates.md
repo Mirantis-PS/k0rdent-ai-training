@@ -332,6 +332,8 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
        priority: 100
    ```
 
+   > **Note:** `sshKeyName` is optional. If omitted, CAPA creates instances without SSH keys -- k0rdent manages nodes via CAPI. Include it only if you need direct SSH access to GPU worker nodes for debugging. If included, the key must exist in the target region (see [Lab 1.3, Part 6](../../week-1-foundations/labs/lab-1.3-aws-infra.md)).
+
    > **k0rdent context:** The `serviceSpec` section deploys services to the workload cluster after provisioning. The GPU Operator ServiceTemplate (`gpu-operator-25-10-0`) is installed from the [k0rdent catalog](https://catalog.k0rdent.io/). This follows the same pattern as deploying ingress-nginx or kyverno from [Lab 1.7](../../week-1-foundations/labs/lab-1.7-multicluster-services.md).
 
 3. **Apply the ClusterDeployment**

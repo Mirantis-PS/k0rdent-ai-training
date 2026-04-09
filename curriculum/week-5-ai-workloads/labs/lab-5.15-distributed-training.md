@@ -61,7 +61,7 @@ k0rdent manages the GPU infrastructure and provides catalog-based service deploy
 **Available in k0rdent Catalog:**
 - `gpu-operator-25-10-0` - GPU Operator (required for all GPU workloads)
 - `nvidia-network-operator-25-10-0` - Network Operator (RDMA/InfiniBand)
-- `kuberay-1-3-2` - KubeRay Operator (Ray-based distributed training)
+- `kuberay-operator-1-3-2` - KubeRay Operator (Ray-based distributed training)
 - `lws-0-7-0` - LeaderWorkerSet (Kubernetes-native distributed workloads)
 
 **Not in Catalog (Direct Install Required):**
@@ -280,7 +280,7 @@ Extract kubeconfig from the k0rdent management cluster to access the managed GPU
 
 The MPI Operator enables distributed training jobs on Kubernetes. There is no MPI Operator ServiceTemplate in the k0rdent catalog, so install directly on the managed cluster.
 
-> **k0rdent Catalog Alternatives:** For distributed workloads, the catalog provides `kuberay-1-3-2` (Ray-based training) and `lws-0-7-0` (LeaderWorkerSet for Kubernetes-native distributed jobs). MPI Operator is preferred for traditional MPI-based training frameworks like Megatron-LM and DeepSpeed.
+> **k0rdent Catalog Alternatives:** For distributed workloads, the catalog provides `kuberay-operator-1-3-2` (Ray-based training) and `lws-0-7-0` (LeaderWorkerSet for Kubernetes-native distributed jobs). MPI Operator is preferred for traditional MPI-based training frameworks like Megatron-LM and DeepSpeed.
 
 1. **Install Kubeflow MPI Operator v0.7.0**
    ```bash

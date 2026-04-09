@@ -8,26 +8,26 @@
 - [Objectives](#objectives)
 - [Prerequisites](#prerequisites)
 - [Resuming This Lab](#resuming-this-lab)
-- [Part 1: Understanding Infrastructure Providers](#part-1-understanding-infrastructure-providers)
+- [Part 1: Understanding Infrastructure Providers (~5 min)](#part-1-understanding-infrastructure-providers-5-min)
   - [What are Infrastructure Providers?](#what-are-infrastructure-providers)
   - [Provider Components](#provider-components)
-- [Part 2: AWS IAM Requirements](#part-2-aws-iam-requirements)
+- [Part 2: AWS IAM Requirements (~5 min)](#part-2-aws-iam-requirements-5-min)
   - [Required Permissions](#required-permissions)
   - [Exercise: Verify AWS Permissions](#exercise-verify-aws-permissions)
-- [Part 3: Create AWS Credentials in k0rdent](#part-3-create-aws-credentials-in-k0rdent)
+- [Part 3: Create AWS Credentials in k0rdent (~10 min)](#part-3-create-aws-credentials-in-k0rdent-10-min)
   - [Step 1: Create AWS Secret](#step-1-create-aws-secret)
   - [Step 2: Create AWSClusterStaticIdentity](#step-2-create-awsclusterstaticidentity)
   - [Step 3: Create k0rdent Credential Object](#step-3-create-k0rdent-credential-object)
-- [Part 4: Verify Provider Configuration](#part-4-verify-provider-configuration)
+- [Part 4: Verify Provider Configuration (~5 min)](#part-4-verify-provider-configuration-5-min)
   - [Check AWS Provider Status](#check-aws-provider-status)
   - [Verify AWS Provider Controller](#verify-aws-provider-controller)
-- [Part 5: Verify Provider Readiness](#part-5-verify-provider-readiness)
+- [Part 5: Verify Provider Readiness (~5 min)](#part-5-verify-provider-readiness-5-min)
   - [Check CAPA Controller](#check-capa-controller)
   - [Verify the Credential Chain](#verify-the-credential-chain)
-- [Part 6: SSH Key Pair for Managed Clusters (Optional)](#part-6-ssh-key-pair-for-managed-clusters-optional)
-- [Part 7: Review Available Cluster Templates](#part-7-review-available-cluster-templates)
+- [Part 6: SSH Key Pair for Managed Clusters (~5 min, Optional)](#part-6-ssh-key-pair-for-managed-clusters-5-min-optional)
+- [Part 7: Review Available Cluster Templates (~5 min)](#part-7-review-available-cluster-templates-5-min)
   - [Template Parameters](#template-parameters)
-- [Part 8: Provider Security Best Practices](#part-8-provider-security-best-practices)
+- [Part 8: Provider Security Best Practices (~5 min)](#part-8-provider-security-best-practices-5-min)
   - [Principle of Least Privilege](#principle-of-least-privilege)
   - [Credential Rotation](#credential-rotation)
   - [Multi-Account Access](#multi-account-access)
@@ -69,7 +69,7 @@ kubectl get nodes && kubectl get pods -n kcm-system
 
 ---
 
-## Part 1: Understanding Infrastructure Providers
+## Part 1: Understanding Infrastructure Providers (~5 min)
 
 ### What are Infrastructure Providers?
 
@@ -100,7 +100,7 @@ Each provider includes:
 2. **Templates** - Defines cluster configurations
 3. **Credentials** - Access to cloud infrastructure
 
-## Part 2: AWS IAM Requirements
+## Part 2: AWS IAM Requirements (~5 min)
 
 ### Required Permissions
 
@@ -151,13 +151,10 @@ From your local machine:
 aws sts get-caller-identity
 
 # Check EC2 permissions
-aws ec2 describe-instances --region us-east-1 --max-items 1
-
-# Check IAM permissions
-aws iam get-user
+aws ec2 describe-instances --region <your-region> --max-items 1
 ```
 
-## Part 3: Create AWS Credentials in k0rdent
+## Part 3: Create AWS Credentials in k0rdent (~10 min)
 
 ### Step 1: Create AWS Secret
 
@@ -170,7 +167,10 @@ SSH to your management cluster and create the credentials secret.
 export AWS_ACCESS_KEY_ID="your-access-key-id"
 export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
 
-# Create the secret
+# Delete the placeholder secret from cloud-init (if it exists)
+kubectl delete secret aws-cluster-identity-secret -n kcm-system 2>/dev/null
+
+# Create with your real credentials
 kubectl create secret generic aws-cluster-identity-secret \
   --from-literal=AccessKeyID="${AWS_ACCESS_KEY_ID}" \
   --from-literal=SecretAccessKey="${AWS_SECRET_ACCESS_KEY}" \
@@ -187,6 +187,9 @@ aws sso login --profile your-sso-profile
 
 # Export credentials including session token
 eval "$(aws configure export-credentials --format env --profile your-sso-profile)"
+
+# Delete the placeholder secret from cloud-init (if it exists)
+kubectl delete secret aws-cluster-identity-secret -n kcm-system 2>/dev/null
 
 # Create the secret with session token
 kubectl create secret generic aws-cluster-identity-secret \
@@ -223,6 +226,11 @@ ssh ... ubuntu@<mgmt-ip> "kubectl rollout restart deployment capa-controller-man
 ```
 
 > **Why from your local machine?** The SessionToken is ~1000 characters. Pasting it directly into a terminal on the bastion can truncate or corrupt the value. Sending it via SSH from your local machine preserves the full token.
+
+> **Convenience script:** You can also use the provided refresh script which handles all of this automatically:
+> ```bash
+> ./scripts/lab-refresh-creds.sh <your-name>
+> ```
 
 ### Step 2: Create AWSClusterStaticIdentity
 
@@ -266,7 +274,7 @@ spec:
 EOF
 ```
 
-## Part 4: Verify Provider Configuration
+## Part 4: Verify Provider Configuration (~5 min)
 
 ### Check AWS Provider Status
 
@@ -274,8 +282,8 @@ EOF
 # Verify the secret exists
 kubectl get secret aws-cluster-identity-secret -n kcm-system
 
-# Check the identity
-kubectl get awsclusterstaticidentity -n kcm-system
+# Check the identity (cluster-scoped, no namespace needed)
+kubectl get awsclusterstaticidentity
 
 # Verify the credential (or use alias: kgcred)
 kubectl get credential aws-cluster-identity-cred -n kcm-system
@@ -295,7 +303,7 @@ kubectl get pods -n capa-system 2>/dev/null || echo "CAPA pods are in kcm-system
 kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tail=50
 ```
 
-## Part 5: Verify Provider Readiness
+## Part 5: Verify Provider Readiness (~5 min)
 
 Now that credentials are configured, verify the entire chain is working — from the CAPA controller to the Credential object.
 
@@ -338,7 +346,7 @@ echo "Ready for cluster provisioning in Lab 1.5"
 
 > **What you're verifying:** The Credential object is what ClusterDeployments reference. If this chain is broken (wrong secret name, missing identity, etc.), cluster provisioning will fail with credential errors in Lab 1.5.
 
-## Part 6: SSH Key Pair for Managed Clusters (Optional)
+## Part 6: SSH Key Pair for Managed Clusters (~5 min, Optional)
 
 The `sshKeyName` field in a ClusterDeployment is **optional**. If omitted, CAPA creates EC2 instances without an SSH key — k0rdent manages the nodes via CAPI, so direct SSH access isn't required for normal operations.
 
@@ -381,7 +389,7 @@ spec:
 
 > **Region-specific:** SSH key pairs exist per-region. If you deploy clusters to multiple regions, import the key pair in each one.
 
-## Part 7: Review Available Cluster Templates
+## Part 7: Review Available Cluster Templates (~5 min)
 
 With the AWS provider configured, review templates available for AWS:
 
@@ -403,7 +411,7 @@ Note the configurable parameters:
 - `sshKeyName` - SSH key pair name (optional — for node SSH access)
 - `k8sVersion` - Kubernetes version
 
-## Part 8: Provider Security Best Practices
+## Part 8: Provider Security Best Practices (~5 min)
 
 ### Principle of Least Privilege
 

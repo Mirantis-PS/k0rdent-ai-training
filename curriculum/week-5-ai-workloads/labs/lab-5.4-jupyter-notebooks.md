@@ -97,7 +97,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
      namespace: jupyter
    spec:
      accessModes:
-       - ReadWriteMany  # Requires RWX-capable storage class
+       - ReadWriteOnce  # Use ReadWriteMany only if your StorageClass supports RWX (e.g., EFS, NFS)
      resources:
        requests:
          storage: 100Gi
@@ -134,10 +134,10 @@ JupyterHub provides multi-user Jupyter notebook environments:
          allowed_users:
            - mlops
            - datascientist
-       SharedPasswordAuthenticator:
-         user_password: "training123"
+       DummyAuthenticator:
+         password: "training123"
        JupyterHub:
-         authenticator_class: shared-password
+         authenticator_class: dummy
 
      db:
        type: sqlite-pvc
@@ -440,11 +440,14 @@ JupyterHub provides multi-user Jupyter notebook environments:
 
 In a k0rdent-managed environment, JupyterHub can be deployed declaratively across clusters using the `jupyterhub-4-2-0` ServiceTemplate from the k0rdent catalog.
 
+> **Note:** The `jupyterhub-4-2-0` ServiceTemplate may not be pre-installed in every k0rdent catalog. Run the verification command below first. If the template is not listed, skip the remainder of Task 7 -- it requires a catalog entry that your environment does not include.
+
 1. **Verify ServiceTemplate Availability**
    ```bash
    # On the management cluster
    kubectl get servicetemplates -n kcm-system | grep jupyter
    # Expected: jupyterhub-4-2-0
+   # If no results, skip the rest of Task 7
    ```
 
 2. **Deploy JupyterHub via MultiClusterService**
@@ -464,6 +467,7 @@ In a k0rdent-managed environment, JupyterHub can be deployed declaratively acros
          - template: jupyterhub-4-2-0
            name: jupyterhub
            namespace: jupyter
+       priority: 100
    ```
 
    ```bash
@@ -566,6 +570,20 @@ kubectl exec -n jupyter jupyter-<username> -- nvidia-smi
 ```bash
 kubectl logs -n jupyter -l component=hub
 ```
+
+## Cleanup
+
+Remove lab resources:
+
+```bash
+kubectl delete namespace jupyter --wait=false
+kubectl delete pvc -n jupyter --all
+
+# Verify
+kubectl get pods -n jupyter
+```
+
+> **Cost reminder:** GPU workloads consume resources even when idle. See the [labs README cleanup guide](README.md#cleanup).
 
 ## Key Takeaways
 

@@ -9,21 +9,22 @@
 - [Prerequisites](#prerequisites)
 - [How the Lab Infrastructure Works](#how-the-lab-infrastructure-works)
 - [Resuming This Lab](#resuming-this-lab)
-- [Part 1: Configure AWS Credentials](#part-1-configure-aws-credentials)
+- [Part 1: Configure AWS Credentials (~5 min)](#part-1-configure-aws-credentials-5-min)
   - [Option A: AWS CLI Profile (Recommended)](#option-a-aws-cli-profile-recommended)
   - [Option B: Environment Variables](#option-b-environment-variables)
   - [Option C: AWS SSO](#option-c-aws-sso)
   - [Region Selection](#region-selection)
 - [Lab Environment](#lab-environment)
-- [Part 2: Verify Prerequisites](#part-2-verify-prerequisites)
-- [Part 3: Provision the k0rdent Management Cluster](#part-3-provision-the-k0rdent-management-cluster)
+- [Part 2: Verify Prerequisites (~2 min)](#part-2-verify-prerequisites-2-min)
+- [Part 3: Provision the k0rdent Management Cluster (~20 min)](#part-3-provision-the-k0rdent-management-cluster-20-min)
   - [Understanding the Output](#understanding-the-output)
-- [Part 4: Connect to the Management Cluster](#part-4-connect-to-the-management-cluster)
+- [Part 4: Connect to the Management Cluster (~2 min)](#part-4-connect-to-the-management-cluster-2-min)
   - [Verify k0rdent Installation](#verify-k0rdent-installation)
-- [Part 5: Verify k0s Cluster](#part-5-verify-k0s-cluster)
-- [Part 6: Verify k0rdent Enterprise Installation](#part-6-verify-k0rdent-enterprise-installation)
-- [Part 7: Access the k0rdent UI](#part-7-access-the-k0rdent-ui)
-- [Part 8: Explore k0rdent Resources](#part-8-explore-k0rdent-resources)
+- [Part 5: Verify k0s Cluster (~2 min)](#part-5-verify-k0s-cluster-2-min)
+- [Part 6: Verify k0rdent Enterprise Installation (~5 min)](#part-6-verify-k0rdent-enterprise-installation-5-min)
+- [Part 7: Access the k0rdent UI (~2 min)](#part-7-access-the-k0rdent-ui-2-min)
+- [Part 8: Explore k0rdent Resources (~5 min)](#part-8-explore-k0rdent-resources-5-min)
+  - [Explore Other Namespaces](#explore-other-namespaces)
 - [Validation Checklist](#validation-checklist)
 - [Troubleshooting](#troubleshooting)
   - [k0rdent Installation Issues](#k0rdent-installation-issues)
@@ -44,7 +45,7 @@ In this lab, you will:
 ## Prerequisites
 
 - AWS CLI v2 installed
-- Terraform >= 1.8.0 installed
+- Terraform >= 1.5.0 installed
 - Your own copy of this training repository (fork or template)
 - Basic terminal/shell knowledge
 
@@ -94,7 +95,7 @@ kubectl get pods -n kcm-system
 
 ---
 
-## Part 1: Configure AWS Credentials
+## Part 1: Configure AWS Credentials (~5 min)
 
 Choose ONE of these methods:
 
@@ -155,14 +156,14 @@ Choose a region with good availability. Common choices:
 | Kubernetes | k0s v1.32.4 |
 | k0rdent | Enterprise v1.2.2 |
 
-## Part 2: Verify Prerequisites
+## Part 2: Verify Prerequisites (~2 min)
 
 From the root of your cloned training repository:
 
 ```bash
 cd lab-infrastructure
 
-# Check Terraform version (>= 1.8.0 required)
+# Check Terraform version (>= 1.5.0 required)
 terraform --version
 
 # Check AWS CLI (v2 required)
@@ -172,7 +173,7 @@ aws --version
 aws sts get-caller-identity
 ```
 
-## Part 3: Provision the k0rdent Management Cluster
+## Part 3: Provision the k0rdent Management Cluster (~20 min)
 
 The provisioning script automates the entire setup process including:
 - Creating a per-student S3 bucket for Terraform state
@@ -193,14 +194,42 @@ Replace `<your-engineer-id>` with your unique identifier (e.g., `engineer-01`, `
 ### Understanding the Output
 
 The script will display progress as it:
-1. Creates per-student S3 bucket for Terraform state
-2. Provisions VPC, subnets, bastion host
-3. Deploys the management cluster EC2 instance
-4. Waits for the instance to be ready
+1. Creates per-student S3 bucket for Terraform state (~1 min)
+2. Runs `terraform apply` — provisions VPC, subnets, bastion, EC2 instance (~5 min)
+3. Waits for the instance to be ready (~2 min)
+4. **Streams the cloud-init log live** — shows each installation step as it happens (~15 min)
+5. Waits for the Gateway LoadBalancer address (~1 min)
+6. Prints the k0rdent UI URL and credentials
 
-**Expected Duration:** 10-15 minutes
+**Expected Duration:** ~20 minutes total
 
-## Part 4: Connect to the Management Cluster
+**What you'll see during step 4 (live streaming):**
+
+```
+[INFO] Streaming initialization progress (live)...
+
+  [1/6] Installing k0s Kubernetes...
+  === Installing k0s v1.32.4+k0s.0 ===
+  [2/6] Installing CLI tools...
+  === CLI tools installed ===
+  [3/6] Waiting for cluster readiness...
+  === Cluster is ready ===
+  Installing AWS Cloud Controller Manager...
+  Setting providerID on node ip-10-0-x-x: aws:///eu-west-1a/i-xxx
+  [4/6] Installing k0rdent Enterprise...
+  Installing k0rdent Enterprise Helm chart...
+  Waiting for cert-manager webhook...
+  [5/6] Configuring providers...
+  [6/6] Verifying installation...
+  Installation Complete!
+  Lab initialization complete!
+
+[SUCCESS] k0rdent initialization complete
+```
+
+> **Don't worry if it pauses:** Step 4 (k0rdent Enterprise Helm install) takes 8-10 minutes. The stream may appear to hang — this is normal while Helm pulls images and waits for pods.
+
+## Part 4: Connect to the Management Cluster (~2 min)
 
 Once provisioning completes, connect to your management cluster:
 
@@ -232,7 +261,7 @@ tail -f /var/log/k0rdent-init.log
 
 > **Tip:** The lab environment includes helpful aliases. Type `alias` to see them all.
 
-## Part 5: Verify k0s Cluster
+## Part 5: Verify k0s Cluster (~2 min)
 
 Check that the k0s cluster is running:
 
@@ -253,7 +282,7 @@ NAME                   STATUS   ROLES           AGE   VERSION
 ip-10-0-xxx-xxx        Ready    control-plane   10m   v1.32.4+k0s
 ```
 
-## Part 6: Verify k0rdent Enterprise Installation
+## Part 6: Verify k0rdent Enterprise Installation (~5 min)
 
 Check k0rdent components:
 
@@ -262,13 +291,18 @@ Check k0rdent components:
 kubectl get pods -n kcm-system
 ```
 
-**Expected output:**
+**Expected output (core components — running immediately):**
 ```
-NAME                                      READY   STATUS    RESTARTS   AGE
-kcm-controller-manager-xxx                1/1     Running   0          5m
-kcm-cert-manager-xxx                      1/1     Running   0          5m
-k0rdent-ui-xxx                            1/1     Running   0          5m
+NAME                                                         READY   STATUS    AGE
+kcm-k0rdent-enterprise-controller-manager-xxx                1/1     Running   5m
+kcm-cert-manager-xxx                                         1/1     Running   5m
+kcm-k0rdent-ui-xxx                                           1/1     Running   5m
+helm-controller-xxx                                          1/1     Running   5m
+source-controller-xxx                                        1/1     Running   5m
+velero-xxx                                                   1/1     Running   5m
 ```
+
+> **Note:** CAPI provider pods (capa, capz, capv, k0smotron, etc.) may show `ContainerCreating` for 2-3 minutes while they pull images. This is normal. They'll reach `Running` shortly after. The Management object will show `READY: False` until all providers finish initializing.
 
 ```bash
 # Check k0rdent CRDs (they use k0rdent.mirantis.com domain)
@@ -279,6 +313,7 @@ kubectl get clustertemplates -A
 
 # Check credentials (using alias: kgcred)
 kubectl get credentials -A
+# Empty is expected — you'll configure credentials in Lab 1.3
 ```
 
 **Expected CRDs include:**
@@ -287,7 +322,18 @@ kubectl get credentials -A
 - `clustertemplates.k0rdent.mirantis.com`
 - `credentials.k0rdent.mirantis.com`
 
-## Part 7: Access the k0rdent UI
+### Wait for Management READY
+
+Before proceeding to the next labs, wait for the Management object to finish initializing all CAPI providers. This takes 2-5 minutes after cloud-init completes.
+
+```bash
+# Wait for Management to be fully ready (required before Lab 1.3)
+kubectl wait management kcm --for=condition=Ready=True --timeout=300s
+```
+
+> **Why this matters:** Lab 1.3 requires CAPI CRDs (like `AWSClusterStaticIdentity`) that are only installed after the Management object finishes deploying all providers. If you skip this step, `kubectl apply` commands in Lab 1.3 will fail with "no matches for kind".
+
+## Part 7: Access the k0rdent UI (~2 min)
 
 The provisioning script waits for k0rdent and Envoy Gateway to be fully operational before printing the UI URL.
 
@@ -320,6 +366,12 @@ Envoy Gateway uses the Kubernetes Gateway API to route traffic. AWS Cloud Contro
 ./scripts/lab-connect.sh <your-name> --show-gateway
 ```
 
+**Exercise:** Try the `--show-gateway` flag to see the full Gateway API resource status:
+
+```bash
+./scripts/lab-connect.sh <your-name> --show-gateway
+```
+
 **From inside the cluster (via SSH):**
 
 ```bash
@@ -330,7 +382,7 @@ kubectl get gateway k0rdent-gateway -n kcm-system
 kubectl get gatewayclass,gateway,httproute -A
 ```
 
-## Part 8: Explore k0rdent Resources
+## Part 8: Explore k0rdent Resources (~5 min)
 
 Using kubectl (or the pre-configured aliases), explore the k0rdent resources:
 
@@ -343,20 +395,34 @@ kubectl get clustertemplates -A
 
 # List cluster deployments (using alias: kgcd)
 kubectl get clusterdeployments -A
+# Empty is expected — you'll create clusters in Lab 1.5
 
 # List configured credentials (using alias: kgcred)
 kubectl get credentials -A
-
-# View the Management object configuration
-kubectl get management -n kcm-system -o yaml
+# Empty is expected — you'll configure credentials in Lab 1.3
 ```
 
 **Understanding the Output:**
 
 - **Management**: The core k0rdent configuration object
 - **ClusterTemplates**: Pre-defined cluster configurations (AWS, Azure, vSphere, etc.)
-- **ClusterDeployments**: Actual deployed clusters (none yet - you'll create these in later labs)
-- **Credentials**: Cloud provider credentials for provisioning
+- **ClusterDeployments**: Actual deployed clusters (none yet — you'll create these in Lab 1.5)
+- **Credentials**: Cloud provider credentials (none yet — you'll configure these in Lab 1.3)
+
+### Explore Other Namespaces
+
+k0rdent runs components across multiple namespaces (see Theory 1.2 for the full component reference):
+
+```bash
+# Sveltos — the service distribution engine (powers MultiClusterService)
+kubectl get pods -n projectsveltos
+
+# Envoy Gateway — routes traffic to the k0rdent UI
+kubectl get pods -n envoy-gateway-system
+
+# View all namespaces with running pods
+kubectl get pods -A --no-headers | awk '{print $1}' | sort | uniq -c | sort -rn
+```
 
 ## Validation Checklist
 
@@ -445,7 +511,7 @@ When finished with the lab, you can destroy the environment:
 ./scripts/lab-destroy.sh <your-engineer-id> --auto-approve
 ```
 
-> **Important:** Only destroy if you're done with **all Week 1 labs**, as subsequent labs build on this environment.
+> **Important:** Only destroy if you're done with **all labs in the curriculum**. The management cluster is reused in every subsequent week — Week 5 GPU labs create GPU clusters via ClusterDeployment on this same management cluster. If you need to stop for the day, leave the management cluster running and use `lab-connect.sh` to reconnect later.
 
 ## Summary
 

@@ -8,21 +8,21 @@
 - [Objectives](#objectives)
 - [Prerequisites](#prerequisites)
 - [Resuming This Lab](#resuming-this-lab)
-- [Part 1: Access the k0rdent UI](#part-1-access-the-k0rdent-ui)
+- [Part 1: Access the k0rdent UI (~5 min)](#part-1-access-the-k0rdent-ui-5-min)
   - [Get the URL and Login](#get-the-url-and-login)
-- [Part 2: Understanding k0rdent UI Access Architecture](#part-2-understanding-k0rdent-ui-access-architecture)
+- [Part 2: Understanding k0rdent UI Access Architecture (~10 min)](#part-2-understanding-k0rdent-ui-access-architecture-10-min)
   - [How the UI is Exposed](#how-the-ui-is-exposed)
   - [Production Upgrade Path](#production-upgrade-path)
   - [Alternative Deployment Patterns](#alternative-deployment-patterns)
   - [TLS Configuration Patterns](#tls-configuration-patterns)
-- [Part 3: Dashboard Overview](#part-3-dashboard-overview)
+- [Part 3: Dashboard Overview (~5 min)](#part-3-dashboard-overview-5-min)
   - [Key Dashboard Elements](#key-dashboard-elements)
   - [Exercise: Dashboard Exploration](#exercise-dashboard-exploration)
-- [Part 4: Explore Cluster Templates](#part-4-explore-cluster-templates)
+- [Part 4: Explore Cluster Templates (~10 min)](#part-4-explore-cluster-templates-10-min)
   - [Navigate to Templates](#navigate-to-templates)
   - [Understand Template Structure](#understand-template-structure)
   - [Exercise: Review AWS Template](#exercise-review-aws-template)
-- [Part 5: Understanding the Service Catalog](#part-5-understanding-the-service-catalog)
+- [Part 5: Understanding the Service Catalog (~15 min)](#part-5-understanding-the-service-catalog-15-min)
   - [The Service Catalog Architecture](#the-service-catalog-architecture)
   - [Browse the Service Catalog](#browse-the-service-catalog)
   - [Exercise: Explore the Catalog](#exercise-explore-the-catalog)
@@ -33,18 +33,18 @@
   - [Examine the ServiceTemplate Structure](#examine-the-servicetemplate-structure)
   - [Clean Up (Optional)](#clean-up-optional)
   - [Why External Catalog?](#why-external-catalog)
-- [Part 6: Management Cluster Configuration](#part-6-management-cluster-configuration)
+- [Part 6: Management Cluster Configuration (~5 min)](#part-6-management-cluster-configuration-5-min)
   - [View Management Configuration](#view-management-configuration)
   - [Key Configuration Elements](#key-configuration-elements)
   - [Exercise: Document Current Configuration](#exercise-document-current-configuration)
-- [Part 7: Credential Management](#part-7-credential-management)
+- [Part 7: Credential Management (~5 min)](#part-7-credential-management-5-min)
   - [Understand Credential Flow](#understand-credential-flow)
   - [View Existing Credentials](#view-existing-credentials)
   - [Credential Types](#credential-types)
-- [Part 8: kubectl CLI Exploration](#part-8-kubectl-cli-exploration)
+- [Part 8: kubectl CLI Exploration (~10 min)](#part-8-kubectl-cli-exploration-10-min)
   - [Essential Commands](#essential-commands)
   - [Pre-configured Aliases](#pre-configured-aliases)
-- [Part 9: Configuration Best Practices](#part-9-configuration-best-practices)
+- [Part 9: Configuration Best Practices (~5 min)](#part-9-configuration-best-practices-5-min)
   - [Production Recommendations](#production-recommendations)
   - [Documentation Exercise](#documentation-exercise)
 - [Validation Checklist](#validation-checklist)
@@ -80,7 +80,7 @@ kubectl get nodes && kubectl get pods -n kcm-system
 
 ---
 
-## Part 1: Access the k0rdent UI
+## Part 1: Access the k0rdent UI (~5 min)
 
 The k0rdent UI is exposed via **Envoy Gateway** (using the Kubernetes Gateway API) and accessible directly from your browser.
 
@@ -99,7 +99,7 @@ Open the URL in your browser and login with:
 
 > **Tip:** To see the full Gateway API resource status, run `./scripts/lab-connect.sh <your-engineer-id> --show-gateway`.
 
-## Part 2: Understanding k0rdent UI Access Architecture
+## Part 2: Understanding k0rdent UI Access Architecture (~10 min)
 
 ### How the UI is Exposed
 
@@ -381,7 +381,7 @@ Then reference `k0rdent-ui-tls` in the Gateway's TLS listener configuration (sam
 
 ---
 
-## Part 3: Dashboard Overview
+## Part 3: Dashboard Overview (~5 min)
 
 The k0rdent dashboard provides a high-level view of your managed infrastructure.
 
@@ -409,7 +409,7 @@ Take 10 minutes to explore the dashboard:
 - [ ] Note any alerts or warnings
 - [ ] Find the resource utilization section
 
-## Part 4: Explore Cluster Templates
+## Part 4: Explore Cluster Templates (~10 min)
 
 Cluster templates define how Kubernetes clusters are provisioned across different infrastructure providers.
 
@@ -449,7 +449,7 @@ Questions to answer:
 - [ ] What is the default instance type for control plane nodes?
 - [ ] What CNI is configured?
 
-## Part 5: Understanding the Service Catalog
+## Part 5: Understanding the Service Catalog (~15 min)
 
 k0rdent Enterprise uses an **external Service Catalog** model for deploying applications and services to managed clusters. ServiceTemplates still exist as Kubernetes CRDs, but the templates themselves are hosted externally and installed on-demand.
 
@@ -582,6 +582,8 @@ kyverno-3-2-6   true    30s
 ```
 
 > **If VALID shows `false`:** Wait 30 seconds and check again. Flux needs to fetch the chart metadata from the OCI registry to validate the ServiceTemplate.
+>
+> Run `kubectl get servicetemplates -n kcm-system` again after 30 seconds. It typically takes 20-30 seconds for Flux to fetch chart metadata from the OCI registry.
 
 ### View the ServiceTemplate in the UI
 
@@ -602,6 +604,8 @@ You can also install ServiceTemplates directly from the k0rdent UI without writi
 4. The UI creates both the HelmRepository (if needed) and the ServiceTemplate for you
 
 > **Try it:** Install one additional service from the Addons menu and verify it appears under **Templates > Service Templates**.
+
+> **Known issue:** Some service versions may fail to install from the Addons UI due to version tag formatting. If an install fails, use the kubectl method above as a reliable alternative.
 
 Both approaches — kubectl and the UI — create the same Kubernetes resources. The UI is convenient for discovery and one-off installs; kubectl/YAML is better for automation and GitOps workflows.
 
@@ -638,7 +642,7 @@ kubectl delete servicetemplate kyverno-3-2-6 -n kcm-system
 | **Customization** | Difficult | Easy version selection |
 | **Enterprise** | Mixed | Clear Enterprise-only marking |
 
-## Part 6: Management Cluster Configuration
+## Part 6: Management Cluster Configuration (~5 min)
 
 The management cluster is the control plane for all k0rdent operations.
 
@@ -649,7 +653,7 @@ The management cluster is the control plane for all k0rdent operations.
 kubectl get management -A
 
 # View detailed configuration
-kubectl get management kcm -n kcm-system -o yaml
+kubectl get management kcm -o yaml
 ```
 
 ### Key Configuration Elements
@@ -674,7 +678,7 @@ Create a summary of your management cluster:
 - [ ] Note the k0rdent version
 - [ ] Identify any custom configurations
 
-## Part 7: Credential Management
+## Part 7: Credential Management (~5 min)
 
 k0rdent manages credentials for accessing infrastructure providers securely.
 
@@ -697,6 +701,8 @@ kubectl get credentials -A
 kubectl get secrets -n kcm-system | grep credential
 ```
 
+> **Note:** The `aws-credentials` secret is a placeholder created during cloud-init. You'll replace it with real AWS credentials in Lab 1.3.
+
 ### Credential Types
 
 1. **AWS Credentials**
@@ -711,7 +717,7 @@ kubectl get secrets -n kcm-system | grep credential
    - vCenter server address
    - Username/password or API token
 
-## Part 8: kubectl CLI Exploration
+## Part 8: kubectl CLI Exploration (~10 min)
 
 Beyond the UI, kubectl provides powerful access to k0rdent resources.
 
@@ -758,7 +764,7 @@ kgcred       # Get credentials
 
 > **Tip:** Type `alias` to see all available aliases.
 
-## Part 9: Configuration Best Practices
+## Part 9: Configuration Best Practices (~5 min)
 
 ### Production Recommendations
 

@@ -10,10 +10,10 @@
 - [Resuming This Lab](#resuming-this-lab)
 - [Lab Path](#lab-path)
 - [What is KOF?](#what-is-kof)
-- [Part 1: Understanding KOF Architecture](#part-1-understanding-kof-architecture)
+- [Part 1: Understanding KOF Architecture (~5 min)](#part-1-understanding-kof-architecture-5-min)
   - [Three-Tier Architecture](#three-tier-architecture)
   - [For This Lab](#for-this-lab)
-- [Part 2: Install KOF Components](#part-2-install-kof-components)
+- [Part 2: Install KOF Components (~30 min)](#part-2-install-kof-components-30-min)
   - [Step 1: Verify Prerequisites](#step-1-verify-prerequisites)
   - [Step 2: Install KOF Operators](#step-2-install-kof-operators)
   - [Step 3: Install KOF Mothership](#step-3-install-kof-mothership)
@@ -21,7 +21,7 @@
   - [Step 5: Install KOF Collectors](#step-5-install-kof-collectors)
   - [Step 6: Verify Complete Installation](#step-6-verify-complete-installation)
   - [Troubleshooting Installation](#troubleshooting-installation)
-- [Part 3: Deploy KOF on Child Clusters](#part-3-deploy-kof-on-child-clusters)
+- [Part 3: Deploy KOF on Child Clusters (~20 min)](#part-3-deploy-kof-on-child-clusters-20-min)
   - [Understanding Child Cluster Telemetry Flow](#understanding-child-cluster-telemetry-flow)
   - [Option 1: Automatic Deployment via Labels (Recommended)](#option-1-automatic-deployment-via-labels-recommended)
   - [Option 2: Regional Architecture (Production)](#option-2-regional-architecture-production)
@@ -30,21 +30,21 @@
   - [Networking Requirements](#networking-requirements)
   - [Verify Child Cluster Collectors](#verify-child-cluster-collectors)
   - [Component Summary](#component-summary)
-- [Part 4: Access Grafana Dashboards](#part-4-access-grafana-dashboards)
+- [Part 4: Access Grafana Dashboards (~15 min)](#part-4-access-grafana-dashboards-15-min)
   - [Get Grafana Credentials](#get-grafana-credentials)
   - [Port-Forward Grafana](#port-forward-grafana)
   - [Create SSH Tunnel (if needed)](#create-ssh-tunnel-if-needed)
   - [Access Grafana](#access-grafana)
   - [Explore Pre-built Dashboards](#explore-pre-built-dashboards)
   - [Exercise: Explore Dashboards](#exercise-explore-dashboards)
-- [Part 5: Verify Telemetry Flow](#part-5-verify-telemetry-flow)
+- [Part 5: Verify Telemetry Flow (~10 min)](#part-5-verify-telemetry-flow-10-min)
   - [Check Metrics in VictoriaMetrics](#check-metrics-in-victoriametrics)
   - [Check Logs in VictoriaLogs](#check-logs-in-victorialogs)
   - [Verify OpenCost Data](#verify-opencost-data)
-- [Part 6: Create Custom Dashboard (Optional)](#part-6-create-custom-dashboard-optional)
+- [Part 6: Create Custom Dashboard (Optional) (~10 min)](#part-6-create-custom-dashboard-optional-10-min)
   - [Create Dashboard via Grafana UI](#create-dashboard-via-grafana-ui)
   - [Or Import via JSON](#or-import-via-json)
-- [Part 7: Understanding KOF Components](#part-7-understanding-kof-components)
+- [Part 7: Understanding KOF Components (~5 min)](#part-7-understanding-kof-components-5-min)
   - [Component Deep Dive](#component-deep-dive)
   - [OpenTelemetry Collectors](#opentelemetry-collectors)
 - [Validation Checklist](#validation-checklist)
@@ -115,7 +115,7 @@ This is the longest lab in Week 1. Choose your path based on available time:
 | **Grafana** | Dashboards and visualization |
 | **Promxy** | Cross-cluster metric queries |
 
-## Part 1: Understanding KOF Architecture
+## Part 1: Understanding KOF Architecture (~5 min)
 
 ### Three-Tier Architecture
 
@@ -161,7 +161,7 @@ We'll deploy the "Management to Management" configuration, where the management 
 
 This is the recommended starting point for learning KOF. For production multi-cluster setups, you would deploy kof-child on managed clusters to send telemetry to the management cluster.
 
-## Part 2: Install KOF Components
+## Part 2: Install KOF Components (~30 min)
 
 KOF requires **four Helm charts** installed in order:
 
@@ -189,6 +189,8 @@ kubectl get storageclass  # Should now show 'local-path'
 
 ### Step 2: Install KOF Operators
 
+> **Note:** Each Helm install in this section uses `--wait`, which blocks until all pods are Ready. On resource-constrained nodes, installs may take longer than expected. If a `--wait` times out, check pod status with `kubectl get pods -n kof` -- if pods are still starting (ContainerCreating/Init), simply re-run the same `helm upgrade` command.
+
 ```bash
 # Install KOF operators (Grafana + OpenTelemetry operators)
 helm upgrade -i --reset-values --wait --create-namespace -n kof kof-operators \
@@ -204,6 +206,9 @@ kubectl get pods -n kof
 
 ```bash
 # Create mothership configuration
+# NOTE: installTemplates: true creates ServiceTemplates for use with MultiClusterService.
+# If ServiceTemplate creation fails (apiVersion mismatch), the mothership itself still
+# installs correctly -- you can set installTemplates: false and create templates manually.
 cat << 'EOF' > /tmp/mothership-values.yaml
 kcm:
   installTemplates: true
@@ -292,6 +297,8 @@ helm upgrade -i --reset-values --wait -n kof kof-collectors \
 
 ### Step 6: Verify Complete Installation
 
+> **Note:** The exact pod names and counts vary by KOF version. The list below is representative -- your output may show slightly different names or additional pods. The key check is that all pods reach `Running` or `Completed` status.
+
 ```bash
 # Check all pods in kof namespace
 kubectl get pods -n kof
@@ -332,7 +339,7 @@ kubectl get storageclass
 kubectl describe pvc -n kof
 ```
 
-## Part 3: Deploy KOF on Child Clusters
+## Part 3: Deploy KOF on Child Clusters (~20 min)
 
 KOF supports multiple deployment patterns for child clusters. This section covers all options from simple to production-grade.
 
@@ -702,7 +709,7 @@ KUBECONFIG=/tmp/managed-cluster-01.kubeconfig kubectl logs -n kof -l app.kuberne
 | **kof-regional** | Regional clusters | Storage + aggregation for a region |
 | **vmauth credentials** | Auto-distributed | Authentication for remote write |
 
-## Part 4: Access Grafana Dashboards
+## Part 4: Access Grafana Dashboards (~15 min)
 
 Grafana provides visualization for all observability data.
 
@@ -754,9 +761,11 @@ Replace `<BASTION_IP>` and `<MANAGEMENT_NODE_IP>` with your infrastructure IPs.
 1. Open browser to: `http://localhost:3000`
 2. Login with the credentials retrieved from the secret above
 
+> **Note:** If Grafana shows "Bad Gateway" or fails to load, wait 30 seconds and refresh. The Grafana operator provisions datasources and dashboards asynchronously after the pod starts -- dashboards may take 1-2 minutes to appear after first login.
+
 ### Explore Pre-built Dashboards
 
-Navigate to **Dashboards** in the left menu. KOF includes 56 pre-built dashboards organized by category:
+Navigate to **Dashboards** in the left menu. KOF includes pre-built dashboards organized by category (the exact count varies by version -- approximately 50-60 dashboards):
 
 1. **Cluster API Dashboards**
    - `cluster-api` - CAPI controller metrics
@@ -786,7 +795,7 @@ Spend 15 minutes exploring:
 - [ ] Explore `cluster-api` to see CAPI controller activity
 - [ ] Look at `kps-etcd` to monitor etcd health
 
-## Part 5: Verify Telemetry Flow
+## Part 5: Verify Telemetry Flow (~10 min)
 
 Ensure metrics and logs are flowing into the KOF stack.
 
@@ -800,7 +809,8 @@ kubectl port-forward svc/vmselect-cluster -n kof 8481:8481 &
 curl -s "http://localhost:8481/select/0/prometheus/api/v1/query?query=up" | jq '.data.result | length'
 
 # Should return a number > 0 indicating active targets
-# A fresh install typically shows 3+ metrics
+# A fresh install typically shows 3+ targets
+# NOTE: If this returns 0, wait 1-2 minutes for collectors to begin scraping
 
 # Query specific metrics
 curl -s "http://localhost:8481/select/0/prometheus/api/v1/query?query=kube_node_info" | jq '.data.result'
@@ -816,6 +826,8 @@ kubectl port-forward svc/kof-storage-victoria-logs-cluster-vlselect -n kof 9471:
 curl -s "http://localhost:9471/select/logsql/query?query=*&limit=10"
 ```
 
+> **Note:** VictoriaLogs may return empty results immediately after installation. It can take 2-3 minutes for the OpenTelemetry collectors to begin forwarding logs into VictoriaLogs. Re-run the query after a short wait if you see no output.
+
 ### Verify OpenCost Data
 
 ```bash
@@ -826,9 +838,9 @@ kubectl port-forward svc/kof-collectors-opencost -n kof 9090:9090 &
 curl -s "http://localhost:9090/allocation/compute?window=1h&aggregate=namespace" | jq '.data[0] | keys'
 ```
 
-> **Note:** OpenCost may take a few minutes to start showing allocation data after initial deployment.
+> **Note:** OpenCost may take a few minutes to start showing allocation data after initial deployment. In a training environment without cloud billing integration, cost values will use default pricing estimates rather than actual cloud costs. The allocation structure and namespace breakdown will still be visible.
 
-## Part 6: Create Custom Dashboard (Optional)
+## Part 6: Create Custom Dashboard (Optional) (~10 min)
 
 Create a simple custom dashboard for your training environment.
 
@@ -890,7 +902,7 @@ curl -X POST -H "Content-Type: application/json" \
   http://${GRAFANA_USER}:${GRAFANA_PASS}@localhost:3000/api/dashboards/db
 ```
 
-## Part 7: Understanding KOF Components
+## Part 7: Understanding KOF Components (~5 min)
 
 ### Component Deep Dive
 
@@ -922,7 +934,7 @@ Before completing this lab, verify:
 - [ ] KOF collectors deployed (kube-state-metrics, node-exporter, OpenTelemetry)
 - [ ] All ~25 pods in kof namespace are Running
 - [ ] Grafana accessible via port-forward
-- [ ] Grafana showing 56 pre-built dashboards
+- [ ] Grafana showing ~50-60 pre-built dashboards
 - [ ] Metrics visible in VictoriaMetrics (query returns > 0 results)
 - [ ] (Optional) Managed cluster labeled with KOF role for child deployment
 
@@ -935,7 +947,7 @@ In this lab, you:
   - **kof-mothership** - Core components (Grafana, VictoriaMetrics operator, Promxy)
   - **kof-storage** - Storage backends (VictoriaLogs, Jaeger)
   - **kof-collectors** - Metrics collection (OpenTelemetry, kube-state-metrics)
-- Accessed Grafana and explored 56 pre-built dashboards
+- Accessed Grafana and explored pre-built dashboards
 - Verified metrics are being collected from the management cluster
 
 ## Key Concepts

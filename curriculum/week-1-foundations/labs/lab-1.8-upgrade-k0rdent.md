@@ -9,12 +9,12 @@
 - [Prerequisites](#prerequisites)
 - [Resuming This Lab](#resuming-this-lab)
 - [Understanding k0rdent Upgrades](#understanding-k0rdent-upgrades)
-- [Part 1: Pre-Upgrade Assessment](#part-1-pre-upgrade-assessment)
+- [Part 1: Pre-Upgrade Assessment (~15 min)](#part-1-pre-upgrade-assessment-15-min)
   - [Step 1: Verify Current Version](#step-1-verify-current-version)
   - [Step 2: Document Current State](#step-2-document-current-state)
   - [Step 3: Pre-Upgrade Backup](#step-3-pre-upgrade-backup)
   - [Step 4: Review Release Notes](#step-4-review-release-notes)
-- [Part 2: Upgrade the Management Plane](#part-2-upgrade-the-management-plane)
+- [Part 2: Upgrade the Management Plane (~20 min active, ~30 min waiting)](#part-2-upgrade-the-management-plane-20-min-active-30-min-waiting)
   - [Step 1: View the Current Release](#step-1-view-the-current-release)
   - [Step 2: Apply the New Release](#step-2-apply-the-new-release)
   - [Step 3: Wait for the New Release to Become Ready](#step-3-wait-for-the-new-release-to-become-ready)
@@ -22,12 +22,13 @@
   - [Step 5: Activate the Upgrade](#step-5-activate-the-upgrade)
   - [Step 6: Monitor the Upgrade](#step-6-monitor-the-upgrade)
   - [Step 7: Verify Upgrade Success](#step-7-verify-upgrade-success)
-- [Part 3: Upgrade a Managed Cluster](#part-3-upgrade-a-managed-cluster)
-  - [When Are Upgrade Paths Available?](#when-are-upgrade-paths-available)
-  - [How It Works (Reference)](#how-it-works-reference)
-  - [Performing the Upgrade](#performing-the-upgrade)
-  - [Step 3: Upgrade Services on a Managed Cluster](#step-3-upgrade-services-on-a-managed-cluster)
-- [Part 4: Rollback Procedures](#part-4-rollback-procedures)
+- [Part 3: Upgrade a Managed Cluster (~10 min active, ~15 min waiting)](#part-3-upgrade-a-managed-cluster-10-min-active-15-min-waiting)
+  - [Step 1: Check for New Templates](#step-1-check-for-new-templates)
+  - [Step 2: Check Upgrade Paths](#step-2-check-upgrade-paths)
+  - [Step 3: Perform the Upgrade](#step-3-perform-the-upgrade)
+  - [Step 4: Monitor the Rolling Update](#step-4-monitor-the-rolling-update)
+  - [Step 5: Upgrade Services on a Managed Cluster](#step-5-upgrade-services-on-a-managed-cluster)
+- [Part 4: Rollback Procedures (~5 min)](#part-4-rollback-procedures-5-min)
   - [Layer 1: Management Plane Rollback](#layer-1-management-plane-rollback)
   - [Layer 2: Managed Cluster Rollback](#layer-2-managed-cluster-rollback)
 - [Production Upgrade Best Practices](#production-upgrade-best-practices)
@@ -81,7 +82,7 @@ k0rdent has **three independent upgrade layers**. Each uses a different mechanis
 
 ---
 
-## Part 1: Pre-Upgrade Assessment
+## Part 1: Pre-Upgrade Assessment (~15 min)
 
 > **Important:** All commands in this lab run against the **management cluster**. If you previously set `KUBECONFIG` to a managed cluster's kubeconfig (e.g., in Lab 1.5), reset it first:
 > ```bash
@@ -165,7 +166,7 @@ kubectl get releases.k0rdent.mirantis.com
 
 ---
 
-## Part 2: Upgrade the Management Plane
+## Part 2: Upgrade the Management Plane (~20 min active, ~30 min waiting)
 
 k0rdent Enterprise upgrades are **CRD-driven** — you apply a new `Release` object, then patch the `Management` object to point to it. The KCM controller handles the rest.
 
@@ -320,35 +321,38 @@ kubectl get clusterdeployments -A -o wide
 
 ---
 
-## Part 3: Upgrade a Managed Cluster
+## Part 3: Upgrade a Managed Cluster (~10 min active, ~15 min waiting)
 
 Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` CRD controls which upgrade paths are allowed.
 
-### When Are Upgrade Paths Available?
+### Step 1: Check for New Templates
 
-ClusterTemplateChains are created when a management plane upgrade ships **new template versions**. Check if any exist:
-
-```bash
-kubectl get clustertemplatechains -n kcm-system
-```
-
-If you see `No resources found`, no upgrade paths are defined yet — this is normal on a fresh install with a single k0rdent version. Upgrade paths appear after you upgrade the management plane (Part 2), which ships new ClusterTemplate versions alongside the current ones.
-
-### How It Works (Reference)
-
-After a management plane upgrade, you'll see new templates:
+After upgrading the management plane (Part 2), check if new ClusterTemplate versions were shipped:
 
 ```bash
-# Example: after upgrading to Enterprise 1.2.3
+# List all AWS standalone templates
 kubectl get clustertemplates -n kcm-system | grep aws-standalone
-# aws-standalone-cp-1-0-20   true   (old, from 1.2.2)
-# aws-standalone-cp-1-0-21   true   (new, from 1.2.3)
+
+# Compare with what your cluster currently uses
+kubectl get clusterdeployment -n kcm-system \
+  -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.template}{"\n"}{end}'
 ```
 
-A `ClusterTemplateChain` defines the allowed upgrade path:
+> **Patch releases (e.g., 1.2.2 → 1.2.3)** may not ship new templates. **Minor releases (e.g., 1.2.x → 1.3.x)** typically do. If you only see one template version, you need to upgrade the management plane to a minor release first.
+
+### Step 2: Check Upgrade Paths
+
+```bash
+# List ClusterTemplateChains
+kubectl get clustertemplatechains -n kcm-system
+
+# If chains exist, view the allowed upgrade paths
+kubectl get clustertemplatechains -n kcm-system -o yaml | grep -A 5 "supportedTemplates"
+```
+
+A `ClusterTemplateChain` defines which template version can upgrade to which:
 
 ```yaml
-# Created automatically by the new Release
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ClusterTemplateChain
 metadata:
@@ -358,52 +362,108 @@ spec:
   supportedTemplates:
     - name: aws-standalone-cp-1-0-20      # Current version
       availableUpgrades:
-        - name: aws-standalone-cp-1-0-21   # Allowed upgrade target
-    - name: aws-standalone-cp-1-0-21       # Latest (no further upgrades)
+        - name: aws-standalone-cp-1-0-26   # Allowed upgrade target
+    - name: aws-standalone-cp-1-0-26       # Latest (no further upgrades)
 ```
 
-### Performing the Upgrade
+> **If no chains exist:** You can still upgrade by patching the template directly. Chains are guardrails, not requirements. Without a chain, k0rdent won't validate the upgrade path — you're responsible for ensuring compatibility.
 
-Once an upgrade path exists, change the template reference:
+### Step 3: Perform the Upgrade
 
 ```bash
 # Check current template
-kubectl get clusterdeployment managed-cluster-01 -n kcm-system \
-  -o jsonpath='{.spec.template}' && echo ""
+CLUSTER_NAME="<your-cluster-name>"  # e.g., managed-cluster-01
+CURRENT=$(kubectl get clusterdeployment $CLUSTER_NAME -n kcm-system \
+  -o jsonpath='{.spec.template}')
+echo "Current template: $CURRENT"
 
-# Upgrade to the new template
-kubectl patch clusterdeployment managed-cluster-01 -n kcm-system \
-  --patch '{"spec":{"template":"aws-standalone-cp-1-0-21"}}' \
+# List available templates to find the upgrade target
+kubectl get clustertemplates -n kcm-system | grep aws-standalone
+
+# Upgrade to the new template (adjust the template name to match your environment)
+NEW_TEMPLATE="<new-template-name>"  # e.g., aws-standalone-cp-1-0-26
+kubectl patch clusterdeployment $CLUSTER_NAME -n kcm-system \
+  --patch "{\"spec\":{\"template\":\"$NEW_TEMPLATE\"}}" \
   --type=merge
-
-# Monitor the rolling update
-clusterctl describe cluster managed-cluster-01 -n kcm-system
 ```
 
-CAPI performs a **rolling update** — new nodes are created with the updated template, workloads are drained and migrated, old nodes are removed. This takes 10-20 minutes depending on cluster size.
+### Step 4: Monitor the Rolling Update
 
-> **Safety guardrail:** The ClusterTemplateChain prevents invalid version jumps. If you try to set a template that isn't listed in `availableUpgrades`, the change is rejected. This ensures clusters follow validated upgrade paths only.
+CAPI performs a **rolling update** — new nodes are created with the updated template, workloads are drained and migrated, old nodes are removed.
 
-### Step 3: Upgrade Services on a Managed Cluster
+```bash
+# Watch the rolling update progress
+clusterctl describe cluster $CLUSTER_NAME -n kcm-system
 
-Services deployed via ServiceTemplates follow the same pattern using `ServiceTemplateChain`:
+# Watch machines being replaced
+kubectl get machines -n kcm-system -w
+
+# Check ClusterDeployment status
+kubectl get clusterdeployment $CLUSTER_NAME -n kcm-system
+```
+
+**Expected duration:** 10-20 minutes depending on cluster size. You'll see:
+1. New control plane machine created alongside the old one
+2. New worker machine(s) created
+3. Workloads drained from old nodes
+4. Old machines deleted
+
+```bash
+# Once complete, verify the managed cluster is healthy
+kubectl get secret ${CLUSTER_NAME}-kubeconfig -n kcm-system \
+  -o jsonpath='{.data.value}' | base64 -d > /tmp/managed.kubeconfig
+kubectl --kubeconfig=/tmp/managed.kubeconfig get nodes
+# Nodes should show the new Kubernetes version
+
+# Return to management cluster
+export KUBECONFIG=/home/ubuntu/.kube/config
+```
+
+> **Safety guardrail:** If a ClusterTemplateChain exists, it prevents invalid version jumps. Setting a template not listed in `availableUpgrades` will be rejected.
+
+### Step 5: Upgrade Services on a Managed Cluster
+
+Services deployed via MultiClusterService or ClusterDeployment can be upgraded by changing the template reference. The `ServiceTemplateChain` controls allowed upgrade paths.
+
+```bash
+# Check available service upgrade paths on a ClusterDeployment
+kubectl get clusterdeployment $CLUSTER_NAME -n kcm-system \
+  -o jsonpath='{.status.servicesUpgradePaths}' | python3 -m json.tool 2>/dev/null
+```
+
+To upgrade a service, update the template in the MultiClusterService or ClusterDeployment:
 
 ```yaml
-# Change the service template version in the ClusterDeployment
-spec:
-  serviceSpec:
-    services:
-      - template: kyverno-3-2-7          # Upgraded from kyverno-3-2-6
-        templateChain: kyverno-chain      # Chain validates the upgrade path
-        name: kyverno
-        namespace: kyverno
+# In MultiClusterService or ClusterDeployment serviceSpec
+serviceSpec:
+  services:
+    - template: kyverno-3-2-7          # New version
+      templateChain: kyverno-chain      # Validates the upgrade path
+      name: kyverno
+      namespace: kyverno
 ```
 
-> **Note:** Service upgrades are covered in detail in Week 2.
+The `ServiceTemplateChain` works identically to ClusterTemplateChain:
+
+```yaml
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ServiceTemplateChain
+metadata:
+  name: kyverno-chain
+  namespace: kcm-system
+spec:
+  supportedTemplates:
+    - name: kyverno-3-2-6
+      availableUpgrades:
+        - name: kyverno-3-2-7
+    - name: kyverno-3-2-7
+```
+
+> **Note:** Service upgrades and template chains are covered in detail in Week 2.
 
 ---
 
-## Part 4: Rollback Procedures
+## Part 4: Rollback Procedures (~5 min)
 
 ### Layer 1: Management Plane Rollback
 
@@ -503,7 +563,7 @@ kubectl logs -n kcm-system deployment/kcm-k0rdent-enterprise-controller-manager 
 
 ```bash
 # Check if the Release has the correct provider templates
-kubectl get release.k0rdent.mirantis.com <release-name> -o yaml | grep -A 2 "providers"
+kubectl get releases.k0rdent.mirantis.com <release-name> -o yaml | grep -A 2 "providers"
 
 # Check individual provider deployments
 kubectl get deployments -n kcm-system | grep -E "capa|capz|capv|capo"
@@ -536,7 +596,7 @@ clusterctl describe cluster <name> -n <namespace>
 <summary><strong>Answer Key</strong> (click to expand)</summary>
 
 1. The management plane upgrade updates KCM controllers, CAPI providers, and supporting infrastructure (via `Release` + `Management` patch). Managed cluster upgrades change the Kubernetes version and node configuration on workload clusters (via `ClusterDeployment` template change). They are independent — upgrading the management plane does NOT upgrade managed clusters.
-2. The `Release` CRD defines the target k0rdent version and all provider template versions. You download the Release YAML from `get.mirantis.com` (Enterprise) or GitHub (OSS) and apply it with `kubectl create`. Then you patch the Management object's `.spec.release` to point to the new Release. The KCM controller reconciles the difference — upgrading controllers, CAPI providers, and templates to match the new Release spec.
+2. The `Release` CRD defines the target k0rdent version and all provider template versions. For Enterprise, you download the Release YAML from `get.mirantis.com` and apply it with `kubectl create`. Then you patch the Management object's `.spec.release` to point to the new Release. The KCM controller reconciles the difference -- upgrading controllers, CAPI providers, and templates to match the new Release spec.
 3. `ClusterTemplateChain` defines allowed upgrade paths between ClusterTemplate versions (e.g., `1-0-20` can upgrade to `1-0-21` but not to `1-0-25`). This prevents invalid version jumps and ensures managed clusters follow validated upgrade paths. If you try to set a template not in the chain's `availableUpgrades`, the change is rejected.
 4. ManagementBackup (via Velero) captures all k0rdent CRDs, CAPI resources, and secrets to S3. If the upgrade corrupts the management plane, you can restore to the exact pre-upgrade state and reconnect to managed clusters that kept running independently.
 5. (a) Revert the `Management` object to the previous Release — fastest, just changes the desired state; (b) Velero restore — restores CRDs and resources from the S3 backup; (c) etcd restore — last resort, reverts ALL cluster state.
@@ -557,6 +617,12 @@ In this lab, you:
 - Reviewed production upgrade best practices
 
 ---
+
+## Preserving Your Environment
+
+> **Do NOT run `lab-destroy.sh` after completing Week 1.** Your management cluster is reused in all subsequent weeks. Week 5 GPU labs create GPU clusters via `ClusterDeployment` on this same management cluster. Only destroy the management cluster when you're completely done with the entire curriculum.
+>
+> If you need to pause between weeks, simply disconnect. Use `lab-connect.sh` to reconnect when you're ready to continue.
 
 ## Next
 

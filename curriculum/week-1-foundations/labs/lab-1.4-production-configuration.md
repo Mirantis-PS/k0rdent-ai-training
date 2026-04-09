@@ -8,30 +8,30 @@
 - [Objectives](#objectives)
 - [Prerequisites](#prerequisites)
 - [Resuming This Lab](#resuming-this-lab)
-- [Part 1: Production Architecture Overview](#part-1-production-architecture-overview)
+- [Part 1: Production Architecture Overview (~5 min)](#part-1-production-architecture-overview-5-min)
   - [Single vs Multi-Node Management Cluster](#single-vs-multi-node-management-cluster)
   - [Exercise: Evaluate Your Setup](#exercise-evaluate-your-setup)
-- [Part 2: Configure RBAC for Multi-Team Access](#part-2-configure-rbac-for-multi-team-access)
+- [Part 2: Configure RBAC for Multi-Team Access (~20 min)](#part-2-configure-rbac-for-multi-team-access-20-min)
   - [Understanding k0rdent RBAC](#understanding-k0rdent-rbac)
   - [Create Namespaces for Teams](#create-namespaces-for-teams)
   - [Create Cluster Roles](#create-cluster-roles)
   - [Create Service Accounts and Bindings](#create-service-accounts-and-bindings)
-- [Part 3: Configure Audit Logging](#part-3-configure-audit-logging)
+- [Part 3: Configure Audit Logging (~10 min)](#part-3-configure-audit-logging-10-min)
   - [Enable Kubernetes Audit Logging](#enable-kubernetes-audit-logging)
   - [Configure k0s for Audit Logging](#configure-k0s-for-audit-logging)
-- [Part 4: Configure Backup and Recovery](#part-4-configure-backup-and-recovery)
+- [Part 4: Configure Backup and Recovery (~30 min)](#part-4-configure-backup-and-recovery-30-min)
   - [Step 1: Configure Backup Storage](#step-1-configure-backup-storage)
   - [Step 2: Ensure the Velero AWS Plugin is Loaded](#step-2-ensure-the-velero-aws-plugin-is-loaded)
   - [Step 3: Create a Scheduled Backup](#step-3-create-a-scheduled-backup)
   - [Step 4: Create an On-Demand Backup](#step-4-create-an-on-demand-backup)
   - [Understanding What Gets Backed Up](#understanding-what-gets-backed-up)
-- [Part 5: Security Hardening](#part-5-security-hardening)
+- [Part 5: Security Hardening (~15 min)](#part-5-security-hardening-15-min)
   - [Network Policies](#network-policies)
   - [Pod Security Standards](#pod-security-standards)
   - [Secret Encryption](#secret-encryption)
-- [Part 6: Configure Resource Quotas](#part-6-configure-resource-quotas)
+- [Part 6: Configure Resource Quotas (~10 min)](#part-6-configure-resource-quotas-10-min)
   - [Set Namespace Quotas](#set-namespace-quotas)
-- [Part 7: Production Readiness Checklist](#part-7-production-readiness-checklist)
+- [Part 7: Production Readiness Checklist (~10 min)](#part-7-production-readiness-checklist-10-min)
   - [Create Assessment Script](#create-assessment-script)
 - [Validation Checklist](#validation-checklist)
 - [Summary](#summary)
@@ -63,7 +63,7 @@ kubectl get nodes && kubectl get pods -n kcm-system
 
 ---
 
-## Part 1: Production Architecture Overview
+## Part 1: Production Architecture Overview (~5 min)
 
 ### Single vs Multi-Node Management Cluster
 
@@ -84,7 +84,9 @@ kubectl get nodes
 # This lab focuses on single-node configuration hardening
 ```
 
-## Part 2: Configure RBAC for Multi-Team Access
+> **Expected output:** You should see a single node with status `Ready`. This is normal for the training environment.
+
+## Part 2: Configure RBAC for Multi-Team Access (~20 min)
 
 ### Understanding k0rdent RBAC
 
@@ -188,7 +190,7 @@ kubectl create rolebinding platform-admin-binding \
   -n team-platform
 ```
 
-## Part 3: Configure Audit Logging
+## Part 3: Configure Audit Logging (~10 min)
 
 ### Enable Kubernetes Audit Logging
 
@@ -251,7 +253,7 @@ spec:
 sudo k0s config create
 ```
 
-## Part 4: Configure Backup and Recovery
+## Part 4: Configure Backup and Recovery (~30 min)
 
 k0rdent ships with **Velero** built into the Helm chart. Velero handles backup and restore of the management cluster's state — including all CRDs, secrets, and cluster configurations. k0rdent provides the `ManagementBackup` CRD to manage backup schedules declaratively.
 
@@ -303,18 +305,20 @@ if kubectl get deployment velero -n kcm-system -o jsonpath='{.spec.template.spec
   echo "AWS plugin already installed"
 else
   echo "Installing AWS plugin..."
-  kubectl patch deployment velero -n kcm-system --type=json -p='[
-    {
-      "op": "add",
-      "path": "/spec/template/spec/initContainers/-",
-      "value": {
-        "name": "velero-plugin-for-aws",
-        "image": "velero/velero-plugin-for-aws:v1.11.0",
-        "imagePullPolicy": "IfNotPresent",
-        "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
+  kubectl patch deployment velero -n kcm-system --type=strategic -p '{
+    "spec": {
+      "template": {
+        "spec": {
+          "initContainers": [{
+            "name": "velero-plugin-for-aws",
+            "image": "velero/velero-plugin-for-aws:v1.11.0",
+            "imagePullPolicy": "IfNotPresent",
+            "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
+          }]
+        }
       }
     }
-  ]'
+  }'
   kubectl rollout status deployment/velero -n kcm-system --timeout=120s
 fi
 ```
@@ -324,7 +328,7 @@ fi
 kubectl get backupstoragelocation -n kcm-system
 ```
 
-You should see `aws-s3` with phase `Available`. If it still shows `Unavailable`, wait 30 seconds — Velero validates the BSL periodically.
+You should see `aws-s3` with phase `Available`. If it still shows `Unavailable` or the phase column is empty, wait 30-60 seconds and re-run the command -- Velero validates the BSL periodically.
 
 > **Production note:** For a permanent configuration, add the plugin via the Management object so it survives Helm reconciliation:
 > ```yaml
@@ -364,6 +368,8 @@ EOF
 kubectl get managementbackup
 ```
 
+> **Note:** `ManagementBackup` is cluster-scoped -- no `-n` flag is needed. You should see the `kcm` resource listed. The `SCHEDULE` column shows the cron expression; `LAST BACKUP` will be empty until the first scheduled run triggers.
+
 ### Step 4: Create an On-Demand Backup
 
 Trigger an immediate backup to verify everything works:
@@ -381,11 +387,11 @@ EOF
 ```
 
 ```bash
-# Watch the backup progress
+# Watch the backup progress (Ctrl+C to exit once phase shows Completed)
 kubectl get backup -n kcm-system --watch
 ```
 
-Wait until the phase shows `Completed`. This typically takes 30-60 seconds.
+> **Note:** The underlying Velero `Backup` objects are namespaced in `kcm-system` (unlike the `ManagementBackup` CRD which is cluster-scoped). The phase will transition from `InProgress` to `Completed`. This typically takes 30-60 seconds.
 
 ```bash
 # Verify the backup exists in S3
@@ -403,7 +409,7 @@ k0rdent's ManagementBackup captures:
 
 > **Restore scenario:** If the management cluster is lost, you provision a fresh k0rdent install, configure the same BackupStorageLocation, and create a `Restore` object pointing to the backup. k0rdent reconnects to the existing managed clusters automatically — they keep running even if the management cluster is down.
 
-## Part 5: Security Hardening
+## Part 5: Security Hardening (~15 min)
 
 ### Network Policies
 
@@ -484,6 +490,8 @@ kubectl label namespace team-ml \
   pod-security.kubernetes.io/warn=restricted
 ```
 
+> **Note:** You may see `Warning: existing pods in namespace ... violate the new PodSecurity enforce level` -- this is expected if any pods already exist in these namespaces. The labels apply to future pod creation.
+
 ### Secret Encryption
 
 ```bash
@@ -494,7 +502,9 @@ kubectl get secret -n kube-system | grep encryption
 # For production, enable encryption at rest
 ```
 
-## Part 6: Configure Resource Quotas
+> **Note:** This command will likely return no results -- that is expected. The default k0s installation does not enable secret encryption at rest. In production, you would configure this in `/etc/k0s/k0s.yaml`.
+
+## Part 6: Configure Resource Quotas (~10 min)
 
 ### Set Namespace Quotas
 
@@ -529,7 +539,7 @@ spec:
 EOF
 ```
 
-## Part 7: Production Readiness Checklist
+## Part 7: Production Readiness Checklist (~10 min)
 
 ### Create Assessment Script
 
@@ -592,6 +602,8 @@ sudo chmod +x /usr/local/bin/production-readiness.sh
 # Run assessment
 sudo /usr/local/bin/production-readiness.sh
 ```
+
+> **Note:** If you see `[FAIL]` for any check, review the earlier sections to ensure you completed each step. The "CAPI pods running" check looks for pods with `capi` or `capa` in their name within `kcm-system` -- if none are running yet, this is expected before your first cluster deployment in Lab 1.5.
 
 ## Validation Checklist
 

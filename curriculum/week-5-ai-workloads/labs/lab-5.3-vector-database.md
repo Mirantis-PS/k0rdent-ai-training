@@ -76,11 +76,13 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 1. **Verify Storage Class**
    ```bash
    kubectl get storageclass
+   ```
 
-   # If no default, create local-path provisioner
+   The GPU cluster from Lab 5.1 includes `ebs-csi-default-sc` as the default StorageClass. If you see it listed with `(default)`, skip to the next step. If no default exists:
+
+   ```bash
+   # Only if no default StorageClass exists:
    kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
-
-   # Set as default if needed
    kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
    ```
 
@@ -99,11 +101,16 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 
 2. **Create Milvus Configuration**
 
-   > **Architecture Note (Milvus v2.6.x):** Milvus v2.6 unified four separate
-   > coordinators (root, data, query, index) into a single **MixCoord** process,
-   > merged IndexNode into DataNode, and introduced **StreamingNode** as a GA
-   > component. The recommended WAL backend is **Woodpecker** (replaces Pulsar),
-   > which eliminates the need for ZooKeeper, BookKeeper, and Broker pods.
+   > **Architecture Note (Milvus v2.6.x — forward-looking):** Milvus v2.6 plans
+   > to unify four separate coordinators (root, data, query, index) into a single
+   > **MixCoord** process, merge IndexNode into DataNode, and introduce
+   > **StreamingNode** as a GA component. The recommended WAL backend will be
+   > **Woodpecker** (replacing Pulsar). **Note:** The current stable Helm chart
+   > (v4.2.x) deploys Milvus v2.5.x, which still uses separate coordinator pods
+   > and Pulsar/MinIO for WAL. The v2.6 features (Woodpecker, MixCoord,
+   > StreamingNode) are shown here for reference but may not yet be available in
+   > the chart version you install. Adjust the values file accordingly if your
+   > chart version does not support these keys.
 
    ```yaml
    # Save as milvus-values.yaml
@@ -227,7 +234,62 @@ This lab deploys **Milvus** as a production-grade distributed solution.
          - template: milvus-5-0-1
            name: milvus
            namespace: vector-db
-           valuesFrom: milvus-values.yaml
+           values: |
+             cluster:
+               enabled: true
+             standalone:
+               enabled: false
+             extraConfigFiles:
+               user.yaml: |
+                 common:
+                   security:
+                     authorizationEnabled: true
+             etcd:
+               replicaCount: 3
+               persistence:
+                 enabled: true
+                 size: 10Gi
+             minio:
+               mode: distributed
+               replicas: 4
+               persistence:
+                 enabled: true
+                 size: 50Gi
+             pulsar:
+               enabled: false
+             queryNode:
+               replicas: 2
+               resources:
+                 requests:
+                   cpu: "0.5"
+                   memory: 2Gi
+                 limits:
+                   cpu: "2"
+                   memory: 8Gi
+             dataNode:
+               replicas: 1
+               resources:
+                 requests:
+                   cpu: "0.5"
+                   memory: 2Gi
+                 limits:
+                   cpu: "2"
+                   memory: 8Gi
+             proxy:
+               replicas: 1
+               resources:
+                 requests:
+                   cpu: "0.5"
+                   memory: 1Gi
+                 limits:
+                   cpu: "2"
+                   memory: 4Gi
+             attu:
+               enabled: true
+               service:
+                 type: ClusterIP
+             metrics:
+               enabled: true
    ```
 
    ```bash
@@ -238,11 +300,20 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    > you can use Helm directly. This bypasses fleet management but works for
    > single-cluster testing:
    > ```bash
+   > helm repo add milvus https://zilliztech.github.io/milvus-helm/
+   > helm repo update
    > helm install milvus milvus/milvus \
    >   --namespace vector-db \
    >   --values milvus-values.yaml \
+   >   --version 4.2.8 \
    >   --wait --timeout 15m
    > ```
+   > Pin `--version` to a known stable chart release. Run `helm search repo
+   > milvus/milvus --versions` to find the latest available version.
+   >
+   > **Note:** The Helm chart creates services automatically. Verify with
+   > `kubectl get svc -n vector-db | grep milvus` — you need `milvus` (proxy)
+   > on port 19530 for the port-forward commands in Task 3.
 
 4. **Watch Deployment Progress**
    ```bash
@@ -260,11 +331,16 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    kubectl get svc -n vector-db | grep milvus
    ```
 
-6. **Expected Pod List (Milvus v2.6.x with Woodpecker)**
+6. **Expected Pod List**
 
-   > With Woodpecker replacing Pulsar, the pod count drops from ~17 to ~12.
-   > MixCoord replaces 4 separate coordinator pods, and IndexNode is merged
-   > into DataNode.
+   > **Note:** Pod names vary by Milvus version. The list below shows the v2.6.x
+   > target architecture with MixCoord and Woodpecker. If you are running
+   > Milvus v2.5.x (the current stable Helm chart default), you will instead see
+   > separate coordinator pods: `milvus-rootcoord-*`, `milvus-querycoord-*`,
+   > `milvus-datacoord-*`, `milvus-indexcoord-*`, and an `milvus-indexnode-*`
+   > pod. You will also see Pulsar-related pods (broker, bookie, zookeeper)
+   > instead of the Woodpecker components. The etcd, minio, proxy, querynode,
+   > datanode, and attu pods appear in both versions.
 
    ```
    NAME                                      READY   STATUS    RESTARTS   AGE
@@ -292,7 +368,8 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    kubectl port-forward svc/milvus -n vector-db 19530:19530 &
 
    # Install pymilvus client
-   pip install pymilvus==2.6.8
+   pip install "pymilvus>=2.5.0"
+   # Check https://pypi.org/project/pymilvus/ for the latest compatible version
    ```
 
 2. **Create Authentication Script**
@@ -300,11 +377,14 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    # Save as setup_auth.py
    from pymilvus import connections, utility, Role
 
-   # Connect without auth (first time)
+   # When authorizationEnabled is true, Milvus requires credentials even for initial setup.
+   # The default root credentials are root/Milvus.
    connections.connect(
        alias="default",
        host="localhost",
-       port="19530"
+       port=19530,
+       user="root",
+       password="Milvus"
    )
 
    # Create new user
@@ -349,7 +429,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    connections.connect(
        alias="default",
        host="localhost",
-       port="19530",
+       port=19530,
        user="mlops",
        password="SecurePassword123!"
    )
@@ -454,7 +534,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    connections.connect(
        alias="default",
        host="localhost",
-       port="19530",
+       port=19530,
        user="mlops",
        password="SecurePassword123!"
    )
@@ -466,7 +546,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    # Generate a query embedding (simulating "GPU machine learning" query)
    # In production, use the same embedding model as for indexing
    query_embedding = np.random.rand(1, 384).astype(np.float32)
-   query_embedding = query_embedding / np.linalg.norm(query_embedding)
+   query_embedding = query_embedding / np.linalg.norm(query_embedding, axis=1, keepdims=True)
 
    # Search parameters
    search_params = {
