@@ -11,28 +11,37 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required) ─ COMPLETE!             CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ [5.6]
-                                ↑
-                           YOU ARE HERE
-                                │
-         ┌──────────────────────┼──────────────────────┐
-         ▼                      ▼                      ▼
-    ML PLATFORMS           COMPLIANCE             ADVANCED
-    (Recommended)        (If Required)           (Optional)
-    ━━━━━━━━━━━━         ━━━━━━━━━━━━           ━━━━━━━━
-    5.9 Kubeflow         5.7 FIPS               5.13 TensorRT-LLM
-    5.10 MLflow          5.8 Templates          5.14 RDMA
-    5.11 Run:AI                                 5.15 Distributed
-    5.12 Slurm
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ [5.6] ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+                                 ↑                        Compliance (5.11-5.12)
+                            YOU ARE HERE                  Advanced (5.13-5.16)
 ```
 
-| Previous | Current | Next (Choose One) |
-|----------|---------|-------------------|
-| [Lab 5.5 - Service Catalog](lab-5.5-service-catalog.md) | **Lab 5.6 - Troubleshooting** | [5.7 FIPS](lab-5.7-nvidia-fips.md) / [5.9 Kubeflow](lab-5.9-kubeflow-ml-platform.md) / [5.13 TensorRT](lab-5.13-tensorrt-llm.md) |
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.5 - vLLM Inference](lab-5.5-vllm-inference.md) | **Lab 5.6 - Troubleshooting** | [Lab 5.7 - Jupyter Notebooks](lab-5.7-jupyter-notebooks.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [k0rdent Context](#k0rdent-context)
+  - [Diagnostic Tools Reference](#diagnostic-tools-reference)
+- [Tasks](#tasks)
+  - [Task 1: Access the k0rdent-Managed GPU Cluster](#task-1-access-the-k0rdent-managed-gpu-cluster-10-min)
+  - [Scenario A: GPU Operator Component Failures](#scenario-a-gpu-operator-component-failures-30-min)
+  - [Scenario B: Workloads Stuck Pending](#scenario-b-workloads-stuck-pending-25-min)
+  - [Scenario C: vLLM Out-of-Memory Errors](#scenario-c-vllm-out-of-memory-errors-30-min)
+  - [Scenario D: Health Check Failures During Rolling Update](#scenario-d-health-check-failures-during-rolling-update-25-min)
+  - [Scenario E: GPU Hardware Faults](#scenario-e-gpu-hardware-faults-20-min)
+- [Summary: Troubleshooting Flowchart](#summary-troubleshooting-flowchart)
+- [Cleanup](#cleanup)
+- [Verification Checklist](#verification-checklist)
+- [Key Takeaways](#key-takeaways)
+- [Next Steps - Choose Your Path](#next-steps---choose-your-path)
 
 **Duration:** 2 hours
 **Type:** Hands-on Technical
@@ -887,16 +896,16 @@ You have completed the **Foundation Track**! Choose your next learning path:
 Build end-to-end ML workflows:
 - [Lab 5.9 - Kubeflow ML Platform](lab-5.9-kubeflow-ml-platform.md) - Pipelines, training operators, Katib
 - [Lab 5.10 - MLflow Experiment Tracking](lab-5.10-mlflow-experiment-tracking.md) - Model registry, artifacts
-- [Lab 5.11 - Run:AI GPU Orchestration](lab-5.11-runai-gpu-orchestration.md) - Quotas, fractional GPU
-- [Lab 5.12 - Slurm Operator for HPC](lab-5.12-slurm-operator-hpc.md) - Traditional HPC integration
+- [Lab 5.11 - Run:AI GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) - Quotas, fractional GPU
+- [Lab 5.12 - Slurm Operator for HPC](lab-5.14-slurm-operator-hpc.md) - Traditional HPC integration
 
 ### Compliance & Templates Track (If Required)
 For regulated environments:
-- [Lab 5.7 - FIPS Compliance](lab-5.7-nvidia-fips.md) - FIPS 140-2/3 compliance for GPU infrastructure
-- [Lab 5.8 - Cluster Templates for AI](lab-5.8-cluster-templates.md) - k0rdent ClusterTemplates
+- [Lab 5.7 - FIPS Compliance](lab-5.11-nvidia-fips.md) - FIPS 140-2/3 compliance for GPU infrastructure
+- [Lab 5.8 - Cluster Templates for AI](lab-5.12-cluster-templates.md) - k0rdent ClusterTemplates
 
 ### Advanced Optimization Track (Optional)
 For maximum performance:
 - [Lab 5.13 - TensorRT-LLM Optimization](lab-5.13-tensorrt-llm.md) - Advanced inference
-- [Lab 5.14 - Multi-Cloud RDMA](lab-5.14-rdma-multi-cloud.md) - EFA vs InfiniBand
-- [Lab 5.15 - Distributed Training](lab-5.15-distributed-training.md) - Multi-node training
+- [Lab 5.14 - Multi-Cloud RDMA](lab-5.15-rdma-multi-cloud.md) - EFA vs InfiniBand
+- [Lab 5.15 - Distributed Training](lab-5.16-distributed-training.md) - Multi-node training

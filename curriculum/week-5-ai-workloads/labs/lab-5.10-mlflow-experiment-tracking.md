@@ -11,28 +11,43 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ML PLATFORMS
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.9 Kubeflow
-                                                  ↓
+FOUNDATION (Completed)                        ML PLATFORMS
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5                5.9 Kubeflow
+     ➔ 5.6 ➔ 5.7 ➔ 5.8 ✓                        ↓
                                              YOU ARE HERE
                                                   ↓
                                              [5.10] MLflow
-                                                  ↓
-                                              5.11 Run:AI
-                                                  ↓
-                                              5.12 Slurm ➔ Week 6
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) | **Lab 5.10 - MLflow** | [Lab 5.11 - Run:AI](lab-5.11-runai-gpu-orchestration.md) |
+| [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) | **Lab 5.10 - MLflow** | Choose: [Lab 5.11 - FIPS](lab-5.11-nvidia-fips.md) or [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) |
 
 ---
 
 **Duration:** 2.5 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [k0rdent Context](#k0rdent-context)
+- [Lab Environment](#lab-environment)
+- [Tasks](#tasks)
+  - [Task 1: Access the k0rdent-Managed GPU Cluster](#task-1-access-the-k0rdent-managed-gpu-cluster-10-min)
+  - [Task 2: Deploy MLflow via k0rdent ServiceTemplate](#task-2-deploy-mlflow-via-k0rdent-servicetemplate-20-min)
+  - [Task 3: Manual MLflow Deployment](#task-3-manual-mlflow-deployment-30-min)
+  - [Task 4: Configure Client and Log GPU Experiments](#task-4-configure-client-and-log-gpu-experiments-30-min)
+  - [Task 5: Kubernetes Training Job with MLflow](#task-5-kubernetes-training-job-with-mlflow-30-min)
+  - [Task 6: Model Registry with Aliases](#task-6-model-registry-with-aliases-25-min)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [Next Lab](#next-lab)
 
 ## Objective
 
@@ -1138,4 +1153,8 @@ model = mlflow.pytorch.load_model("models:/mnist-classifier@champion")
 
 ## Next Lab
 
-Proceed to [Lab 5.11 - Run:AI GPU Orchestration](lab-5.11-runai-gpu-orchestration.md)
+Choose your next elective track:
+
+- **Compliance Track:** [Lab 5.11 - FIPS Compliance](lab-5.11-nvidia-fips.md)
+- **Advanced Track:** [Lab 5.13 - TensorRT-LLM Optimization](lab-5.13-tensorrt-llm.md)
+- **Or proceed to:** [Week 6 - Multi-tenancy](../../week-6-multi-tenancy/README.md)

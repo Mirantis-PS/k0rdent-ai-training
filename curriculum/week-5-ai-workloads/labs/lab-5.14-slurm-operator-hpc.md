@@ -1,4 +1,4 @@
-# Lab 5.12 - Slurm on Kubernetes for HPC Workloads
+# Lab 5.14 - Slurm on Kubernetes for HPC Workloads
 
 ---
 
@@ -6,29 +6,46 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| ML Platforms | Optional | 3 hours |
+| Advanced | Optional | 3 hours |
 
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ML PLATFORMS
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.9 Kubeflow
-                                                  ↓
-                                              5.10 MLflow
-                                                  ↓
-                                              5.11 Run:ai
+FOUNDATION (Completed)                        ADVANCED
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━
+5.1 ➔ 5.2 ➔ ... ➔ 5.8 ✓                     5.13 TensorRT-LLM
                                                   ↓
                                              YOU ARE HERE
                                                   ↓
-                                             [5.12] Slurm
+                                             [5.14] Slurm
                                                   ↓
-                                               Week 6
+                                              5.15 RDMA Multi-Cloud
+                                                  ↓
+                                              5.16 Distributed Training
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.11 - Run:ai](lab-5.11-runai-gpu-orchestration.md) | **Lab 5.12 - Slurm on Kubernetes** | [Week 6 - Multi-tenancy](../../week-6-multi-tenancy/README.md) |
+| [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) | **Lab 5.14 - Slurm on Kubernetes** | [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+- [Tasks](#tasks)
+  - [Task 1: Install the Slinky Operator](#task-1-install-the-slinky-operator-20-min)
+  - [Task 2: Deploy a Slurm Cluster](#task-2-deploy-a-slurm-cluster-30-min)
+  - [Task 3: Submit and Monitor Slurm Jobs](#task-3-submit-and-monitor-slurm-jobs-30-min)
+  - [Task 4: Configure Slurm Accounting](#task-4-configure-slurm-accounting-20-min)
+  - [Task 5: Explore the Slurm REST API](#task-5-explore-the-slurm-rest-api-20-min)
+  - [Task 6: Scale the Slurm Cluster](#task-6-scale-the-slurm-cluster-15-min)
+  - [Task 7: Compare with Kueue](#task-7-compare-with-kueue-15-min)
+  - [Task 8: k0rdent Integration](#task-8-k0rdent-integration-15-min)
+- [Troubleshooting](#troubleshooting)
+- [Verification Checklist](#verification-checklist)
 
 ---
 

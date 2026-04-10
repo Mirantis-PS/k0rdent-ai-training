@@ -1,4 +1,4 @@
-# Lab 5.15 - Multi-Node Distributed Training
+# Lab 5.16 - Multi-Node Distributed Training
 
 ---
 
@@ -6,31 +6,50 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Advanced Optimization | Optional | 4.5 hours |
+| Advanced | Optional | 4.5 hours |
 
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ADVANCED OPTIMIZATION
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.13 TensorRT-LLM
+FOUNDATION (Completed)                        ADVANCED
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━
+5.1 ➔ 5.2 ➔ ... ➔ 5.8 ✓                     5.13 TensorRT-LLM
                                                   ↓
-                                              5.14 Multi-Cloud RDMA
+                                              5.14 Slurm
+                                                  ↓
+                                              5.15 RDMA Multi-Cloud
                                                   ↓
                                              YOU ARE HERE
                                                   ↓
-                                             [5.15] Distributed Training
+                                             [5.16] Distributed Training
                                                   ↓
                                               WEEK 5 COMPLETE!
 
 After this lab:
-• ML Platforms Track (5.9-5.12) for MLOps
-• Week 6: Multi-tenancy
+  ML Platforms (5.9-5.10) or Week 6
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.14 - Multi-Cloud RDMA](lab-5.14-rdma-multi-cloud.md) | **Lab 5.15 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multi-tenancy/README.md) |
+| [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) | **Lab 5.16 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multi-tenancy/README.md) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [k0rdent Context](#k0rdent-context)
+- [Background: Distributed Training Architecture](#background-distributed-training-architecture)
+- [Lab Environment](#lab-environment)
+- [Tasks](#tasks)
+  - [Task 1: Access k0rdent-Managed GPU Cluster](#task-1-access-k0rdent-managed-gpu-cluster-10-min)
+  - [Task 2: Install MPI Operator](#task-2-install-mpi-operator-20-min)
+  - [Task 3: Verify Multi-Node Connectivity](#task-3-verify-multi-node-connectivity-30-min)
+  - [Task 4: Deploy Megatron-LM Training Job](#task-4-deploy-megatron-lm-training-job-60-min)
+  - [Task 5: DeepSpeed ZeRO Optimization](#task-5-deepspeed-zero-optimization-45-min)
+  - [Task 6: PyTorch FSDP](#task-6-pytorch-fsdp-fully-sharded-data-parallel-45-min)
+  - [Task 7: Performance Optimization](#task-7-performance-optimization-30-min)
 
 ---
 

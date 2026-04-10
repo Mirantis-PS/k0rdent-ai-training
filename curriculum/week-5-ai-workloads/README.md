@@ -103,24 +103,24 @@ Topics:
 
 All lab files are in the [labs/](labs/) directory.
 
-| Lab | Title | Duration | File |
-|-----|-------|----------|------|
-| 5.1 | GPU Scheduler Deployment | 3h | [lab-5.1-gpu-scheduler.md](labs/lab-5.1-gpu-scheduler.md) |
-| 5.2 | vLLM Inference Service | 2.5h | [lab-5.2-vllm-inference.md](labs/lab-5.2-vllm-inference.md) |
-| 5.3 | Vector Database Deployment | 2h | [lab-5.3-vector-database.md](labs/lab-5.3-vector-database.md) |
-| 5.4 | Jupyter Notebook Stack | 1.5h | [lab-5.4-jupyter-notebooks.md](labs/lab-5.4-jupyter-notebooks.md) |
-| 5.5 | Service Catalog Blueprints | 2h | [lab-5.5-service-catalog.md](labs/lab-5.5-service-catalog.md) |
-| 5.6 | Troubleshooting GPU Scheduling | 2h | [lab-5.6-troubleshooting-gpu.md](labs/lab-5.6-troubleshooting-gpu.md) |
-| 5.7 | NVIDIA FIPS 140-3 Configuration | 2h | [lab-5.7-nvidia-fips.md](labs/lab-5.7-nvidia-fips.md) |
-| 5.8 | Cluster Templates for AI Workloads | 2h | [lab-5.8-cluster-templates.md](labs/lab-5.8-cluster-templates.md) |
-| 5.9 | Kubeflow ML Platform | 3h | [lab-5.9-kubeflow-ml-platform.md](labs/lab-5.9-kubeflow-ml-platform.md) |
-| 5.10 | MLflow Experiment Tracking | 2.5h | [lab-5.10-mlflow-experiment-tracking.md](labs/lab-5.10-mlflow-experiment-tracking.md) |
-| 5.11 | Run:AI GPU Orchestration | 3h | [lab-5.11-runai-gpu-orchestration.md](labs/lab-5.11-runai-gpu-orchestration.md) |
-| 5.12 | Slurm Operator for HPC | 3h | [lab-5.12-slurm-operator-hpc.md](labs/lab-5.12-slurm-operator-hpc.md) |
-| 5.13 | TensorRT-LLM Optimization | - | [lab-5.13-tensorrt-llm.md](labs/lab-5.13-tensorrt-llm.md) |
-| 5.14 | RDMA Multi-Cloud Networking | - | [lab-5.14-rdma-multi-cloud.md](labs/lab-5.14-rdma-multi-cloud.md) |
-| 5.15 | Distributed Training | - | [lab-5.15-distributed-training.md](labs/lab-5.15-distributed-training.md) |
-| 5.16 | KAI Scheduler | - | [lab-5.16-kai-scheduler.md](labs/lab-5.16-kai-scheduler.md) |
+| Lab | Title | Track | Duration | File |
+|-----|-------|-------|----------|------|
+| 5.1 | GPU Cluster Setup | Foundation | 1.5h | [lab-5.1-gpu-cluster-setup.md](labs/lab-5.1-gpu-cluster-setup.md) |
+| 5.2 | Service Catalog | Foundation | 2h | [lab-5.2-service-catalog.md](labs/lab-5.2-service-catalog.md) |
+| 5.3 | KAI Scheduler | Foundation | 2.5h | [lab-5.3-kai-scheduler.md](labs/lab-5.3-kai-scheduler.md) |
+| 5.4 | Run:AI Orchestration | Foundation | 3h | [lab-5.4-runai-gpu-orchestration.md](labs/lab-5.4-runai-gpu-orchestration.md) |
+| 5.5 | vLLM Inference | Foundation | 2.5h | [lab-5.5-vllm-inference.md](labs/lab-5.5-vllm-inference.md) |
+| 5.6 | Troubleshooting GPU | Foundation | 2h | [lab-5.6-troubleshooting-gpu.md](labs/lab-5.6-troubleshooting-gpu.md) |
+| 5.7 | Jupyter Notebooks | Foundation | 1.5h | [lab-5.7-jupyter-notebooks.md](labs/lab-5.7-jupyter-notebooks.md) |
+| 5.8 | Vector Database | Foundation | 2h | [lab-5.8-vector-database.md](labs/lab-5.8-vector-database.md) |
+| 5.9 | Kubeflow ML Platform | ML Platforms | 3h | [lab-5.9-kubeflow-ml-platform.md](labs/lab-5.9-kubeflow-ml-platform.md) |
+| 5.10 | MLflow Experiment Tracking | ML Platforms | 2.5h | [lab-5.10-mlflow-experiment-tracking.md](labs/lab-5.10-mlflow-experiment-tracking.md) |
+| 5.11 | NVIDIA FIPS Configuration | Compliance | 2h | [lab-5.11-nvidia-fips.md](labs/lab-5.11-nvidia-fips.md) |
+| 5.12 | Cluster Templates for AI | Compliance | 2h | [lab-5.12-cluster-templates.md](labs/lab-5.12-cluster-templates.md) |
+| 5.13 | TensorRT-LLM Optimization | Advanced | 3h | [lab-5.13-tensorrt-llm.md](labs/lab-5.13-tensorrt-llm.md) |
+| 5.14 | Slurm Operator for HPC | Advanced | 3h | [lab-5.14-slurm-operator-hpc.md](labs/lab-5.14-slurm-operator-hpc.md) |
+| 5.15 | RDMA Multi-Cloud | Advanced | 3h | [lab-5.15-rdma-multi-cloud.md](labs/lab-5.15-rdma-multi-cloud.md) |
+| 5.16 | Distributed Training | Advanced | 3h | [lab-5.16-distributed-training.md](labs/lab-5.16-distributed-training.md) |
 
 ### Key Software References
 
@@ -142,11 +142,11 @@ All lab files are in the [labs/](labs/) directory.
 
 | Theory Section | Primary Labs |
 |---------------|-------------|
-| 5.1 GPU Scheduling | Lab 5.1, Lab 5.6, Lab 5.11, Lab 5.16 |
-| 5.2 LLM Inference Architecture | Lab 5.2, Lab 5.13 |
-| 5.3 GPU Communication | Lab 5.14 |
-| 5.4 Distributed Training | Lab 5.15 |
-| 5.5 ML Platforms | Lab 5.9, Lab 5.10 |
+| 5.1 GPU Scheduling | Lab 5.1, Lab 5.3 (KAI), Lab 5.4 (Run:AI), Lab 5.6 |
+| 5.2 LLM Inference Architecture | Lab 5.5 (vLLM), Lab 5.13 (TensorRT-LLM) |
+| 5.3 GPU Communication | Lab 5.15 (RDMA) |
+| 5.4 Distributed Training | Lab 5.16 (Distributed Training) |
+| 5.5 ML Platforms | Lab 5.9 (Kubeflow), Lab 5.10 (MLflow) |
 
 ---
 

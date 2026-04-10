@@ -11,28 +11,40 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ML PLATFORMS
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6         YOU ARE HERE
-                                                  ↓
+FOUNDATION (Completed)                        ML PLATFORMS
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5               YOU ARE HERE
+     ➔ 5.6 ➔ 5.7 ➔ 5.8 ✓                        ↓
                                              [5.9] Kubeflow
                                                   ↓
                                               5.10 MLflow
-                                                  ↓
-                                              5.11 Run:AI
-                                                  ↓
-                                              5.12 Slurm ➔ Week 6
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.6 - Troubleshooting](lab-5.6-troubleshooting-gpu.md) | **Lab 5.9 - Kubeflow** | [Lab 5.10 - MLflow](lab-5.10-mlflow-experiment-tracking.md) |
+| [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) | **Lab 5.9 - Kubeflow** | [Lab 5.10 - MLflow](lab-5.10-mlflow-experiment-tracking.md) |
 
 ---
 
 **Duration:** 3 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab (k0rdent-managed workload cluster)
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+- [Part 1: Prepare the Workload Cluster](#part-1-prepare-the-workload-cluster)
+- [Part 2: Deploy Kubeflow Pipelines](#part-2-deploy-kubeflow-pipelines)
+- [Part 3: Distributed Training with Training Operator](#part-3-distributed-training-with-training-operator)
+- [Part 4: Hyperparameter Tuning with Katib](#part-4-hyperparameter-tuning-with-katib)
+- [Part 5: Notebook Server](#part-5-notebook-server)
+- [Cleanup](#cleanup)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [Next Lab](#next-lab)
 
 ## Objective
 
@@ -41,7 +53,7 @@ Deploy and configure Kubeflow as a comprehensive ML platform on a k0rdent-manage
 ## Prerequisites
 
 - Completed Lab 5.1 (GPU Scheduler deployed)
-- Completed Lab 5.8 (Cluster Templates) - recommended
+- Completed Lab 5.12 (Cluster Templates) - recommended
 - k0rdent-managed workload cluster with GPU nodes (provisioned via ClusterDeployment)
 - GPU Operator deployed via `serviceSpec` or `MultiClusterService`
 - kubectl access to the workload cluster
@@ -94,7 +106,7 @@ Kubeflow is an open-source ML platform for Kubernetes that makes deploying ML wo
 
 ### Task 1: Access the k0rdent-Managed Cluster (10 min)
 
-This lab runs on a workload cluster provisioned via k0rdent `ClusterDeployment` (see [Lab 5.8](lab-5.8-cluster-templates.md)).
+This lab runs on a workload cluster provisioned via k0rdent `ClusterDeployment` (see [Lab 5.12](lab-5.12-cluster-templates.md)).
 
 1. **Extract kubeconfig from the k0rdent management cluster**
 

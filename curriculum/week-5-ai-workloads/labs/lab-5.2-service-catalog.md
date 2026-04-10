@@ -1,4 +1,4 @@
-# Lab 5.5 - Service Catalog Blueprints
+# Lab 5.2 - Service Catalog Blueprints
 
 ---
 
@@ -11,18 +11,42 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ [5.5] ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-                          ↑                   Compliance (5.7-5.8)
-                     YOU ARE HERE             Advanced (5.13-5.15)
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ [5.2] ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+        ↑                                                  Compliance (5.11-5.12)
+   YOU ARE HERE                                            Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.4 - Jupyter Notebooks](lab-5.4-jupyter-notebooks.md) | **Lab 5.5 - Service Catalog** | [Lab 5.6 - Troubleshooting GPU](lab-5.6-troubleshooting-gpu.md) |
+| [Lab 5.1 - GPU Cluster Setup](lab-5.1-gpu-cluster-setup.md) | **Lab 5.2 - Service Catalog** | [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+  - [How the k0rdent Service Catalog Works](#how-the-k0rdent-service-catalog-works)
+  - [Key Concepts](#key-concepts)
+  - [AI/ML Services in the Catalog](#aiml-services-in-the-catalog)
+- [Lab Environment](#lab-environment)
+- [Tasks](#tasks)
+  - [Task 1: Explore the External Catalog](#task-1-explore-the-external-catalog-15-min)
+  - [Task 2: Install ServiceTemplates from the Catalog](#task-2-install-servicetemplates-from-the-catalog-20-min)
+  - [Task 3: Deploy Services via MultiClusterService](#task-3-deploy-services-via-multiclusterservice-30-min)
+  - [Task 4: Customize Services with Helm Values](#task-4-customize-services-with-helm-values-30-min)
+  - [Task 5: Version Management with ServiceTemplateChain](#task-5-version-management-with-servicetemplatechain-15-min)
+  - [Task 6: Single-Cluster Deployment via ClusterDeployment](#task-6-single-cluster-deployment-via-clusterdeployment-15-min)
+  - [Task 7: Remove a ServiceTemplate](#task-7-remove-a-servicetemplate-10-min)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Cleanup](#cleanup)
+- [Key Takeaways](#key-takeaways)
+- [Next Lab](#next-lab)
 
 **Duration:** 2 hours
 **Type:** Hands-on Technical
@@ -34,7 +58,7 @@ Install ServiceTemplates from k0rdent's external catalog and deploy AI/ML servic
 
 ## Prerequisites
 
-- Completed Labs 5.1-5.4
+- Completed Lab 5.1
 - k0rdent management cluster access
 - At least one workload cluster with GPU nodes
 - Understanding of Helm and Kubernetes services
@@ -627,4 +651,4 @@ kubectl get multiclusterservice,servicetemplatechains -n kcm-system
 
 ## Next Lab
 
-Proceed to [Lab 5.6 - Troubleshooting GPU Scheduling](lab-5.6-troubleshooting-gpu.md)
+Proceed to [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md)

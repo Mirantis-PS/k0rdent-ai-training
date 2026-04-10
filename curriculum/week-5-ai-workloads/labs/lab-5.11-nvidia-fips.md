@@ -1,4 +1,4 @@
-# Lab 5.7 - FIPS Compliance for GPU Infrastructure
+# Lab 5.11 - FIPS Compliance for GPU Infrastructure
 
 ---
 
@@ -11,28 +11,43 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                    YOU ARE HERE
-━━━━━━━━━━━━━━━━━━━━                         ↓
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6      COMPLIANCE
-                                        ━━━━━━━━━━━
-                                        [5.7] ➔ 5.8
-                                              ↓
-                         ┌────────────────────┴────────────────────┐
-                         ▼                                         ▼
-                    ML PLATFORMS                              ADVANCED
-                    ━━━━━━━━━━━━                              ━━━━━━━━
-                    5.9 ➔ 5.10 ➔ 5.11 ➔ 5.12           5.13 ➔ 5.14 ➔ 5.15
+FOUNDATION (Completed)                        COMPLIANCE & TEMPLATES
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5               YOU ARE HERE
+     ➔ 5.6 ➔ 5.7 ➔ 5.8 ✓                        ↓
+                                             [5.11] FIPS
+                                                  ↓
+                                              5.12 Cluster Templates
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.6 - Troubleshooting](lab-5.6-troubleshooting-gpu.md) | **Lab 5.7 - FIPS Compliance** | [Lab 5.8 - Cluster Templates](lab-5.8-cluster-templates.md) |
+| [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) | **Lab 5.11 - FIPS Compliance** | [Lab 5.12 - Cluster Templates](lab-5.12-cluster-templates.md) |
 
 ---
 
 **Duration:** 2 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab (k0rdent-managed workload cluster)
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [k0rdent Context](#k0rdent-context)
+- [Part 1: Understanding the FIPS Enforcement Boundary](#part-1-understanding-the-fips-enforcement-boundary)
+- [Tasks](#tasks)
+  - [Task 1: Access the k0rdent-Managed GPU Cluster](#task-1-access-the-k0rdent-managed-gpu-cluster-10-min)
+  - [Task 2: Verify and Enable Host FIPS Mode](#task-2-verify-and-enable-host-fips-mode-25-min)
+  - [Task 3: Deploy GPU Operator with FIPS-Compliant Images](#task-3-deploy-gpu-operator-with-fips-compliant-images-30-min)
+  - [Task 4: Verify FIPS Enforcement in Containers](#task-4-verify-fips-enforcement-in-containers-25-min)
+  - [Task 5: DCGM Monitoring in FIPS Environment](#task-5-dcgm-monitoring-in-fips-environment-15-min)
+  - [Task 6: FIPS Compliance Audit](#task-6-fips-compliance-audit-15-min)
+- [Cleanup](#cleanup)
+- [Troubleshooting](#troubleshooting)
+- [Verification Checklist](#verification-checklist)
+- [Key Takeaways](#key-takeaways)
+- [Next Lab](#next-lab)
 
 ## Objective
 
@@ -742,4 +757,4 @@ openssl list -providers
 
 ## Next Lab
 
-Proceed to [Lab 5.8 - Cluster Templates for AI Workloads](lab-5.8-cluster-templates.md)
+Proceed to [Lab 5.12 - Cluster Templates for AI Workloads](lab-5.12-cluster-templates.md)

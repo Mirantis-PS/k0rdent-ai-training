@@ -1,4 +1,4 @@
-# Lab 5.4 - Jupyter Notebook Stack
+# Lab 5.7 - Jupyter Notebook Stack
 
 ---
 
@@ -11,16 +11,34 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ [5.4] ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-                    ↑                         Compliance (5.7-5.8)
-               YOU ARE HERE                   Advanced (5.13-5.15)
+FOUNDATION (Required)                                    CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                                    ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ [5.7] ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+                                        ↑                  Compliance (5.11-5.12)
+                                   YOU ARE HERE             Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.3 - Vector Database](lab-5.3-vector-database.md) | **Lab 5.4 - Jupyter Notebooks** | [Lab 5.5 - Service Catalog](lab-5.5-service-catalog.md) |
+| [Lab 5.6 - Troubleshooting GPU](lab-5.6-troubleshooting-gpu.md) | **Lab 5.7 - Jupyter Notebooks** | [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+- [Tasks](#tasks)
+  - [Task 1: Create Namespace and Storage](#task-1-create-namespace-and-storage-10-min)
+  - [Task 2: Deploy JupyterHub](#task-2-deploy-jupyterhub-30-min)
+  - [Task 3: Access JupyterHub](#task-3-access-jupyterhub-10-min)
+  - [Task 4: Test GPU Access in Notebook](#task-4-test-gpu-access-in-notebook-20-min)
+  - [Task 5: Configure Persistent User Storage](#task-5-configure-persistent-user-storage-15-min)
+  - [Task 6: Monitor Resource Usage](#task-6-monitor-resource-usage-10-min)
+  - [Task 7: Deploy via k0rdent Enterprise](#task-7-deploy-via-k0rdent-enterprise-15-min)
+- [Troubleshooting](#troubleshooting)
+- [Verification Checklist](#verification-checklist)
 
 ---
 
@@ -599,4 +617,4 @@ kubectl get pods -n jupyter
 
 ## Next Lab
 
-Proceed to [Lab 5.5 - Service Catalog Blueprints](lab-5.5-service-catalog.md)
+Proceed to [Lab 5.5 - Service Catalog Blueprints](lab-5.2-service-catalog.md)

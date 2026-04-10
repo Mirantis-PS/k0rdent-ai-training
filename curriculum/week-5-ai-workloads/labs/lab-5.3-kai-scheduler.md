@@ -1,4 +1,4 @@
-# Lab 5.16 - KAI Scheduler (Open-Source GPU Scheduling)
+# Lab 5.3 - KAI Scheduler (Open-Source GPU Scheduling)
 
 ---
 
@@ -6,31 +6,48 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| ML Platforms | Optional | 2.5 hours |
+| Foundation | Required | 2.5 hours |
 
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ML PLATFORMS
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.9 Kubeflow
-                                                  ↓
-                                              5.10 MLflow
-                                                  ↓
-                                              5.11 Run:ai (Commercial)
-                                                  ↓
-                                              5.12 Slurm ➔ Week 6
-
-OPTIONAL
-━━━━━━━━
-YOU ARE HERE → [5.16] KAI Scheduler (Open-Source alternative to Run:ai)
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ [5.3] ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+               ↑                                          Compliance (5.11-5.12)
+          YOU ARE HERE                                    Advanced (5.13-5.16)
 ```
 
-| Related | Current | Next |
-|---------|---------|------|
-| [Lab 5.11 - Run:ai (Commercial)](lab-5.11-runai-gpu-orchestration.md) | **Lab 5.16 - KAI Scheduler** | [Lab 5.12 - Slurm](lab-5.12-slurm-operator-hpc.md) |
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.2 - Service Catalog](lab-5.2-service-catalog.md) | **Lab 5.3 - KAI Scheduler** | [Lab 5.4 - Run:ai GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+  - [What is KAI Scheduler?](#what-is-kai-scheduler)
+  - [KAI vs Run:ai Comparison](#kai-vs-runai-comparison)
+  - [Architecture](#architecture)
+- [Lab Environment](#lab-environment)
+- [Tasks](#tasks)
+  - [Task 1: Install KAI Scheduler](#task-1-install-kai-scheduler-20-min)
+  - [Task 2: Configure GPU Queue Hierarchy](#task-2-configure-gpu-queue-hierarchy-25-min)
+  - [Task 3: Submit Workloads to Queues](#task-3-submit-workloads-to-queues-25-min)
+  - [Task 4: Fractional GPU Sharing](#task-4-fractional-gpu-sharing-25-min)
+  - [Task 5: Gang Scheduling for Distributed Training](#task-5-gang-scheduling-for-distributed-training-30-min)
+  - [Task 6: Priority and Preemption](#task-6-priority-and-preemption-20-min)
+  - [Task 7: Monitor KAI Metrics](#task-7-monitor-kai-metrics-15-min)
+  - [Task 8: k0rdent Integration](#task-8-k0rdent-integration-15-min)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [References](#references)
+- [Related Labs](#related-labs)
 
 **Duration:** 2.5 hours
 **Type:** Hands-on Technical
@@ -48,7 +65,7 @@ Deploy the NVIDIA KAI Scheduler — the open-source GPU scheduling engine extrac
 - `kubectl` and `helm` (v3.14+) installed
 - Understanding of Kubernetes scheduling concepts
 
-> **Run:ai vs KAI:** This lab covers the **open-source KAI Scheduler** (v0.12.11). For the full commercial platform with web UI, CLI, Departments/Projects, and memory-enforced fractional GPUs, see [Lab 5.11 - NVIDIA Run:ai](lab-5.11-runai-gpu-orchestration.md).
+> **Run:ai vs KAI:** This lab covers the **open-source KAI Scheduler** (v0.12.11). For the full commercial platform with web UI, CLI, Departments/Projects, and memory-enforced fractional GPUs, see [Lab 5.4 - NVIDIA Run:ai](lab-5.4-runai-gpu-orchestration.md).
 
 ## Background
 
@@ -513,7 +530,7 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
    kubectl get pod frac-gpu-memory -o wide
    ```
 
-   > **Warning:** KAI schedules fractional workloads but does **not enforce** memory limits. If a pod allocated 50% tries to use 100% of GPU memory, it will succeed until another pod on the same GPU runs out of memory. For memory-enforced fractions, use Run:ai commercial (Lab 5.11).
+   > **Warning:** KAI schedules fractional workloads but does **not enforce** memory limits. If a pod allocated 50% tries to use 100% of GPU memory, it will succeed until another pod on the same GPU runs out of memory. For memory-enforced fractions, use Run:ai commercial (Lab 5.4).
 
 6. **Clean Up**
 
@@ -992,5 +1009,5 @@ kubectl apply -f workload.yaml -n default
 
 ## Related Labs
 
-- [Lab 5.11 - NVIDIA Run:ai (Commercial)](lab-5.11-runai-gpu-orchestration.md) — Full commercial platform with web UI, CLI, and memory-enforced fractions
-- [Lab 5.1 - GPU Scheduler](lab-5.1-gpu-scheduler.md) — GPU Operator deployment and basic scheduling
+- [Lab 5.4 - NVIDIA Run:ai (Commercial)](lab-5.4-runai-gpu-orchestration.md) — Full commercial platform with web UI, CLI, and memory-enforced fractions
+- [Lab 5.1 - GPU Cluster Setup](lab-5.1-gpu-cluster-setup.md) — GPU Operator deployment and basic scheduling

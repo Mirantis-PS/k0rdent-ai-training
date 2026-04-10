@@ -331,23 +331,18 @@ Complete these labs in order:
 
 | Lab | Title | Duration | Key Topics |
 |-----|-------|----------|------------|
-| [5.1](lab-5.1-gpu-scheduler.md) | GPU Scheduler Deployment | 3.5h | KAI Scheduler, gang scheduling, priority queues, NCCL |
-| [5.2](lab-5.2-vllm-inference.md) | vLLM Inference Service | 2.5h | LLM serving, PagedAttention, GPU utilization |
-| [5.3](lab-5.3-vector-database.md) | Vector Database Deployment | 2h | Milvus, embeddings, similarity search |
-| [5.4](lab-5.4-jupyter-notebooks.md) | Jupyter Notebook Stack | 1.5h | JupyterHub, GPU server profiles |
-| [5.5](lab-5.5-service-catalog.md) | Service Catalog Blueprints | 2h | k0rdent ServiceTemplates, catalog deployment |
-| [5.6](lab-5.6-troubleshooting-gpu.md) | Troubleshooting GPU Scheduling | 2h | Diagnostics, GPU memory, OOM errors |
+| [5.1](lab-5.1-gpu-cluster-setup.md) | GPU Cluster Setup | 1.5h | GPU cluster provisioning, GPU Operator, k0s containerd paths |
+| [5.2](lab-5.2-service-catalog.md) | Service Catalog | 2h | k0rdent ServiceTemplates, MultiClusterService, catalog deployment |
+| [5.3](lab-5.3-kai-scheduler.md) | KAI Scheduler | 2.5h | Open-source GPU scheduling, gang scheduling, priority queues |
+| [5.4](lab-5.4-runai-gpu-orchestration.md) | Run:AI Orchestration | 3h | Enterprise GPU management, quotas, fractional GPUs |
+| [5.5](lab-5.5-vllm-inference.md) | vLLM Inference | 2.5h | LLM serving, PagedAttention, GPU utilization |
+| [5.6](lab-5.6-troubleshooting-gpu.md) | Troubleshooting GPU | 2h | Diagnostics, GPU memory, driver issues, OOM errors |
+| [5.7](lab-5.7-jupyter-notebooks.md) | Jupyter Notebooks | 1.5h | JupyterHub, GPU server profiles |
+| [5.8](lab-5.8-vector-database.md) | Vector Database | 2h | Milvus, embeddings, similarity search, RAG |
 
 ### Elective Tracks (Choose Your Path)
 
 After completing the foundation track, choose one or more paths:
-
-**Compliance & Templates**
-
-| Lab | Title | Duration |
-|-----|-------|----------|
-| [5.7](lab-5.7-nvidia-fips.md) | NVIDIA FIPS Configuration | 2h |
-| [5.8](lab-5.8-cluster-templates.md) | Cluster Templates for AI | 2h |
 
 **ML Platforms**
 
@@ -355,23 +350,29 @@ After completing the foundation track, choose one or more paths:
 |-----|-------|----------|
 | [5.9](lab-5.9-kubeflow-ml-platform.md) | Kubeflow ML Platform | 3h |
 | [5.10](lab-5.10-mlflow-experiment-tracking.md) | MLflow Experiment Tracking | 2.5h |
-| [5.11](lab-5.11-runai-gpu-orchestration.md) | Run:AI GPU Orchestration | 3h |
-| [5.12](lab-5.12-slurm-operator-hpc.md) | Slurm Operator for HPC | 3h |
+
+**Compliance & Templates**
+
+| Lab | Title | Duration |
+|-----|-------|----------|
+| [5.11](lab-5.11-nvidia-fips.md) | NVIDIA FIPS Configuration | 2h |
+| [5.12](lab-5.12-cluster-templates.md) | Cluster Templates for AI | 2h |
 
 **Advanced (Requires p4d.24xlarge worker)**
 
 | Lab | Title | Duration |
 |-----|-------|----------|
 | [5.13](lab-5.13-tensorrt-llm.md) | TensorRT-LLM Optimization | 3h |
-| [5.14](lab-5.14-rdma-multi-cloud.md) | RDMA Multi-Cloud | 3h |
-| [5.15](lab-5.15-distributed-training.md) | Distributed Training | 3h |
+| [5.14](lab-5.14-slurm-operator-hpc.md) | Slurm Operator for HPC | 3h |
+| [5.15](lab-5.15-rdma-multi-cloud.md) | RDMA Multi-Cloud | 3h |
+| [5.16](lab-5.16-distributed-training.md) | Distributed Training | 3h |
 
 ```
-FOUNDATION (Required)                          CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                          ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-                                               Compliance (5.7-5.8)
-                                               Advanced (5.13-5.15) ⚠ p4d required
+FOUNDATION (Required)                                    CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                                    ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+                                                         Compliance (5.11-5.12)
+                                                         Advanced (5.13-5.16) ⚠ p4d required
 ```
 
 ---

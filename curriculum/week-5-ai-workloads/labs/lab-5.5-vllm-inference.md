@@ -1,4 +1,4 @@
-# Lab 5.2 - Deploy vLLM Inference Service
+# Lab 5.5 - Deploy vLLM Inference Service
 
 ---
 
@@ -11,18 +11,48 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-5.1 ➔ [5.2] ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-       ↑                                      Compliance (5.7-5.8)
-  YOU ARE HERE                                Advanced (5.13-5.15)
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ [5.5] ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+                           ↑                              Compliance (5.11-5.12)
+                      YOU ARE HERE                        Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.1 - GPU Scheduler](lab-5.1-gpu-scheduler.md) | **Lab 5.2 - vLLM Inference** | [Lab 5.3 - Vector Database](lab-5.3-vector-database.md) |
+| [Lab 5.4 - Run:ai GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) | **Lab 5.5 - vLLM Inference** | [Lab 5.6 - Troubleshooting GPU](lab-5.6-troubleshooting-gpu.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Lab Environment](#lab-environment)
+- [Background: LLM Inference Architecture](#background-llm-inference-architecture)
+  - [Why LLM Inference Is Challenging](#why-llm-inference-is-challenging)
+  - [Memory Breakdown for LLM Inference](#memory-breakdown-for-llm-inference)
+  - [Parallelism Strategies](#parallelism-strategies)
+  - [NVLink and GPU Topology](#nvlink-and-gpu-topology)
+  - [Quantization Overview](#quantization-overview)
+- [Tasks](#tasks)
+  - [Task 1: Prepare Model Access](#task-1-prepare-model-access-15-min)
+  - [Task 2: Deploy vLLM Server](#task-2-deploy-vllm-server-45-min)
+  - [Task 3: Create Service and Ingress](#task-3-create-service-and-ingress-20-min)
+  - [Task 4: Test Inference Endpoint](#task-4-test-inference-endpoint-30-min)
+  - [Task 5: Monitor GPU Utilization](#task-5-monitor-gpu-utilization-20-min)
+  - [Task 6: Configure Horizontal Scaling](#task-6-configure-horizontal-scaling-20-min)
+- [Advanced Tasks: Enterprise-Grade Optimizations](#advanced-tasks-enterprise-grade-optimizations)
+  - [Task 7: Tensor Parallelism Deep-Dive](#task-7-tensor-parallelism-deep-dive-45-min)
+  - [Task 8: Quantization Strategies](#task-8-quantization-strategies-45-min)
+  - [Task 9: Performance Benchmarking](#task-9-performance-benchmarking-30-min)
+- [k0rdent Enterprise Integration](#k0rdent-enterprise-integration)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [References](#references)
+- [Next Lab](#next-lab)
 
 **Duration:** 4 hours (includes advanced topics)
 **Type:** Hands-on Technical
@@ -34,7 +64,7 @@ Deploy a production-ready LLM inference service using vLLM on Kubernetes with pr
 
 ## Prerequisites
 
-- Completed Lab 5.1 (GPU Scheduler deployed)
+- Completed Lab 5.1 (GPU Cluster Setup)
 - Kubernetes cluster with GPU nodes
 - At least 1 GPU with 24GB+ VRAM (A100 recommended)
 - For Advanced Tasks: 4-8 GPUs with NVLink (p4d.24xlarge or ND A100 v4)
@@ -1228,4 +1258,4 @@ kubectl exec deployment/vllm-llama2 -n vllm-inference -- nvidia-smi
 
 ## Next Lab
 
-Proceed to [Lab 5.3 - Vector Database Deployment](lab-5.3-vector-database.md)
+Proceed to [Lab 5.6 - Troubleshooting GPU Scheduling](lab-5.6-troubleshooting-gpu.md)

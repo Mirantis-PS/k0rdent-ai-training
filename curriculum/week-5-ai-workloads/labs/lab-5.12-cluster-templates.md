@@ -1,4 +1,4 @@
-# Lab 5.8: Cluster Templates for AI Workloads
+# Lab 5.12: Cluster Templates for AI Workloads
 
 ---
 
@@ -11,24 +11,40 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                    YOU ARE HERE
-━━━━━━━━━━━━━━━━━━━━                         ↓
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6      COMPLIANCE
-                                        ━━━━━━━━━━━
-                                        5.7 ➔ [5.8]
-                                              ↓
-                         ┌────────────────────┴────────────────────┐
-                         ▼                                         ▼
-                    ML PLATFORMS                              ADVANCED
-                    ━━━━━━━━━━━━                              ━━━━━━━━
-                    5.9 ➔ 5.10 ➔ 5.11 ➔ 5.12           5.13 ➔ 5.14 ➔ 5.15
+FOUNDATION (Completed)                        COMPLIANCE & TEMPLATES
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5                5.11 FIPS
+     ➔ 5.6 ➔ 5.7 ➔ 5.8 ✓                        ↓
+                                             YOU ARE HERE
+                                                  ↓
+                                             [5.12] Cluster Templates
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.7 - NVIDIA FIPS](lab-5.7-nvidia-fips.md) | **Lab 5.8 - Cluster Templates** | Choose: [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) |
+| [Lab 5.11 - NVIDIA FIPS](lab-5.11-nvidia-fips.md) | **Lab 5.12 - Cluster Templates** | Choose: [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) |
 
 ---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Learning Objectives](#learning-objectives)
+- [Prerequisites](#prerequisites)
+- [Part 1: Understanding k0rdent Cluster Abstraction](#part-1-understanding-k0rdent-cluster-abstraction)
+- [Part 2: Hands-On Tasks](#part-2-hands-on-tasks)
+  - [Task 1: Explore Shipped ClusterTemplates](#task-1-explore-shipped-clustertemplates-15-min)
+  - [Task 2: Discover Template Parameters via status.config](#task-2-discover-template-parameters-via-statusconfig-15-min)
+  - [Task 3: Deploy an AI Development Cluster](#task-3-deploy-an-ai-development-cluster-25-min)
+  - [Task 4: Deploy an AI Training Cluster](#task-4-deploy-an-ai-training-cluster-25-min)
+  - [Task 5: Deploy AI Services via serviceSpec](#task-5-deploy-ai-services-via-servicespec-20-min)
+  - [Task 6: Cluster Lifecycle Management](#task-6-cluster-lifecycle-management-20-min)
+  - [Task 7: Understanding Custom ClusterTemplates](#task-7-understanding-custom-clustertemplates-15-min)
+- [Cleanup](#cleanup)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [Next Steps](#next-steps)
 
 ## Overview
 
@@ -48,7 +64,7 @@ By the end of this lab, you will be able to:
 ## Prerequisites
 
 - Completed Lab 5.1 (GPU Scheduler Deployment)
-- Completed Lab 5.5 (k0rdent Service Catalog) - recommended
+- Completed Lab 5.2 (k0rdent Service Catalog) - recommended
 - Access to k0rdent management cluster
 - AWS credentials configured via Credential object
 
@@ -555,7 +571,7 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
    kubectl apply -f ai-common-services.yaml
    ```
 
-   > **k0rdent context:** `MultiClusterService` targets clusters by label. Since both `ml-dev` and `ml-training` have `k0rdent.mirantis.com/workload-type: ai` in their `clusterLabels`, both clusters receive the GPU Operator and ingress-nginx automatically. Any future cluster with that label will also receive these services. This is the same pattern used in [Lab 5.5](lab-5.5-service-catalog.md) for deploying services from the k0rdent catalog.
+   > **k0rdent context:** `MultiClusterService` targets clusters by label. Since both `ml-dev` and `ml-training` have `k0rdent.mirantis.com/workload-type: ai` in their `clusterLabels`, both clusters receive the GPU Operator and ingress-nginx automatically. Any future cluster with that label will also receive these services. This is the same pattern used in [Lab 5.2](lab-5.2-service-catalog.md) for deploying services from the k0rdent catalog.
 
 3. **Verify services deployed to training cluster**
 

@@ -1,4 +1,4 @@
-# Lab 5.3 - Vector Database Deployment
+# Lab 5.8 - Vector Database Deployment
 
 ---
 
@@ -11,16 +11,34 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ [5.3] ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-              ↑                               Compliance (5.7-5.8)
-         YOU ARE HERE                         Advanced (5.13-5.15)
+FOUNDATION (Required)                                    CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                                    ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ [5.8]  ──►  ML Platforms (5.9-5.10)
+                                               ↑           Compliance (5.11-5.12)
+                                          YOU ARE HERE      Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.2 - vLLM Inference](lab-5.2-vllm-inference.md) | **Lab 5.3 - Vector Database** | [Lab 5.4 - Jupyter Notebooks](lab-5.4-jupyter-notebooks.md) |
+| [Lab 5.7 - Jupyter Notebooks](lab-5.7-jupyter-notebooks.md) | **Lab 5.8 - Vector Database** | [Choose Your Path](#next-lab) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+- [Tasks](#tasks)
+  - [Task 1: Prepare Storage](#task-1-prepare-storage-15-min)
+  - [Task 2: Deploy Milvus](#task-2-deploy-milvus-45-min)
+  - [Task 3: Configure Authentication](#task-3-configure-authentication-15-min)
+  - [Task 4: Create Collection and Load Data](#task-4-create-collection-and-load-data-30-min)
+  - [Task 5: Test Similarity Search](#task-5-test-similarity-search-20-min)
+  - [Task 6: Access Attu Web UI](#task-6-access-attu-web-ui-10-min)
+  - [Task 7: Expose Service (Optional)](#task-7-expose-service-optional---10-min)
+- [Troubleshooting](#troubleshooting)
+- [Verification Checklist](#verification-checklist)
 
 ---
 
@@ -772,4 +790,4 @@ print(utility.load_state("documents"))
 
 ## Next Lab
 
-Proceed to [Lab 5.4 - Jupyter Notebook Stack](lab-5.4-jupyter-notebooks.md)
+Proceed to [Lab 5.4 - Jupyter Notebook Stack](lab-5.7-jupyter-notebooks.md)

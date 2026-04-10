@@ -1,4 +1,4 @@
-# Lab 5.1 - GPU Scheduler Deployment (Validated)
+# Lab 5.1 - GPU Cluster Setup
 
 ---
 
@@ -11,20 +11,46 @@
 ### Week 5 Learning Paths
 
 ```
-YOU ARE HERE
-     ↓
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-[5.1] ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-                                              Compliance (5.7-5.8)
-                                              Advanced (5.13-5.15)
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+[5.1] ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+  ↑                                                       Compliance (5.11-5.12)
+YOU ARE HERE                                              Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Week 5 Overview](../README.md) | **Lab 5.1 - GPU Scheduler** | [Lab 5.2 - vLLM Inference](lab-5.2-vllm-inference.md) |
+| [Week 5 Overview](../README.md) | **Lab 5.1 - GPU Cluster Setup** | [Lab 5.2 - Service Catalog](lab-5.2-service-catalog.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background: GPU Communication Architecture](#background-gpu-communication-architecture)
+  - [Understanding GPU Interconnects](#understanding-gpu-interconnects)
+  - [What is NCCL?](#what-is-nccl)
+  - [Why NCCL Configuration Matters](#why-nccl-configuration-matters)
+- [Why Advanced GPU Schedulers?](#why-advanced-gpu-schedulers)
+  - [Scheduler Options](#scheduler-options)
+- [Pre-Lab: Deploy GPU Cluster via k0rdent](#pre-lab-deploy-gpu-cluster-via-k0rdent-15-min--15-min-wait)
+- [Tasks](#tasks)
+  - [Task 1: Verify GPU Environment](#task-1-verify-gpu-environment-15-min)
+  - [Task 2: Deploy KAI Scheduler](#task-2-deploy-kai-scheduler-45-min)
+  - [Task 3: Configure Scheduler Queues](#task-3-configure-scheduler-queues-30-min)
+  - [Task 4: Test Gang Scheduling](#task-4-test-gang-scheduling-30-min)
+  - [Task 5: Test Priority Preemption](#task-5-test-priority-preemption-30-min)
+  - [Task 6: Configure Fractional GPU Sharing](#task-6-configure-fractional-gpu-sharing-20-min)
+  - [Task 7: Configure Enterprise NCCL Settings](#task-7-configure-enterprise-nccl-settings-30-min)
+  - [Task 8: Monitor Scheduler Metrics](#task-8-monitor-scheduler-metrics-15-min)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Cleanup](#cleanup)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [References](#references)
+- [Next Lab](#next-lab)
 
 **Duration:** 3.5 hours
 **Type:** Hands-on Technical
@@ -1079,4 +1105,4 @@ kubectl get priorityclass high-priority-gpu -o yaml
 
 ## Next Lab
 
-Proceed to [Lab 5.2 - vLLM Inference Service](lab-5.2-vllm-inference.md)
+Proceed to [Lab 5.2 - Service Catalog Blueprints](lab-5.2-service-catalog.md)
