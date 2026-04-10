@@ -332,7 +332,7 @@ Complete these labs in order:
 | Lab | Title | Duration | Key Topics |
 |-----|-------|----------|------------|
 | [5.1](lab-5.1-gpu-cluster-setup.md) | GPU Cluster Setup | 1.5h | GPU cluster provisioning, GPU Operator, k0s containerd paths |
-| [5.2](lab-5.2-service-catalog.md) | Service Catalog | 2h | k0rdent ServiceTemplates, MultiClusterService, catalog deployment |
+| [5.2](lab-5.2-service-catalog.md) | Service Catalog for AI | 45min | AI/ML ServiceTemplates, Helm values, ServiceTemplateChain, ClusterDeployment serviceSpec |
 | [5.3](lab-5.3-kai-scheduler.md) | KAI Scheduler | 2.5h | Open-source GPU scheduling, gang scheduling, priority queues |
 | [5.4](lab-5.4-runai-gpu-orchestration.md) | Run:AI Orchestration | 3h | Enterprise GPU management, quotas, fractional GPUs |
 | [5.5](lab-5.5-vllm-inference.md) | vLLM Inference | 2.5h | LLM serving, PagedAttention, GPU utilization |
