@@ -6,7 +6,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Foundation | Required | 45 min |
+| Foundation | Required | 2 hours |
 
 ### Week 5 Learning Paths
 
@@ -28,12 +28,19 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 
 - [Objective](#objective)
 - [Prerequisites](#prerequisites)
-- [AI/ML Services in the Catalog](#aiml-services-in-the-catalog)
+- [Background](#background)
+  - [How the k0rdent Service Catalog Works](#how-the-k0rdent-service-catalog-works)
+  - [Key Concepts](#key-concepts)
+  - [AI/ML Services in the Catalog](#aiml-services-in-the-catalog)
+- [Lab Environment](#lab-environment)
 - [Tasks](#tasks)
-  - [Task 1: Install and Deploy AI/ML Services](#task-1-install-and-deploy-aiml-services-15-min)
-  - [Task 2: Customize Services with Helm Values](#task-2-customize-services-with-helm-values-15-min)
-  - [Task 3: Version Management with ServiceTemplateChain](#task-3-version-management-with-servicetemplatechain-10-min)
-  - [Task 4: Single-Cluster Deployment via ClusterDeployment](#task-4-single-cluster-deployment-via-clusterdeployment-10-min)
+  - [Task 1: Explore the External Catalog](#task-1-explore-the-external-catalog-15-min)
+  - [Task 2: Install ServiceTemplates from the Catalog](#task-2-install-servicetemplates-from-the-catalog-20-min)
+  - [Task 3: Deploy Services via MultiClusterService](#task-3-deploy-services-via-multiclusterservice-30-min)
+  - [Task 4: Customize Services with Helm Values](#task-4-customize-services-with-helm-values-30-min)
+  - [Task 5: Version Management with ServiceTemplateChain](#task-5-version-management-with-servicetemplatechain-15-min)
+  - [Task 6: Single-Cluster Deployment via ClusterDeployment](#task-6-single-cluster-deployment-via-clusterdeployment-15-min)
+  - [Task 7: Remove a ServiceTemplate](#task-7-remove-a-servicetemplate-10-min)
 - [Deliverables](#deliverables)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
@@ -41,21 +48,60 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 - [Key Takeaways](#key-takeaways)
 - [Next Lab](#next-lab)
 
-**Duration:** 45 minutes
+**Duration:** 2 hours
 **Type:** Hands-on Technical
 **Environment:** GPU Lab
 
 ## Objective
 
-Deploy AI/ML services from the k0rdent catalog to GPU clusters, building on the ServiceTemplate and MultiClusterService skills from [Lab 1.7](../../week-1-foundations/labs/lab-1.7-multicluster-services.md). This lab focuses on what's new for AI workloads: AI-specific ServiceTemplates, Helm values customization, version management with ServiceTemplateChain, and single-cluster deployment via ClusterDeployment serviceSpec.
+Install ServiceTemplates from k0rdent's external catalog and deploy AI/ML services across managed clusters using `MultiClusterService`, understanding how the catalog, templates, and deployment workflow connect.
 
 ## Prerequisites
 
-- Completed Lab 5.1 (GPU cluster provisioned)
-- Completed Lab 1.7 (ServiceTemplate and MultiClusterService fundamentals)
+- Completed Lab 5.1
 - k0rdent management cluster access
+- At least one workload cluster with GPU nodes
+- Understanding of Helm and Kubernetes services
 
-> **Recap from Lab 1.7:** You already know how to browse [catalog.k0rdent.io](https://catalog.k0rdent.io/), install ServiceTemplates via `helm upgrade --install ... oci://ghcr.io/k0rdent/catalog/charts/kgst`, label clusters for targeting, and deploy via MultiClusterService. This lab skips those basics and focuses on AI-specific patterns.
+## Background
+
+### How the k0rdent Service Catalog Works
+
+The k0rdent service catalog is **external to the k0rdent deployment** — it is a curated directory of 105+ pre-validated services hosted at [catalog.k0rdent.io](https://catalog.k0rdent.io/). Services are stored as Helm charts in an OCI registry and installed onto the management cluster as `ServiceTemplate` CRDs using a meta-chart called `kgst` (k0rdent Generic Service Template).
+
+```
+┌──────────────────────────────────┐
+│   External Catalog               │
+│   catalog.k0rdent.io             │
+│   OCI: ghcr.io/k0rdent/catalog  │
+│                                  │
+│   105+ services (Helm charts)    │
+└────────────┬─────────────────────┘
+             │ helm install (kgst)
+             ▼
+┌──────────────────────────────────┐
+│   Management Cluster             │
+│   ServiceTemplate CRDs           │
+│   (kcm-system namespace)         │
+└────────────┬─────────────────────┘
+             │ MultiClusterService
+             ▼
+┌──────────────┐  ┌──────────────┐
+│ GPU Cluster A │  │ GPU Cluster B │
+│ (HelmRelease) │  │ (HelmRelease) │
+└──────────────┘  └──────────────┘
+```
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **ServiceTemplate** | CRD on the management cluster that wraps a Helm chart reference |
+| **kgst** | Meta-chart that creates ServiceTemplate CRDs from the external catalog |
+| **MultiClusterService** | CRD that deploys services to clusters matching label selectors |
+| **ClusterDeployment.serviceSpec** | Inline service deployment for a specific cluster |
+| **ServiceTemplateChain** | Defines allowed upgrade/rollback paths between template versions |
+| **values** | Helm values passed as a YAML string (not structured object) |
 
 ### AI/ML Services in the Catalog
 
@@ -81,85 +127,190 @@ Deploy AI/ML services from the k0rdent catalog to GPU clusters, building on the 
 
 ## Tasks
 
-### Task 1: Install and Deploy AI/ML Services (15 min)
+### Task 1: Explore the External Catalog (15 min)
 
-Using the same `kgst` meta-chart pattern from Lab 1.7, install an AI/ML service stack:
+1. **Browse the Catalog Website**
+   - Open [catalog.k0rdent.io](https://catalog.k0rdent.io/) in your browser
+   - Browse the available services and note the categories (AI/ML, Monitoring, Networking, etc.)
+   - Click on a service (e.g., MLflow) to see its details, version, and installation command
 
-```bash
-# Install KServe CRDs (required before KServe itself)
-helm upgrade --install kserve-crd \
-  oci://ghcr.io/k0rdent/catalog/charts/kgst \
-  --set "chart=kserve-crd:v0.15.0" \
-  -n kcm-system
+2. **Check Existing ServiceTemplates on the Management Cluster**
+   ```bash
+   # List all ServiceTemplates currently installed
+   kubectl get servicetemplates -n kcm-system
 
-# Install KServe
-helm upgrade --install kserve \
-  oci://ghcr.io/k0rdent/catalog/charts/kgst \
-  --set "chart=kserve:v0.15.0" \
-  -n kcm-system
+   # View details of a specific template
+   kubectl get servicetemplate gpu-operator-25-10-0 -n kcm-system -o yaml
+   ```
 
-# Install MLflow
-helm upgrade --install mlflow \
-  oci://ghcr.io/k0rdent/catalog/charts/kgst \
-  --set "chart=mlflow:1.7.1" \
-  -n kcm-system
+3. **Understand the ServiceTemplate Structure**
 
-# Install KubeRay operator
-helm upgrade --install kuberay-operator \
-  oci://ghcr.io/k0rdent/catalog/charts/kgst \
-  --set "chart=kuberay-operator:1.3.2" \
-  -n kcm-system
-```
+   A ServiceTemplate installed from the catalog looks like this:
 
-Verify all templates are valid:
+   ```yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: ServiceTemplate
+   metadata:
+     name: kserve-v0-15-0
+     namespace: kcm-system
+   spec:
+     helm:
+       chartSpec:
+         chart: kserve
+         version: v0.15.0
+         interval: 10m0s
+         reconcileStrategy: ChartVersion
+         sourceRef:
+           kind: HelmRepository
+           name: k0rdent-catalog
+   status:
+     valid: true
+     chartRef:
+       kind: HelmChart
+       name: kserve-v0-15-0
+       namespace: kcm-system
+   ```
 
-```bash
-kubectl get servicetemplates -n kcm-system -o custom-columns='NAME:.metadata.name,VALID:.status.valid'
-```
+   Key fields:
+   - `spec.helm.chartSpec.chart` — Helm chart name in the OCI registry
+   - `spec.helm.chartSpec.version` — Exact chart version
+   - `spec.helm.chartSpec.sourceRef` — Points to the `HelmRepository` source
+   - `status.valid` — Whether the template is ready to use
 
-Now deploy the AI/ML stack to your GPU cluster via MultiClusterService:
+### Task 2: Install ServiceTemplates from the Catalog (20 min)
 
-```yaml
-# Save as ml-platform-mcs.yaml
-apiVersion: k0rdent.mirantis.com/v1beta1
-kind: MultiClusterService
-metadata:
-  name: ml-platform
-  namespace: kcm-system
-spec:
-  clusterSelector:
-    matchLabels:
-      gpu-enabled: "true"
-  serviceSpec:
-    services:
-      - template: kserve-crd-v0-15-0
-        name: kserve-crd
-        namespace: kserve
-      - template: kserve-v0-15-0
-        name: kserve
-        namespace: kserve
-      - template: mlflow-1-7-1
-        name: mlflow
-        namespace: mlflow
-      - template: kuberay-operator-1-3-2
-        name: kuberay
-        namespace: kuberay
-    priority: 100
-```
+The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template). Installing it with a specific chart name/version creates the corresponding `ServiceTemplate` CRD on your management cluster.
 
-```bash
-kubectl apply -f ml-platform-mcs.yaml
+1. **Install an ML Platform Stack**
 
-# Monitor deployment
-kubectl get multiclusterservice ml-platform -n kcm-system
+   > **Note:** Verify the OCI chart path before running. Check [catalog.k0rdent.io](https://catalog.k0rdent.io/) for the latest kgst chart URL. If the path below fails, consult the [k0rdent documentation](https://docs.k0rdent.io/) for updated installation instructions.
 
-# Verify on the GPU cluster
-KUBECONFIG=~/.kube/gpu-cluster.conf kubectl get pods -n kserve
-KUBECONFIG=~/.kube/gpu-cluster.conf kubectl get pods -n mlflow
-KUBECONFIG=~/.kube/gpu-cluster.conf kubectl get pods -n kuberay
-```
+   ```bash
+   # Install KServe CRDs (required before KServe itself)
+   helm upgrade --install kserve-crd \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=kserve-crd:v0.15.0" \
+     -n kcm-system
 
-### Task 2: Customize Services with Helm Values (15 min)
+   # Install KServe
+   helm upgrade --install kserve \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=kserve:v0.15.0" \
+     -n kcm-system
+
+   # Install MLflow
+   helm upgrade --install mlflow \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=mlflow:1.7.1" \
+     -n kcm-system
+
+   # Install KubeRay operator
+   helm upgrade --install kuberay-operator \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=kuberay-operator:1.3.2" \
+     -n kcm-system
+   ```
+
+2. **Verify the ServiceTemplates Were Created**
+   ```bash
+   kubectl get servicetemplates -n kcm-system
+
+   # Expected output includes:
+   # kserve-crd-v0-15-0
+   # kserve-v0-15-0
+   # mlflow-1-7-1
+   # kuberay-operator-1-3-2
+
+   # Check that templates are valid
+   kubectl get servicetemplates -n kcm-system -o custom-columns='NAME:.metadata.name,VALID:.status.valid'
+   ```
+
+3. **Inspect a Template's Chart Reference**
+   ```bash
+   # See what Helm chart the template wraps
+   kubectl get servicetemplate mlflow-1-7-1 -n kcm-system \
+     -o jsonpath='{.spec.helm.chartSpec}' | jq .
+   ```
+
+> **Note:** The template naming convention converts chart version dots to dashes: chart `kserve:v0.15.0` becomes ServiceTemplate `kserve-v0-15-0`. This ensures Kubernetes-compatible resource names.
+
+### Task 3: Deploy Services via MultiClusterService (30 min)
+
+`MultiClusterService` deploys services to all clusters matching a label selector. This is the primary mechanism for multi-cluster service deployment in k0rdent.
+
+1. **Verify Target Cluster Labels**
+   ```bash
+   # Check which clusters have the ml-training label
+   kubectl get clusterdeployments -A -l workload-type=ml-training
+   ```
+
+2. **Create a MultiClusterService for an ML Stack**
+   ```yaml
+   # Save as ml-platform-mcs.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: ml-platform
+     namespace: kcm-system
+   spec:
+     clusterSelector:
+       matchLabels:
+         workload-type: ml-training
+     serviceSpec:
+       services:
+         # GPU Operator (deploy first via higher priority)
+         - template: gpu-operator-25-10-0
+           name: gpu-operator
+           namespace: gpu-operator
+
+         # KServe for model serving
+         - template: kserve-crd-v0-15-0
+           name: kserve-crd
+           namespace: kserve
+         - template: kserve-v0-15-0
+           name: kserve
+           namespace: kserve
+
+         # MLflow for experiment tracking
+         - template: mlflow-1-7-1
+           name: mlflow
+           namespace: mlflow
+
+         # KubeRay for distributed compute
+         - template: kuberay-operator-1-3-2
+           name: kuberay
+           namespace: kuberay
+       priority: 100
+   ```
+
+   ```bash
+   kubectl apply -f ml-platform-mcs.yaml
+   ```
+
+3. **Monitor Deployment Status**
+   ```bash
+   # Watch the MultiClusterService status
+   kubectl get multiclusterservice ml-platform -n kcm-system -o yaml
+
+   # Check conditions for each target cluster
+   kubectl get multiclusterservice ml-platform -n kcm-system \
+     -o jsonpath='{.status.conditions[*].type}'
+
+   # Look for SveltosClusterProfileReady condition
+   kubectl get multiclusterservice ml-platform -n kcm-system \
+     -o jsonpath='{.status.conditions[?(@.type=="SveltosClusterProfileReady")].status}'
+   ```
+
+4. **Verify on a Target Cluster**
+   ```bash
+   # Switch to a target cluster context (or use kubectl with --context)
+   kubectl get pods -n kserve
+   kubectl get pods -n mlflow
+   kubectl get pods -n kuberay
+   kubectl get pods -n gpu-operator
+   ```
+
+### Task 4: Customize Services with Helm Values (30 min)
 
 The `values` field in service specs is a **string** (YAML-as-string using the `|` block scalar), not a structured object. This allows Helm templating within the values.
 
@@ -267,7 +418,7 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
    kubectl get helmrelease mlflow -n mlflow -o jsonpath='{.spec.values}' | jq .
    ```
 
-### Task 3: Version Management with ServiceTemplateChain (10 min)
+### Task 5: Version Management with ServiceTemplateChain (15 min)
 
 `ServiceTemplateChain` defines allowed upgrade and rollback paths between ServiceTemplate versions. Once created, the chain spec is **immutable**.
 
@@ -331,7 +482,7 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
    | Staging | Pin version + chain for controlled upgrades | `templateChain: kserve-chain` |
    | Production | Pin exact version, manual upgrade via chain | Change template ref only after testing |
 
-### Task 4: Single-Cluster Deployment via ClusterDeployment (10 min)
+### Task 6: Single-Cluster Deployment via ClusterDeployment (15 min)
 
 For deploying services to a **specific cluster** (rather than all clusters matching a selector), use `ClusterDeployment.spec.serviceSpec`:
 
@@ -374,7 +525,25 @@ For deploying services to a **specific cluster** (rather than all clusters match
 > - **MultiClusterService** — Deploy the same services to all clusters matching labels (e.g., all GPU clusters get GPU Operator + KServe)
 > - **ClusterDeployment.serviceSpec** — Deploy services to one specific cluster (e.g., only the staging cluster gets MLflow)
 
-> **Removing ServiceTemplates:** Always delete MultiClusterService/ClusterDeployment service references first, then uninstall the kgst Helm release (e.g., `helm uninstall mlflow -n kcm-system`). See the [Cleanup](#cleanup) section.
+### Task 7: Remove a ServiceTemplate (10 min)
+
+1. **Remove a MultiClusterService First**
+   ```bash
+   # Delete the MCS (this removes services from target clusters)
+   kubectl delete multiclusterservice ml-platform -n kcm-system
+   ```
+
+2. **Remove a ServiceTemplate from the Catalog**
+   ```bash
+   # Uninstall the kgst Helm release (removes the ServiceTemplate CRD)
+   helm uninstall mlflow -n kcm-system
+
+   # Verify removal
+   kubectl get servicetemplate mlflow-1-7-1 -n kcm-system
+   # Expected: Error from server (NotFound)
+   ```
+
+> **Warning:** Do not remove a ServiceTemplate that is still referenced by an active MultiClusterService or ClusterDeployment. Remove the service references first, then uninstall the template.
 
 ## Deliverables
 
