@@ -30,7 +30,7 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 - [Prerequisites](#prerequisites)
 - [AI/ML Services in the Catalog](#aiml-services-in-the-catalog)
 - [Tasks](#tasks)
-  - [Task 1: Install AI/ML ServiceTemplates](#task-1-install-aiml-servicetemplates-10-min)
+  - [Task 1: Install and Deploy AI/ML Services](#task-1-install-and-deploy-aiml-services-15-min)
   - [Task 2: Customize Services with Helm Values](#task-2-customize-services-with-helm-values-15-min)
   - [Task 3: Version Management with ServiceTemplateChain](#task-3-version-management-with-servicetemplatechain-10-min)
   - [Task 4: Single-Cluster Deployment via ClusterDeployment](#task-4-single-cluster-deployment-via-clusterdeployment-10-min)
@@ -81,7 +81,7 @@ Deploy AI/ML services from the k0rdent catalog to GPU clusters, building on the 
 
 ## Tasks
 
-### Task 1: Install AI/ML ServiceTemplates (10 min)
+### Task 1: Install and Deploy AI/ML Services (15 min)
 
 Using the same `kgst` meta-chart pattern from Lab 1.7, install an AI/ML service stack:
 
@@ -115,6 +115,48 @@ Verify all templates are valid:
 
 ```bash
 kubectl get servicetemplates -n kcm-system -o custom-columns='NAME:.metadata.name,VALID:.status.valid'
+```
+
+Now deploy the AI/ML stack to your GPU cluster via MultiClusterService:
+
+```yaml
+# Save as ml-platform-mcs.yaml
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: MultiClusterService
+metadata:
+  name: ml-platform
+  namespace: kcm-system
+spec:
+  clusterSelector:
+    matchLabels:
+      gpu-enabled: "true"
+  serviceSpec:
+    services:
+      - template: kserve-crd-v0-15-0
+        name: kserve-crd
+        namespace: kserve
+      - template: kserve-v0-15-0
+        name: kserve
+        namespace: kserve
+      - template: mlflow-1-7-1
+        name: mlflow
+        namespace: mlflow
+      - template: kuberay-operator-1-3-2
+        name: kuberay
+        namespace: kuberay
+    priority: 100
+```
+
+```bash
+kubectl apply -f ml-platform-mcs.yaml
+
+# Monitor deployment
+kubectl get multiclusterservice ml-platform -n kcm-system
+
+# Verify on the GPU cluster
+KUBECONFIG=~/.kube/gpu-cluster.conf kubectl get pods -n kserve
+KUBECONFIG=~/.kube/gpu-cluster.conf kubectl get pods -n mlflow
+KUBECONFIG=~/.kube/gpu-cluster.conf kubectl get pods -n kuberay
 ```
 
 ### Task 2: Customize Services with Helm Values (15 min)
