@@ -278,6 +278,8 @@ helm install gpu-operator nvidia/gpu-operator \
 
 > **k0s-specific:** k0s stores containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, NOT the standard paths (`/etc/containerd/` and `/run/containerd/containerd.sock`). Without these toolkit env vars, the toolkit crashes with `containerd.sock: no such file or directory`.
 
+> **`helm install --wait` returns fast — but GPUs are NOT ready yet:** Helm considers the release "deployed" once its top-level resources (Deployments, DaemonSets) are *present*, which typically happens within ~60 seconds. But GPU Operator has a cascade: `nvidia-container-toolkit`, `nvidia-device-plugin`, `nvidia-dcgm`, and `nvidia-operator-validator` all have `initContainers` that **wait for `nvidia-driver-daemonset` to become Ready first**, and the driver daemonset compiles the NVIDIA kernel module against the running kernel (~2 minutes on A10G / Ubuntu 22.04). So `helm install` exits before GPUs are actually allocatable. **The real completion signal is `nvidia.com/gpu: 4` appearing on the worker** via the `kubectl get nodes` command in the next step — poll that, not helm exit status.
+
 Wait ~3-5 minutes for NVIDIA driver compilation on the worker node, then verify:
 
 ```bash
@@ -893,6 +895,8 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    # Subsequent runs on the same worker skip the image pull and take ~3-4 minutes.
    kubectl logs -f nccl-config-test
    ```
+
+   > **Why the first run is slow:** `nvcr.io/nvidia/pytorch:24.12-py3` is approximately 20 GB. Even over EC2's internal network, the initial pull takes 4-5 minutes and dominates wall-clock time. The pod will sit in `ContainerCreating` during this period; run `kubectl describe pod nccl-config-test` to confirm the current event is `Pulling image`. Once the image is cached on the worker's containerd store, any subsequent pod using the same image starts nearly instantly. **If the pod stays `Pending`/`ContainerCreating` for more than 10 minutes**, look for `ImagePullBackOff` or network issues in `kubectl describe`.
 
 4. **Interpret NCCL Test Results**
 
