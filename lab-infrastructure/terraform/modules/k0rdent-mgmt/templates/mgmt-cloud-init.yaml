@@ -481,8 +481,13 @@ write_files:
       #!/bin/bash
       set -euo pipefail
 
+      # NOTE: This script is launched from runcmd below with its stdout/stderr
+      # already redirected to /var/log/k0rdent-init.log. We intentionally do NOT
+      # `exec > >(tee -a "$LOG_FILE")` here — doing so caused every line to be
+      # written to the log twice (once by tee's file arg, once by tee's stdout
+      # inheriting the runcmd redirect), which made the provisioning stream
+      # appear duplicated to students.
       LOG_FILE="/var/log/k0rdent-init.log"
-      exec > >(tee -a "$LOG_FILE") 2>&1
 
       echo "=============================================="
       echo "  k0rdent Enterprise Lab Initialization"
