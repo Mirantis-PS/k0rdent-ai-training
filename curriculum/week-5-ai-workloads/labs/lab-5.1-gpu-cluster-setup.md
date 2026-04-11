@@ -703,8 +703,10 @@ Time-slicing multiplies allocatable GPU resources by sharing physical GPUs acros
 
    > **IMPORTANT:** Must include BOTH `name` AND `default` fields. The `default: "any"` tells the device plugin which key in the ConfigMap to use. Without it, time-slicing silently does nothing.
 
+   > **Name the API group explicitly:** Use `clusterpolicies.nvidia.com/cluster-policy` (with the `.nvidia.com` suffix), not the bare `clusterpolicy/cluster-policy`. Kyverno — deployed as a default k0rdent Service on the `aws-standalone-cp` template — registers its own `clusterpolicies.kyverno.io` CRD, and `kubectl` picks Kyverno's by default (it sorts first in API discovery), failing with `NotFound: clusterpolicies.kyverno.io "cluster-policy"`. The explicit `.nvidia.com` suffix targets the NVIDIA GPU Operator CRD unambiguously.
+
    ```bash
-   kubectl patch clusterpolicy/cluster-policy \
+   kubectl patch clusterpolicies.nvidia.com/cluster-policy \
      --type merge \
      --patch '{"spec": {"devicePlugin": {"config": {"name": "time-slicing-config", "default": "any"}}}}'
    ```
@@ -972,7 +974,7 @@ kubectl delete pod nccl-config-test gpu-test topo-test 2>/dev/null
 kubectl delete deploy low-priority-gpu high-priority-gpu 2>/dev/null
 
 # To revert time-slicing (restore 4 physical GPUs):
-kubectl patch clusterpolicy/cluster-policy \
+kubectl patch clusterpolicies.nvidia.com/cluster-policy \
   --type merge \
   --patch '{"spec": {"devicePlugin": {"config": {"name": "", "default": ""}}}}'
 
@@ -1048,7 +1050,7 @@ kubectl get podgroups
 
 **Verify ClusterPolicy patch includes both fields:**
 ```bash
-kubectl get clusterpolicy cluster-policy -o jsonpath='{.spec.devicePlugin.config}'
+kubectl get clusterpolicies.nvidia.com cluster-policy -o jsonpath='{.spec.devicePlugin.config}'
 # Must show: {"default":"any","name":"time-slicing-config"}
 ```
 
