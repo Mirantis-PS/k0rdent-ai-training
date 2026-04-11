@@ -367,14 +367,17 @@ Once the cluster shows `Ready`, retrieve the kubeconfig.
 ### Check Cluster is Ready
 
 ```bash
-# Wait for Ready status
+# Wait for Ready status — the READY column reads from the conditions array
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system
 
-# Status should show Ready: True (may return empty string while provisioning)
-kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o jsonpath='{.status.ready}'
+# Extract the Ready condition explicitly (returns "True" when ready, empty while provisioning)
+kubectl get clusterdeployment managed-cluster-01 -n kcm-system \
+  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' && echo ""
 ```
 
-> **Note:** The `ready` field will be empty or `false` until all control plane and worker nodes are fully provisioned. If it has been more than 25 minutes and the cluster is still not ready, check the troubleshooting section in Part 3.
+> **Note:** The `Ready` condition transitions to `True` once all control plane and worker nodes are fully provisioned and the CAPI Cluster reports `Phase=Provisioned`. If it has been more than 25 minutes and the cluster is still not ready, check the troubleshooting section in Part 3.
+>
+> **Why the conditions array and not `.status.ready`?** k0rdent populates the readiness signal in the `conditions` array (like CAPI and most Kubernetes controllers) and in the `READY` print column, but does **not** expose a top-level `.status.ready` boolean. Using `.status.ready` in `kubectl get -o jsonpath` returns an empty string and will make automation think the cluster never becomes ready.
 
 ### Retrieve Kubeconfig
 
