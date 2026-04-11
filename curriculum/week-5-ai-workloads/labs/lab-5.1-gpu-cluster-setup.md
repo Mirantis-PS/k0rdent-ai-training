@@ -203,7 +203,7 @@ spec:
     workersNumber: 1
     worker:
       amiID: ami-00de3875b03809ec5  # Ubuntu 22.04
-      instanceType: g5.12xlarge     # 4x NVIDIA A10G, 24GB each
+      instanceType: g5.12xlarge     # 4x NVIDIA A10G, 24GB each (~22 GiB usable after firmware reserve)
       rootVolumeSize: 200
     clusterIdentity:
       name: aws-cluster-identity
@@ -1133,6 +1133,63 @@ kubectl get pod <pod-name> -o jsonpath='{.spec.priorityClassName}'
 kubectl get priorityclass high-priority-gpu -o yaml
 # preemptionPolicy should be PreemptLowerPriority
 ```
+
+**Verify KAI preemptibility on the victim workload** (see Task 5 note):
+
+If you see `NonPreemptibleOverQuota` events on the high-priority pod, KAI has classified the low-priority workload as non-preemptible. KAI's preemptibility model is orthogonal to Kubernetes `PriorityClass` — workloads with priority >= 100 default to non-preemptible unless explicitly labeled otherwise. Inspect the PodGroup:
+```bash
+kubectl get podgroups -o jsonpath='{range .items[*]}{.metadata.name}  preemptibility={.spec.preemptibility}{"\n"}{end}'
+# Preemptible: spec.preemptibility = "preemptible"
+# Non-preemptible (default for priority >= 100): spec.preemptibility = "non-preemptible" or empty
+```
+
+If the low-priority workload's PodGroup is non-preemptible, add `kai.scheduler/preemptibility: "preemptible"` to its pod template labels and re-apply:
+```yaml
+template:
+  metadata:
+    labels:
+      kai.scheduler/preemptibility: "preemptible"
+```
+
+### Normal Transients (Not Failures)
+
+These messages and states appear during healthy lab execution and do NOT indicate problems. They're listed here so you recognize them when they happen instead of treating them as failures.
+
+**`NetworkPluginNotReady` on the CP Machine during Pre-Lab Step 2:**
+
+```
+Node.Ready: container runtime network not ready: NetworkReady=false
+reason:NetworkPluginNotReady message:Network plugin returns error
+```
+
+Appears for ~30-60 seconds while the CNI (Calico, in the `aws-standalone-cp-1-0-20` template) initializes on a freshly booted control plane VM. Clears automatically once `calico-node` pods become Ready.
+
+**`ServiceSetEnsureProfileFailed` warning event right after `kubectl apply -f gpu-cluster-deployment.yaml`:**
+
+```
+Failed to ensure Profile for ServiceSet gpu-cluster: ...
+Operation cannot be fulfilled on profiles.config.projectsveltos.io "gpu-cluster":
+the object has been modified; please apply your changes to the latest version and try again
+```
+
+Optimistic-concurrency race between reconciling controllers — two paths had stale versions of the same Profile object and one lost. The next reconcile (within milliseconds) emits `ServiceSetEnsureProfileSuccess` and the warning self-heals. Ignore a single occurrence; investigate only if it repeats more than 5 times.
+
+**`nvidia-dcgm-exporter` restarts 1-3 times during Pre-Lab Step 4 GPU Operator install:**
+
+The DCGM exporter sometimes starts before `nvidia-dcgm` is fully ready, hits a connection-refused error, crashes, gets restarted by kubelet, and eventually succeeds once DCGM is up. A `RESTARTS` count of 1-3 on this pod in `kubectl get pods -n gpu-operator` is normal. If restarts climb past 5, investigate with `kubectl logs -n gpu-operator <dcgm-exporter-pod> --previous`.
+
+**`nvidia.com/gpu.replicas` label lag after time-slicing patch (Task 6):**
+
+After applying the time-slicing ConfigMap, `kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'` shows the new count (16) within ~10-30 seconds, but the node label `nvidia.com/gpu.replicas` may still show `1` for up to 60 seconds. GPU Feature Discovery refreshes labels on its own cadence. **Trust the allocatable count for the real state**, not the node labels.
+
+**Kubernetes client/server version skew warning when running `kubectl` on the management node:**
+
+```
+Warning: version difference between client (1.35) and server (1.32)
+exceeds the supported minor version skew of +/-1
+```
+
+The management cluster ships a newer `kubectl` than the managed `gpu-cluster`'s k0s version. This is a warning only — all Lab 5.1 commands (get, apply, patch, logs, exec, describe, port-forward) work correctly despite the skew. Kubernetes guarantees only `+/-1` minor version compatibility, but in practice most operations are stable across wider skews.
 
 ---
 
