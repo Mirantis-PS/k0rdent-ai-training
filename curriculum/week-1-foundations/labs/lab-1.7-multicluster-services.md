@@ -364,6 +364,25 @@ We'll create two MCS resources to demonstrate both patterns:
 
 This shows how you can deploy mandatory services to every cluster while keeping optional services targeted to specific clusters.
 
+> **⚠️ Wrapper-chart values gotcha (important!):** The k0rdent catalog charts (`cert-manager`, `kyverno`, `ingress-nginx`, etc.) are **thin umbrella wrappers** around the upstream official charts. Each wrapper has a single dependency on the real chart with a matching name, and **no values.yaml of its own**. This means any values you pass must be **nested under the subchart name** to reach the real chart. For example:
+>
+> ```yaml
+> # ✅ CORRECT — nested under subchart name
+> values: |
+>   cert-manager:
+>     crds:
+>       enabled: true
+> ```
+>
+> ```yaml
+> # ❌ WRONG — silently ignored by wrapper, chart installs with defaults
+> values: |
+>   crds:
+>     enabled: true
+> ```
+>
+> You can confirm this with `helm pull oci://ghcr.io/k0rdent/catalog/charts/<chart> --version <v> --untar` and inspecting `charts/<chart>/charts/<chart>/` — the real chart lives under the wrapper's `charts/` directory. This pattern applies to **every chart** in the k0rdent catalog.
+
 ### Create the Baseline MCS (All Training Clusters)
 
 ```bash
@@ -382,17 +401,23 @@ spec:
       name: cert-manager
       namespace: cert-manager
       values: |
-        installCRDs: true
+        cert-manager:
+          crds:
+            enabled: true
     - template: kyverno-3-2-6
       name: kyverno
       namespace: kyverno
       values: |
-        replicaCount: 1
+        kyverno:
+          admissionController:
+            replicas: 1
     priority: 100
 EOF
 ```
 
 This deploys cert-manager and kyverno to **every cluster** with `environment: training` — both managed-cluster-01 and managed-cluster-02.
+
+> **Why `cert-manager.crds.enabled: true`?** cert-manager v1.15+ stopped installing CRDs by default. Without this value, the wrapper chart silently installs cert-manager without CRDs, the `cert-manager-startupapicheck` job loops forever waiting for `CertificateRequest` CRD, Helm install times out, and Sveltos reports `context deadline exceeded`. Because services in a MultiClusterService deploy **sequentially**, a failing cert-manager also blocks kyverno in the same MCS.
 
 ### Create the Ingress MCS (Selective Targeting)
 
@@ -412,10 +437,11 @@ spec:
       name: ingress-nginx
       namespace: ingress-nginx
       values: |
-        controller:
-          replicaCount: 1
-          service:
-            type: LoadBalancer
+        ingress-nginx:
+          controller:
+            replicaCount: 1
+            service:
+              type: LoadBalancer
     priority: 100
 EOF
 ```
