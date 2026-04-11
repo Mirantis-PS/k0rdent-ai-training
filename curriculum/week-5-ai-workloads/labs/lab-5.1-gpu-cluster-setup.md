@@ -571,9 +571,12 @@ Gang scheduling ensures all pods in a job start together or none start, critical
 
 ### Task 5: Test Priority Preemption (30 min)
 
-This task demonstrates Kubernetes-native `PriorityClass` preemption with KAI Scheduler. Create low-priority workloads filling GPU capacity, then deploy high-priority to trigger preemption.
+This task demonstrates **KAI Scheduler's priority preemption**, which combines Kubernetes `PriorityClass` (preemption *order*) with KAI's own `kai.scheduler/preemptibility` label (preemption *eligibility*). Create low-priority workloads filling GPU capacity, then deploy high-priority to trigger preemption.
 
 1. **Create Low Priority Workload**
+
+   > **Why the `kai.scheduler/preemptibility: "preemptible"` label is required:** KAI v0.12.10 classifies any workload with K8s priority ≥ 100 as **non-preemptible by default** (source: [`preemptible.go`](https://github.com/NVIDIA/KAI-Scheduler/blob/v0.12.10/pkg/common/podgroup/preemptible.go)). Our `low-priority-gpu` PriorityClass has value 10000, so it must be explicitly marked preemptible — without this label, KAI refuses to evict it and the high-priority pod fails to schedule with `NonPreemptibleOverQuota`.
+
    ```yaml
    # Save as low-priority-workload.yaml
    apiVersion: apps/v1
@@ -589,7 +592,8 @@ This task demonstrates Kubernetes-native `PriorityClass` preemption with KAI Sch
        metadata:
          labels:
            app: low-priority-gpu
-           kai.scheduler/queue: dev-queue
+           kai.scheduler/queue: training-queue
+           kai.scheduler/preemptibility: "preemptible"
        spec:
          schedulerName: kai-scheduler
          priorityClassName: low-priority-gpu
