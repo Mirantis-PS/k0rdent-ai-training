@@ -66,7 +66,7 @@ Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, e
 - k0rdent management cluster access (via `lab-connect.sh`)
 - AWS credentials configured in the management cluster
 - kubectl access with cluster-admin privileges
-- Familiarity with k0rdent ClusterDeployment (from [Lab 1.5](../../week-1-foundations/labs/lab-1.5-cluster-deployment.md))
+- Familiarity with k0rdent ClusterDeployment (from [Lab 1.5](../../week-1-foundations/labs/lab-1.5-provision-managed-cluster.md))
 
 > **k0rdent context:** This lab deploys a GPU cluster using the same `ClusterDeployment` pattern students learned in Week 1 Lab 1.5. The only difference is using a GPU instance type (`g5.12xlarge`) for the worker node.
 
