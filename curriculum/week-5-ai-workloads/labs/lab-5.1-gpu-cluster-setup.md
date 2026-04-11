@@ -224,6 +224,17 @@ kubectl get clusterdeployment gpu-cluster -n kcm-system -w
 
 Wait for `READY: True` before proceeding.
 
+> **AWS SSO users:** If you are using AWS SSO (Identity Center) credentials, your session token may expire during this wait (SSO sessions typically last 1–12 hours). If provisioning stalls, or if the CAPA controller logs show `RequestExpired` / `AuthFailure` errors on `awscluster/gpu-cluster`, refresh credentials from your local machine and push them into the management cluster:
+>
+> ```bash
+> # From your LOCAL machine (not the management node):
+> aws sso login --profile <your-profile>
+> eval "$(aws configure export-credentials --format env --profile <your-profile>)"
+> ./lab-infrastructure/scripts/lab-refresh-creds.sh <your-name>
+> ```
+>
+> The script updates `aws-cluster-identity-secret` in `kcm-system` and restarts the `capa-controller-manager` deployment so it reloads the fresh STS token from environment. Reconciliation resumes within ~30 seconds.
+
 ### Step 3: Get GPU Cluster Kubeconfig
 
 ```bash
@@ -984,6 +995,8 @@ export KUBECONFIG=~/.kube/config  # Switch back to mgmt cluster
 kubectl delete clusterdeployment gpu-cluster -n kcm-system
 # Wait for CAPI to clean up EC2 instances (~5 min)
 ```
+
+> **If deletion stalls:** If `kubectl get clusterdeployment gpu-cluster` stays in a `Deleting` state for more than 5 minutes, your STS session token likely expired during the lab — the CAPA controller cannot call AWS APIs to terminate instances with expired credentials. Refresh them with `./lab-infrastructure/scripts/lab-refresh-creds.sh <your-name>` and deletion will resume within ~30 seconds. **Do NOT force-remove finalizers** (`kubectl patch ... metadata.finalizers=null`) — that would orphan the underlying AWS resources (EC2 instances, VPCs, NAT gateways, load balancers) and continue billing indefinitely with no controller left to clean them up.
 
 ---
 
