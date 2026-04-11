@@ -941,16 +941,51 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    ```
 
 2. **Key Metrics to Monitor**
+
+   **Scheduling latency (how fast decisions happen):**
    ```
-   # Per-action scheduling latency
+   # Per-action scheduling latency (allocate, preempt, reclaim, consolidation, stalegangeviction)
    kai_action_scheduling_latency_milliseconds
 
-   # End-to-end scheduling latency
+   # End-to-end scheduling latency (full scheduler loop time)
    kai_e2e_scheduling_latency_milliseconds
 
-   # Per-plugin scheduling latency
+   # Per-plugin scheduling latency (predicates, priority, proportion, topology, gpupack, ...)
    kai_plugin_scheduling_latency_milliseconds
+
+   # Per-task scheduling + bind latency histograms (_bucket, _count, _sum variants)
+   kai_task_scheduling_latency_milliseconds
+   kai_task_bind_latency_milliseconds
    ```
+
+   **Queue resource accounting (who has what):**
+   ```
+   # Current resource usage per queue (training-queue, inference-queue, dev-queue, default-queue)
+   kai_queue_gpu_usage
+   kai_queue_cpu_usage
+   kai_queue_memory_usage
+
+   # Fair-share entitlement per queue (what each queue is entitled to under contention)
+   kai_queue_fair_share_gpu
+   kai_queue_fair_share_cpu_cores
+   kai_queue_fair_share_memory_gb
+   ```
+
+   **Preemption and PodGroup activity (operational signals):**
+   ```
+   # Total preemption attempts across the scheduler's lifetime
+   kai_total_preemption_attempts
+
+   # PodGroups acted on or scheduled, labeled by action
+   kai_podgroups_acted_on_by_action
+   kai_podgroups_scheduled_by_action
+
+   # Scheduling scenarios filtered or simulated during the decision loop
+   kai_scenarios_filtered_by_action
+   kai_scenarios_simulation_by_action
+   ```
+
+   > **Why `kai_total_preemption_attempts` is the cleanest Task 5 verification signal:** After running Task 5 (priority preemption) with the preemptibility label in place, this counter should be `>= 1`. It's a stronger verification than relying on timing or event observation — if the high-priority pod scheduled onto a free GPU without actually preempting anyone, the counter stays at `0`. Use `curl http://localhost:8080/metrics | grep '^kai_total_preemption_attempts'` after Task 5 to confirm.
 
 3. **Stop Port Forward**
    ```bash
