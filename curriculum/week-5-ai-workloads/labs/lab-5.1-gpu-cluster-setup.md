@@ -143,7 +143,7 @@ This lab uses **KAI Scheduler** as the open-source option.
 
 ---
 
-## Pre-Lab: Deploy GPU Cluster via k0rdent (15 min + ~15 min wait)
+## Pre-Lab: Deploy GPU Cluster via k0rdent (15 min + ~10 min wait)
 
 The GPU cluster is deployed via k0rdent ClusterDeployment -- the same pattern from Week 1 Lab 1.5.
 
@@ -218,7 +218,7 @@ spec:
 ```bash
 kubectl apply -f gpu-cluster-deployment.yaml
 
-# Monitor deployment (~15 minutes)
+# Monitor deployment (~7-10 minutes; can be faster on warm cache)
 kubectl get clusterdeployment gpu-cluster -n kcm-system -w
 ```
 
@@ -278,7 +278,7 @@ helm install gpu-operator nvidia/gpu-operator \
 
 > **k0s-specific:** k0s stores containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, NOT the standard paths (`/etc/containerd/` and `/run/containerd/containerd.sock`). Without these toolkit env vars, the toolkit crashes with `containerd.sock: no such file or directory`.
 
-Wait ~8 minutes for NVIDIA driver compilation on the worker node, then verify:
+Wait ~3-5 minutes for NVIDIA driver compilation on the worker node, then verify:
 
 ```bash
 kubectl get pods -n gpu-operator
@@ -726,7 +726,7 @@ Time-slicing multiplies allocatable GPU resources by sharing physical GPUs acros
 
 3. **Verify Fractional GPUs**
 
-   Wait ~60 seconds for the device plugin to restart and re-register:
+   Wait ~10-30 seconds for the device plugin to restart and re-register:
 
    ```bash
    kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
@@ -875,7 +875,8 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    ```bash
    kubectl apply -f nccl-test.yaml
 
-   # NCCL test takes ~5 minutes (build + run)
+   # NCCL test takes ~8-10 minutes on first run (image pull ~4-5 min + build + benchmark).
+   # Subsequent runs on the same worker skip the image pull and take ~3-4 minutes.
    kubectl logs -f nccl-config-test
    ```
 
