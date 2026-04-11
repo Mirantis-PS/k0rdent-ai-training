@@ -380,6 +380,8 @@ KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:
 
 1. **Configure the Parent Queue**
 
+   > **Note:** KAI Scheduler v0.12.10 **auto-creates** `default-parent-queue` and a child `default-queue` during `helm install`, so they already exist before this step runs. The `kubectl apply` below **reconfigures** the existing parent queue with our explicit `quota: -1` / `limit: -1` values; you'll see a harmless warning `resource queues/default-parent-queue is missing the kubectl.kubernetes.io/last-applied-configuration annotation` — that's `kubectl` noting the object wasn't originally created declaratively. The patch is still applied correctly.
+
    ```bash
    cat <<EOF | kubectl apply -f -
    apiVersion: scheduling.run.ai/v2
@@ -508,6 +510,18 @@ KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:
    kubectl get queues
    ```
 
+   **Expected output (5 queues, not 4):**
+   ```
+   NAME                   PRIORITY   PARENT                 CHILDREN
+   default-parent-queue                                     ["default-queue","training-queue","inference-queue","dev-queue"]
+   default-queue                     default-parent-queue
+   dev-queue              50         default-parent-queue
+   inference-queue        150        default-parent-queue
+   training-queue         100        default-parent-queue
+   ```
+
+   > **`default-queue` is auto-created by KAI Scheduler** (alongside `default-parent-queue`) as a catch-all for workloads that don't specify a `kai.scheduler/queue` label. It's safe to ignore for this lab — you should see **5 queues total**, including the auto-created `default-queue`.
+
 ### Task 4: Test Gang Scheduling (30 min)
 
 Gang scheduling ensures all pods in a job start together or none start, critical for distributed training.
@@ -551,7 +565,7 @@ Gang scheduling ensures all pods in a job start together or none start, critical
                  cpu: "2"
    ```
 
-   > **How it works:** KAI's PodGrouper automatically groups the 2 pods (parallelism: 2) into a gang by owner reference (Job). Both must be schedulable before either starts. No manual gang annotations required.
+   > **How it works (with a limitation):** KAI's PodGrouper creates PodGroups for the Job's pods. **In v0.12.10, each pod gets its own PodGroup** (`minMember: 1` each) — not a single Job-wide PodGroup with `minMember: 2` — so strictly speaking, each pod is scheduled independently, not as a true gang. The test above requests 2 GPUs of 4 available, which means there is **no resource pressure** to distinguish gang scheduling from independent scheduling; the test verifies only that both pods can run concurrently. For a **definitive** gang scheduling test, scale the Job to `parallelism: 5` (1 GPU each) on the 4-GPU worker and verify that **all 5 pods stay Pending together** — a true gang-aware scheduler will refuse to partially schedule, while a non-gang scheduler would schedule 4 and leave 1 stuck.
 
 2. **Submit Gang Job**
    ```bash
