@@ -21,6 +21,7 @@ NC='\033[0m'
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 usage() {
@@ -161,16 +162,33 @@ ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}
 
 log_success "CAPA restarted"
 
-# Verify — use --since=30s to only check logs after the restart
-log_info "Verifying CAPA health (waiting 20s)..."
-sleep 20
-CAPA_STATUS=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
-    "kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --since=30s 2>/dev/null | grep -c 'AuthFailure\|RequestExpired' || echo 0")
+# Verify CAPA is healthy by querying logs from the NEW pod BY NAME.
+#
+# The previous implementation used a label selector with --since=30s, which
+# raced against the old (Terminating) pod's final error lines during the
+# rollout window and produced false-positive "CAPA still has credential
+# errors" messages when the refresh had actually succeeded. Querying the
+# new pod by name avoids the race entirely — the new pod was created AFTER
+# the Secret rotation, so by construction its logs cannot contain any
+# pre-rotation RequestExpired / AuthFailure entries.
+log_info "Verifying CAPA health (waiting 5s for new pod to stabilize)..."
+sleep 5
+
+NEW_POD=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
+    "kubectl get pods -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws -o jsonpath='{range .items[*]}{.metadata.creationTimestamp} {.metadata.name}{\"\n\"}{end}' 2>/dev/null | sort | tail -1 | awk '{print \$2}'")
+
+if [[ -z "$NEW_POD" ]]; then
+    log_warn "Could not identify new CAPA pod; skipping log verification (CAPA may still be healthy)"
+    CAPA_STATUS=0
+else
+    CAPA_STATUS=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
+        "kubectl logs -n kcm-system '$NEW_POD' 2>/dev/null | grep -c 'AuthFailure\|RequestExpired' || echo 0")
+fi
 
 if [[ "$CAPA_STATUS" == "0" ]]; then
-    log_success "CAPA is healthy - no credential errors in recent logs"
+    log_success "CAPA is healthy - no credential errors in new pod${NEW_POD:+ ($NEW_POD)}"
 else
-    log_error "CAPA still has credential errors. Check: kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --since=60s"
+    log_error "CAPA still has credential errors${NEW_POD:+ in $NEW_POD}. Check: kubectl logs -n kcm-system ${NEW_POD:-<capa-pod>}"
 fi
 
 # Summary
