@@ -204,9 +204,26 @@ check_prerequisites() {
     log_info "Checking prerequisites..."
 
     if ! command -v terraform &> /dev/null; then
-        log_error "terraform is not installed. Please install Terraform 1.5+"
+        log_error "terraform is not installed. Please install Terraform >= 1.8.0"
+        log_error "  brew install hashicorp/tap/terraform   # macOS"
         exit 1
     fi
+
+    # Terraform version check: require >= 1.8.0
+    local tf_version required_version="1.8.0"
+    tf_version=$(terraform version 2>/dev/null | head -n1 | awk '{print $2}' | tr -d 'v')
+    if [[ -z "$tf_version" ]]; then
+        log_error "Could not determine Terraform version from 'terraform version' output"
+        exit 1
+    fi
+    if [[ "$(printf '%s\n' "$required_version" "$tf_version" | sort -V | head -n1)" != "$required_version" ]]; then
+        log_error "Terraform >= ${required_version} required (found ${tf_version})"
+        log_error "  brew uninstall terraform 2>/dev/null || true       # remove old homebrew pin (1.5.7)"
+        log_error "  brew tap hashicorp/tap"
+        log_error "  brew install hashicorp/tap/terraform"
+        exit 1
+    fi
+    log_info "Terraform ${tf_version} (>= ${required_version}) OK"
 
     if ! command -v aws &> /dev/null; then
         log_error "aws CLI is not installed. Please install AWS CLI"

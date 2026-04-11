@@ -7,7 +7,7 @@ Terraform-based infrastructure provisioning for k0rdent AI training labs.
 ### Prerequisites
 
 - AWS CLI configured with appropriate credentials
-- Terraform >= 1.5.0
+- Terraform >= 1.8.0 (install via `brew install hashicorp/tap/terraform` on macOS — see Lab 1.1 Troubleshooting if you hit a Homebrew collision)
 - bash shell
 
 ### Provision Your Lab

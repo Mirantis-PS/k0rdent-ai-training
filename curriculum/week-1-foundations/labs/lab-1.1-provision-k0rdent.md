@@ -45,7 +45,7 @@ In this lab, you will:
 ## Prerequisites
 
 - AWS CLI v2 installed
-- Terraform >= 1.5.0 installed
+- Terraform >= 1.8.0 installed
 - Your own copy of this training repository (fork or template)
 - Basic terminal/shell knowledge
 
@@ -163,7 +163,7 @@ From the root of your cloned training repository:
 ```bash
 cd lab-infrastructure
 
-# Check Terraform version (>= 1.5.0 required)
+# Check Terraform version (>= 1.8.0 required)
 terraform --version
 
 # Check AWS CLI (v2 required)
@@ -447,10 +447,19 @@ For quick diagnostics:
 **Error: Terraform version too old**
 
 ```bash
-# Install newer Terraform
-# macOS:
+# Install newer Terraform (macOS)
+
+# 1. If you have an old terraform from the core homebrew formula, uninstall it first.
+#    Homebrew's plain `terraform` formula is pinned to 1.5.7 (the last MPL release
+#    before HashiCorp switched to BSL). The `hashicorp/tap` formula ships the latest.
+brew uninstall terraform 2>/dev/null || true
+
+# 2. Tap and install from the HashiCorp tap
 brew tap hashicorp/tap
 brew install hashicorp/tap/terraform
+
+# 3. Verify
+terraform version
 ```
 
 **Error: AWS SSO profile not working with Terraform**
