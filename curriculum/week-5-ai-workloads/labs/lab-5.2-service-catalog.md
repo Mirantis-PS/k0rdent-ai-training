@@ -109,11 +109,11 @@ The k0rdent service catalog is **external to the k0rdent deployment** — it is 
 |----------|----------------|---------|
 | GPU Infrastructure | `gpu-operator-25-10-0` | NVIDIA GPU lifecycle management |
 | Model Serving | `kserve-v0-15-0`, `kserve-crd-v0-15-0` | Serverless inference |
-| Distributed Compute | `kuberay-operator-1-3-2` | Ray operator (manages RayCluster CRDs) |
+| Distributed Compute | `kuberay-operator-1-5-1` | Ray operator (manages RayCluster CRDs) |
 | Multi-host Inference | `lws-0-7-0` | LeaderWorkerSet for vLLM multi-node |
-| Experiment Tracking | `mlflow-1-7-1` | MLflow tracking and registry |
-| Notebooks | `jupyterhub-4-2-0` | Multi-user Jupyter environments |
-| Vector Databases | `milvus-5-0-1`, `qdrant-1-15-4` | Embedding storage |
+| Experiment Tracking | `mlflow-1-8-1` | MLflow tracking and registry |
+| Notebooks | `jupyterhub-4-3-2` | Multi-user Jupyter environments |
+| Vector Databases | `milvus-5-0-14`, `qdrant-1-15-4` | Embedding storage |
 | LLM Inference | `ollama-1-40-0` | Local LLM runtime |
 | Chat Interface | `open-webui-8-12-3` | UI for LLM interaction |
 | ML Tracking | `clearml-serving-1-6-2` | ClearML platform |
@@ -201,13 +201,13 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    # Install MLflow
    helm upgrade --install mlflow \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
-     --set "chart=mlflow:1.7.1" \
+    --set "chart=mlflow:1.8.1" \
      -n kcm-system
 
    # Install KubeRay operator
    helm upgrade --install kuberay-operator \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
-     --set "chart=kuberay-operator:1.3.2" \
+    --set "chart=kuberay-operator:1.5.1" \
      -n kcm-system
    ```
 
@@ -218,8 +218,8 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    # Expected output includes:
    # kserve-crd-v0-15-0
    # kserve-v0-15-0
-   # mlflow-1-7-1
-   # kuberay-operator-1-3-2
+   # mlflow-1-8-1
+   # kuberay-operator-1-5-1
 
    # Check that templates are valid
    kubectl get servicetemplates -n kcm-system -o custom-columns='NAME:.metadata.name,VALID:.status.valid'
@@ -228,7 +228,7 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
 3. **Inspect a Template's Chart Reference**
    ```bash
    # See what Helm chart the template wraps
-   kubectl get servicetemplate mlflow-1-7-1 -n kcm-system \
+   kubectl get servicetemplate mlflow-1-8-1 -n kcm-system \
      -o jsonpath='{.spec.helm.chartSpec}' | jq .
    ```
 
@@ -272,12 +272,12 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
            namespace: kserve
 
          # MLflow for experiment tracking
-         - template: mlflow-1-7-1
+         - template: mlflow-1-8-1
            name: mlflow
            namespace: mlflow
 
          # KubeRay for distributed compute
-         - template: kuberay-operator-1-3-2
+         - template: kuberay-operator-1-5-1
            name: kuberay
            namespace: kuberay
        priority: 100
@@ -328,7 +328,7 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
          workload-type: ml-training
      serviceSpec:
        services:
-         - template: mlflow-1-7-1
+         - template: mlflow-1-8-1
            name: mlflow
            namespace: mlflow
            values: |
@@ -366,7 +366,7 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
    ```yaml
    # In MultiClusterService spec:
    services:
-     - template: mlflow-1-7-1
+     - template: mlflow-1-8-1
        name: mlflow
        namespace: mlflow
        valuesFrom:
@@ -500,7 +500,7 @@ For deploying services to a **specific cluster** (rather than all clusters match
              "namespace": "gpu-operator"
            },
            {
-             "template": "mlflow-1-7-1",
+             "template": "mlflow-1-8-1",
              "name": "mlflow",
              "namespace": "mlflow"
            }
@@ -539,7 +539,7 @@ For deploying services to a **specific cluster** (rather than all clusters match
    helm uninstall mlflow -n kcm-system
 
    # Verify removal
-   kubectl get servicetemplate mlflow-1-7-1 -n kcm-system
+   kubectl get servicetemplate mlflow-1-8-1 -n kcm-system
    # Expected: Error from server (NotFound)
    ```
 

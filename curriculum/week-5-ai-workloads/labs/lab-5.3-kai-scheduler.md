@@ -65,7 +65,7 @@ Deploy the NVIDIA KAI Scheduler — the open-source GPU scheduling engine extrac
 - `kubectl` and `helm` (v3.14+) installed
 - Understanding of Kubernetes scheduling concepts
 
-> **Run:ai vs KAI:** This lab covers the **open-source KAI Scheduler** (v0.12.11). For the full commercial platform with web UI, CLI, Departments/Projects, and memory-enforced fractional GPUs, see [Lab 5.4 - NVIDIA Run:ai](lab-5.4-runai-gpu-orchestration.md).
+> **Run:ai vs KAI:** This lab covers the **open-source KAI Scheduler** (`v0.14.0` as of April 2026). For the full commercial platform with web UI, CLI, Departments/Projects, and memory-enforced fractional GPUs, see [Lab 5.4 - NVIDIA Run:ai](lab-5.4-runai-gpu-orchestration.md).
 
 ## Background
 
@@ -148,10 +148,10 @@ In 2025, NVIDIA open-sourced the core scheduling engine from Run:ai as the **KAI
 
    ```bash
    helm upgrade -i kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
      --namespace kai-scheduler \
      --create-namespace \
-     --version 0.12.11
+     --version v0.14.0
    ```
 
 2. **Verify Installation**
@@ -426,9 +426,9 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
 
    ```bash
    helm upgrade kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
      --namespace kai-scheduler \
-     --version 0.12.11 \
+     --version v0.14.0 \
      --set "global.gpuSharing=true"
 
    # Wait for pods to restart
@@ -887,10 +887,10 @@ KAI Scheduler is open-source and can be deployed on k0rdent-managed clusters. Th
    # Install KAI Scheduler on the child cluster
    KUBECONFIG=/tmp/child-kubeconfig \
    helm upgrade -i kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
      --namespace kai-scheduler \
      --create-namespace \
-     --version 0.12.11
+     --version v0.14.0
 
    # Verify
    KUBECONFIG=/tmp/child-kubeconfig \
@@ -924,7 +924,7 @@ KAI Scheduler is open-source and can be deployed on k0rdent-managed clusters. Th
 
 ## Verification Checklist
 
-- [ ] KAI Scheduler v0.12.11 deployed with all components running
+- [ ] KAI Scheduler v0.14.0 deployed with all components running
 - [ ] Queue hierarchy created: cluster-root → training/inference/research queues
 - [ ] Workloads scheduled via `kai.scheduler/queue` label
 - [ ] Fractional GPU sharing enabled and working (`global.gpuSharing=true`)
@@ -1001,11 +1001,11 @@ kubectl apply -f workload.yaml -n default
 
 ## References
 
-- [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
-- [KAI Scheduler v0.12.11 Release](https://github.com/NVIDIA/KAI-Scheduler/releases/tag/v0.12.11)
+- [KAI Scheduler GitHub](https://github.com/kai-scheduler/KAI-Scheduler)
+- [KAI Scheduler v0.14.0 Release](https://github.com/kai-scheduler/KAI-Scheduler/releases/tag/v0.14.0)
 - [NVIDIA Blog: Open-Sourcing Run:ai Scheduler](https://developer.nvidia.com/blog/nvidia-open-sources-runai-scheduler-to-foster-community-collaboration/)
-- [Queue CRD API Reference](https://github.com/NVIDIA/KAI-Scheduler/tree/main/pkg/apis/scheduling)
-- [PodGrouper Workload Plugins](https://github.com/NVIDIA/KAI-Scheduler/tree/main/internal/podgrouper/podgrouper/plugins)
+- [Queue CRD API Reference](https://github.com/kai-scheduler/KAI-Scheduler/tree/main/pkg/apis/scheduling)
+- [PodGrouper Workload Plugins](https://github.com/kai-scheduler/KAI-Scheduler/tree/main/internal/podgrouper/podgrouper/plugins)
 
 ## Related Labs
 

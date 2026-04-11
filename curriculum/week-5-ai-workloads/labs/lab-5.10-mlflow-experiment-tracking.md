@@ -64,7 +64,7 @@ Deploy MLflow as a centralized experiment tracking server on a k0rdent-managed G
 
 ### MLflow in the k0rdent Ecosystem
 
-The k0rdent catalog includes the `mlflow-1-7-1` ServiceTemplate, which deploys the MLflow community Helm chart (version 1.7.1). This provides a production-ready MLflow tracking server with PostgreSQL backend and S3-compatible artifact storage.
+The k0rdent catalog currently exposes the `mlflow-1-8-1` ServiceTemplate, which wraps the MLflow community chart version `1.8.1` (app version `3.7.0` on the current catalog page). This provides a production-ready MLflow tracking server with PostgreSQL backend and S3-compatible artifact storage.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -72,7 +72,7 @@ The k0rdent catalog includes the `mlflow-1-7-1` ServiceTemplate, which deploys t
 │                                                                     │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
 │  │  ServiceTemplate │  │ MultiCluster     │  │ ClusterDeployment│  │
-│  │  mlflow-1-7-1    │  │ Service          │  │ (GPU clusters)   │  │
+│  │  mlflow-1-8-1    │  │ Service          │  │ (GPU clusters)   │  │
 │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
 │           │                     │                      │            │
 │           └─────────────────────┼──────────────────────┘            │
@@ -98,15 +98,16 @@ The k0rdent catalog includes the `mlflow-1-7-1` ServiceTemplate, which deploys t
 
 ### MLflow 3.x Migration Notes
 
-MLflow 3.0 introduced significant breaking changes. This lab uses the current MLflow 3.x API:
+This lab uses an alias-first MLflow 3.x workflow. The table below highlights the patterns used in this lab:
 
-| Feature | Old (MLflow 2.x) | Current (MLflow 3.x) |
+| Feature | Older Pattern | Pattern Used in This Lab |
 |---------|-------------------|----------------------|
-| Model stages | `transition_model_version_stage("Production")` | `set_registered_model_alias("champion", version)` |
+| Model lifecycle workflow | `transition_model_version_stage("Production")` | `set_registered_model_alias("champion", version)` |
 | Model URI | `models:/name/Production` | `models:/name@champion` |
-| Health check | `/api/2.0/mlflow/experiments/search` | `/health` |
-| Python | 3.8+ | 3.10+ |
-| Registry default | File store | SQLAlchemy store |
+| Python | 3.8+ | 3.10+ recommended |
+| Registry backend | File store in simple setups | SQL-backed registry recommended for shared environments |
+
+> **Compatibility note:** MLflow still documents Projects, AI Gateway / Gateway Server, and lifecycle stages in current docs. This lab prefers aliases because they map more cleanly to promotion workflows on Kubernetes.
 
 ## Lab Environment
 
@@ -146,7 +147,7 @@ All operations in this lab target a workload cluster managed by k0rdent Enterpri
 
 ### Task 2: Deploy MLflow via k0rdent ServiceTemplate (20 min)
 
-The k0rdent catalog provides the `mlflow-1-7-1` ServiceTemplate for automated MLflow deployment. This is the recommended approach for k0rdent-managed environments.
+The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated MLflow deployment. This is the recommended approach for k0rdent-managed environments.
 
 1. **Install the MLflow ServiceTemplate from the catalog** (on the management cluster)
    ```bash
@@ -156,13 +157,13 @@ The k0rdent catalog provides the `mlflow-1-7-1` ServiceTemplate for automated ML
    # Install the MLflow ServiceTemplate from the external catalog
    helm upgrade --install mlflow-template \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
-     --set "chart=mlflow:1.7.1" \
+     --set "chart=mlflow:1.8.1" \
      -n kcm-system
    ```
 
 2. **Verify the ServiceTemplate is available**
    ```bash
-   kubectl get servicetemplate mlflow-1-7-1 -n kcm-system
+   kubectl get servicetemplate mlflow-1-8-1 -n kcm-system
    ```
 
 3. **Option A: Deploy via ClusterDeployment serviceSpec** (single cluster)
@@ -173,7 +174,7 @@ The k0rdent catalog provides the `mlflow-1-7-1` ServiceTemplate for automated ML
    spec:
      serviceSpec:
        services:
-         - template: mlflow-1-7-1
+         - template: mlflow-1-8-1
            name: mlflow
            namespace: mlflow
            values: |
@@ -215,7 +216,7 @@ The k0rdent catalog provides the `mlflow-1-7-1` ServiceTemplate for automated ML
          k0rdent.mirantis.com/workload: ml-platform
      serviceSpec:
        services:
-         - template: mlflow-1-7-1
+         - template: mlflow-1-8-1
            name: mlflow
            namespace: mlflow
            values: |
@@ -1145,7 +1146,7 @@ model = mlflow.pytorch.load_model("models:/mnist-classifier@champion")
 
 ## Key Takeaways
 
-1. **k0rdent ServiceTemplate** (`mlflow-1-7-1`) provides one-command MLflow deployment across managed clusters
+1. **k0rdent ServiceTemplate** (`mlflow-1-8-1`) provides one-command MLflow deployment across managed clusters
 2. **MLflow 3.x aliases** replace the rigid four-stage model promotion with flexible, custom labels
 3. **Kubernetes Secrets** (not ConfigMaps) should store database and S3 credentials
 4. **The `/health` endpoint** is the correct readiness/liveness probe path for MLflow 3.x

@@ -79,8 +79,8 @@ k0rdent manages the GPU infrastructure and provides catalog-based service deploy
 
 **Available in k0rdent Catalog:**
 - `gpu-operator-25-10-0` - GPU Operator (required for all GPU workloads)
-- `nvidia-network-operator-25-10-0` - Network Operator (RDMA/InfiniBand)
-- `kuberay-operator-1-3-2` - KubeRay Operator (Ray-based distributed training)
+- `network-operator-25-10-0` - Network Operator (RDMA/InfiniBand)
+- `kuberay-operator-1-5-1` - KubeRay Operator (Ray-based distributed training)
 - `lws-0-7-0` - LeaderWorkerSet (Kubernetes-native distributed workloads)
 
 **Not in Catalog (Direct Install Required):**
@@ -95,7 +95,7 @@ k0rdent manages the GPU infrastructure and provides catalog-based service deploy
 │  │ ClusterDeployment (GPU Cluster)                            │  │
 │  │  spec.serviceSpec.services:                                │  │
 │  │    - gpu-operator-25-10-0                                  │  │
-│  │    - nvidia-network-operator-25-10-0                       │  │
+│  │    - network-operator-25-10-0                              │  │
 │  └────────────────────────────────────────────────────────────┘  │
 ├──────────────────────────────────────────────────────────────────┤
 │                    Managed GPU Cluster                            │
@@ -245,7 +245,7 @@ Node 3 ─────────────│  │TP=0 │TP=1 │TP=2 │TP
 
 - NVIDIA GPU Operator v25.10.0
 - NVIDIA Network Operator (RDMA configured)
-- Kubeflow MPI Operator v0.7.0
+- Kubeflow MPI Operator v0.8.0
 - PyTorch 2.x with distributed support (via NVIDIA container)
 
 ---
@@ -299,12 +299,12 @@ Extract kubeconfig from the k0rdent management cluster to access the managed GPU
 
 The MPI Operator enables distributed training jobs on Kubernetes. There is no MPI Operator ServiceTemplate in the k0rdent catalog, so install directly on the managed cluster.
 
-> **k0rdent Catalog Alternatives:** For distributed workloads, the catalog provides `kuberay-operator-1-3-2` (Ray-based training) and `lws-0-7-0` (LeaderWorkerSet for Kubernetes-native distributed jobs). MPI Operator is preferred for traditional MPI-based training frameworks like Megatron-LM and DeepSpeed.
+> **k0rdent Catalog Alternatives:** For distributed workloads, the catalog provides `kuberay-operator-1-5-1` (Ray-based training) and `lws-0-7-0` (LeaderWorkerSet for Kubernetes-native distributed jobs). MPI Operator is preferred for traditional MPI-based training frameworks like Megatron-LM and DeepSpeed.
 
-1. **Install Kubeflow MPI Operator v0.7.0**
+1. **Install Kubeflow MPI Operator v0.8.0**
    ```bash
-   # Install MPI Operator v0.7.0 (latest stable release)
-   kubectl apply -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.7.0/deploy/v2beta1/mpi-operator.yaml
+   # Install MPI Operator v0.8.0
+   kubectl apply -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.8.0/deploy/v2beta1/mpi-operator.yaml
 
    # Verify installation
    kubectl get crd mpijobs.kubeflow.org
@@ -1360,7 +1360,7 @@ FSDP is PyTorch's native implementation of ZeRO-style sharding. It provides simi
 
 ### Basic Deliverables
 - [ ] k0rdent GPU cluster accessed via extracted kubeconfig
-- [ ] MPI Operator v0.7.0 installed and functional
+- [ ] MPI Operator v0.8.0 installed and functional
 - [ ] Multi-node NCCL connectivity verified with bandwidth benchmark
 - [ ] NCCL all-reduce bandwidth documented and compared to expectations
 
@@ -1519,7 +1519,7 @@ kubectl delete pvc training-checkpoints training-data -n distributed-training
 kubectl delete namespace distributed-training
 
 # Optionally remove MPI Operator
-kubectl delete -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.7.0/deploy/v2beta1/mpi-operator.yaml
+kubectl delete -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.8.0/deploy/v2beta1/mpi-operator.yaml
 ```
 
 ---
@@ -1540,7 +1540,7 @@ kubectl delete -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.7.0
 - [Distributed Training](https://pytorch.org/docs/stable/distributed.html) - PyTorch distributed reference
 
 ### Kubeflow
-- [MPI Operator v0.7.0](https://github.com/kubeflow/mpi-operator/releases/tag/v0.7.0) - Kubernetes MPI job scheduling
+- [MPI Operator v0.8.0](https://github.com/kubeflow/mpi-operator/releases/tag/v0.8.0) - Kubernetes MPI job scheduling
 
 ---
 

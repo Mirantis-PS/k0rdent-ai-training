@@ -119,16 +119,11 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 
 2. **Create Milvus Configuration**
 
-   > **Architecture Note (Milvus v2.6.x — forward-looking):** Milvus v2.6 plans
-   > to unify four separate coordinators (root, data, query, index) into a single
-   > **MixCoord** process, merge IndexNode into DataNode, and introduce
-   > **StreamingNode** as a GA component. The recommended WAL backend will be
-   > **Woodpecker** (replacing Pulsar). **Note:** The current stable Helm chart
-   > (v4.2.x) deploys Milvus v2.5.x, which still uses separate coordinator pods
-   > and Pulsar/MinIO for WAL. The v2.6 features (Woodpecker, MixCoord,
-   > StreamingNode) are shown here for reference but may not yet be available in
-   > the chart version you install. Adjust the values file accordingly if your
-   > chart version does not support these keys.
+   > **Architecture Note (Milvus v2.6.x):** Current Milvus 5.0.x charts deploy the
+   > v2.6 architecture, which introduces **MixCoord**, **StreamingNode**, and
+   > **Woodpecker**-based WAL settings. Older 2.5-era charts used separate
+   > coordinator pods plus Pulsar-backed WAL. If you intentionally install an
+   > older chart, adjust the values file to match that legacy layout.
 
    ```yaml
    # Save as milvus-values.yaml
@@ -232,7 +227,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 
 3. **Deploy Milvus via k0rdent ServiceTemplate**
 
-   The k0rdent catalog includes `milvus-5-0-1` (Milvus v2.6.x). Deploy it
+   The k0rdent catalog includes `milvus-5-0-14` (Milvus v2.6.x). Deploy it
    using a `MultiClusterService` or `ClusterDeployment` service spec, consistent
    with the patterns from Labs 5.1 and 5.2:
 
@@ -249,7 +244,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
          workload-type: ai-inference
      serviceSpec:
        services:
-         - template: milvus-5-0-1
+         - template: milvus-5-0-14
            name: milvus
            namespace: vector-db
            values: |
@@ -352,8 +347,8 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 6. **Expected Pod List**
 
    > **Note:** Pod names vary by Milvus version. The list below shows the v2.6.x
-   > target architecture with MixCoord and Woodpecker. If you are running
-   > Milvus v2.5.x (the current stable Helm chart default), you will instead see
+   > target architecture with MixCoord and Woodpecker. If you intentionally run
+   > an older Milvus v2.5.x chart, you will instead see
    > separate coordinator pods: `milvus-rootcoord-*`, `milvus-querycoord-*`,
    > `milvus-datacoord-*`, `milvus-indexcoord-*`, and an `milvus-indexnode-*`
    > pod. You will also see Pulsar-related pods (broker, bookie, zookeeper)

@@ -339,7 +339,7 @@ kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatabl
      --wait
    ```
 
-   > **Reference:** [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
+   > **Reference:** [KAI Scheduler GitHub](https://github.com/kai-scheduler/KAI-Scheduler)
 
 2. **Verify Installation**
    ```bash
@@ -487,7 +487,7 @@ KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:
    kubectl apply -f gpu-queues.yaml
    ```
 
-   > **Queue fields explained** (from [KAI Queue docs](https://github.com/NVIDIA/KAI-Scheduler/blob/main/docs/queues/README.md)):
+   > **Queue fields explained** (from [KAI Queue docs](https://github.com/kai-scheduler/KAI-Scheduler/blob/main/docs/queues/README.md)):
    > - `quota`: Guaranteed resource allocation (jobs within quota are protected from reclaim)
    > - `limit`: Hard cap (`-1` = unlimited, `0` = no resources allowed, which is the **DEFAULT**)
    > - `overQuotaWeight`: Relative weight for borrowing unused resources from other queues
@@ -1088,8 +1088,8 @@ kubectl get priorityclass high-priority-gpu -o yaml
 ## References
 
 ### NVIDIA
-- [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
-- [KAI Scheduler Queue Configuration](https://github.com/NVIDIA/KAI-Scheduler/blob/main/docs/queues/README.md)
+- [KAI Scheduler GitHub](https://github.com/kai-scheduler/KAI-Scheduler)
+- [KAI Scheduler Queue Configuration](https://github.com/kai-scheduler/KAI-Scheduler/blob/main/docs/queues/README.md)
 - [NVIDIA GPU Operator Documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/)
 - [GPU Operator Time-Slicing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
 - [NCCL Environment Variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)

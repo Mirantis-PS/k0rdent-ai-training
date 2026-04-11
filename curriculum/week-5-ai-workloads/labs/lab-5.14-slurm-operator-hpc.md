@@ -55,7 +55,7 @@ FOUNDATION (Completed)                        ADVANCED
 
 ## Objective
 
-Deploy Slurm on Kubernetes using the Slinky Operator (v1.0.1) to enable HPC-style workload management on k0rdent-managed clusters. You will install the operator via Helm, deploy a Slurm cluster using Slinky CRDs (NodeSet, LoginSet, Accounting), submit jobs using standard Slurm commands (`sbatch`, `srun`, `squeue`), configure accounting, and explore the Slurm REST API.
+Deploy Slurm on Kubernetes using the Slinky Operator (v1.1.0) to enable HPC-style workload management on k0rdent-managed clusters. You will install the operator via Helm, deploy a Slurm cluster using Slinky CRDs (NodeSet, LoginSet, Accounting), submit jobs using standard Slurm commands (`sbatch`, `srun`, `squeue`), configure accounting, and explore the Slurm REST API.
 
 ## Prerequisites
 
@@ -79,7 +79,7 @@ Slurm (Simple Linux Utility for Resource Management) is the dominant workload ma
 - **Partitions**: Logical groupings of compute resources with different policies
 - **Array Jobs**: Submit thousands of parametric tasks in a single command
 
-> **NVIDIA acquired SchedMD** (the company behind Slurm) on December 15, 2025. NVIDIA committed to continue developing Slurm as open-source, vendor-neutral software. This acquisition positions Slurm alongside Run:ai/KAI as part of NVIDIA's AI infrastructure stack.
+> **Industry note:** NVIDIA announced it acquired SchedMD on December 15, 2025, and said it would continue distributing Slurm as open-source, vendor-neutral software. This is useful context for understanding why Slurm appears alongside other NVIDIA-adjacent AI infrastructure tools in this week.
 
 ### Slurm on Kubernetes: The Landscape
 
@@ -87,7 +87,7 @@ There are three main approaches to running Slurm on Kubernetes, plus a Kubernete
 
 | Solution | Provider | Approach | k0rdent Catalog |
 |----------|----------|----------|-----------------|
-| **Slinky** | SchedMD / NVIDIA | Official operator + bridge | No |
+| **Slinky** | SchedMD | Official operator + bridge | No |
 | **Soperator** | Nebius | `SlurmCluster` CRD | **Yes** (`helm-soperator-1-22-1`) |
 | **SUNK** | CoreWeave | Commercial, Slurm-as-K8s-scheduler | No |
 | **Kueue** | kubernetes-sigs | K8s-native job queueing (alternative) | No |
@@ -212,7 +212,7 @@ The Slinky operator is installed via three OCI-based Helm charts: CRDs, operator
      oci://ghcr.io/slinkyproject/charts/slurm-operator \
      --namespace slinky \
      --create-namespace \
-     --version 1.0.1
+     --version 1.1.0
    ```
 
 4. **Verify the Operator**
@@ -275,7 +275,7 @@ The Slinky `slurm` Helm chart deploys a complete Slurm cluster using the operato
    helm install slurm \
      oci://ghcr.io/slinkyproject/charts/slurm \
      --namespace slurm \
-     --version 1.0.1 \
+     --version 1.1.0 \
      --set "slurm.clusterName=k8s-hpc" \
      --set "slurm.compute.gpu=true"
    ```
@@ -746,7 +746,7 @@ The k0rdent catalog includes the **Nebius Soperator** — an alternative Slurm o
 
 ## Verification Checklist
 
-- [ ] Slinky operator v1.0.1 deployed in `slinky` namespace
+- [ ] Slinky operator v1.1.0 deployed in `slinky` namespace
 - [ ] Slurm cluster deployed via Helm chart (slurmctld, slurmdbd, compute, login)
 - [ ] `sinfo` shows compute nodes in idle state
 - [ ] CPU job submitted and completed via `sbatch`
@@ -831,9 +831,9 @@ kubectl exec -n slurm -it <mariadb-pod> -- mysql -u slurm -e "SHOW DATABASES;"
 
 ## Key Takeaways
 
-1. **Slinky** (v1.0.1) is the official SchedMD/NVIDIA operator for running Slurm on Kubernetes, using CRDs (`NodeSet`, `LoginSet`, `Accounting`) to manage the cluster lifecycle
+1. **Slinky** (v1.1.0) is the official operator for running Slurm on Kubernetes, using CRDs (`NodeSet`, `LoginSet`, `Accounting`) to manage the cluster lifecycle
 2. **Slurm on K8s** preserves the HPC user experience (`sbatch`, `srun`, `squeue`) while leveraging Kubernetes infrastructure management, autoscaling, and GPU Operator integration
-3. **NVIDIA's acquisition of SchedMD** (Dec 2025) unifies Slurm with Run:ai/KAI under one vendor, ensuring continued development of Slurm as open-source software
+3. **NVIDIA's December 15, 2025 acquisition of SchedMD** is relevant industry context, but platform decisions should still be based on current product documentation, support terms, and ecosystem fit
 4. **slurmrestd** is the built-in Slurm REST API — always use it instead of building custom wrappers
 5. **Kueue** (kubernetes-sigs) is the Kubernetes-native alternative for teams that don't need Slurm compatibility
 6. **k0rdent catalog** provides the Nebius Soperator for automated Slurm deployment on managed clusters via MultiClusterService
@@ -845,7 +845,7 @@ kubectl exec -n slurm -it <mariadb-pod> -- mysql -u slurm -e "SHOW DATABASES;"
 - [Slinky slurm-bridge GitHub](https://github.com/SlinkyProject/slurm-bridge)
 - [Slurm Documentation](https://slurm.schedmd.com/documentation.html)
 - [Slurm 25.11 Release Notes](https://slurm.schedmd.com/release_notes.html)
-- [NVIDIA Acquires SchedMD (Dec 2025)](https://blogs.nvidia.com/blog/nvidia-acquires-schedmd/)
+- [NVIDIA Acquires SchedMD (Dec 15, 2025)](https://blogs.nvidia.com/blog/nvidia-acquires-schedmd/)
 - [Running Slurm on Amazon EKS with Slinky (AWS Blog)](https://aws.amazon.com/blogs/containers/running-slurm-on-amazon-eks-with-slinky/)
 - [Nebius Soperator GitHub](https://github.com/nebius/soperator)
 - [k0rdent Catalog — Soperator](https://catalog.k0rdent.io/v1.5.0/apps/soperator/)

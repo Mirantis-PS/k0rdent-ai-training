@@ -54,7 +54,7 @@ Understand and configure Remote Direct Memory Access (RDMA) for GPU-accelerated 
 ## Prerequisites
 
 - Completed Lab 5.2 (vLLM Inference Service)
-- Completed Lab 5.3 (GPU Communication) recommended
+- Read Theory 5.3 (GPU Communication) recommended
 - Access to either:
   - AWS: p4d.24xlarge instances with EFA enabled
   - Azure: ND A100 v4 or ND H100 v5 VMSS with InfiniBand
@@ -257,7 +257,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
          workload-type: gpu-training
      serviceSpec:
        services:
-         - template: nvidia-network-operator-25-10-0
+         - template: network-operator-25-10-0
            name: network-operator
            namespace: nvidia-network-operator
            values: |

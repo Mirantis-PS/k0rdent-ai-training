@@ -1,8 +1,9 @@
 # Week 5: AI Workloads & Service Catalog
 
-**Duration:** 21 hours (2.5 hours theory / 18 hours labs)
+**Estimated content volume:** ~50 hours total (5.25 hours theory / ~45 hours labs if all tracks are attempted)
+**Recommended guided path:** ~15-21 hours depending on which elective track is chosen
 **Focus:** GPU scheduling, model serving, ML platforms, AI tools, service catalog
-**Lab Ratio:** ~86% hands-on
+**Lab Ratio:** ~90% hands-on if all labs are counted
 
 ## Prerequisites
 
@@ -17,12 +18,13 @@ GPU clusters for Week 5 labs are deployed via **ClusterDeployment** using the
 
 | Parameter | Value |
 |-----------|-------|
-| Instance type | **g5.12xlarge** (4x NVIDIA A10G GPUs) |
+| Instance type | **g5.12xlarge** (4x NVIDIA A10G GPUs, 22 GiB each on AWS) |
 | OS | **Ubuntu 22.04** (required; Amazon Linux 2 is not supported) |
 | Deployment pattern | ClusterDeployment (aws-standalone-cp-1-0-20) |
 
-> **Note:** The `p3.8xlarge` instance type referenced in some older materials has
-> been decommissioned. Always use `g5.12xlarge` for Week 5 labs.
+> **Note:** AWS still lists `p3.8xlarge` as a previous-generation instance type,
+> but Week 5 defaults to `g5.12xlarge` for better current availability and to
+> align the labs with A10G-based GPU clusters.
 
 ---
 
@@ -58,7 +60,7 @@ By the end of this week, engineers will be able to:
 
 ---
 
-## Theory Content (2.5 hours)
+## Theory Content (5.25 hours)
 
 Theory files are in the [theory/](theory/) directory.
 
@@ -99,17 +101,17 @@ Topics:
 
 ---
 
-## Lab Exercises (18 hours)
+## Lab Exercises (~45 hours across all tracks)
 
 All lab files are in the [labs/](labs/) directory.
 
 | Lab | Title | Track | Duration | File |
 |-----|-------|-------|----------|------|
-| 5.1 | GPU Cluster Setup | Foundation | 1.5h | [lab-5.1-gpu-cluster-setup.md](labs/lab-5.1-gpu-cluster-setup.md) |
+| 5.1 | GPU Cluster Setup | Foundation | 3.5h | [lab-5.1-gpu-cluster-setup.md](labs/lab-5.1-gpu-cluster-setup.md) |
 | 5.2 | Service Catalog | Foundation | 2h | [lab-5.2-service-catalog.md](labs/lab-5.2-service-catalog.md) |
 | 5.3 | KAI Scheduler | Foundation | 2.5h | [lab-5.3-kai-scheduler.md](labs/lab-5.3-kai-scheduler.md) |
 | 5.4 | Run:AI Orchestration | Foundation | 3h | [lab-5.4-runai-gpu-orchestration.md](labs/lab-5.4-runai-gpu-orchestration.md) |
-| 5.5 | vLLM Inference | Foundation | 2.5h | [lab-5.5-vllm-inference.md](labs/lab-5.5-vllm-inference.md) |
+| 5.5 | vLLM Inference | Foundation | 4h | [lab-5.5-vllm-inference.md](labs/lab-5.5-vllm-inference.md) |
 | 5.6 | Troubleshooting GPU | Foundation | 2h | [lab-5.6-troubleshooting-gpu.md](labs/lab-5.6-troubleshooting-gpu.md) |
 | 5.7 | Jupyter Notebooks | Foundation | 1.5h | [lab-5.7-jupyter-notebooks.md](labs/lab-5.7-jupyter-notebooks.md) |
 | 5.8 | Vector Database | Foundation | 2h | [lab-5.8-vector-database.md](labs/lab-5.8-vector-database.md) |
@@ -117,20 +119,20 @@ All lab files are in the [labs/](labs/) directory.
 | 5.10 | MLflow Experiment Tracking | ML Platforms | 2.5h | [lab-5.10-mlflow-experiment-tracking.md](labs/lab-5.10-mlflow-experiment-tracking.md) |
 | 5.11 | NVIDIA FIPS Configuration | Compliance | 2h | [lab-5.11-nvidia-fips.md](labs/lab-5.11-nvidia-fips.md) |
 | 5.12 | Cluster Templates for AI | Compliance | 2h | [lab-5.12-cluster-templates.md](labs/lab-5.12-cluster-templates.md) |
-| 5.13 | TensorRT-LLM Optimization | Advanced | 3h | [lab-5.13-tensorrt-llm.md](labs/lab-5.13-tensorrt-llm.md) |
+| 5.13 | TensorRT-LLM Optimization | Advanced | 3.5h | [lab-5.13-tensorrt-llm.md](labs/lab-5.13-tensorrt-llm.md) |
 | 5.14 | Slurm Operator for HPC | Advanced | 3h | [lab-5.14-slurm-operator-hpc.md](labs/lab-5.14-slurm-operator-hpc.md) |
-| 5.15 | RDMA Multi-Cloud | Advanced | 3h | [lab-5.15-rdma-multi-cloud.md](labs/lab-5.15-rdma-multi-cloud.md) |
-| 5.16 | Distributed Training | Advanced | 3h | [lab-5.16-distributed-training.md](labs/lab-5.16-distributed-training.md) |
+| 5.15 | RDMA Multi-Cloud | Advanced | 4h | [lab-5.15-rdma-multi-cloud.md](labs/lab-5.15-rdma-multi-cloud.md) |
+| 5.16 | Distributed Training | Advanced | 4.5h | [lab-5.16-distributed-training.md](labs/lab-5.16-distributed-training.md) |
 
 ### Key Software References
 
 | Component | Version / Path | Notes |
 |-----------|---------------|-------|
-| vLLM | v0.11.2 | Pin `vllm/vllm-openai:v0.11.2` in production |
-| KAI Scheduler | `oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler` | OCI Helm chart |
-| NVIDIA GPU Operator | v25.10.0 | Installed via Helm with k0s containerd env vars |
-| Kubeflow | Latest stable | Pipelines, Training Operator, Katib |
-| MLflow | Latest stable | Tracking server + model registry |
+| vLLM | Validated example pin: `v0.14.0` | Lab examples use a pinned image; verify newer upstream releases before production rollout |
+| KAI Scheduler | `oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler` (`v0.14.0`) | OCI Helm chart |
+| NVIDIA GPU Operator | Validated example pin: `v25.10.0` | Installed via Helm with k0s containerd env vars |
+| Kubeflow | Mixed component pins in Lab 5.9 | Pipelines, Training Operator, Katib, and Notebooks are installed separately |
+| MLflow | k0rdent template `mlflow-1-8-1` | Current catalog example is chart `1.8.1`, app version `3.7.0` |
 
 > **GPU Operator on k0s:** The GPU Operator must be installed via Helm with
 > k0s-specific containerd socket and runtime class environment variables.

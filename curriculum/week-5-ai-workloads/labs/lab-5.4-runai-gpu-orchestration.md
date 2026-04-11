@@ -64,7 +64,7 @@ Deploy and operate NVIDIA Run:ai for enterprise GPU orchestration on a k0rdent-m
 - Kubernetes cluster with 2+ GPU nodes (k0rdent-managed)
 - NVIDIA GPU Operator v25.3-25.10 installed
 - `kubectl` and `helm` (v3.14+) installed
-- HAProxy ingress controller deployed (NGINX is deprecated in Run:ai v2.24)
+- A working ingress controller validated for your Run:ai release
 - Run:ai control plane URL and admin credentials (provided by instructor)
 
 > **Note:** This lab uses the NVIDIA Run:ai **commercial platform** (v2.24). Run:ai requires a license from NVIDIA. In a training environment, your instructor provides access to a shared Run:ai control plane. For the open-source KAI Scheduler alternative, see [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md).
@@ -140,7 +140,7 @@ The **control plane** can be NVIDIA-hosted (SaaS) or self-hosted in your own inf
 **Cluster Requirements:**
 - Kubernetes 1.33-1.35
 - NVIDIA GPU Operator v25.3-25.10
-- HAProxy ingress controller
+- Ingress controller validated for your Run:ai release
 - Default StorageClass configured
 - Prometheus installed (for cluster metrics)
 - 4+ GPUs across 2+ nodes
@@ -168,8 +168,8 @@ The Run:ai control plane is already deployed (by your instructor or as SaaS). In
    # GPU Operator pods should be Running
    kubectl get pods -n gpu-operator -l app.kubernetes.io/managed-by=gpu-operator
 
-   # HAProxy ingress controller should be Running
-   kubectl get pods -A -l app.kubernetes.io/name=haproxy-ingress
+   # A supported ingress controller should be Running
+   kubectl get pods -A | grep -E 'ingress-nginx|haproxy'
 
    # Default StorageClass must exist
    kubectl get storageclass -o name

@@ -432,7 +432,7 @@ spec:
     spec:
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.11.2
+          image: vllm/vllm-openai:v0.14.0
           args:
             - --model
             - meta-llama/Llama-2-13b-chat-hf
@@ -585,7 +585,7 @@ spec:
     spec:
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.11.2
+          image: vllm/vllm-openai:v0.14.0
           args:
             - --model
             - meta-llama/Llama-2-7b-chat-hf

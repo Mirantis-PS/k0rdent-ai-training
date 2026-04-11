@@ -290,7 +290,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.11.2
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                - meta-llama/Llama-2-7b-chat-hf
@@ -635,7 +635,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.11.2
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                - meta-llama/Llama-2-70b-chat-hf
@@ -792,7 +792,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.11.2
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                - meta-llama/Llama-2-70b-chat-hf
@@ -839,7 +839,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.11.2
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                # Use pre-quantized AWQ model from HuggingFace
@@ -1011,11 +1011,11 @@ spec:
   serviceSpec:
     services:
       # KServe CRDs (install first)
-      - template: kserve-crd-0-15-0
+      - template: kserve-crd-v0-15-0
         name: kserve-crd
         namespace: kserve
       # KServe controller
-      - template: kserve-0-15-0
+      - template: kserve-v0-15-0
         name: kserve
         namespace: kserve
         values: |
@@ -1045,7 +1045,7 @@ spec:
       autoSelect: true
   containers:
     - name: kserve-container
-      image: vllm/vllm-openai:v0.11.2
+      image: vllm/vllm-openai:v0.14.0
       args:
         - --port
         - "8080"
@@ -1206,7 +1206,7 @@ kubectl exec deployment/vllm-llama2 -n vllm-inference -- nvidia-smi
 3. **GPU memory utilization** should be tuned based on model size
 4. **Shared memory (shm)** is required for efficient tensor operations
 5. **Health/readiness probes** must account for model loading time
-6. **Always pin vLLM versions** in production (current: v0.11.2)
+6. **Always pin vLLM versions** in production (validated example in this lab: v0.14.0)
 7. **vLLM V1 architecture** (v0.11+) provides significant performance improvements
 
 ### Advanced Concepts
