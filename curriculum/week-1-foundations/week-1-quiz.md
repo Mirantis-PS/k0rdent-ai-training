@@ -62,7 +62,7 @@ d) kube-state-metrics -> InfluxDB -> Grafana
 ### 8. How does KSM (k0rdent State Manager) install and manage Helm charts on workload clusters?
 
 a) It SSHs into each workload cluster node and runs `helm install` directly
-b) It creates HelmRelease objects that Flux's Helm Controller reconciles on target clusters via Sveltos
+b) It creates ServiceSet objects that the built-in provider translates into ProjectSveltos Profile or ClusterProfile resources
 c) It embeds chart manifests into the ClusterDeployment spec and applies them during provisioning
 d) It uses Argo CD ApplicationSets to sync charts from a Git repository
 
@@ -73,11 +73,11 @@ b) Management
 c) ClusterTemplateChain
 d) Credential
 
-### 10. When upgrading k0rdent Enterprise via Helm, what is the recommended first step before running `helm upgrade`?
+### 10. Before activating a new k0rdent `Release`, what is the recommended first step?
 
 a) Delete all existing ClusterDeployments to prevent conflicts
 b) Scale down CAPI controllers to zero replicas
-c) Take an etcd backup and export k0rdent resource definitions
+c) Ensure a successful `ManagementBackup` exists and backup storage is healthy
 d) Upgrade all workload clusters to the latest Kubernetes version first
 
 ### 11. What is the recommended way to expose the k0rdent UI in production?
@@ -108,9 +108,9 @@ Answer each question in 1-3 sentences.
 
 ### 16. KOF deploys OpenTelemetry collectors to child clusters, but in a multi-VPC AWS environment the collectors cannot reach VictoriaMetrics on the management cluster. Explain why this happens and name two approaches to solve it.
 
-### 17. Why are etcd backups critical before upgrading k0rdent Enterprise, and under what circumstances would you use an etcd restore versus a Helm rollback?
+### 17. Why is `ManagementBackup` critical before upgrading k0rdent Enterprise, and under what circumstances would you use a Velero restore versus an etcd restore?
 
-### 18. Explain how RBAC and namespace isolation work together in k0rdent to support multi-team access to shared management infrastructure. Include the role of the `k0rdent.mirantis.com/project` label.
+### 18. Explain how RBAC and namespace isolation work together in k0rdent to support multi-team access to shared management infrastructure. Include the role of `allowedNamespaces` on provider identity CRDs.
 
 ### 19. A student provisions a management cluster and the k0rdent UI Gateway shows `PROGRAMMED: True` with an ELB hostname, but the ELB has zero registered instances and HTTP requests fail. Explain the four AWS tags that CCM requires and why a missing `providerID` on the node prevents instance registration.
 
@@ -137,11 +137,11 @@ Answer each question in 1-3 sentences.
 
 7. **b)** -- KOF's metrics pipeline is: OpenTelemetry Collector (on each cluster) -> VictoriaMetrics (vminsert/vmselect/vmstorage for storage and querying) -> Grafana (visualization). The other options describe different monitoring stacks not used by KOF.
 
-8. **b)** -- KSM creates HelmRelease objects that are reconciled by Flux's Helm Controller. Sveltos distributes these to target workload clusters based on MultiClusterService label selectors. KSM does not SSH into nodes (a), embed charts in ClusterDeployments (c), or use Argo CD (d).
+8. **b)** -- In the current built-in provider workflow, k0rdent creates `ServiceSet` objects and translates them into ProjectSveltos `Profile` or `ClusterProfile` resources. ProjectSveltos then reconciles those services on matching clusters. KSM does not SSH into nodes (a), embed charts in ClusterDeployments (c), or use Argo CD (d).
 
 9. **c)** -- ClusterTemplateChain defines `supportedTemplates` with `availableUpgrades` fields that specify which template versions can upgrade to which. ProviderTemplate (a) registers CAPI providers, Management (b) is the core config object, and Credential (d) handles authentication.
 
-10. **c)** -- The recommended pre-upgrade steps are: take an etcd backup (`k0s etcd backup`) and export k0rdent resource definitions to YAML files. This ensures you can restore to a known-good state if the upgrade fails. Deleting ClusterDeployments (a) would destroy running clusters. Scaling down controllers (b) is unnecessary. Upgrading workload clusters first (d) is not required and is independent of the management plane upgrade.
+10. **c)** -- The documented k0rdent workflow is to make sure `ManagementBackup` is working before you activate a new `Release`. That backup gives you a supported restore point for k0rdent, CAPI, and related resources if the upgrade fails. Deleting ClusterDeployments (a) would destroy running clusters. Scaling down controllers (b) is unnecessary. Upgrading workload clusters first (d) is not required and is independent of the management plane upgrade.
 
 11. **c)** Gateway API (Gateway + HTTPRoute) with TLS and OIDC authentication -- Gateway API is the Kubernetes-native successor to Ingress, providing role-based separation and richer routing capabilities.
 
@@ -157,9 +157,9 @@ Answer each question in 1-3 sentences.
 
 16. CAPA creates a new, isolated VPC for each managed cluster. The internal Kubernetes DNS names (e.g., `vminsert-cluster.kof.svc.cluster.local`) only resolve within the management cluster, and the management cluster's pod/service CIDRs are not routable from the managed cluster's VPC. Two solutions: (1) VPC Peering -- create a peering connection between the management and managed cluster VPCs with appropriate route table and security group updates; (2) LoadBalancer exposure -- expose KOF storage services (vminsert, VictoriaLogs vlinsert, Jaeger collector) via AWS Network Load Balancers and update the child cluster configuration to use the NLB endpoints (requires AWS Cloud Controller Manager on the management cluster).
 
-17. etcd contains all Kubernetes state, including k0rdent CRDs, ClusterDeployments, credentials, and template definitions. If an upgrade corrupts CRDs or introduces breaking schema changes, the backup ensures recovery to a known-good state. Use Helm rollback (`helm rollback kcm <revision>`) as the first response to a failed upgrade, since it reverts the Helm release and restarts controllers without affecting other cluster state. Use etcd restore only as a last resort when Helm rollback itself fails or CRD data is corrupted beyond what a Helm rollback can fix, keeping in mind that etcd restore reverts ALL cluster state (not just k0rdent) to the backup point.
+17. `ManagementBackup` provides the documented recovery point for k0rdent upgrades because it captures the k0rdent, CAPI, cert-manager, and related resources selected by the product's backup labels. Use a Velero restore when a release revert is not enough and you need to restore those management-plane resources to the pre-upgrade state. Use an etcd restore only as a platform-level last resort, because it reverts the entire cluster state, not just k0rdent.
 
-18. k0rdent uses Kubernetes namespaces as tenant boundaries. Each team gets a dedicated namespace (e.g., `team-platform`, `team-ml`) labeled with `k0rdent.mirantis.com/project=<project-name>` to identify the project. RBAC Roles scoped to these namespaces (e.g., `k0rdent-project-admin`) grant teams permission to create and manage ClusterDeployments and MultiClusterServices only within their own namespace. ClusterRoles like `k0rdent-cluster-viewer` provide read-only fleet visibility. The Provider Identity CRD's `allowedNamespaces` field further restricts which namespaces can use specific cloud credentials, and ResourceQuotas limit the number of clusters and compute resources each team can consume.
+18. k0rdent uses Kubernetes namespaces as the primary tenant boundary. Teams should work in their own namespaces with namespace-scoped RoleBindings, while `kcm-system` remains reserved for platform components and sensitive resources. Built-in roles such as `kcm-namespace-editor-role` and `kcm-credentials-viewer-role` help separate cluster-management permissions from credential visibility, and the provider identity CRD's `allowedNamespaces` field further restricts which namespaces are allowed to use a given cloud identity.
 
 19. CCM requires four tags to function: (1) `kubernetes.io/cluster/<cluster-name>=owned` on the EC2 instance, so CCM can determine which cluster the instance belongs to (without it, CCM refuses to start with "ClusterID not found"); (2) `kubernetes.io/role/elb=1` on public subnets, so CCM knows where to place internet-facing load balancers; (3) `kubernetes.io/role/internal-elb=1` on private subnets for internal load balancers; (4) `kubernetes.io/cluster/<cluster-name>=owned` on subnets so CCM only uses subnets belonging to its cluster. The `providerID` (format: `aws:///az/instance-id`) is critical because CCM uses it to map a Kubernetes node to its EC2 instance. When CCM creates an ELB and calls `RegisterInstances`, it needs the EC2 instance ID — which it extracts from the providerID. Without it, CCM creates the ELB but registers zero instances, resulting in a load balancer that accepts connections but has no backends to forward to.
 

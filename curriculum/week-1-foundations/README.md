@@ -51,14 +51,14 @@ By the end of this week, you will be able to:
 
 ## Version Compatibility
 
-These labs are validated against the following versions. If your environment uses different versions, commands and template names may differ.
+These labs are validated against the repo-pinned versions and installation behavior below. Official Mirantis documentation may show newer releases; follow the versions in this table when working through Week 1 exactly.
 
 | Component | Version | Used In |
 |-----------|---------|---------|
 | k0rdent Enterprise | 1.2.2 | Lab 1.1 (auto-installed); upgrade to 1.2.3 in Lab 1.8 |
 | k0s | v1.32.4+k0s.0 | Lab 1.1 (auto-installed) |
-| Flux | v2.4.0 | Lab 1.1 (auto-installed) |
-| clusterctl | v1.9.0 | Lab 1.1 (auto-installed) |
+| Flux CLI | Installed by the upstream install script during provisioning (version may vary) | Lab 1.1 (auto-installed) |
+| clusterctl | v1.12.4 | Lab 1.1 (auto-installed) |
 | k0sctl | v0.19.4 | Lab 1.1 (auto-installed) |
 | KOF charts | 1.5.0 | Lab 1.6 |
 | cert-manager ServiceTemplate | 1.16.2 | Lab 1.7 |

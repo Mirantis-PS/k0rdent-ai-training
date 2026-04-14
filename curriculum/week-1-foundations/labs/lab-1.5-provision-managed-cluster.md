@@ -214,10 +214,10 @@ EOF
 > **Important Configuration Notes:**
 > - **template**: Must match an available ClusterTemplate. Run `kubectl get clustertemplates -n kcm-system | grep aws` to find it.
 > - **region**: Uses `$AWS_REGION` which you set earlier. This must match the region where your management cluster and SSH key pair live.
-> - **clusterIdentity**: References your AWSClusterStaticIdentity created in Lab 1.3. The identity's `allowedNamespaces.list` must include `kcm-system` (see Lab 1.3). If you skipped that, patch it now:
+> - **clusterIdentity**: References your AWSClusterStaticIdentity created in Lab 1.3. If you restricted `allowedNamespaces` during setup, make sure `kcm-system` is permitted. For the training lab, the simplest setting is unrestricted access:
 >   ```bash
 >   kubectl patch awsclusterstaticidentity aws-cluster-identity --type=merge \
->     -p '{"spec":{"allowedNamespaces":{"list":["kcm-system"]}}}'
+>     -p '{"spec":{"allowedNamespaces":{}}}'
 >   ```
 > - **sshKeyName** (commented out): Only needed if you want direct SSH access to managed cluster nodes. If included, the key pair must exist in the target region (see Lab 1.3, Part 6).
 
@@ -345,10 +345,10 @@ Common issues:
 - **Insufficient IAM permissions**: Check AWS credential has required permissions (see Lab 1.3)
 - **Instance type unavailable**: Try a different instance type or region
 - **SSH key not found**: Ensure key pair exists in the target region (must match `config.region`)
-- **"Namespace is not permitted to use AWSClusterStaticIdentity"**: Your identity's `allowedNamespaces` must include `kcm-system`. Patch with:
+- **"Namespace is not permitted to use AWSClusterStaticIdentity"**: Your identity's `allowedNamespaces` is too restrictive for the training namespace. Patch with:
   ```bash
-  kubectl patch awsclusterstaticidentity aws-cluster-identity -n kcm-system --type=merge \
-    -p '{"spec":{"allowedNamespaces":{"list":["kcm-system"]}}}'
+  kubectl patch awsclusterstaticidentity aws-cluster-identity --type=merge \
+    -p '{"spec":{"allowedNamespaces":{}}}'
   ```
 - **"AWS was not able to validate the provided access credentials"**: If using AWS SSO, ensure your secret includes `SessionToken`. Refresh credentials and update the secret (see Lab 1.3 SSO section). After updating the secret, you **must** restart the CAPA controller to pick up the new credentials:
   ```bash
