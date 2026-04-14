@@ -186,6 +186,12 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    > **Note:** Verify the OCI chart path before running. Check [catalog.k0rdent.io](https://catalog.k0rdent.io/) for the latest kgst chart URL. If the path below fails, consult the [k0rdent documentation](https://docs.k0rdent.io/) for updated installation instructions.
 
    ```bash
+   # Install cert-manager (required by KServe's webhook certificates)
+   helm upgrade --install cert-manager \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=cert-manager:1.17.2" \
+     -n kcm-system
+
    # Install NVIDIA GPU Operator (no `v` prefix on this chart's tag)
    helm upgrade --install gpu-operator \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
@@ -224,6 +230,7 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    kubectl get servicetemplates -n kcm-system
 
    # Expected output includes:
+   # cert-manager-1-17-2
    # gpu-operator-25-10-0
    # kserve-crd-v0-15-0
    # kserve-v0-15-0
