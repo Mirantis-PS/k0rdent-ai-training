@@ -249,11 +249,19 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
 
 `MultiClusterService` deploys services to all clusters matching a label selector. This is the primary mechanism for multi-cluster service deployment in k0rdent.
 
-1. **Verify Target Cluster Labels**
+1. **Label the Target Cluster, then Verify**
+
+   Lab 5.1 provisions `gpu-cluster` with `environment=training, gpu-enabled=true`, but it does not add the `workload-type=ml-training` label this lab's `MultiClusterService` uses to segment AI/ML workloads. Add it now so the selector below has something to match:
+
    ```bash
-   # Check which clusters have the ml-training label
+   kubectl label clusterdeployment gpu-cluster -n kcm-system workload-type=ml-training --overwrite
+
+   # Verify the selector now matches at least one cluster
    kubectl get clusterdeployments -A -l workload-type=ml-training
+   # Expected: the gpu-cluster row appears
    ```
+
+   > **Why add the label here instead of in Lab 5.1?** Lab 5.1's labels (`environment`, `gpu-enabled`) describe the cluster's physical characteristics; `workload-type` describes which set of services it should receive. Keeping the two concerns separate lets a single GPU cluster host different workload profiles over time (`ml-training`, `ml-inference`, `batch`, etc.) just by relabeling.
 
 2. **Create a MultiClusterService for an ML Stack**
    ```yaml
