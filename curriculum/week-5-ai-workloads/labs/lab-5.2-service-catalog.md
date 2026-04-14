@@ -186,6 +186,12 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    > **Note:** Verify the OCI chart path before running. Check [catalog.k0rdent.io](https://catalog.k0rdent.io/) for the latest kgst chart URL. If the path below fails, consult the [k0rdent documentation](https://docs.k0rdent.io/) for updated installation instructions.
 
    ```bash
+   # Install NVIDIA GPU Operator (no `v` prefix on this chart's tag)
+   helm upgrade --install gpu-operator \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=gpu-operator:25.10.0" \
+     -n kcm-system
+
    # Install KServe CRDs (required before KServe itself)
    helm upgrade --install kserve-crd \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
@@ -201,21 +207,24 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    # Install MLflow
    helm upgrade --install mlflow \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
-    --set "chart=mlflow:1.8.1" \
+     --set "chart=mlflow:1.8.1" \
      -n kcm-system
 
    # Install KubeRay operator
    helm upgrade --install kuberay-operator \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
-    --set "chart=kuberay-operator:1.5.1" \
+     --set "chart=kuberay-operator:1.5.1" \
      -n kcm-system
    ```
+
+   > **Why the mix of `v` and no-`v` version tags?** The `kgst` meta-chart passes the version string straight through to the OCI registry, and each catalog chart mirrors the upstream project's release convention. KServe tags releases `v0.15.0`; NVIDIA GPU Operator, MLflow, and KubeRay tag them `25.10.0`, `1.8.1`, `1.5.1`. Using the wrong prefix (e.g. `gpu-operator:v25.10.0`) causes the kgst pre-install `verify-job` to fail with `not found` because the OCI tag does not exist.
 
 2. **Verify the ServiceTemplates Were Created**
    ```bash
    kubectl get servicetemplates -n kcm-system
 
    # Expected output includes:
+   # gpu-operator-25-10-0
    # kserve-crd-v0-15-0
    # kserve-v0-15-0
    # mlflow-1-8-1
@@ -224,6 +233,8 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    # Check that templates are valid
    kubectl get servicetemplates -n kcm-system -o custom-columns='NAME:.metadata.name,VALID:.status.valid'
    ```
+
+   > **Templates may briefly show `VALID=false` or `<none>` right after `helm install` while FluxCD pulls the chart from the OCI registry (typically 30-60 s). Re-check after a short wait before treating it as an error.**
 
 3. **Inspect a Template's Chart Reference**
    ```bash
