@@ -284,10 +284,10 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
          workload-type: ml-training
      serviceSpec:
        services:
-         # GPU Operator (deploy first via higher priority)
-         - template: gpu-operator-25-10-0
-           name: gpu-operator
-           namespace: gpu-operator
+         # cert-manager (required for KServe's webhook certificates)
+         - template: cert-manager-1-17-2
+           name: cert-manager
+           namespace: cert-manager
 
          # KServe for model serving
          - template: kserve-crd-v0-15-0
@@ -308,6 +308,8 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
            namespace: kuberay
        priority: 100
    ```
+
+   > **Why isn't `gpu-operator-25-10-0` in this MCS?** Lab 5.1's Pre-Lab Step 4 already installed GPU Operator directly on `gpu-cluster` via `helm install`, and it depends on k0s-specific `toolkit.env` values (`CONTAINERD_CONFIG=/etc/k0s/containerd.d/nvidia.toml`, `CONTAINERD_SOCKET=/run/k0s/containerd.sock`, `CONTAINERD_RUNTIME_CLASS=nvidia`). Adding `gpu-operator-25-10-0` to this MCS would cause Sveltos to adopt the existing Helm release and upgrade it using the ServiceTemplate's default chart values — which do **not** contain the k0s-specific overrides — silently re-registering the `nvidia` runtime class incorrectly and leaving the NVIDIA container toolkit daemonset flapping with `FailedCreatePodSandBox: no runtime for "nvidia" is configured`. The ServiceTemplate is still installed in Task 2 so Lab 5.6 and Lab 5.11 can reference it, but the actual deployment on `gpu-cluster` stays with the manual install from Lab 5.1. When you need to deploy GPU Operator via MCS on a new cluster, pass the k0s values explicitly in the `values: |` field (the pattern demonstrated for MLflow in Task 4).
 
    ```bash
    kubectl apply -f ml-platform-mcs.yaml
