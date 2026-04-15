@@ -160,19 +160,20 @@ In 2025, NVIDIA open-sourced the core scheduling engine from Run:ai as the **KAI
    # All KAI components should be Running
    kubectl get pods -n kai-scheduler
 
-   # Expected pods:
-   #   kai-scheduler-operator-*
-   #   kai-scheduler-scheduler-*
-   #   kai-scheduler-podgrouper-*
-   #   kai-scheduler-podgroupcontroller-*
-   #   kai-scheduler-binder-*
-   #   kai-scheduler-queuecontroller-*
-   #   kai-scheduler-admission-*
-   #   kai-scheduler-nodescaleadjuster-*
+   # Expected pods (KAI v0.14.0 drops the `kai-scheduler-` prefix on most components):
+   #   kai-operator-*
+   #   kai-scheduler-default-*
+   #   pod-grouper-*
+   #   podgroup-controller-*
+   #   binder-*
+   #   queue-controller-*
+   #   admission-*
 
    # Verify the scheduler is ready
-   kubectl get pods -n kai-scheduler -l app=kai-scheduler-scheduler
+   kubectl get pods -n kai-scheduler -l app=kai-scheduler-default
    ```
+
+   > **Note on naming:** The scheduler Deployment is named `kai-scheduler-default` (and can be extended with additional shards via the `SchedulingShard` CRD — see Task 7's metrics port-forward targets). The `nodescaleadjuster` component is not installed by default in v0.14.0; it is an optional cluster-autoscaler integration enabled via a separate Helm value.
 
 3. **Check Default Queues**
 
