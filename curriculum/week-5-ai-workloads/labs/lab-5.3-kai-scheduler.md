@@ -510,12 +510,21 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
    kubectl apply -f kai-fractional-1.yaml
    kubectl apply -f kai-fractional-2.yaml
 
-   # Both pods should be Running on the same node/GPU
+   # Both pods should be Running on the same node, sharing the same physical GPU
    kubectl get pods frac-gpu-1 frac-gpu-2 -o wide
 
-   # Check resource reservation pods (KAI creates these to hold GPU slots)
+   # Confirm they are on the same physical GPU (NVIDIA_VISIBLE_DEVICES should match)
+   kubectl exec frac-gpu-1 -- bash -c 'echo $NVIDIA_VISIBLE_DEVICES $RUNAI_NUM_OF_GPUS'
+   kubectl exec frac-gpu-2 -- bash -c 'echo $NVIDIA_VISIBLE_DEVICES $RUNAI_NUM_OF_GPUS'
+   # Expected output (same GPU UUID on both lines, and RUNAI_NUM_OF_GPUS=0.50):
+   #   GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx 0.50
+   #   GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx 0.50
+
+   # Optional: list any resource reservation pods (may or may not exist)
    kubectl get pods -n kai-resource-reservation
    ```
+
+   > **On the `kai-resource-reservation` namespace:** the namespace is created by the KAI chart but is frequently **empty** in v0.14.0 even with active fractional workloads. KAI v0.14.0's default fractional-sharing mechanism injects `NVIDIA_VISIBLE_DEVICES=<shared-gpu-uuid>` and `RUNAI_NUM_OF_GPUS=0.50` into each pod via an auto-generated ConfigMap; the two pods then see the same physical GPU directly. A reservation pod is only created when KAI needs to hold a GPU slot that the application pod cannot yet consume (e.g. during staged allocation). If the namespace is empty but both pods are `Running` and report the same `NVIDIA_VISIBLE_DEVICES`, fractional sharing is working as intended.
 
 5. **Request Fractional GPU by Memory Amount**
 
