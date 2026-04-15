@@ -438,7 +438,16 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
 
    # Wait for pods to restart
    kubectl rollout status deployment -n kai-scheduler -l app=kai-scheduler-default
+
+   # REQUIRED: force a scheduler rollover so it picks up the new ServiceAccount
+   # token (see explanation below).
+   kubectl rollout restart deployment/kai-scheduler-default -n kai-scheduler
+   kubectl rollout status deployment/kai-scheduler-default -n kai-scheduler --timeout=2m
    ```
+
+   > **Why the scheduler must be explicitly restarted:** Enabling `global.gpuSharing=true` causes the KAI Helm chart to delete and recreate every ServiceAccount in the `kai-scheduler` namespace (admission, binder, pod-grouper, podgroup-controller, queue-controller, **scheduler**). For all components except the scheduler, the change also bumps the Deployment's pod-template spec, so the Deployment controller rolls the pod automatically and the new pod mounts a token tied to the new SA UID. The **scheduler's** pod template is *not* modified by the `gpuSharing` flag, so no rollover happens — yet its projected token now references a dead SA UID.
+   >
+   > The symptom is subtle: RBAC checks pass (`kubectl auth can-i update podgroups/status --as=system:serviceaccount:kai-scheduler:scheduler` returns `yes`), but the scheduler log fills with `ERROR status_updater/concurrency.go ... Failed to update pod group status <ns>/<pg-name>: Unauthorized`, and *every fractional pod stays in `Pending` forever* because its `PodGroup.status` can never be written. The explicit `kubectl rollout restart` above forces the pod to remount a valid token.
 
 2. **Submit a Half-GPU Workload**
 
