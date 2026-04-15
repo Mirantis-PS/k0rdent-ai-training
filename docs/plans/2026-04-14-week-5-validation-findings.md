@@ -325,3 +325,169 @@ When a Run:ai trial license becomes available, re-run this lab end-to-end agains
 that has ingress-nginx (or verified-Envoy) and Prometheus installed. Use the atomic-commit / findings-entry pattern
 established in Labs 5.1–5.3 to capture empirical learnings.
 
+---
+
+## Lab 5.5: vLLM Inference Service
+
+**Status:** 🟡 PASS with fixes (Tasks 1–5 empirically validated; Task 6 prereq documented but adapter-rule
+installation deferred; Tasks 7–9 skipped with conceptual verification only)
+
+**Execution time:** ~4h wall clock (vs 4h stated, vs ~2h plan-calibrated). Actual run went significantly over
+the calibrated estimate because of **out-of-scope infrastructure setup** not anticipated by the plan:
+  - kube-prometheus-stack + prometheus-adapter installation (~8 min)
+  - Envoy Gateway deployed first via direct helm, then migrated to k0rdent MCS path (~15 min incl. cleanup)
+  - MCS cluster reconciliation + CLB AWS health-check registration (~4 min)
+  - Two architectural pivots based on user feedback during execution
+Base Task 1–5 work (namespace/PVC → vLLM → Gateway → test → monitoring) took ~45 minutes once infra was in place.
+
+**Cluster state at start:** gpu-cluster from Lab 5.3 session still Running (4× A10G allocatable, GPU Operator v25.3.0,
+KAI Scheduler v0.14.0 with `gpuSharing=true`, custom queues + PriorityClasses preserved). No Prometheus, no Envoy
+Gateway — both installed as part of this session.
+
+### Empirical bug fixes committed
+
+- `c69a534` **fix(lab-5.5): swap default model to Qwen2.5-7B-Instruct (open-access)** — Lab's default
+  `meta-llama/Llama-2-7b-chat-hf` is a gated model requiring HF license acceptance + HF_TOKEN. Blocks students
+  out-of-the-box. Swapped default to `Qwen/Qwen2.5-7B-Instruct` (Apache 2.0, no gate, same 7B-Instruct class),
+  renamed Deployment `vllm-llama2` → `vllm-qwen` cascading through Tasks 2–6, made the `hf-token` Secret step
+  optional, updated all Task 4 JSON payload model references, kept Llama-2 as an optional drop-in.
+- `de0ee06` **fix(lab-5.5): rewrite Task 3 for Envoy Gateway (Gateway API) as default** — Lab's original Task 3
+  used `networking.k8s.io/v1 Ingress` with `ingressClassName: nginx`, which is a no-op on k0rdent's Envoy Gateway
+  clusters. Rewrote Task 3 to use `Gateway` + `HTTPRoute` with `gatewayClassName: envoy-gateway`; restricted
+  HTTPRoute to `/v1`, `/health`, `/metrics` path prefixes (no blanket `/` exposure). Kept the legacy Ingress YAML
+  as a documented fallback for ingress-nginx clusters.
+- `3feaf16` **fix(lab-5.5): lead Task 4 with external Gateway path; add Task 3 envoy-gateway install prereq** — Two
+  gaps: (a) Task 3 silently assumed Envoy Gateway was on the gpu-cluster, but Lab 5.1's `ClusterDeployment.spec.
+  serviceSpec` doesn't wire it in — my earlier `de0ee06` commit made a false claim about it being installed by
+  Week 1 Lab 1.7 on this specific cluster. (b) Task 4 led with `kubectl port-forward`, which doesn't work from
+  a student laptop when the cluster is behind a bastion. Rewrote Task 4 Step 1 with two labeled paths using
+  `$VLLM_URL` + `$VLLM_HOST_HEADER` env vars so the same commands work for both external-ELB and
+  port-forward cases. Added a Task 3 `>` prerequisite callout with verification commands and an initial pair of
+  install paths (later corrected by `51cf01e`).
+- `51cf01e` **fix(lab-5.5): correct envoy-gateway install — k0rdent catalog does publish it** — Reverses an
+  incorrect claim from `3feaf16`. The k0rdent catalog DOES publish `envoy-gateway` at catalog URL
+  <https://catalog.k0rdent.io/v1.2.0/apps/envoy-gateway/>, accessible via kgst as
+  `chart=envoy-gateway:1.7.1` (note the NO `v` prefix — classic TRAP 10). Earlier probe failed because I tried
+  upstream-convention tags `v1.3.0` / `v1.2.0`. Rewrote the Prerequisite callout to put the k0rdent MCS path
+  FIRST (preferred k0rdent-native pattern), with direct helm demoted to "Path B fallback" for
+  non-k0rdent-managed clusters. Added a TRAP 11 warning for anyone migrating from Path B to Path A.
+- `3b3f30f` **fix(lab-5.5): note manual GatewayClass + CLB registration timing after MCS install** — Two
+  gotchas encountered while validating Path A: (a) neither the catalog `envoy-gateway:1.7.1` chart nor the
+  upstream `envoyproxy/gateway-helm` chart creates a `GatewayClass` resource — students must apply one manually
+  after the controller is up. (b) Catalog chart sets `externalTrafficPolicy: Local` on the per-Gateway
+  LoadBalancer Service. On a 2-node cluster with single-replica Envoy, half the AWS CLB's initial health checks
+  fail until the unhealthy target is marked OutOfService (~60–120s). External curl returns HTTP 000 during
+  this window — added a note so students don't conclude the Gateway is broken.
+- `ff19ab0` **fix(lab-5.5): document adapter metric-name rewrite requirement for Task 6 HPA** — Task 6's HPA
+  uses `metric.name: vllm_num_requests_waiting` (underscore). Empirically verified: vLLM exposes metrics with
+  `:` separator (`vllm:num_requests_waiting`), and prometheus-adapter's default config preserves the colon when
+  serving the custom-metrics API. Kubernetes HPA `metric.name` is DNS-1123 validated and rejects colons — so
+  applying the HPA YAML as-written produces `FailedGetPodsMetric`. Added a Task 6 Prerequisite callout with the
+  `helm upgrade prometheus-adapter --set-json 'rules.custom=[...]'` invocation that rewrites `vllm:X` → `vllm_X`
+  at exposure, plus a rollout-restart step and a verification command.
+
+### Known traps encountered
+
+- **TRAP 10 (kgst OCI version-tag prefix):** Re-manifested with `envoy-gateway` — catalog uses `1.7.1` (no `v`)
+  vs upstream's `v1.3.0`. Cost ~5 minutes of wrong-path probing before the user pointed at the catalog URL.
+  Highlights the value of documenting each chart's catalog-tag-convention alongside its upstream convention.
+- **TRAP 4 (transient ServiceTemplate VALID=false):** Observed on `envoy-gateway-1-7-1` for ~30s post-install
+  while FluxCD pulled the OCI chart. Auto-healed.
+- **TRAP 11 (Sveltos adoption):** Deliberately AVOIDED by uninstalling the direct helm release before applying
+  the MCS. The migration sequence (delete Gateway → uninstall direct helm → apply MCS → re-create Gateway) is
+  now documented in commit `51cf01e` as a `>` callout so students who start with Path B can safely migrate to
+  Path A without hitting the silent-value-overwrite bug Lab 5.2 commit `4442e2c` surfaced.
+- **TRAP 1 (STS expiration):** Did not recur this session — STS was refreshed at session start (~3h prior);
+  STS token lasts 12h and was still valid throughout the ~4h lab run.
+
+### New findings (not pre-anticipated)
+
+- **[HIGH] Week 5 labs silently assume platform services that Lab 5.1 doesn't install.** Lab 5.5 assumes
+  Envoy Gateway; Lab 5.9 (Kubeflow) and 5.10 (MLflow) will likely assume Prometheus; several labs use KServe
+  (Lab 5.2 installed the ServiceTemplate but not on gpu-cluster). **Architectural recommendation:** augment
+  Lab 5.1's `ClusterDeployment.spec.serviceSpec` with a canonical "Week 5 platform baseline" — GPU Operator
+  (already there), cert-manager, kube-prometheus-stack, envoy-gateway, prometheus-adapter — and remove the
+  per-lab install instructions. This is a **new TRAP candidate (TRAP 16)** for promotion: _"Lab N's prerequisites
+  exceed what Lab 5.1's Pre-Lab delivers — per-lab install recipes are duplicated and drift over time."_
+- **[HIGH] kubectl port-forward is pedagogically fragile on bastion-architected clusters.** The default advice
+  in vLLM/KServe/MLflow/etc. labs is "port-forward to test the endpoint", but when the target kube API server
+  lives behind a bastion, port-forward tunnels traffic through the bastion-routed kubectl channel from the
+  user's laptop — typically fails or requires a nested SSH tunnel. Commit `3feaf16` introduced a dual
+  `$VLLM_URL`/`$VLLM_HOST_HEADER` pattern so the same curl works on either external-ELB or port-forward paths.
+  Worth adopting this pattern as a repo-wide convention for any lab with a K8s Service + a test endpoint.
+- **[HIGH] Prometheus metric colon separator breaks HPA referencing.** vLLM (and several other modern
+  Prometheus exporters) use `project:metric` naming, but K8s HPA `metric.name` is DNS-1123 and rejects colons.
+  The prometheus-adapter is the mandatory rewrite layer. **New TRAP candidate (TRAP 17):** _"HPA against a
+  Prometheus-native metric requires a prometheus-adapter rule rewriting `foo:bar` → `foo_bar`; without it,
+  FailedGetPodsMetric."_ Affects any lab using HPA + Prometheus custom metrics — Tasks 6 here, likely Lab 5.9
+  (Kubeflow Pipelines autoscaling), Lab 5.10 (MLflow).
+- **[MEDIUM] `envoy-gateway:1.7.1` catalog chart diverges from upstream in two ways that matter.** (a) It
+  doesn't ship a `GatewayClass` resource (but so doesn't upstream — so this is not catalog-specific; worth
+  noting regardless because the lab text implied the controller install is sufficient). (b) It sets
+  `externalTrafficPolicy: Local` on the per-Gateway LoadBalancer Service, introducing ~60–120s of CLB
+  registration delay before external traffic works. Both documented in commit `3b3f30f`.
+- **[MEDIUM] Sveltos MCS reconciliation time is variable** — observed ~2m55s from `kubectl apply` of the MCS
+  to envoy-gateway pod Running on the target cluster. Consistent with Lab 5.2 session's observations. Worth
+  a general note in the plan's TRAP 4 section that MCS operations have a ~2–3m typical cycle time.
+
+### Expected-output deviations
+
+- **Task 2 first-boot timing:** Lab implies ~45 min for "Deploy vLLM Server". Actual: image pull ~3m56s (9GB),
+  Qwen2.5-7B model download + compile ~5 min. Total ~9 min on first run (empty PVC cache). Subsequent runs on
+  the same node with the PVC cached would be ~1 min. Worth a TRAP 5-style timing note.
+- **Task 4 latency:** Observed ~570 ms per small request (20-token response) on A10G. Lab has no specific
+  latency claims but this is a reasonable baseline for future Task 9 benchmark comparisons.
+- **Task 5 `kai_total_preemption_attempts`:** N/A — no preemption in Lab 5.5.
+- **Task 6 HPA `<unknown>` target:** Expected before prereq rule; after rule it would show actual metric value.
+  Left unvalidated this session (adapter rule recipe documented but not applied).
+
+### Deferred polish (not fixed in this pass)
+
+- **Apply the prometheus-adapter metric-rewrite rule.** Commit `ff19ab0` documents the rule but doesn't install
+  it; the HPA from Task 6 is therefore non-functional in the live cluster. A follow-up session should apply the
+  rule (`helm upgrade prometheus-adapter --set-json 'rules.custom=[...]'`) and empirically verify the HPA scales
+  up on load.
+- **Task 7 (Tensor Parallelism TP=8 with Llama-70B):** Requires 8×A100/H100 with NVLink. Our cluster is 4×A10G
+  without NVLink (PCIe-only). A TP=4 variant with Qwen2.5-7B would demonstrate the flag mechanics (~30 min
+  model re-download + new Deployment), but doesn't demonstrate the pedagogical point (large model splitting
+  with NVLink-backed all-reduce). Deferred with an inline note in the lab that the task is validated
+  conceptually but needs target hardware.
+- **Task 8 (FP8 Quantization):** A10G is Ampere (CC=8.6); FP8 W8A8 requires Hopper (CC≥8.9 — H100/H200/GH200).
+  AWQ INT4 path would work on A10G but requires pulling a different pre-quantized model (`TheBloke/*-AWQ`) —
+  ~15 min of extra download for a partial task demo. Deferred.
+- **Task 9 (Performance Benchmarking):** Basic latency captured in Task 4 (~570 ms single-request). Full
+  throughput sweep (concurrent requests, varying batch sizes, TP comparison) deferred.
+- **Doc nit:** ~6 Llama-2-70B references in Tasks 7-9 background/YAML examples were intentionally NOT updated
+  to Qwen2.5-72B because the lab's math (70B → 140GB FP16 → TP=8 arithmetic) is Llama-2-specific. If the lab
+  re-targets another model family as default, those sections need a coordinated rewrite.
+
+### Cleanup
+
+Preserved on gpu-cluster for potential Lab 5.6+ reuse:
+- `vllm-inference/vllm-qwen` Deployment (1 replica, Qwen2.5-7B running, ready)
+- `vllm-inference/vllm-qwen` Service (ClusterIP)
+- `vllm-inference/vllm-gateway` Gateway (PROGRAMMED=True, external ELB reachable)
+- `vllm-inference/vllm-qwen` HTTPRoute (attached)
+- `vllm-inference/vllm-qwen` ServiceMonitor (Prometheus scraping, health=up)
+- `vllm-inference/model-cache` PVC (50 Gi bound, Qwen2.5 weights cached)
+- `envoy-gateway` GatewayClass
+- `envoy-gateway-system/envoy-gateway` Deployment (MCS-managed)
+
+Preserved on mgmt cluster:
+- `envoy-gateway-1-7-1` ServiceTemplate
+- `envoy-gateway` MultiClusterService (1/1 clusters bound)
+
+Removed:
+- `vllm-inference/vllm-qwen` HPA (non-functional without adapter rule; recipe documented for follow-up)
+- Direct helm release `eg` in `envoy-gateway-system` (replaced by MCS-deployed release)
+- `eg-gateway-helm-certgen-*` completed Job (from direct install)
+
+### gpu-cluster state at end of lab
+
+- `gpu-cluster` READY=True, 4 GPUs allocatable
+- KAI Scheduler v0.14.0 still in `kai-scheduler` ns with `gpuSharing=true` (from Lab 5.3)
+- kube-prometheus-stack (5 pods) + prometheus-adapter (1 pod) in `monitoring` ns — new this session
+- envoy-gateway controller (1 pod) in `envoy-gateway-system` — MCS-managed, new this session
+- per-Gateway envoy pod (1 pod) in `envoy-gateway-system` handling `vllm-gateway` traffic
+- vLLM pod (`vllm-qwen`) Running, Qwen2.5-7B loaded, accessible via CLB at
+  `a19e5ac73d01e4f3b852fac3ab613ec7-326824152.us-east-1.elb.amazonaws.com` with Host header `vllm.example.com`
