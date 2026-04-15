@@ -825,45 +825,68 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 > # Expected: AVAILABLE=True
 > ```
 >
-> **Prerequisite 2 — metric name rewrite rule.** vLLM's Prometheus metrics use a `:` separator (e.g. `vllm:num_requests_waiting`). prometheus-adapter's default config exposes this via the custom-metrics API as `pods/vllm:num_requests_waiting`, preserving the colon. However, Kubernetes HPA `metric.name` is validated as a DNS-1123 label and **rejects colons**, so you cannot reference the metric directly from an HPA. Add an adapter rule that renames `vllm:X` → `vllm_X` at exposure time:
+> **Prerequisite 2 — metric name rewrite rule (with gauge-aware query).** vLLM's Prometheus metrics use a `:` separator (e.g. `vllm:num_requests_running`). prometheus-adapter's default config exposes this via the custom-metrics API as `pods/vllm:num_requests_running`, preserving the colon. However, Kubernetes HPA `metric.name` is validated as a DNS-1123 label and **rejects colons**, so you cannot reference the metric directly from an HPA. Add an adapter rule that renames `vllm:X` → `vllm_X` at exposure time AND uses the correct PromQL for the metric's type (gauge vs counter):
+>
+> Install the adapter with both rule variants via a values file (simpler than `--set-json`):
 >
 > ```bash
-> helm upgrade prometheus-adapter prometheus-community/prometheus-adapter \
->   -n monitoring --reuse-values \
->   --set-json 'rules.custom=[{
->     "seriesQuery": "{__name__=~\"^vllm:.*\"}",
->     "resources": { "template": "<<.Resource>>" },
->     "name": { "matches": "^vllm:(.+)$", "as": "vllm_$1" },
->     "metricsQuery": "sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)"
->   }]'
+> cat > /tmp/adapter-values.yaml <<'YAML'
+> prometheus:
+>   url: http://kube-prometheus-stack-prometheus.monitoring.svc
+>   port: 9090
+> rules:
+>   default: true
+>   custom:
+>     # Gauge metrics: use raw value via sum(). vLLM gauges include num_requests_running,
+>     # num_requests_waiting, kv_cache_usage_perc, cpu_cache_usage_perc, gpu_cache_usage_perc.
+>     # Applying rate() to a gauge always returns ~0 because gauges aren't monotonic.
+>     - seriesQuery: '{__name__=~"^vllm:(num_requests_.*|kv_cache_usage_perc|cpu_cache_usage_perc|gpu_cache_usage_perc)$"}'
+>       resources: { template: <<.Resource>> }
+>       name: { matches: "^vllm:(.+)$", as: "vllm_$1" }
+>       metricsQuery: sum(<<.Series>>{<<.LabelMatchers>>}) by (<<.GroupBy>>)
+>     # Counter metrics: use rate() for per-second throughput.
+>     # Covers *_total series like prompt_tokens_total, generation_tokens_total, request_success_total.
+>     - seriesQuery: '{__name__=~"^vllm:.*_total$"}'
+>       resources: { template: <<.Resource>> }
+>       name: { matches: "^vllm:(.+)$", as: "vllm_$1" }
+>       metricsQuery: sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)
+> YAML
 >
-> # Restart adapter to pick up the rule
-> kubectl rollout restart deployment/prometheus-adapter -n monitoring
+> helm upgrade -i prometheus-adapter prometheus-community/prometheus-adapter \
+>   -n monitoring -f /tmp/adapter-values.yaml --wait --timeout 2m
 >
-> # After ~30s, verify rewrite:
+> # Wait for the api-server to rediscover the renamed metrics (~15-30s)
 > kubectl get --raw /apis/custom.metrics.k8s.io/v1beta1 \
->   | jq '.resources[] | select(.name | startswith("pods/vllm_")) | .name'
-> # Expected: "pods/vllm_num_requests_waiting" (underscore) — the HPA below can now reference it.
+>   | jq '[.resources[] | select(.name | startswith("pods/vllm_"))] | length'
+> # Expected: 20+ renamed metrics available
 > ```
 >
-> Without both prerequisites, applying the HPA below will either fail validation (if the adapter is absent, `v1beta1.custom.metrics.k8s.io` returns 404) or show `FailedGetPodsMetric: the server could not find the metric vllm_num_requests_waiting for pods` (if the adapter is present but the rewrite rule is not).
+> Without both prerequisites, applying the HPA below will either fail validation (if the adapter is absent, `v1beta1.custom.metrics.k8s.io` returns 404), show `FailedGetPodsMetric: the server could not find the metric vllm_num_requests_running for pods` (if the rewrite rule isn't loaded), or — more subtly — report TARGETS as `0/<threshold>` indefinitely even under heavy load (if you used `rate()` on a gauge by mistake).
 >
-> **Load-test the HPA** once both prereqs are in place. On a 4-GPU node you should see replicas scale from 1 to 2 when sustained concurrency exceeds ~10 in-flight requests. Use `hey` or a simple loop from any client that can reach the Gateway ELB:
+> **Why target `vllm_num_requests_running` rather than `vllm_num_requests_waiting`?** vLLM uses **continuous batching**: new concurrent requests are immediately absorbed into the active batch rather than queued — so `num_requests_waiting` typically stays at 0 even at 50+ concurrent clients. `num_requests_running` is the honest signal of engine saturation and is what you should autoscale against.
+>
+> **Load-test the HPA** once both prereqs are in place. Use `hey` (or any load generator) against the Service from a client that can reach it. Empirical validation on a 4× A10G worker scaled from 1 to 4 replicas:
 >
 > ```bash
-> # Approximate: sustained 20 concurrent requests, each generating 200 tokens
-> hey -z 120s -c 20 \
->   -H "Host: vllm.example.com" \
->   -H "Content-Type: application/json" \
->   -m POST \
->   -d '{"model":"Qwen/Qwen2.5-7B-Instruct","messages":[{"role":"user","content":"Write a 200-word essay about Kubernetes."}],"max_tokens":200}' \
->   http://${ELB}/v1/chat/completions &
+> # Sustained 50 concurrent, 240s, long responses (500 max_tokens) to keep requests
+> # live long enough for the HPA to observe the running metric
+> hey -z 240s -c 50 \
+>   -H "Content-Type: application/json" -m POST \
+>   -d '{"model":"Qwen/Qwen2.5-7B-Instruct","messages":[{"role":"user","content":"Write a 500-word technical deep-dive on Kubernetes HPA custom metrics and continuous batching in LLM inference servers."}],"max_tokens":500}' \
+>   http://<vllm-loadbalancer>/v1/chat/completions &
 >
-> kubectl get hpa -n vllm-inference vllm-qwen -w
-> # Expected progression (typical):
-> #   REPLICAS 1 -> 2 within ~60s of sustained load
-> #   TARGETS <value>/10 should be >10 during scale-up
-> #   REPLICAS 2 -> 1 within ~5min of load ending (HPA stabilization window)
+> watch -n 5 '
+>   kubectl get hpa -n vllm-inference vllm-qwen
+>   kubectl get pods -n vllm-inference -l app=vllm-qwen
+> '
+> # Empirical progression (g5.12xlarge worker, Qwen2.5-7B, hey -c 50):
+> #   t=0s     REPLICAS 1, TARGETS 0/5
+> #   t=15s    running_sum=50, TARGETS 50/5 → HPA triggers scale-up
+> #   t=30s    REPLICAS 1 (4 pods scheduled; 3 still loading model)
+> #   t=105s   REPLICAS 3 (new pods online — Qwen model loaded from PVC cache)
+> #   t=120s   REPLICAS 4 (all 4 replicas Ready and serving)
+> #   t=240s   load ends, running_sum=0, REPLICAS stays at 4
+> #   t=540s+  REPLICAS 4 -> 1 (after 5-min stabilization window, default)
 > ```
 
 1. **Create HPA (if multiple GPUs available)**
@@ -885,10 +908,13 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
        - type: Pods
          pods:
            metric:
-             name: vllm_num_requests_waiting   # Underscore form exposed by the adapter rule above
+             name: vllm_num_requests_running   # Underscore form exposed by the adapter rule above.
+                                                # Use `_running` (gauge) not `_waiting` — vLLM's continuous
+                                                # batching absorbs concurrent requests into running, so waiting
+                                                # stays ~0 even under load.
            target:
              type: AverageValue
-             averageValue: "10"
+             averageValue: "5"                   # Scale when average in-flight requests per replica > 5.
    ```
 
 2. **Alternative: Manual Scaling**
