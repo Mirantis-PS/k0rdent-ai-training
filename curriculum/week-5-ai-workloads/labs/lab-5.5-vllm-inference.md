@@ -752,6 +752,29 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 
 ### Task 6: Configure Horizontal Scaling (20 min)
 
+> **Prerequisite — metric name rewrite in prometheus-adapter.** vLLM's Prometheus metrics use a `:` separator (e.g. `vllm:num_requests_waiting`). prometheus-adapter exposes this via the custom-metrics API as `pods/vllm:num_requests_waiting`, preserving the colon. However, Kubernetes HPA `metric.name` is validated as a DNS-1123 label and **rejects colons**, so you cannot reference the metric directly from an HPA. You must add an adapter rule that renames `vllm:X` → `vllm_X` at exposure time:
+>
+> ```bash
+> helm upgrade prometheus-adapter prometheus-community/prometheus-adapter \
+>   -n monitoring --reuse-values \
+>   --set-json 'rules.custom=[{
+>     "seriesQuery": "{__name__=~\"^vllm:.*\"}",
+>     "resources": { "template": "<<.Resource>>" },
+>     "name": { "matches": "^vllm:(.+)$", "as": "vllm_$1" },
+>     "metricsQuery": "sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)"
+>   }]'
+>
+> # Restart adapter to pick up the rule
+> kubectl rollout restart deployment/prometheus-adapter -n monitoring
+>
+> # After ~30s, verify rewrite:
+> kubectl get --raw /apis/custom.metrics.k8s.io/v1beta1 \
+>   | jq '.resources[] | select(.name | startswith("pods/vllm_")) | .name'
+> # Expected: "pods/vllm_num_requests_waiting" (underscore) — the HPA below can now reference it.
+> ```
+>
+> Without this rule, applying the HPA below will show `FailedGetPodsMetric: the server could not find the metric vllm_num_requests_waiting for pods` because only the colon-prefixed variant exists.
+
 1. **Create HPA (if multiple GPUs available)**
    ```yaml
    # Save as vllm-hpa.yaml
@@ -771,7 +794,7 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
        - type: Pods
          pods:
            metric:
-             name: vllm_num_requests_waiting
+             name: vllm_num_requests_waiting   # Underscore form exposed by the adapter rule above
            target:
              type: AverageValue
              averageValue: "10"
