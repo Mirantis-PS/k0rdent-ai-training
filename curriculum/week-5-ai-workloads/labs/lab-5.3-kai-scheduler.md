@@ -437,7 +437,7 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
      --set "global.gpuSharing=true"
 
    # Wait for pods to restart
-   kubectl rollout status deployment -n kai-scheduler -l app=kai-scheduler-scheduler
+   kubectl rollout status deployment -n kai-scheduler -l app=kai-scheduler-default
    ```
 
 2. **Submit a Half-GPU Workload**
@@ -957,14 +957,14 @@ kubectl get pod <pod-name> -o jsonpath='{.metadata.labels.kai\.scheduler/queue}'
 
 **Check scheduler logs:**
 ```bash
-kubectl logs -n kai-scheduler -l app=kai-scheduler-scheduler --tail=50
+kubectl logs -n kai-scheduler -l app=kai-scheduler-default --tail=50
 ```
 
 ### PodGroup Not Being Created
 
 **Check PodGrouper logs:**
 ```bash
-kubectl logs -n kai-scheduler -l app=kai-scheduler-podgrouper --tail=50
+kubectl logs -n kai-scheduler -l app=pod-grouper --tail=50
 ```
 
 **Verify the pod has an owner reference** (standalone pods without owners get individual PodGroups):
