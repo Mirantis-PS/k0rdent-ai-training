@@ -555,22 +555,32 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
 
 ### Task 5: Gang Scheduling for Distributed Training (30 min)
 
-KAI's PodGrouper automatically detects distributed training workloads and creates PodGroup resources. All pods in a PodGroup are scheduled atomically — either all start or none start.
+KAI's PodGrouper watches pod owner references and emits a `PodGroup` CRD per top-level workload. Gang-scheduling semantics (all pods start atomically, or none) are **only applied when PodGrouper recognizes the owner as a gang workload**. For unrecognized owners — including vanilla `batch/v1` Jobs — PodGrouper falls back to a per-pod "legacy" PodGroup with `minMember: 1`, which means pods schedule independently as GPUs become available.
 
 1. **Understand PodGrouper's Automatic Detection**
 
-   PodGrouper works by traversing pod owner references to find the top-level workload:
+   PodGrouper traverses owner references to identify the top-level workload, then dispatches to a workload-specific plugin:
 
    ```
-   Pod → ReplicaSet → Deployment          → PodGroup (1 per Deployment)
-   Pod → Job                              → PodGroup (1 per Job)
-   Pod → PyTorchJob (Master/Worker)       → PodGroup (all replicas together)
-   Pod → RayCluster (Head/Worker)         → PodGroup (all pods together)
+   Pod → (no owner)                       → legacy PodGroup, minMember=1 (NOT gang)
+   Pod → ReplicaSet → Deployment          → legacy PodGroup per pod, minMember=1 (NOT gang)
+   Pod → batch/v1 Job                     → legacy PodGroup per pod, minMember=1 (NOT gang)
+   Pod → PyTorchJob (Master/Worker)       → gang PodGroup, minMember = Σ replicas
+   Pod → TFJob, MPIJob, XGBoostJob, etc.  → gang PodGroup, minMember = Σ replicas
+   Pod → RayCluster (Head/Worker)         → gang PodGroup, minMember = Σ replicas
    ```
 
-   For Kubeflow training operators, PodGrouper sets `minMember` to the **total replica count** across all roles (master + workers), enforcing gang scheduling.
+   **This means `batch/v1` Jobs do NOT trigger gang scheduling in KAI v0.14.0.** The BatchJob plugin emits one "legacy" `PodGroup` per pod (you will see the log line `"Using legacy pod-group"` in `pod-grouper` output). Pods bind one-by-one as GPUs free up. If you genuinely need atomic all-or-nothing scheduling for a plain Job, use one of these options:
 
-2. **Submit a Gang-Scheduled Job**
+   - Install a Kubeflow training operator (provides `PyTorchJob` / `TFJob` etc. — see Lab 5.9) — this is the standard path.
+   - Install the KubeRay operator for `RayCluster` / `RayJob`.
+   - Manually pre-create a `PodGroup` with the desired `minMember`, and set `pod-group-name: <pg-name>` as an annotation on every pod in the group.
+
+   For the Kubeflow / Ray operators, PodGrouper sets `minMember` to the total replica count across all roles (master + workers) automatically, enforcing gang scheduling without further configuration.
+
+2. **Submit a Parallel Job (demonstrates per-pod scheduling, not gang)**
+
+   The YAML below is useful to see PodGrouper's BatchJob plugin in action. Note: because we do NOT have a Kubeflow operator installed in this lab, the four pods from this Job will be scheduled **independently** — watch the output of `kubectl get pods -w` and you should see pods transition to `Running` one at a time, bound in the order GPUs become available (not all at once). Each pod gets its own `pg-gang-training-<pod-hash>-<job-uid>` PodGroup with `minMember: 1`.
 
    Create a Kubernetes Job with parallelism requiring multiple pods:
 
