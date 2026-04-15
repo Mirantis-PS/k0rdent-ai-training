@@ -38,7 +38,7 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 - [Tasks](#tasks)
   - [Task 1: Prepare Model Access](#task-1-prepare-model-access-15-min)
   - [Task 2: Deploy vLLM Server](#task-2-deploy-vllm-server-45-min)
-  - [Task 3: Create Service and Ingress](#task-3-create-service-and-ingress-20-min)
+  - [Task 3: Create Service and Gateway Route](#task-3-create-service-and-gateway-route-20-min)
   - [Task 4: Test Inference Endpoint](#task-4-test-inference-endpoint-30-min)
   - [Task 5: Monitor GPU Utilization](#task-5-monitor-gpu-utilization-20-min)
   - [Task 6: Configure Horizontal Scaling](#task-6-configure-horizontal-scaling-20-min)
@@ -396,7 +396,9 @@ Quantization reduces model precision to decrease memory usage and increase throu
    INFO:     Uvicorn running on http://0.0.0.0:8000
    ```
 
-### Task 3: Create Service and Ingress (20 min)
+### Task 3: Create Service and Gateway Route (20 min)
+
+This lab's default network stack is **Envoy Gateway** (installed in Week 1 Lab 1.7 via the k0rdent catalog). Envoy Gateway is a Gateway API implementation — the K8s-native successor to the legacy `networking.k8s.io/v1 Ingress` API. We expose vLLM via a `Gateway` + `HTTPRoute` pair. If you are on an ingress-nginx cluster instead, skip to the "Legacy Ingress alternative" block below.
 
 1. **Create ClusterIP Service**
    ```yaml
@@ -419,7 +421,53 @@ Quantization reduces model precision to decrease memory usage and increase throu
        app: vllm-qwen
    ```
 
-2. **Create Ingress (Optional)**
+2. **Create Gateway + HTTPRoute (Envoy Gateway, default path)**
+   ```yaml
+   # Save as vllm-gateway.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: Gateway
+   metadata:
+     name: vllm-gateway
+     namespace: vllm-inference
+   spec:
+     gatewayClassName: envoy-gateway   # Installed by the k0rdent envoy-gateway MCS/ServiceTemplate
+     listeners:
+       - name: http
+         protocol: HTTP
+         port: 80
+         allowedRoutes:
+           namespaces:
+             from: Same
+   ---
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: HTTPRoute
+   metadata:
+     name: vllm-qwen
+     namespace: vllm-inference
+   spec:
+     parentRefs:
+       - name: vllm-gateway
+     hostnames:
+       - vllm.example.com
+     rules:
+       - matches:
+           - path:
+               type: PathPrefix
+               value: /v1
+           - path:
+               type: PathPrefix
+               value: /health
+           - path:
+               type: PathPrefix
+               value: /metrics
+         backendRefs:
+           - name: vllm-qwen
+             port: 8000
+   ```
+
+   > **Why restrict the path prefixes?** vLLM's OpenAI-compatible API lives under `/v1/*`, plus standalone `/health` and `/metrics` endpoints. Leaving the HTTPRoute open to `/` would expose vLLM's full request surface including its internal admin endpoints.
+
+3. **Legacy Ingress alternative (ingress-nginx clusters only)**
    ```yaml
    # Save as vllm-ingress.yaml
    apiVersion: networking.k8s.io/v1
@@ -433,7 +481,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
    spec:
      ingressClassName: nginx
      rules:
-       - host: llama2.example.com
+       - host: vllm.example.com
          http:
            paths:
              - path: /
@@ -445,11 +493,24 @@ Quantization reduces model precision to decrease memory usage and increase throu
                      number: 8000
    ```
 
-3. **Apply Service**
+4. **Apply the Service and Gateway resources**
    ```bash
    kubectl apply -f vllm-service.yaml
-   # kubectl apply -f vllm-ingress.yaml  # If using ingress
+   kubectl apply -f vllm-gateway.yaml           # Envoy Gateway (default)
+   # kubectl apply -f vllm-ingress.yaml         # Legacy path (ingress-nginx clusters only)
+
+   # Verify the Gateway programs an Envoy listener
+   kubectl get gateway -n vllm-inference vllm-gateway
+   # NAME            CLASS           ADDRESS         PROGRAMMED   AGE
+   # vllm-gateway    envoy-gateway   192.0.2.10      True         20s
+
+   # Verify the HTTPRoute is accepted by the Gateway
+   kubectl get httproute -n vllm-inference vllm-qwen \
+     -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'
+   # True
    ```
+
+   > **Note on the Envoy Gateway `LoadBalancer` Service:** The `envoy-gateway` GatewayClass provisions a dedicated Envoy pod + `Service: LoadBalancer` **per Gateway**, named `envoy-{namespace}-{gateway-name}-{hash}` in the `envoy-gateway-system` namespace. To find the external address, either use the Gateway's `status.addresses[0]` (shown above) or `kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=vllm-gateway`.
 
 ### Task 4: Test Inference Endpoint (30 min)
 
