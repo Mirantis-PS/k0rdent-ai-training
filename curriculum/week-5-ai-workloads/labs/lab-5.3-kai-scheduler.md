@@ -197,12 +197,16 @@ In 2025, NVIDIA open-sourced the core scheduling engine from Run:ai as the **KAI
    ```bash
    kubectl get crds | grep -E "scheduling.run.ai|kai.scheduler"
 
-   # Expected CRDs:
+   # Expected CRDs (KAI v0.14.0 — 6 total):
    # queues.scheduling.run.ai
    # podgroups.scheduling.run.ai
    # bindrequests.scheduling.run.ai
    # configs.kai.scheduler
+   # schedulingshards.kai.scheduler
+   # topologies.kai.scheduler
    ```
+
+   > **What the extra CRDs do:** `schedulingshards.kai.scheduler` defines named scheduler shards (each backed by a `kai-scheduler-<shard>` Deployment — the built-in shard is `default`), enabling multi-tenant scheduling with isolated scheduling policies per shard. `topologies.kai.scheduler` describes node topology hierarchies (rack → zone → region) that the scheduler consumes for topology-aware placement of distributed workloads (see Task 5).
 
 ### Task 2: Configure GPU Queue Hierarchy (25 min)
 
