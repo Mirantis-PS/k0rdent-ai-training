@@ -408,57 +408,27 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 > kubectl get gatewayclass 2>&1
 > ```
 >
-> If you see `No resources found` for either, install Envoy Gateway using **one** of the paths below. (As of this writing there is no `envoy-gateway` chart in the k0rdent catalog at `ghcr.io/k0rdent/catalog/charts/`, so neither `kgst` nor a pre-packaged `ServiceTemplate` is available — you must pull from upstream.)
+> If you see `No resources found` for either, install Envoy Gateway using **one** of the paths below. Path A is the **preferred k0rdent-native pattern** — matches how Lab 1.7 installs platform services and how Lab 5.2 handles cert-manager/gpu-operator. Path B is a direct-helm fallback for clusters that aren't k0rdent-managed or when you need a one-cluster, one-shot install.
 >
-> **Path A — Direct Helm (quick, imperative).** Use this when you're iterating on a single cluster:
+> **Path A — k0rdent MCS (preferred).** The `envoy-gateway` chart is published in the k0rdent catalog at <https://catalog.k0rdent.io/v1.2.0/apps/envoy-gateway/>. Install the `ServiceTemplate` on the management cluster and deploy it to your gpu-cluster via a `MultiClusterService`:
 >
 > ```bash
-> # Gateway API CRDs (required by Envoy Gateway)
-> kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+> # Step 1 — On the MANAGEMENT cluster: install the ServiceTemplate via kgst
+> # Note: catalog version is "1.7.1" (no `v` prefix — see TRAP 10 pattern;
+> # don't blindly copy the upstream v1.7.1 / v1.3.0 tags).
+> helm upgrade --install envoy-gateway oci://ghcr.io/k0rdent/catalog/charts/kgst \
+>   --set "chart=envoy-gateway:1.7.1" \
+>   -n kcm-system
 >
-> # Envoy Gateway controller
-> helm upgrade -i eg oci://docker.io/envoyproxy/gateway-helm --version v1.3.0 \
->   -n envoy-gateway-system --create-namespace --wait --timeout 3m
->
-> # The chart doesn't auto-create a GatewayClass — create one:
-> kubectl apply -f - <<EOF
-> apiVersion: gateway.networking.k8s.io/v1
-> kind: GatewayClass
-> metadata:
->   name: envoy-gateway
-> spec:
->   controllerName: gateway.envoyproxy.io/gatewayclass-controller
-> EOF
+> # Poll until VALID=true (FluxCD OCI pull may take ~30-60s; transient
+> # VALID=false is TRAP 4, not a failure)
+> kubectl get servicetemplate envoy-gateway-1-7-1 -n kcm-system -w
 > ```
 >
-> **Path B — k0rdent-native via MCS (production, declarative).** Preferred when you want Envoy Gateway to auto-deploy to any managed cluster with the right labels. Since there is no catalog chart, you create a custom `ServiceTemplate` that wraps the upstream `envoyproxy/gateway-helm` chart and apply a `MultiClusterService` on the management cluster. See Lab 1.7 for the full pattern; the skeleton is:
->
 > ```yaml
-> # On the management cluster (kcm-system namespace)
-> apiVersion: source.toolkit.fluxcd.io/v1
-> kind: HelmRepository
-> metadata:
->   name: envoy-gateway-helm
->   namespace: kcm-system
-> spec:
->   interval: 10m
->   url: oci://docker.io/envoyproxy/gateway-helm
->   type: oci
-> ---
-> apiVersion: k0rdent.mirantis.com/v1beta1
-> kind: ServiceTemplate
-> metadata:
->   name: envoy-gateway-1-3-0
->   namespace: kcm-system
-> spec:
->   helm:
->     chartSpec:
->       chart: gateway-helm
->       version: v1.3.0
->       sourceRef:
->         kind: HelmRepository
->         name: envoy-gateway-helm
-> ---
+> # Step 2 — On the MANAGEMENT cluster: apply the MCS targeting your gpu-cluster.
+> # The selector labels must match whatever Lab 5.1 put on the ClusterDeployment
+> # (default: environment=training, gpu-enabled=true).
 > apiVersion: k0rdent.mirantis.com/v1beta1
 > kind: MultiClusterService
 > metadata:
@@ -470,12 +440,46 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 >       gpu-enabled: "true"
 >   serviceSpec:
 >     services:
->       - template: envoy-gateway-1-3-0
->         name: eg
+>       - template: envoy-gateway-1-7-1
+>         name: envoy-gateway
 >         namespace: envoy-gateway-system
 > ```
 >
-> **The cleaner architectural fix** is to add Envoy Gateway to Lab 5.1's `ClusterDeployment.spec.serviceSpec` so every newly-provisioned gpu-cluster starts with Envoy Gateway (same pattern Lab 5.2 uses for cert-manager). Until that change lands upstream, Path A or Path B above are the workarounds.
+> After applying the MCS, Sveltos will deploy the envoy-gateway Helm release on every matching cluster. Verify from the gpu-cluster:
+>
+> ```bash
+> # On the gpu-cluster (use the kubeconfig extracted in Lab 5.1 Pre-Lab Step 3)
+> kubectl get pods -n envoy-gateway-system
+> # Expected: envoy-gateway-<hash>  Running
+>
+> kubectl get gatewayclass
+> # Expected: envoy-gateway   gateway.envoyproxy.io/gatewayclass-controller   True
+> ```
+>
+> **Path B — Direct Helm (fallback for non-k0rdent clusters or one-shot installs).** Use this when the cluster isn't registered with a k0rdent management cluster:
+>
+> ```bash
+> # Gateway API CRDs (required by Envoy Gateway)
+> kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+>
+> # Envoy Gateway controller (upstream chart)
+> helm upgrade -i eg oci://docker.io/envoyproxy/gateway-helm --version v1.3.0 \
+>   -n envoy-gateway-system --create-namespace --wait --timeout 3m
+>
+> # The upstream chart doesn't auto-create a GatewayClass — create one:
+> kubectl apply -f - <<EOF
+> apiVersion: gateway.networking.k8s.io/v1
+> kind: GatewayClass
+> metadata:
+>   name: envoy-gateway
+> spec:
+>   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+> EOF
+> ```
+>
+> > **TRAP 11 warning if switching from Path B to Path A later:** Sveltos will try to adopt the existing `eg` Helm release in `envoy-gateway-system` and may silently overwrite your values with the catalog chart's defaults (same class of bug Lab 5.2 hit with gpu-operator in commit `4442e2c`). To migrate safely: uninstall the direct `eg` release (`helm uninstall eg -n envoy-gateway-system`), delete the GatewayClass you created manually, then apply the MCS — let Sveltos do a fresh install. Drop your vLLM `Gateway` + `HTTPRoute` while the controller is down, then re-apply them once the Sveltos-installed envoy-gateway is Running.
+>
+> **The cleaner architectural fix** is to add Envoy Gateway to Lab 5.1's `ClusterDeployment.spec.serviceSpec` so every newly-provisioned gpu-cluster starts with Envoy Gateway already installed (same pattern Lab 5.2 uses for cert-manager and gpu-operator). Until that change lands in Lab 5.1, Path A above is the workaround.
 
 1. **Create ClusterIP Service**
    ```yaml
