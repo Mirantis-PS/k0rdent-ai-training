@@ -451,10 +451,24 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 > # On the gpu-cluster (use the kubeconfig extracted in Lab 5.1 Pre-Lab Step 3)
 > kubectl get pods -n envoy-gateway-system
 > # Expected: envoy-gateway-<hash>  Running
->
-> kubectl get gatewayclass
-> # Expected: envoy-gateway   gateway.envoyproxy.io/gatewayclass-controller   True
 > ```
+>
+> > **You still need to create the GatewayClass manually after the MCS install.** The catalog `envoy-gateway:1.7.1` chart installs only the controller Deployment — it does NOT ship a `GatewayClass` resource (neither does the upstream `envoyproxy/gateway-helm` chart in Path B). Apply one:
+> >
+> > ```bash
+> > kubectl apply -f - <<EOF
+> > apiVersion: gateway.networking.k8s.io/v1
+> > kind: GatewayClass
+> > metadata:
+> >   name: envoy-gateway
+> > spec:
+> >   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+> > EOF
+> > kubectl get gatewayclass
+> > # Expected: envoy-gateway   gateway.envoyproxy.io/gatewayclass-controller   True
+> > ```
+>
+> > **Note on CLB health-check registration (AWS):** The catalog chart configures the per-Gateway `LoadBalancer` Service with `externalTrafficPolicy: Local`, which means the AWS Classic Load Balancer will only mark nodes healthy if they host an Envoy pod locally. On a 2-node cluster (1 CP + 1 worker) with a single-replica Envoy deployment, half of the CLB's initial health checks will fail until the unhealthy target is marked `OutOfService` (~60–120s). External curl will return HTTP 000 during this window — wait ~2 minutes after Gateway creation before concluding something is wrong.
 >
 > **Path B — Direct Helm (fallback for non-k0rdent clusters or one-shot installs).** Use this when the cluster isn't registered with a k0rdent management cluster:
 >
