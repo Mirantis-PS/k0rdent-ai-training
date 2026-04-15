@@ -232,15 +232,15 @@ KAI uses a hierarchical queue tree where parent queues distribute resources amon
    spec:
      resources:
        gpu:
-         quota: 0         # No direct quota (distributed to children)
-         limit: -1        # Unlimited
+         quota: 4              # Sum of children's quotas (2+1+1)
+         limit: -1             # Unlimited
          overQuotaWeight: 1
        cpu:
-         quota: 0
+         quota: 32000          # Sum of children's quotas (16000+8000+8000)
          limit: -1
          overQuotaWeight: 1
        memory:
-         quota: 0
+         quota: 128000         # Sum of children's quotas (64000+32000+32000)
          limit: -1
          overQuotaWeight: 1
    ---
@@ -329,6 +329,7 @@ KAI uses a hierarchical queue tree where parent queues distribute resources amon
    > - `limit: -1` = no cap on over-quota borrowing
    > - `limit: 2` = hard cap at 2 GPUs even with idle resources
    > - `overQuotaWeight: 2` = gets twice the share of surplus compared to weight=1
+   > - **A parent queue's `quota` must be ≥ the sum of its children's `quota`** when any child will host non-preemptible workloads (K8s PriorityClass `value ≥ 100`). Non-preemptible workloads are *not allowed* to go over quota, and KAI enforces the limit at every ancestor level — if `cluster-root.quota.gpu = 0` you will see `NonPreemptibleOverQuota: Non-preemptible workload is over quota. ... cluster-root quota is 0 GPUs` when Task 6's `inference-critical` (value=125) tries to schedule, even though its own `inference-queue.quota` is 1. Leaf-queue quotas alone are not sufficient.
 
 ### Task 3: Submit Workloads to Queues (25 min)
 
