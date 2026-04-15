@@ -733,13 +733,70 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
    # - vllm:cpu_cache_usage_perc     — CPU offload cache usage
    ```
 
-4. **Create Prometheus ServiceMonitor (Optional)**
+4. **Create Prometheus ServiceMonitor**
+
+   > **Prerequisite — kube-prometheus-stack must be installed on the cluster.** The `ServiceMonitor` CRD and the scraping Prometheus are part of kube-prometheus-stack; Lab 5.1's Pre-Lab doesn't install it. Verify with `kubectl get crd servicemonitors.monitoring.coreos.com`. If absent, install via one of the two paths below:
+   >
+   > **Path A — k0rdent MCS (preferred).** The catalog publishes kube-prometheus-stack at <https://catalog.k0rdent.io/v1.2.0/apps/kube-prometheus-stack/>:
+   >
+   > ```bash
+   > # On the MANAGEMENT cluster
+   > helm upgrade --install kube-prometheus-stack oci://ghcr.io/k0rdent/catalog/charts/kgst \
+   >   --set "chart=kube-prometheus-stack:81.6.3" \
+   >   -n kcm-system
+   > kubectl get servicetemplate kube-prometheus-stack-81-6-3 -n kcm-system -w   # wait for VALID=true
+   >
+   > # Then apply an MCS targeting your gpu-cluster (or extend the envoy-gateway MCS from Task 3)
+   > kubectl apply -f - <<EOF
+   > apiVersion: k0rdent.mirantis.com/v1beta1
+   > kind: MultiClusterService
+   > metadata:
+   >   name: kube-prometheus-stack
+   > spec:
+   >   clusterSelector:
+   >     matchLabels:
+   >       environment: training
+   >       gpu-enabled: "true"
+   >   serviceSpec:
+   >     services:
+   >       - template: kube-prometheus-stack-81-6-3
+   >         name: kube-prometheus-stack
+   >         namespace: monitoring
+   > EOF
+   > ```
+   >
+   > **Path B — Direct Helm (fallback for non-k0rdent clusters).**
+   >
+   > ```bash
+   > helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   > helm upgrade -i kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+   >   -n monitoring --create-namespace \
+   >   --set grafana.enabled=false \
+   >   --set alertmanager.enabled=false \
+   >   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+   >   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+   >   --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false \
+   >   --wait --timeout 8m
+   > ```
+   >
+   > The `serviceMonitorSelectorNilUsesHelmValues=false` flag (Path B) is essential — without it, Prometheus only scrapes ServiceMonitors with a matching `release: kube-prometheus-stack` label, and the one below will be silently ignored. Path A's MCS install sets this via its default values.
+   >
+   > Verify scrape health after applying the ServiceMonitor below:
+   >
+   > ```bash
+   > kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090 &
+   > curl -s "http://localhost:9090/api/v1/query?query=vllm:generation_tokens_total" | jq .data.result
+   > # Expected: a non-empty array once the pod has served at least one request
+   > ```
+
    ```yaml
    apiVersion: monitoring.coreos.com/v1
    kind: ServiceMonitor
    metadata:
      name: vllm-qwen
      namespace: vllm-inference
+     labels:
+       release: kube-prometheus-stack   # Required only on Path B; harmless on Path A
    spec:
      selector:
        matchLabels:
@@ -752,7 +809,23 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 
 ### Task 6: Configure Horizontal Scaling (20 min)
 
-> **Prerequisite — metric name rewrite in prometheus-adapter.** vLLM's Prometheus metrics use a `:` separator (e.g. `vllm:num_requests_waiting`). prometheus-adapter exposes this via the custom-metrics API as `pods/vllm:num_requests_waiting`, preserving the colon. However, Kubernetes HPA `metric.name` is validated as a DNS-1123 label and **rejects colons**, so you cannot reference the metric directly from an HPA. You must add an adapter rule that renames `vllm:X` → `vllm_X` at exposure time:
+> **Prerequisite 1 — install prometheus-adapter** (serves HPA's custom-metrics API from Prometheus data). Task 5's kube-prometheus-stack does NOT include the adapter. The k0rdent catalog does not publish a prometheus-adapter chart as of this writing — direct helm only:
+>
+> ```bash
+> # On the gpu-cluster (requires kube-prometheus-stack already installed per Task 5 Step 4)
+> helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+> helm upgrade -i prometheus-adapter prometheus-community/prometheus-adapter \
+>   -n monitoring \
+>   --set prometheus.url=http://kube-prometheus-stack-prometheus.monitoring.svc \
+>   --set prometheus.port=9090 \
+>   --wait --timeout 3m
+>
+> # Verify custom-metrics API is available (takes ~30s after install to stabilize)
+> kubectl get apiservice v1beta1.custom.metrics.k8s.io
+> # Expected: AVAILABLE=True
+> ```
+>
+> **Prerequisite 2 — metric name rewrite rule.** vLLM's Prometheus metrics use a `:` separator (e.g. `vllm:num_requests_waiting`). prometheus-adapter's default config exposes this via the custom-metrics API as `pods/vllm:num_requests_waiting`, preserving the colon. However, Kubernetes HPA `metric.name` is validated as a DNS-1123 label and **rejects colons**, so you cannot reference the metric directly from an HPA. Add an adapter rule that renames `vllm:X` → `vllm_X` at exposure time:
 >
 > ```bash
 > helm upgrade prometheus-adapter prometheus-community/prometheus-adapter \
@@ -773,7 +846,25 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 > # Expected: "pods/vllm_num_requests_waiting" (underscore) — the HPA below can now reference it.
 > ```
 >
-> Without this rule, applying the HPA below will show `FailedGetPodsMetric: the server could not find the metric vllm_num_requests_waiting for pods` because only the colon-prefixed variant exists.
+> Without both prerequisites, applying the HPA below will either fail validation (if the adapter is absent, `v1beta1.custom.metrics.k8s.io` returns 404) or show `FailedGetPodsMetric: the server could not find the metric vllm_num_requests_waiting for pods` (if the adapter is present but the rewrite rule is not).
+>
+> **Load-test the HPA** once both prereqs are in place. On a 4-GPU node you should see replicas scale from 1 to 2 when sustained concurrency exceeds ~10 in-flight requests. Use `hey` or a simple loop from any client that can reach the Gateway ELB:
+>
+> ```bash
+> # Approximate: sustained 20 concurrent requests, each generating 200 tokens
+> hey -z 120s -c 20 \
+>   -H "Host: vllm.example.com" \
+>   -H "Content-Type: application/json" \
+>   -m POST \
+>   -d '{"model":"Qwen/Qwen2.5-7B-Instruct","messages":[{"role":"user","content":"Write a 200-word essay about Kubernetes."}],"max_tokens":200}' \
+>   http://${ELB}/v1/chat/completions &
+>
+> kubectl get hpa -n vllm-inference vllm-qwen -w
+> # Expected progression (typical):
+> #   REPLICAS 1 -> 2 within ~60s of sustained load
+> #   TARGETS <value>/10 should be >10 during scale-up
+> #   REPLICAS 2 -> 1 within ~5min of load ending (HPA stabilization window)
+> ```
 
 1. **Create HPA (if multiple GPUs available)**
    ```yaml
