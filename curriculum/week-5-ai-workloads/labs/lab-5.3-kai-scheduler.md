@@ -825,14 +825,16 @@ KAI exposes Prometheus metrics for queue utilization, scheduling latency, and pr
 1. **Check Available Metrics Endpoints**
 
    ```bash
-   # KAI scheduler metrics
-   kubectl port-forward -n kai-scheduler svc/kai-scheduler-scheduler 8080:8080 &
+   # KAI scheduler metrics (served by the default scheduler shard)
+   kubectl port-forward -n kai-scheduler svc/kai-scheduler-default 8080:8080 &
    curl -s http://localhost:8080/metrics | head -50
 
    # Queue controller metrics
-   kubectl port-forward -n kai-scheduler svc/kai-scheduler-queue-controller 8081:8080 &
+   kubectl port-forward -n kai-scheduler svc/queue-controller 8081:8080 &
    curl -s http://localhost:8081/metrics | grep queue_
    ```
+
+   > **Service naming:** KAI v0.14.0 uses short service names without the `kai-scheduler-` prefix (e.g. `queue-controller`, `binder`, `admission`). The one exception is the scheduler itself, which is named `kai-scheduler-<shard>` — here `kai-scheduler-default` for the built-in shard. Verify with `kubectl get svc -n kai-scheduler` if you add custom `SchedulingShard` resources.
 
 2. **Key Metrics to Monitor**
 
