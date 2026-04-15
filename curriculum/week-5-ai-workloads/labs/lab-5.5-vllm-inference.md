@@ -398,7 +398,84 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 ### Task 3: Create Service and Gateway Route (20 min)
 
-This lab's default network stack is **Envoy Gateway** (installed in Week 1 Lab 1.7 via the k0rdent catalog). Envoy Gateway is a Gateway API implementation — the K8s-native successor to the legacy `networking.k8s.io/v1 Ingress` API. We expose vLLM via a `Gateway` + `HTTPRoute` pair. If you are on an ingress-nginx cluster instead, skip to the "Legacy Ingress alternative" block below.
+This lab's default network stack is **Envoy Gateway**, a Gateway API implementation — the K8s-native successor to the legacy `networking.k8s.io/v1 Ingress` API. We expose vLLM via a `Gateway` + `HTTPRoute` pair. If you are on an ingress-nginx cluster instead, skip to the "Legacy Ingress alternative" block below.
+
+> **Prerequisite — is Envoy Gateway installed on your managed cluster?** Week 1 Lab 1.7 demonstrates installing platform services (including Envoy Gateway) on a managed cluster via a k0rdent `MultiClusterService`. However, the Week 5 `gpu-cluster` provisioned in Lab 5.1's Pre-Lab does **not** include Envoy Gateway by default — Lab 5.1's `ClusterDeployment.spec.serviceSpec` only wires in the GPU Operator. Before proceeding, verify and install as needed:
+>
+> ```bash
+> # On the gpu-cluster:
+> kubectl get crd gatewayclasses.gateway.networking.k8s.io 2>&1 | head -2
+> kubectl get gatewayclass 2>&1
+> ```
+>
+> If you see `No resources found` for either, install Envoy Gateway using **one** of the paths below. (As of this writing there is no `envoy-gateway` chart in the k0rdent catalog at `ghcr.io/k0rdent/catalog/charts/`, so neither `kgst` nor a pre-packaged `ServiceTemplate` is available — you must pull from upstream.)
+>
+> **Path A — Direct Helm (quick, imperative).** Use this when you're iterating on a single cluster:
+>
+> ```bash
+> # Gateway API CRDs (required by Envoy Gateway)
+> kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+>
+> # Envoy Gateway controller
+> helm upgrade -i eg oci://docker.io/envoyproxy/gateway-helm --version v1.3.0 \
+>   -n envoy-gateway-system --create-namespace --wait --timeout 3m
+>
+> # The chart doesn't auto-create a GatewayClass — create one:
+> kubectl apply -f - <<EOF
+> apiVersion: gateway.networking.k8s.io/v1
+> kind: GatewayClass
+> metadata:
+>   name: envoy-gateway
+> spec:
+>   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+> EOF
+> ```
+>
+> **Path B — k0rdent-native via MCS (production, declarative).** Preferred when you want Envoy Gateway to auto-deploy to any managed cluster with the right labels. Since there is no catalog chart, you create a custom `ServiceTemplate` that wraps the upstream `envoyproxy/gateway-helm` chart and apply a `MultiClusterService` on the management cluster. See Lab 1.7 for the full pattern; the skeleton is:
+>
+> ```yaml
+> # On the management cluster (kcm-system namespace)
+> apiVersion: source.toolkit.fluxcd.io/v1
+> kind: HelmRepository
+> metadata:
+>   name: envoy-gateway-helm
+>   namespace: kcm-system
+> spec:
+>   interval: 10m
+>   url: oci://docker.io/envoyproxy/gateway-helm
+>   type: oci
+> ---
+> apiVersion: k0rdent.mirantis.com/v1beta1
+> kind: ServiceTemplate
+> metadata:
+>   name: envoy-gateway-1-3-0
+>   namespace: kcm-system
+> spec:
+>   helm:
+>     chartSpec:
+>       chart: gateway-helm
+>       version: v1.3.0
+>       sourceRef:
+>         kind: HelmRepository
+>         name: envoy-gateway-helm
+> ---
+> apiVersion: k0rdent.mirantis.com/v1beta1
+> kind: MultiClusterService
+> metadata:
+>   name: envoy-gateway
+> spec:
+>   clusterSelector:
+>     matchLabels:
+>       environment: training
+>       gpu-enabled: "true"
+>   serviceSpec:
+>     services:
+>       - template: envoy-gateway-1-3-0
+>         name: eg
+>         namespace: envoy-gateway-system
+> ```
+>
+> **The cleaner architectural fix** is to add Envoy Gateway to Lab 5.1's `ClusterDeployment.spec.serviceSpec` so every newly-provisioned gpu-cluster starts with Envoy Gateway (same pattern Lab 5.2 uses for cert-manager). Until that change lands upstream, Path A or Path B above are the workarounds.
 
 1. **Create ClusterIP Service**
    ```yaml
@@ -514,21 +591,48 @@ This lab's default network stack is **Envoy Gateway** (installed in Week 1 Lab 1
 
 ### Task 4: Test Inference Endpoint (30 min)
 
-1. **Port Forward for Testing**
-   ```bash
-   kubectl port-forward svc/vllm-qwen 8000:8000 -n vllm-inference &
-   ```
+1. **Choose an endpoint**
+
+   Two ways to reach vLLM, depending on your environment:
+
+   - **(A) External via Gateway LoadBalancer (production path).** Use this from any laptop, workstation, or CI runner with internet access — this is how real users will hit the service.
+
+     ```bash
+     # Extract the ELB hostname from the Gateway status (set in Task 3)
+     ELB=$(kubectl get gateway -n vllm-inference vllm-gateway \
+       -o jsonpath='{.status.addresses[0].value}')
+     export VLLM_URL="http://${ELB}"
+     export VLLM_HOST_HEADER="vllm.example.com"
+     echo "vLLM URL: $VLLM_URL (Host: $VLLM_HOST_HEADER)"
+
+     # Sanity check the health endpoint
+     curl -s -o /dev/null -w "HTTP=%{http_code} time=%{time_total}s\n" \
+       -H "Host: $VLLM_HOST_HEADER" $VLLM_URL/health
+     # Expected: HTTP=200 time=0.15s
+     ```
+
+     The `Host:` header matches the `hostnames` field in the `HTTPRoute` from Task 3. If you own DNS, create an A/CNAME record pointing `vllm.example.com` to the ELB hostname and drop the `-H "Host: ..."` flag from every `curl` in this lab.
+
+   - **(B) In-cluster via kubectl port-forward (debug/fallback).** Use this only when you're already inside the cluster or SSH'd into a control node that has `kubectl` working. Port-forward won't traverse a bastion + private-subnet setup from a laptop without an additional SSH tunnel, so it's fragile for student use.
+
+     ```bash
+     kubectl port-forward svc/vllm-qwen 8000:8000 -n vllm-inference &
+     export VLLM_URL="${VLLM_URL}"
+     unset VLLM_HOST_HEADER
+     ```
+
+   The subsequent steps use `$VLLM_URL` and `$VLLM_HOST_HEADER` so the same commands work on either path. If you used path (B), the `-H` flag expands to a no-op.
 
 2. **Test Health Endpoint**
    ```bash
-   curl -v http://localhost:8000/health
+   curl -v ${VLLM_URL}/health
    # Expected: HTTP/1.1 200 OK with empty body (healthy)
    # HTTP 503 indicates engine not ready or unhealthy
    ```
 
 3. **List Available Models**
    ```bash
-   curl http://localhost:8000/v1/models | jq .
+   curl ${VLLM_URL}/v1/models | jq .
 
    # Expected response:
    # {
@@ -545,7 +649,8 @@ This lab's default network stack is **Envoy Gateway** (installed in Week 1 Lab 1
 
 4. **Test Chat Completion**
    ```bash
-   curl http://localhost:8000/v1/chat/completions \
+   curl ${VLLM_URL}/v1/chat/completions \
+     ${VLLM_HOST_HEADER:+-H "Host: ${VLLM_HOST_HEADER}"} \
      -H "Content-Type: application/json" \
      -d '{
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -560,7 +665,8 @@ This lab's default network stack is **Envoy Gateway** (installed in Week 1 Lab 1
 
 5. **Test Streaming Response**
    ```bash
-   curl http://localhost:8000/v1/chat/completions \
+   curl ${VLLM_URL}/v1/chat/completions \
+     ${VLLM_HOST_HEADER:+-H "Host: ${VLLM_HOST_HEADER}"} \
      -H "Content-Type: application/json" \
      -d '{
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -575,7 +681,7 @@ This lab's default network stack is **Envoy Gateway** (installed in Week 1 Lab 1
    ```bash
    # Simple load test
    for i in {1..10}; do
-     time curl -s http://localhost:8000/v1/chat/completions \
+     time curl -s ${VLLM_URL}/v1/chat/completions \
        -H "Content-Type: application/json" \
        -d '{
          "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -600,7 +706,7 @@ This lab's default network stack is **Envoy Gateway** (installed in Week 1 Lab 1
 
 3. **View vLLM Metrics**
    ```bash
-   curl http://localhost:8000/metrics
+   curl ${VLLM_URL}/metrics
 
    # Key metrics to observe (V1 names, vLLM v0.11+):
    # - vllm:num_requests_running     — currently processing
