@@ -116,3 +116,162 @@ ServiceTemplates intentionally preserved on the mgmt cluster (Labs 5.3+ will reu
   but orphaned (no longer managed by any active MCS). Left in place for Lab 5.3+ to consume if needed; can be
   `helm uninstall`-ed at any time.
 
+---
+
+## Lab 5.3: KAI Scheduler
+
+**Status:** 🟡 PASS with fixes
+
+**Execution time:** ~1h 30m wall clock (vs 2.5h stated, vs ~1h 15m plan-calibrated). Most of the overage was the two
+systematic-debugging investigations (stale SA token, cluster-root quota) plus 8 atomic fix commits.
+
+**Cluster state at start:** gpu-cluster torn down at end of Lab 5.2 session; mgmt cluster + credential chain still alive.
+Re-provisioned gpu-cluster in ~6 min, installed GPU Operator in ~3 min post-helm-exit, 4 GPUs allocatable on worker.
+
+### Empirical bug fixes committed
+
+- `91d7388` **fix(lab-5.3): correct KAI v0.14.0 pod names and scheduler selector in Task 1** — KAI v0.14.0 drops the
+  `kai-scheduler-` prefix on most component pods (`pod-grouper`, `queue-controller`, `binder`, `admission`,
+  `podgroup-controller`, `kai-operator`), and the scheduler Deployment is named `kai-scheduler-default` because v0.14
+  introduced multi-shard scheduling via the `SchedulingShard` CRD — `default` is the name of the built-in shard.
+  Verification selector `-l app=kai-scheduler-scheduler` returned zero results; fixed to `-l app=kai-scheduler-default`.
+  Also noted that the `nodescaleadjuster` component listed in the lab is optional and not installed by default.
+- `18dc811` **fix(lab-5.3): add schedulingshards + topologies CRDs to Task 1 Step 4** — Lab listed 4 expected CRDs;
+  v0.14.0 registers 6. The two missing (`schedulingshards.kai.scheduler`, `topologies.kai.scheduler`) are referenced
+  implicitly by other tasks (shard naming for Task 7 metrics, topology for Task 5 placement) so worth surfacing.
+- `1da7b35` **fix(lab-5.3): correct KAI service names in Task 7 metrics port-forwards** — Functional break: Task 7
+  referenced `svc/kai-scheduler-scheduler` and `svc/kai-scheduler-queue-controller` neither of which exist in v0.14.0.
+  Actual names: `kai-scheduler-default`, `queue-controller`. Without the fix the port-forward fails immediately and
+  blocks the entire metrics task.
+- `9ea56d8` **fix(lab-5.3): fix remaining stale kai-scheduler-* selectors** — Three more instances of the same
+  stale-selector bug: Task 4 Step 1 rollout-status (hangs forever), Troubleshooting scheduler-logs command (returns
+  "No resources found"), Troubleshooting podgrouper-logs command (same).
+- `71a4f47` **fix(lab-5.3): force scheduler rollover after enabling gpuSharing in Task 4** — Substantive new finding
+  (see "New findings" below): `helm upgrade --set global.gpuSharing=true` deletes+recreates every ServiceAccount in
+  the `kai-scheduler` namespace, but does NOT modify the scheduler Deployment's pod-template. Six of seven component
+  pods roll over naturally and pick up the new SA UID's token; the scheduler pod stays running with a token for the
+  now-deleted SA UID and the API server rejects all its `PodGroup.status` writes with `Unauthorized`. Every fractional
+  pod stays `Pending` forever. Added an explicit `kubectl rollout restart deployment/kai-scheduler-default` step and
+  a lengthy inline note explaining the root cause.
+- `68d0b55` **fix(lab-5.3): give cluster-root non-zero quota so Task 6 preemption works** — Substantive new finding
+  (see "New findings" below): Task 2's `cluster-root` spec had `gpu.quota: 0` with a comment claiming "distributed to
+  children". Empirically KAI enforces the non-preemptible quota check at every ancestor level, so `inference-critical`
+  (priority=125, non-preemptible) is rejected with `NonPreemptibleOverQuota: ... cluster-root quota is 0 GPUs` even
+  though its own `inference-queue.quota` is 1. Fixed `cluster-root` to `gpu: 4, cpu: 32000, memory: 128000` (sum of
+  children) and added a sixth bullet to the Queue Quota Rules callout.
+- `ca5ee73` **fix(lab-5.3): correct Task 5 gang-scheduling claim for KAI v0.14.0** — Lab's Step 1 pod-owner → PodGroup
+  mapping table was wrong for v0.14.0. `batch/v1` Jobs do NOT gang-schedule in KAI: PodGrouper's BatchJob plugin
+  emits one "legacy" `PodGroup` per pod with `minMember: 1` (confirmed via `pod-grouper` DEBUG log `Using legacy pod-group`).
+  Gang semantics only apply to Kubeflow (`PyTorchJob`, `TFJob`, `MPIJob`, `XGBoostJob`), KubeRay (`RayCluster`,
+  `RayJob`), or manually pre-created `PodGroup` resources referenced via `pod-group-name` annotation. Rewrote Step 1's
+  mapping table + Step 2 heading + disclaimer sentence.
+- `06fd547` **fix(lab-5.3): correct fractional-sharing verification in Task 4 Step 4** — Lab instructed students to
+  verify sharing by checking `kubectl get pods -n kai-resource-reservation`. Empirically that namespace stays empty
+  even with two actively-sharing `gpu-fraction: 0.5` pods. v0.14.0's default fractional mechanism is env-var injection
+  (`NVIDIA_VISIBLE_DEVICES=<shared-uuid>`, `RUNAI_NUM_OF_GPUS=0.50`) sourced from an auto-generated ConfigMap, not
+  reservation pods. Updated Step 4 to use the env-var match as the primary verification signal.
+
+### Known traps encountered
+
+- **TRAP 1 (STS credential expiration):** At session start, `/tmp/aws-session.env` from the prior Lab 5.2 session
+  still existed but its STS token had expired (~13h old). Refreshed via `lab-refresh-creds.sh e2e-val`; the script's
+  trailing health check falsely reported CAPA errors (TRAP 8), but direct `kubectl logs` showed CAPA Running and
+  Ready with no auth errors — confirmed TRAP 8 is still a bug in the script's post-restart polling race.
+- **TRAP 4 (transient states):** ClusterDeployment provisioning showed `NetworkPluginNotReady` for ~30s while Calico
+  CNI came up on the control-plane Machine — auto-healed as expected.
+- **TRAP 5 (pessimistic timing):** gpu-cluster READY at 6 min (lab says 15), 4 GPUs allocatable 3 min after `helm install --wait`
+  exit (driver compile). Continues the pattern from Lab 5.1 session — lab estimates are ~2× pessimistic.
+- **TRAP 6 (image pull cost):** N/A for Lab 5.3 — all workload containers use `nvcr.io/nvidia/cuda:12.6.0-base-ubi9`
+  which is only ~140 MB and pulled in ~8s. Saving TRAP 6 anticipation for Labs 5.5 / 5.9 where multi-GB images arrive.
+- **TRAP 8 (lab-refresh-creds.sh false-positive):** Reproduced. Trailing health check emitted `[ERROR] CAPA still
+  has credential errors in capa-controller-manager-b68645687-w5m85`, but the pod was Running/Ready with no
+  error/expired/auth log lines at all. The `d06b56e` fix from the Lab 5.1 session only partially addressed the race.
+  Worth a follow-up to revisit the script's post-restart polling logic (out of scope for this pass).
+- **TRAP 9 (credential chain gap):** Did NOT recur this session — the 4-resource chain from Lab 5.2's workaround
+  (`Secret/aws-cluster-identity-secret`, `AWSClusterStaticIdentity`, ConfigMap, `Credential/aws-cluster-identity-cred`)
+  was still on the mgmt cluster from the prior session. Only the Secret's stale STS credentials needed refreshing.
+
+### New findings (not pre-anticipated)
+
+- **[HIGH] Stale ServiceAccount token after `helm upgrade --set global.gpuSharing=true`.** Fully documented in commit
+  `71a4f47`. Cause: chart deletes+recreates every SA in `kai-scheduler`; pods whose Deployment template doesn't change
+  with the flag (the scheduler) don't roll over and keep running on tokens for dead SA UIDs. Symptom: `Unauthorized`
+  errors in scheduler logs even though `auth can-i` passes; fractional pods stay `Pending` forever. Fix: explicit
+  `kubectl rollout restart deployment/kai-scheduler-default`. **Candidate for promotion to a named TRAP** — future
+  labs that `helm upgrade` KAI with feature flags will hit the same issue.
+- **[HIGH] `cluster-root.quota = 0` blocks non-preemptible workloads even within leaf quota.** Fully documented in
+  commit `68d0b55`. KAI enforces the non-preemptible quota check at every ancestor queue; setting parent quota to 0
+  (a common "distribute to children" pattern) makes non-preemptible scheduling fail with `NonPreemptibleOverQuota`
+  regardless of leaf quotas. Fix: parent queue quota must be ≥ sum of children's quotas if any child will host
+  non-preemptible pods. **This is a different manifestation of TRAP 3** — not the K8s-priority-≥-100 default, but
+  a queue-hierarchy quota design gotcha.
+- **[HIGH] `batch/v1` Jobs do NOT gang-schedule in KAI v0.14.0.** Fully documented in commit `ca5ee73`. PodGrouper's
+  BatchJob plugin emits one "legacy" `PodGroup` per pod with `minMember: 1`. Lab's Task 5 Step 2 example therefore
+  demonstrates parallel scheduling, not gang scheduling. Real gang scheduling requires a workload CRD
+  (PyTorchJob / TFJob / RayCluster) or a manually pre-created `PodGroup`.
+- **[MEDIUM] KAI v0.14.0 component naming diverges from earlier releases.** Pod names drop the `kai-scheduler-`
+  prefix for most components; scheduler is named after its `SchedulingShard` (`kai-scheduler-default`). Service
+  names follow the pod name convention. Two additional CRDs exist: `schedulingshards.kai.scheduler` and
+  `topologies.kai.scheduler`. Covered by commits `91d7388` + `18dc811` + `1da7b35` + `9ea56d8`.
+- **[MEDIUM] Fractional GPU sharing uses env-var injection, not reservation pods, by default.** Covered by commit
+  `06fd547`. The `kai-resource-reservation` namespace is created but stays empty in the common case; reservation
+  pods are only used for staged allocation.
+- **[MINOR] `kai_total_preemption_attempts` metric stayed at 0 after Task 6 preemption.** The evict+rebind flow in
+  Task 6 (non-preemptible inference pod reclaims quota from research-queue's over-quota fill pods) appears to be
+  counted as "reclaim" rather than "preemption" in KAI's metric taxonomy. Worth a doc note for students running
+  Task 7 metrics checks, but not blocking and not fixed in this pass.
+
+### Expected-output deviations
+
+- **Task 1 Step 2** pod listing: lab expected 8 pods with `kai-scheduler-` prefix; actual 7 pods with heterogeneous
+  names (see commit `91d7388`). `nodescaleadjuster` absent.
+- **Task 1 Step 4** CRD listing: lab expected 4 CRDs; actual 6 (see commit `18dc811`).
+- **Task 4 Step 4** reservation-pods check: lab expected pods to exist; actual namespace is empty (commit `06fd547`).
+- **Task 5 Step 2** `kubectl get pods -l job-name=gang-training -w` output: lab's commentary "Watch all 4 pods get
+  scheduled together" is wrong; pods appear one-by-one as GPUs free up. `kubectl get podgroup -l job-name=gang-training
+  -o yaml` returns 0 matches (v0.14.0 doesn't propagate `job-name` to PodGroups). Task 5 rewrite (commit `ca5ee73`)
+  sets correct expectations.
+- **Task 6 Step 3** preemption: lab implies immediate success; actual requires the cluster-root quota fix (commit
+  `68d0b55`) before preemption will even be attempted.
+
+### Deferred polish (not fixed in this pass)
+
+- **Task 7 Step 2 metric names.** Lab shows `queue_allocated_gpus`, `queue_deserved_gpus`, `e2e_scheduling_latency`,
+  `total_preemption_attempts`. Actual metrics in v0.14.0 are prefixed `kai_*` (e.g. `kai_queue_allocated_gpus`). The
+  lab commands still work because `grep queue_allocated_gpus` substring-matches `kai_queue_allocated_gpus`, but the
+  expected-name comments are misleading. Worth a doc polish later.
+- **Task 5 Step 2 post-apply commands** still suggest `kubectl get podgroup -l job-name=gang-training -o yaml` — this
+  returns 0 results in v0.14.0 because `job-name` isn't propagated to PodGroups. The Step 2 rewrite sets expectations
+  correctly but doesn't remove the broken command. Fix next pass by substituting `kubectl get podgroups | grep gang-training`.
+- **Task 7 `kai_total_preemption_attempts` staying at 0.** Add a note that preemption-via-reclaim may not increment
+  this counter; students should verify preemption via `kubectl get events | grep preempt` instead.
+
+### Cleanup
+
+All Lab 5.3 test workloads removed:
+- Task 3 pods (`training-job-1`) and Job (`research-experiment`) deleted
+- Task 4 pods (`frac-gpu-1`, `frac-gpu-2`, `frac-gpu-memory`) deleted; `kai-resource-reservation` namespace empty
+- Task 5 Job (`gang-training`) deleted; completed cleanly (4/4 in 101s)
+- Task 6 Job (`low-priority-fill`) and Pod (`inference-critical`) deleted; preemption event archived in cluster events
+
+Resources intentionally preserved for Lab 5.4+ consumption:
+- KAI Scheduler v0.14.0 install on `gpu-cluster` (7 pods Running in `kai-scheduler` ns)
+- Custom queue hierarchy: `cluster-root` (quota 4) + `training-queue` + `inference-queue` + `research-queue`
+- KAI PriorityClasses: `kai-train` (50), `kai-build` (100), `kai-inference` (125)
+- Default queues auto-created by KAI: `default-parent-queue`, `default-queue`
+
+### gpu-cluster state at end of lab
+
+- `gpu-cluster` `READY=True`
+- Worker `nvidia.com/gpu: 4` allocatable
+- GPU Operator v25.3.0 helm release present (Task 0 install)
+- KAI Scheduler v0.14.0 in `kai-scheduler` ns (admission, binder, pod-grouper, podgroup-controller,
+  queue-controller, kai-operator, kai-scheduler-default — 7 pods total)
+- `cert-manager` namespace still present (orphaned Lab 5.2 pods, unchanged)
+
+### gpuSharing state
+
+After the Task 4 upgrade `helm get values kai-scheduler -n kai-scheduler --all` shows `global.gpuSharing: true`;
+the setting persists for Lab 5.4+ if those labs use `gpu-fraction` annotations without re-upgrading. If a later lab
+toggles gpuSharing off, the SA-recreate-without-scheduler-rollover issue from commit `71a4f47` will recur in reverse.
+
