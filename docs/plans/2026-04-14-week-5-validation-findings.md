@@ -275,3 +275,53 @@ After the Task 4 upgrade `helm get values kai-scheduler -n kai-scheduler --all` 
 the setting persists for Lab 5.4+ if those labs use `gpu-fraction` annotations without re-upgrading. If a later lab
 toggles gpuSharing off, the SA-recreate-without-scheduler-rollover issue from commit `71a4f47` will recur in reverse.
 
+---
+
+## Lab 5.4: NVIDIA Run:ai (Commercial)
+
+**Status:** ⏭️ SKIPPED (no commercial license available at session time) — **conceptual review only**
+
+**Why skipped:** Run:ai is a NVIDIA commercial product requiring a license + control-plane credentials that the user
+did not have in hand at this session. Per the validation plan: "If license unavailable: SKIP with a finding note,
+move to Lab 5.5."
+
+**Conceptual review outcome:** Lab reads cleanly against the Run:ai v2.24 docs. No obvious syntax errors, broken
+cross-references, or logical inconsistencies. The lab's mental model (control plane + per-cluster agent, Departments
+→ Projects, fair-share with over-quota preemption, gang-scheduled PyTorch via `runai training pytorch submit`) is
+consistent with NVIDIA's published Run:ai architecture.
+
+### Conceptual flags for next-pass validation (when a license is available)
+
+- **[MEDIUM] Task 1 Step 2 prerequisite grep** — `grep -E 'ingress-nginx|haproxy'` will return 0 matches on clusters
+  using Envoy Gateway (our gpu-cluster after the Week 1 refactor uses Envoy). Run:ai's supported-ingress list in
+  v2.24 needs verification against the lab's assumption. If Envoy is not supported, the lab needs to install
+  ingress-nginx as an additional prerequisite; if Envoy IS supported (via Gateway API), the grep should include it.
+- **[MEDIUM] Prometheus prerequisite** — Line 178 lists Prometheus as required, but k0rdent-managed GPU clusters
+  do not install it by default. The lab does not tell students how to satisfy this prerequisite. Candidate fix: add
+  an install note (e.g., `kube-prometheus-stack` via helm) or cross-reference Lab 5.9 (Kubeflow also uses Prometheus).
+- **[LOW-MEDIUM] Task 1 Step 4 scheduler selector** `-l app=runai-scheduler` — unverified. Given the KAI v0.14.0
+  naming-divergence pattern documented in Lab 5.3 (commits 91d7388 + 1da7b35 + 9ea56d8), v2.24's Run:ai scheduler
+  pod/service labels may diverge from the lab's expected values. Empirical verification against a live install needed.
+- **[LOW] Task 8 Deliverables item #4** — "CLI output demonstrating fractional GPU allocation (two 0.5 workloads on
+  one GPU)" implies runai CLI output, but Task 5 Step 4 instructs `kubectl get pods -n runai-research-dev -o wide`
+  to verify co-location. Inconsistency between deliverable phrasing and task instruction; low priority.
+
+### Cross-lab considerations verified during review
+
+- **TRAP 3 (K8s priority ≥ 100 default non-preemptible):** Does NOT apply to Run:ai — Run:ai uses Department Rank +
+  Project quota, not K8s PriorityClass, for preemption decisions. Lab 5.4 Task 7's preemption test is self-consistent
+  within Run:ai's own model.
+- **TRAP 13 (stale SA token after helm upgrade):** Potential risk if `runai-cluster` chart upgrades trigger the same
+  SA delete-recreate pattern KAI's chart does. Unverified.
+- **TRAP 14 (parent quota ≥ Σ children for non-preemptible):** Does NOT apply — Run:ai's Department/Project model
+  treats Department quota as the parent allocation; the web UI's "Total allocated quota" field reflects this.
+- **TRAP 15 (batch/v1 Job does not gang-schedule):** Does NOT apply to Task 6 — `runai training pytorch submit`
+  creates a Run:ai-specific `TrainingWorkload` CRD (not a `batch/v1 Job` nor Kubeflow's `PyTorchJob`), and Run:ai's
+  built-in scheduler gang-schedules all pods of the TrainingWorkload atomically.
+
+### Recommended follow-up
+
+When a Run:ai trial license becomes available, re-run this lab end-to-end against a fresh k0rdent-managed cluster
+that has ingress-nginx (or verified-Envoy) and Prometheus installed. Use the atomic-commit / findings-entry pattern
+established in Labs 5.1–5.3 to capture empirical learnings.
+
