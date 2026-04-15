@@ -233,19 +233,37 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 ### Task 1: Prepare Model Access (15 min)
 
-1. **Create Hugging Face Token Secret**
-   ```bash
-   # Get token from https://huggingface.co/settings/tokens
-   # Accept Llama-2 license at https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+1. **Choose a Model**
 
+   This lab deploys a 7B-class instruction-tuned model. Two common choices:
+
+   | Model | License | HF token required? | Size (FP16) |
+   |---|---|---|---|
+   | `Qwen/Qwen2.5-7B-Instruct` | Apache 2.0 | **No** (anonymous download OK; token only needed for rate-limit headroom) | ~14 GB |
+   | `meta-llama/Llama-2-7b-chat-hf` | Llama 2 Community License | **Yes** + license acceptance at the HF model page | ~13 GB |
+
+   The rest of this lab uses `Qwen/Qwen2.5-7B-Instruct` as the default so students without a Hugging Face license can complete the lab out-of-the-box. To switch to Llama-2 or any other model, replace the `--model` flag value in Task 2's Deployment YAML and optionally wire in the `HF_TOKEN` env var (shown below as an optional block).
+
+2. **Create the namespace**
+
+   ```bash
    kubectl create namespace vllm-inference
+   ```
+
+3. **(Optional) Create a Hugging Face Token Secret**
+
+   Only required for gated models (Llama-2, some Gemma variants, etc.) or to raise your Hugging Face anonymous download rate limit. Skip this step if you're running the default Qwen2.5 model and don't expect to re-pull frequently.
+
+   ```bash
+   # Get a read-token from https://huggingface.co/settings/tokens
+   # For gated models, also click "Accept license" on the model's HF page.
 
    kubectl create secret generic hf-token \
      --from-literal=token=<your-hf-token> \
      -n vllm-inference
    ```
 
-2. **Create Model Cache PVC**
+4. **Create Model Cache PVC**
    ```yaml
    # Save as model-cache-pvc.yaml
    apiVersion: v1
@@ -274,26 +292,26 @@ Quantization reduces model precision to decrease memory usage and increase throu
    apiVersion: apps/v1
    kind: Deployment
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
      labels:
-       app: vllm-llama2
+       app: vllm-qwen
    spec:
      replicas: 1
      selector:
        matchLabels:
-         app: vllm-llama2
+         app: vllm-qwen
      template:
        metadata:
          labels:
-           app: vllm-llama2
+           app: vllm-qwen
        spec:
          containers:
            - name: vllm
              image: vllm/vllm-openai:v0.14.0
              args:
                - --model
-               - meta-llama/Llama-2-7b-chat-hf
+               - Qwen/Qwen2.5-7B-Instruct   # Swap to meta-llama/Llama-2-7b-chat-hf to use Llama-2 (requires HF license + HF_TOKEN below)
                - --tensor-parallel-size
                - "1"
                - --max-model-len
@@ -308,11 +326,13 @@ Quantization reduces model precision to decrease memory usage and increase throu
                - containerPort: 8000
                  name: http
              env:
-               - name: HF_TOKEN
-                 valueFrom:
-                   secretKeyRef:
-                     name: hf-token
-                     key: token
+               # HF_TOKEN is REQUIRED for gated models (Llama-2, etc.), OPTIONAL for Apache 2.0 / MIT models (Qwen2.5, Phi, SmolLM, etc.).
+               # Uncomment the following block and create the hf-token Secret (Task 1 Step 3) to supply a token.
+               # - name: HF_TOKEN
+               #   valueFrom:
+               #     secretKeyRef:
+               #       name: hf-token
+               #       key: token
                - name: HF_HOME
                  value: /root/.cache/huggingface
              resources:
@@ -363,14 +383,14 @@ Quantization reduces model precision to decrease memory usage and increase throu
    kubectl get pods -n vllm-inference -w
 
    # Check logs for model loading progress
-   kubectl logs -f deployment/vllm-llama2 -n vllm-inference
+   kubectl logs -f deployment/vllm-qwen -n vllm-inference
    ```
 
 3. **Expected Log Output**
    ```
    INFO:     Started server process [1]
    INFO:     Waiting for application startup.
-   INFO:     Loading model meta-llama/Llama-2-7b-chat-hf...
+   INFO:     Loading model Qwen/Qwen2.5-7B-Instruct...
    INFO:     Model loaded in 45.23 seconds.
    INFO:     Application startup complete.
    INFO:     Uvicorn running on http://0.0.0.0:8000
@@ -384,10 +404,10 @@ Quantization reduces model precision to decrease memory usage and increase throu
    apiVersion: v1
    kind: Service
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
      labels:
-       app: vllm-llama2
+       app: vllm-qwen
    spec:
      type: ClusterIP
      ports:
@@ -396,7 +416,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
          protocol: TCP
          name: http
      selector:
-       app: vllm-llama2
+       app: vllm-qwen
    ```
 
 2. **Create Ingress (Optional)**
@@ -405,7 +425,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
    apiVersion: networking.k8s.io/v1
    kind: Ingress
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
      annotations:
        nginx.ingress.kubernetes.io/proxy-body-size: "100m"
@@ -420,7 +440,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
                pathType: Prefix
                backend:
                  service:
-                   name: vllm-llama2
+                   name: vllm-qwen
                    port:
                      number: 8000
    ```
@@ -435,7 +455,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 1. **Port Forward for Testing**
    ```bash
-   kubectl port-forward svc/vllm-llama2 8000:8000 -n vllm-inference &
+   kubectl port-forward svc/vllm-qwen 8000:8000 -n vllm-inference &
    ```
 
 2. **Test Health Endpoint**
@@ -454,7 +474,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
    #   "object": "list",
    #   "data": [
    #     {
-   #       "id": "meta-llama/Llama-2-7b-chat-hf",
+   #       "id": "Qwen/Qwen2.5-7B-Instruct",
    #       "object": "model",
    #       ...
    #     }
@@ -467,7 +487,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
    curl http://localhost:8000/v1/chat/completions \
      -H "Content-Type: application/json" \
      -d '{
-       "model": "meta-llama/Llama-2-7b-chat-hf",
+       "model": "Qwen/Qwen2.5-7B-Instruct",
        "messages": [
          {"role": "system", "content": "You are a helpful assistant."},
          {"role": "user", "content": "What is Kubernetes?"}
@@ -482,7 +502,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
    curl http://localhost:8000/v1/chat/completions \
      -H "Content-Type: application/json" \
      -d '{
-       "model": "meta-llama/Llama-2-7b-chat-hf",
+       "model": "Qwen/Qwen2.5-7B-Instruct",
        "messages": [
          {"role": "user", "content": "Write a haiku about containers"}
        ],
@@ -497,7 +517,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
      time curl -s http://localhost:8000/v1/chat/completions \
        -H "Content-Type: application/json" \
        -d '{
-         "model": "meta-llama/Llama-2-7b-chat-hf",
+         "model": "Qwen/Qwen2.5-7B-Instruct",
          "messages": [{"role": "user", "content": "Hello!"}],
          "max_tokens": 50
        }' > /dev/null
@@ -509,12 +529,12 @@ Quantization reduces model precision to decrease memory usage and increase throu
 1. **Watch GPU Usage**
    ```bash
    # In a separate terminal, exec into the pod
-   kubectl exec -it deployment/vllm-llama2 -n vllm-inference -- nvidia-smi -l 1
+   kubectl exec -it deployment/vllm-qwen -n vllm-inference -- nvidia-smi -l 1
    ```
 
 2. **Check Memory Usage**
    ```bash
-   kubectl exec -it deployment/vllm-llama2 -n vllm-inference -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+   kubectl exec -it deployment/vllm-qwen -n vllm-inference -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    ```
 
 3. **View vLLM Metrics**
@@ -533,12 +553,12 @@ Quantization reduces model precision to decrease memory usage and increase throu
    apiVersion: monitoring.coreos.com/v1
    kind: ServiceMonitor
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
    spec:
      selector:
        matchLabels:
-         app: vllm-llama2
+         app: vllm-qwen
      endpoints:
        - port: http
          path: /metrics
@@ -553,13 +573,13 @@ Quantization reduces model precision to decrease memory usage and increase throu
    apiVersion: autoscaling/v2
    kind: HorizontalPodAutoscaler
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
    spec:
      scaleTargetRef:
        apiVersion: apps/v1
        kind: Deployment
-       name: vllm-llama2
+       name: vllm-qwen
      minReplicas: 1
      maxReplicas: 4
      metrics:
@@ -575,7 +595,7 @@ Quantization reduces model precision to decrease memory usage and increase throu
 2. **Alternative: Manual Scaling**
    ```bash
    # Scale to 2 replicas (requires 2 GPUs)
-   kubectl scale deployment vllm-llama2 --replicas=2 -n vllm-inference
+   kubectl scale deployment vllm-qwen --replicas=2 -n vllm-inference
    ```
 
 ---
@@ -594,7 +614,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
 
    ```bash
    # Check NVLink topology from a GPU pod
-   kubectl exec -it deployment/vllm-llama2 -n vllm-inference -- nvidia-smi topo -m
+   kubectl exec -it deployment/vllm-qwen -n vllm-inference -- nvidia-smi topo -m
    ```
 
    **Expected output for p4d.24xlarge (8x A100 with NVSwitch):**
@@ -611,7 +631,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
 
 2. **Check NVLink Bandwidth**
    ```bash
-   kubectl exec -it deployment/vllm-llama2 -n vllm-inference -- nvidia-smi nvlink -s
+   kubectl exec -it deployment/vllm-qwen -n vllm-inference -- nvidia-smi nvlink -s
    ```
 
 3. **Deploy Llama-2-70B with Tensor Parallelism**
@@ -1157,14 +1177,14 @@ kubectl get pods -n vllm-inference -o wide
 
 **Check events:**
 ```bash
-kubectl describe pod -l app=vllm-llama2 -n vllm-inference
+kubectl describe pod -l app=vllm-qwen -n vllm-inference
 ```
 
 ### Model Loading Fails
 
 **Check Hugging Face token:**
 ```bash
-kubectl logs deployment/vllm-llama2 -n vllm-inference | grep -i error
+kubectl logs deployment/vllm-qwen -n vllm-inference | grep -i error
 ```
 
 **Common errors:**
@@ -1187,7 +1207,7 @@ kubectl logs deployment/vllm-llama2 -n vllm-inference | grep -i error
 
 **Check if model is on GPU:**
 ```bash
-kubectl exec deployment/vllm-llama2 -n vllm-inference -- nvidia-smi
+kubectl exec deployment/vllm-qwen -n vllm-inference -- nvidia-smi
 # GPU utilization should spike during inference
 ```
 
