@@ -291,7 +291,7 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
    cd TensorRT-LLM/examples
 
    # Download Llama-2-7B (use Llama-2-7b-chat-hf for a chat model)
-   huggingface-cli download meta-llama/Llama-2-7b-chat-hf \
+   huggingface-cli download NousResearch/Llama-2-7b-chat-hf \
      --local-dir /workspace/models/llama-2-7b-chat-hf \
      --token $HF_TOKEN
 
