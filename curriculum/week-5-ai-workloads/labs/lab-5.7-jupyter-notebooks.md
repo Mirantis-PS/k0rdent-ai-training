@@ -100,14 +100,26 @@ JupyterHub provides multi-user Jupyter notebook environments:
 
 ### Task 1: Create Namespace and Storage (10 min)
 
-1. **Create Namespace**
+1. **Preflight: verify a default StorageClass exists**
+   ```bash
+   kubectl get storageclass
+   # Expected: one entry marked (default) in the NAME column.
+   # On Lab 5.1's k0rdent AWS gpu-cluster this will be "ebs-csi-default-sc (default)".
+   # On EKS it may be "gp2 (default)" or "gp3".
+   # If no default is marked, either mark one with:
+   #   kubectl patch storageclass <name> -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+   # or add `storageClassName: <name>` explicitly to every PVC manifest below.
+   ```
+
+2. **Create Namespace**
    ```bash
    kubectl create namespace jupyter
    ```
 
-2. **Create Shared Storage PVC**
+3. **Create Shared Storage PVC**
    ```yaml
    # Save as jupyter-shared-pvc.yaml
+   # storageClassName intentionally omitted — uses the cluster default (see preflight above).
    apiVersion: v1
    kind: PersistentVolumeClaim
    metadata:
@@ -119,12 +131,13 @@ JupyterHub provides multi-user Jupyter notebook environments:
      resources:
        requests:
          storage: 100Gi
-     storageClassName: standard  # Adjust for your cluster (e.g., gp2/gp3 on EKS, default on AKS)
    ```
 
    ```bash
    kubectl apply -f jupyter-shared-pvc.yaml
    ```
+
+   > **EBS CSI `WaitForFirstConsumer` behaviour (k0rdent AWS default):** The PVC will stay in `Pending` status until the first pod mounts it — this is expected, not a bug. The volume is provisioned lazily at pod-bind time so that the EBS volume is created in the same AZ as the consuming pod. It transitions to `Bound` automatically once a user's notebook server starts with the shared volume attached.
 
 ### Task 2: Deploy JupyterHub (30 min)
 
@@ -160,8 +173,10 @@ JupyterHub provides multi-user Jupyter notebook environments:
      db:
        type: sqlite-pvc
        pvc:
-         storageClassName: standard  # Adjust for your cluster
          storage: 1Gi
+         # storageClassName omitted — uses cluster default (see Task 1 preflight).
+         # Set explicitly here only if your cluster has multiple StorageClasses and
+         # you need to pick a specific one (e.g. high-IOPS gp3 vs standard gp2).
 
    singleuser:
      defaultUrl: "/lab"
@@ -181,8 +196,10 @@ JupyterHub provides multi-user Jupyter notebook environments:
      storage:
        type: dynamic
        capacity: 10Gi
-       dynamic:
-         storageClass: standard  # Adjust for your cluster
+       # dynamic.storageClass omitted — uses cluster default (see Task 1 preflight).
+       # Override only if a specific StorageClass is required, e.g.:
+       #   dynamic:
+       #     storageClass: gp3
 
      extraEnv:
        NVIDIA_VISIBLE_DEVICES: "all"
