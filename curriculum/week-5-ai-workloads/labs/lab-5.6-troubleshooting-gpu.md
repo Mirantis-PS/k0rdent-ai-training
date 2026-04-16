@@ -55,9 +55,12 @@ Diagnose and resolve common GPU scheduling failures in AI/ML workloads on k0rden
 
 - Completed Labs 5.1-5.5
 - k0rdent management cluster with a GPU-enabled workload cluster provisioned via `ClusterDeployment`
-- GPU Operator deployed via `gpu-operator-25-10-0` ServiceTemplate
+- GPU Operator deployed — either via the `gpu-operator-25-10-0` ServiceTemplate (MCS-based Week 5 baseline) **or** via direct `helm install nvidia/gpu-operator` as shown in Lab 5.1 Pre-Lab Step 4
+- (Scenarios C and D only) Worker node must be able to pull the ~9 GB `vllm/vllm-openai:v0.14.0` image from Docker Hub — first-run pull takes ~4 minutes, cached pulls are near-instant
 
 > **Lab Hardware:** Students are running on **g5.12xlarge** instances with **4x NVIDIA A10G GPUs** (24 GB VRAM each), connected via PCIe (no NVLink). Keep the 24 GB per-GPU memory limit in mind when sizing models -- see Scenario C for OOM implications.
+
+> **If your GPU Operator was installed via direct helm (Lab 5.1 path), the Task 1 Step 2 check `kubectl get clusterdeployment ... -o jsonpath='{.status.services}'` will return empty — that's expected.** `status.services` is populated only by k0rdent-managed Sveltos releases (ServiceTemplate / MultiClusterService). Skip Step 2 in that case and rely on direct workload-cluster inspection (Step 3 onward).
 
 ## k0rdent Context
 
@@ -374,8 +377,14 @@ EOF
 
    kubectl describe pod $PENDING_POD -n gpu-troubleshoot | tail -20
 
-   # Look for:
-   # 0/3 nodes are available: 3 Insufficient nvidia.com/gpu
+   # Look for (wording depends on cluster size):
+   # - On a 3-worker cluster:
+   #   0/3 nodes are available: 3 Insufficient nvidia.com/gpu
+   # - On the Lab 5.1 gpu-cluster (1 worker + 1 control-plane):
+   #   0/2 nodes are available: 1 Insufficient nvidia.com/gpu,
+   #   1 node(s) had untolerated taint {node-role.kubernetes.io/master: }.
+   # The exact message varies; the scheduler signal to recognise is
+   # "Insufficient nvidia.com/gpu" on any node that tolerated the taint.
    ```
 
 3. **Check cluster-wide GPU allocation**
