@@ -878,7 +878,7 @@ DeepSpeed ZeRO partitions optimizer states across GPUs, enabling larger models w
            torch.cuda.set_device(local_rank)
 
            # Model configuration (7B parameter model for demonstration)
-           model_name = "meta-llama/Llama-2-7b-hf"
+           model_name = "NousResearch/Llama-2-7b-hf"
            config = AutoConfig.from_pretrained(model_name)
 
            # Initialize model with DeepSpeed ZeRO-3 (on-demand parameter loading)
@@ -1097,7 +1097,7 @@ FSDP is PyTorch's native implementation of ZeRO-style sharding. It provides simi
            )
 
            # Load model
-           model_name = "meta-llama/Llama-2-7b-hf"
+           model_name = "NousResearch/Llama-2-7b-hf"
            config = AutoConfig.from_pretrained(model_name)
 
            # Initialize on CPU first for FSDP to shard efficiently
