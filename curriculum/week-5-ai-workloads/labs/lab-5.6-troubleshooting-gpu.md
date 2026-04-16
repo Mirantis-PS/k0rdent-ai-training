@@ -186,7 +186,7 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
    kubectl logs -n gpu-operator -l app=nvidia-device-plugin-daemonset --tail=30
 
    # GPU Feature Discovery (labels nodes with GPU properties)
-   kubectl get pods -n gpu-operator -l app.kubernetes.io/name=gpu-feature-discovery
+   kubectl get pods -n gpu-operator -l app=gpu-feature-discovery
    ```
 
 2. **Diagnose: Toolkit crash due to wrong containerd paths (k0s-specific)**
@@ -253,7 +253,12 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
    kubectl logs -n gpu-operator -l app=nvidia-device-plugin-daemonset --tail=30
 
    # Verify GPUs visible to the node
-   kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
+   # -A7 because Allocatable: is followed by cpu, ephemeral-storage, 2x hugepages, memory
+   # before nvidia.com/gpu on k0s v1.32 / Ubuntu 22.04 nodes.
+   kubectl describe nodes | grep -A7 "Allocatable:" | grep nvidia
+
+   # Alternatively, a direct jsonpath avoids any grep-context drift:
+   kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.allocatable.nvidia\.com/gpu}{"\n"}{end}'
 
    # If nvidia.com/gpu shows 0, the device plugin may need restart
    kubectl delete pods -n gpu-operator -l app=nvidia-device-plugin-daemonset
