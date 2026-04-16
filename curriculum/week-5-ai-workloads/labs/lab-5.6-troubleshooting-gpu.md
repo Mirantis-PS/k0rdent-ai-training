@@ -288,14 +288,30 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
    kubectl debug node/$NODE_NAME -it --image=busybox -- cat /host/etc/k0s/containerd.d/nvidia.toml
    ```
 
-   **Expected content:**
+   **Expected content (GPU Operator v25.3.0 / nvidia-container-toolkit v1.17+):**
    ```toml
-   [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
-     privileged_without_host_devices = false
-     runtime_type = "io.containerd.runc.v2"
-   [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
-     BinaryName = "/usr/bin/nvidia-container-runtime"
+   version = 2
+
+   [plugins]
+
+     [plugins."io.containerd.grpc.v1.cri"]
+
+       [plugins."io.containerd.grpc.v1.cri".containerd]
+         default_runtime_name = "nvidia"
+
+         [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
+
+           [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+             privileged_without_host_devices = false
+             runtime_engine = ""
+             runtime_root = ""
+             runtime_type = "io.containerd.runc.v2"
+
+             [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
+               BinaryName = "/usr/local/nvidia/toolkit/nvidia-container-runtime"
    ```
+
+   > **`BinaryName` varies by toolkit version.** GPU Operator v25.3.0 ships nvidia-container-toolkit v1.17+, which mounts the runtime binary at `/usr/local/nvidia/toolkit/nvidia-container-runtime` (inside the toolkit container's filesystem, bind-mounted on the host). Older toolkit versions or host-side manual installs use `/usr/bin/nvidia-container-runtime`. If your node shows a different path, verify the nvidia-container-toolkit version with `kubectl get pod -n gpu-operator -l app=nvidia-container-toolkit-daemonset -o jsonpath='{.items[0].spec.containers[0].image}'`.
 
 ---
 
