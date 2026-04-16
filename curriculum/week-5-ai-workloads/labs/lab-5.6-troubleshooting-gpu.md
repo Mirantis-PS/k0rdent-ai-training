@@ -772,17 +772,20 @@ kubectl delete deployment vllm-health-test -n gpu-troubleshoot
    # Port-forward to DCGM exporter
    kubectl port-forward -n gpu-operator svc/nvidia-dcgm-exporter 9400:9400 &
 
-   # Check for ECC errors
-   curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV_ECC_SBE_VOL|DCGM_FI_DEV_ECC_DBE_VOL"
+   # Primary signal: XID errors (always exposed, err_code=0 means healthy)
+   curl -s http://localhost:9400/metrics | grep "DCGM_FI_DEV_XID_ERRORS"
 
    # Check GPU temperature and power
    curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE"
 
-   # Check for retired pages (indicator of failing memory)
+   # ECC and retired-pages counters (if enabled — see note below)
+   curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV_ECC_SBE_VOL|DCGM_FI_DEV_ECC_DBE_VOL"
    curl -s http://localhost:9400/metrics | grep "DCGM_FI_DEV_RETIRED_"
 
    kill %1 2>/dev/null
    ```
+
+   > **ECC counters may be empty on default config.** The GPU Operator v25.3.0 default `dcgm-exporter` csv (`/etc/dcgm-exporter/default-counters.csv`) does NOT include `DCGM_FI_DEV_ECC_SBE_VOL` / `DCGM_FI_DEV_ECC_DBE_VOL` / `DCGM_FI_DEV_RETIRED_*`. Empty grep output on a healthy system is expected; it does NOT mean ECC is broken. `DCGM_FI_DEV_XID_ERRORS` is exposed by default and is the primary signal for hardware faults (see Step 3). To enable ECC metrics, override the counters ConfigMap: `helm upgrade gpu-operator ... --set dcgmExporter.config.name=custom-metrics` with a ConfigMap containing the full [DCGM field enum](https://docs.nvidia.com/datacenter/dcgm/latest/dcgm-api/dcgm-api-field-ids.html).
 
 3. **Check Xid errors on the node**
 
@@ -791,7 +794,11 @@ kubectl delete deployment vllm-health-test -n gpu-troubleshoot
    NODE_NAME=$(kubectl get nodes -l nvidia.com/gpu.present=true \
      -o jsonpath='{.items[0].metadata.name}')
 
-   kubectl debug node/$NODE_NAME -it --image=ubuntu -- bash -c "dmesg | grep -i 'xid\|nvidia' | tail -20"
+   # --profile=sysadmin grants CAP_SYSLOG needed to read the kernel ring buffer.
+   # Without it, kubectl debug defaults to --profile=legacy and dmesg fails with
+   # "dmesg: read kernel buffer failed: Operation not permitted" on Ubuntu 22.04+.
+   kubectl debug node/$NODE_NAME -it --profile=sysadmin --image=ubuntu \
+     -- bash -c "dmesg | grep -i 'xid\|nvidia' | tail -20"
    ```
 
    Or query DCGM exporter metrics directly (if DCGM is deployed):
