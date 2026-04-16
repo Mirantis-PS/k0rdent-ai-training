@@ -464,12 +464,19 @@ JupyterHub provides multi-user Jupyter notebook environments:
 
 3. **View Hub Metrics**
    ```bash
-   # Port forward to hub
-   kubectl port-forward svc/hub -n jupyter 8081:8081 &
+   # Port forward to hub (service port is named "hub")
+   kubectl port-forward svc/hub -n jupyter 8081:hub &
 
-   # Access metrics
-   curl http://localhost:8081/hub/metrics
+   # Unauthenticated liveness check — always works, returns 200 + empty body
+   curl -s -w "HTTP %{http_code}\n" http://localhost:8081/hub/health
+
+   # Prometheus metrics endpoint — REQUIRES an admin API token.
+   # Generate one via the hub's CLI, then pass it as an Authorization header:
+   TOKEN=$(kubectl exec -n jupyter deploy/hub -- jupyterhub token admin | tail -1)
+   curl -s -H "Authorization: token $TOKEN" http://localhost:8081/hub/metrics | head -30
    ```
+
+   > **Why does `/hub/metrics` 403 without a token?** In JupyterHub 4.x the metrics endpoint is scoped to the `read:metrics` OAuth scope by default — an unauthenticated `curl` is redirected to the login page and eventually returns HTTP 403. The `jupyterhub token <user>` CLI (exposed by the hub container image) issues a token with full admin scopes, which covers metrics reads. For production scraping, prefer a Prometheus `ServiceMonitor` + `BearerTokenSecret` rather than a per-curl token — see the [z2jh metrics docs](https://z2jh.jupyter.org/en/latest/administrator/security.html) for the canonical pattern.
 
 ### Task 7: Deploy via k0rdent Enterprise (15 min)
 
