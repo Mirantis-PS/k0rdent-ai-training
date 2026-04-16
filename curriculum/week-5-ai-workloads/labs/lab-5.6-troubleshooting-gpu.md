@@ -456,7 +456,7 @@ spec:
           image: vllm/vllm-openai:v0.14.0
           args:
             - --model
-            - meta-llama/Llama-2-13b-chat-hf
+            - NousResearch/Llama-2-13b-chat-hf
             - --gpu-memory-utilization
             - "0.99"
             - --max-model-len
@@ -546,7 +546,7 @@ EOF
    ```yaml
    args:
      - --model
-     - meta-llama/Llama-2-7b-chat-hf    # 7B instead of 13B
+     - NousResearch/Llama-2-7b-chat-hf    # 7B instead of 13B
    ```
 
 4. **Use tensor parallelism** (split across multiple GPUs)
@@ -609,7 +609,7 @@ spec:
           image: vllm/vllm-openai:v0.14.0
           args:
             - --model
-            - meta-llama/Llama-2-7b-chat-hf
+            - NousResearch/Llama-2-7b-chat-hf
           env:
             - name: HF_TOKEN
               valueFrom:
