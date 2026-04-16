@@ -491,3 +491,61 @@ Removed:
 - per-Gateway envoy pod (1 pod) in `envoy-gateway-system` handling `vllm-gateway` traffic
 - vLLM pod (`vllm-qwen`) Running, Qwen2.5-7B loaded, accessible via CLB at
   `a19e5ac73d01e4f3b852fac3ab613ec7-326824152.us-east-1.elb.amazonaws.com` with Host header `vllm.example.com`
+
+### Addendum — 2026-04-15/16 follow-up session: Task 6 HPA empirically validated end-to-end
+
+Ran a dedicated sub-session to close the two outstanding gaps (Prometheus + prometheus-adapter install
+prereqs, HPA load-test). Previous decom had torn down everything — full reprovision happened first.
+
+**Updated status:** 🟡 → ✅ for Tasks 1-6 on commodity hardware.
+
+**Two additional commits landed on main:**
+
+- `6a3051f` — Add Prometheus + prometheus-adapter install prereqs + HPA load-test recipe.
+  Found `kube-prometheus-stack:81.6.3` in the k0rdent catalog (same `kgst` wrapper pattern as
+  envoy-gateway); prometheus-adapter is direct-helm only (404 on catalog probe). Task 5 Step 4 got a
+  Prereq callout (Path A MCS + Path B direct helm); Task 6 got a two-step Prereq (install
+  prometheus-adapter, then apply rewrite rule).
+
+- `1e8efeb` — Two empirical discoveries during live load test:
+  1. **Gauge vs counter query mismatch**: the original single-rule `sum(rate(<<.Series>>{...}[2m]))`
+     is correct for counters but wrong for gauges — `rate()` on a non-monotonic gauge returns ~0.
+     HPA TARGETS sat at `0/10` indefinitely during a `hey -z 240s -c 50` test until the rule was
+     split into two. Gauges (`num_requests_*`, `kv_cache_usage_perc`) use raw `sum(<<.Series>>{...})`;
+     counters (`_total` suffix) use `sum(rate(<<.Series>>{...}[2m]))`.
+  2. **Metric choice**: the original HPA targeted `vllm_num_requests_waiting`, which stays at 0 under
+     any realistic load because vLLM's continuous-batching scheduler absorbs concurrent requests into
+     the active batch rather than queueing. Changed HPA default to `vllm_num_requests_running` with
+     target averageValue `5`.
+
+**Empirical scale-out timeline** (g5.12xlarge worker, Qwen2.5-7B FP16, `hey -z 240s -c 50`,
+500-token responses, hitting a `Service: LoadBalancer` CLB directly from bastion):
+
+| t     | REPLICAS | Ready | `running` sum | TARGETS | Notes                                     |
+|-------|----------|-------|---------------|---------|-------------------------------------------|
+| 0s    | 1        | 1     | 0             | 0/5     | HPA idle                                  |
+| 15s   | 1        | 1     | 50            | 50/5    | load saturated engine; HPA fires scale-up |
+| 30s   | 4        | 1     | 50            | 50/5    | 3 new pods scheduled, loading model       |
+| 105s  | 4        | 3     | 50            | 50/5    | new pods coming online from PVC cache     |
+| 120s  | 4        | 4     | 50            | 50/5    | all 4 replicas serving traffic            |
+| 240s  | 4        | 4     | 0             | 0/5     | load ends; stabilization window holds 4   |
+| ~540s | 1        | 1     | 0             | 0/5     | scale-down completes after HPA default 5m |
+
+`hey` end summary: 480 × HTTP 200 at 30 concurrent (first round) / 50 concurrent (second round);
+p95 ~11.5s per request with 500-token completions on the single-replica phase.
+
+**Architectural observation:** each replica needs its own GPU (`nvidia.com/gpu: 1`), so scale-out is
+capped at the number of GPUs on the worker node(s) — 4 on a g5.12xlarge. Setting `maxReplicas` higher
+than the GPU count is pointless without a Cluster Autoscaler that can add GPU nodes. Added a note to
+Task 6 Prereq 2 explaining the relationship.
+
+**Cleanup (second sub-session):**
+- gpu-cluster fully deleted (~10 min K0sControlPlane + AWSCluster cascade)
+- mgmt infra destroyed via `lab-destroy.sh` (41 resources)
+- S3 state bucket preserved
+- Both sub-sessions' cost: ~$29 first + ~$6 second = ~$35 AWS total for Lab 5.5 end-to-end validation
+
+**Updated deferred polish list** (for future sessions):
+- Tasks 7-9 empirical validation on A100/H100 hardware (was deferred; still deferred)
+- ~Apply the prometheus-adapter rewrite rule (HPA non-functional)~ — **DONE** this session
+- ~Load-test HPA to confirm scaling~ — **DONE** this session (REPLICAS 1→4 verified)
