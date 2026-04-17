@@ -149,6 +149,16 @@ All operations in this lab target a workload cluster managed by k0rdent Enterpri
 
 The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated MLflow deployment. This is the recommended approach for k0rdent-managed environments.
 
+> **⚠️ Known limitations of the `mlflow-1-8-1` ServiceTemplate (community-charts/mlflow 1.8.1, app 3.7.0) — empirically validated 2026-04-17:**
+>
+> 1. **`minio.enabled`, `postgresql.enabled`, `tracking.persistence.*` values are SILENTLY IGNORED.** The wrapped community chart does NOT bundle MinIO or PostgreSQL subcharts; these values appear under `helm get values` but produce no pods. The deployment you get is a single-pod MLflow server.
+> 2. **The single pod runs with `--backend-store-uri=sqlite:///:memory:`** — in-memory SQLite. All experiments, runs, and metadata are lost on pod restart. Unsuitable for any persistent experiment tracking.
+> 3. **MLflow 3.7 security middleware blocks all non-localhost HTTP requests** with `403 "Invalid Host header - possible DNS rebinding attack detected"`. The chart does NOT expose a value to set `--allowed-hosts` or disable the middleware, so the Task 5 in-cluster Kubernetes Job (or any other client connecting via the `mlflow` Service's ClusterIP) cannot reach the tracking API.
+>
+> **Practical consequence:** the ServiceTemplate path is currently suitable only for a smoke test of "MLflow binary runs in a pod" — not for the experiment-tracking workflow this lab teaches. Use Task 3 (manual deployment) for a working MLflow stack until the catalog chart is updated to (a) support PostgreSQL + MinIO subchart toggles, (b) persist the SQLite store to a PVC, and (c) expose `server.allowedHosts` (or equivalent) as a value.
+>
+> Tracked as TRAP 20 in `docs/plans/2026-04-14-week-5-labs-5.2-5.16-validation.md`.
+
 1. **Install the MLflow ServiceTemplate from the catalog** (on the management cluster)
    ```bash
    # Switch to management cluster context
@@ -307,7 +317,9 @@ This task deploys MLflow components manually. Skip this if you completed Task 2 
    spec:
      accessModes:
        - ReadWriteOnce
-     storageClassName: ebs-gp3
+     # storageClassName omitted — uses the cluster default. On the Lab 5.1
+     # k0rdent AWS gpu-cluster the default is `ebs-csi-default-sc`. Verify
+     # with `kubectl get storageclass` before applying.
      resources:
        requests:
          storage: 50Gi
@@ -408,7 +420,7 @@ This task deploys MLflow components manually. Skip this if you completed Task 2 
    spec:
      accessModes:
        - ReadWriteOnce
-     storageClassName: ebs-gp3
+     # storageClassName omitted — uses the cluster default (ebs-csi-default-sc on Lab 5.1 gpu-cluster).
      resources:
        requests:
          storage: 10Gi
@@ -878,12 +890,19 @@ This task deploys MLflow components manually. Skip this if you completed Task 2 
          containers:
            - name: trainer
              image: nvcr.io/nvidia/pytorch:24.09-py3
-             command: ["python", "/scripts/train.py"]
+             # The nvcr pytorch image ships with torch + torchvision but NOT mlflow; install at pod start.
+             command: ["sh", "-c", "pip install --quiet mlflow>=3.1.0 && python /scripts/train.py"]
              env:
+               # Service name and port MUST match the manual deployment in Task 3.
+               # If you deploy via the Task 3 manifests below, the Service is named `mlflow-server`
+               # on port 5000. If you deploy via the Task 2 ServiceTemplate, the Service is named
+               # `mlflow` on port 80 (proxied to gunicorn :5000 inside the pod). Adjust accordingly.
                - name: MLFLOW_TRACKING_URI
-                 value: "http://mlflow-server:5000"
+                 value: "http://mlflow-server.mlflow.svc:5000"
+               # S3/MinIO artifact storage vars — only needed if Task 3's MinIO is deployed.
+               # Remove this block entirely if running against a Task 2 (SQLite + local FS) MLflow.
                - name: MLFLOW_S3_ENDPOINT_URL
-                 value: "http://minio:9000"
+                 value: "http://minio.mlflow.svc:9000"
                - name: AWS_ACCESS_KEY_ID
                  valueFrom:
                    secretKeyRef:
