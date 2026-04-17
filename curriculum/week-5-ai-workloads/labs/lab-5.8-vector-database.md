@@ -231,6 +231,8 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    using a `MultiClusterService` or `ClusterDeployment` service spec, consistent
    with the patterns from Labs 5.1 and 5.2:
 
+   > **Cluster selector — adjust to match YOUR ClusterDeployment labels.** The example below uses `workload-type: ai-inference` as an illustrative convention. Lab 5.1's default `ClusterDeployment` applies `environment: training` and `gpu-enabled: "true"` labels (and no `workload-type`). Either (a) swap the selector in this manifest to `environment: training`, or (b) patch the Lab 5.1 ClusterDeployment with `spec.config.clusterLabels.workload-type: ai-inference` before applying the MCS. Confirm with `kubectl get clusterdeployment <name> -n kcm-system --show-labels` first.
+
    ```yaml
    # Save as milvus-service.yaml
    apiVersion: k0rdent.mirantis.com/v1beta1
@@ -241,7 +243,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    spec:
      clusterSelector:
        matchLabels:
-         workload-type: ai-inference
+         environment: training      # matches Lab 5.1's default ClusterDeployment label; adjust if you renamed
      serviceSpec:
        services:
          - template: milvus-5-0-14
@@ -269,6 +271,13 @@ This lab deploys **Milvus** as a production-grade distributed solution.
                  enabled: true
                  size: 50Gi
              pulsar:
+               # NOTE (empirical 2026-04-17): the milvus-5-0-14 catalog chart
+               # IGNORES `pulsar.enabled: false` for cluster mode and still
+               # deploys Pulsar v3 (plus BookKeeper + ZooKeeper, ~11 extra
+               # pods). If you need a lighter mq backend, either (a) use the
+               # Simplified Alternative (standalone mode) at the end of this
+               # lab, or (b) fork the chart to wire in a different mq. The
+               # key is tracked upstream on the Zilliz helm repo.
                enabled: false
              queryNode:
                replicas: 2
