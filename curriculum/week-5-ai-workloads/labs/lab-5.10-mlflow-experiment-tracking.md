@@ -310,6 +310,77 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
 - `helm` ≥ 3.12 on the management node with network access to `ghcr.io` and `charts.rustfs.com`.
 - The RustFS helm chart's storage config requires an **explicit** storageclass name — it defaults to `local-path` which does not exist on AWS EBS CSI clusters.
 
+> **⚠️ Production Secret Management — DO NOT ship the inline plaintext pattern below to prod.**
+>
+> The steps in this task carry several secret values as literal strings inside `kubectl create secret --from-literal=...` commands and MCS `values:` blocks:
+>
+> - RustFS access key + secret (`mlflow` / `mlflow-s3cr3t-8392nX`)
+> - PostgreSQL admin password (`pgadmin-s3cr3t`)
+> - PostgreSQL application password for the `mlflow` user (`mlflow-pg-s3cr3t`)
+>
+> **That is demo-grade hygiene only.** Every value above lands in multiple places that are easy to accidentally leak: shell history, `kubectl get secret -o yaml` dumps, helm release metadata, git-committed `MultiClusterService` YAML, Sveltos audit logs, and `etcd` backups. Any one of those surfaces leaking rotates the blast radius from "one lab" to "every cluster that pulled this MCS."
+>
+> For anything past a training run, drive secrets through an **external secret store** reconciled by the [External Secrets Operator](https://external-secrets.io/) — which IS in the k0rdent catalog as the `external-secrets` ServiceTemplate. The canonical k0rdent flow:
+>
+> 1. **Install External Secrets Operator on the workload cluster via MCS:**
+>    ```yaml
+>    # Save as eso-mcs.yaml (on the management cluster)
+>    apiVersion: k0rdent.mirantis.com/v1beta1
+>    kind: MultiClusterService
+>    metadata:
+>      name: external-secrets
+>      namespace: kcm-system
+>    spec:
+>      clusterSelector:
+>        matchLabels:
+>          environment: training
+>      serviceSpec:
+>        services:
+>          - template: external-secrets-0-19-0   # or current catalog version
+>            name: external-secrets
+>            namespace: external-secrets
+>    ```
+>
+> 2. **Wire a `SecretStore` to your source of truth.** Pick one that matches your org's posture:
+>
+>    | Backend | k0rdent fit | Rotation story | Notes |
+>    |---|---|---|---|
+>    | **AWS Secrets Manager** (recommended on AWS) | Auth via IRSA (EKS) or node IAM role (k0s on EC2) | Native 30/90-day rotation lambdas | Cheapest path when the workload cluster already has AWS IAM |
+>    | **HashiCorp Vault** (recommended on-prem / multi-cloud) | Auth via Kubernetes auth method, SPIFFE, or approle | Fine-grained TTLs + dynamic PostgreSQL creds | Use the dedicated `vault` backend, not `kv-v2`, for dynamic Postgres roles that issue per-pod throwaway passwords |
+>    | **Azure Key Vault / GCP Secret Manager** | Mirrors of AWS Secrets Manager per cloud | Cloud-native KMS + rotation | Same pattern, just different `SecretStore.spec.provider.*` key |
+>    | **SOPS + age/PGP + git** | Works without an external API | Manual rotation (rewrite + re-encrypt) | Not ESO — use `sops-secrets-operator` or decrypt in a pre-commit hook. Fine for GitOps-only shops, brittle for dynamic creds. |
+>
+> 3. **Replace every `kubectl create secret --from-literal=...` in this task with an `ExternalSecret` CR** pointing at your `SecretStore`:
+>    ```yaml
+>    apiVersion: external-secrets.io/v1beta1
+>    kind: ExternalSecret
+>    metadata:
+>      name: rustfs-credentials
+>      namespace: mlflow
+>    spec:
+>      refreshInterval: 1h
+>      secretStoreRef:
+>        name: aws-secrets-manager         # the SecretStore you created in step 2
+>        kind: ClusterSecretStore
+>      target:
+>        name: rustfs-credentials           # the K8s Secret ESO will materialize
+>        creationPolicy: Owner
+>      data:
+>        - secretKey: AWS_ACCESS_KEY_ID
+>          remoteRef: { key: mlflow/rustfs, property: access_key }
+>        - secretKey: AWS_SECRET_ACCESS_KEY
+>          remoteRef: { key: mlflow/rustfs, property: secret_key }
+>    ```
+>    ESO generates the same `Secret/rustfs-credentials` shape the raw Deployment expects, so downstream env/volumeMount references in step 6 (MLflow Deployment) and Task 5 (training Job) do **not** change. Drop-in at the secret boundary.
+>
+> 4. **Same pattern for the PostgreSQL user password** — after TRAP 21's manual `CREATE ROLE mlflow` in step 4, either (a) store `mlflow-pg-s3cr3t` in the external store and mount via ExternalSecret, or (b) preferred: use Vault's **dynamic database credentials** plugin so every pod restart gets a fresh short-TTL Postgres user, and the static password disappears entirely.
+>
+> 5. **Admin credential hygiene.** The Bitnami chart's auto-generated `postgres-password` (the one we extract in step 4 to bootstrap the mlflow user) stays in the `postgresql` Secret on-cluster. In production, rotate it via a one-shot Job that runs `ALTER USER postgres WITH PASSWORD '<new>'` + `kubectl patch secret postgresql ...` + `rollout restart statefulset/postgresql`. Bake that into your CI/CD rotation schedule alongside the application-level creds.
+>
+> 6. **Student / training runs only:** use the plaintext values below as they stand — just treat the cluster as ephemeral, never push the resulting YAML to a public repo, and `lab-destroy.sh` when done so the EBS volumes (which hold the Postgres + RustFS data at rest) are reclaimed.
+>
+> The same three-tier callout applies to **Lab 5.7 (JupyterHub `DummyAuthenticator.password: "training123"`)** and **Lab 5.8 (Milvus `root:Milvus` default root credentials + `milvus-credentials` secret creation)**. Swap DummyAuth for OIDC-via-dex (also in the catalog as `dex-*`) for JupyterHub in prod, and wire Milvus authorization through ExternalSecrets against a Vault KV mount. Tracked as a curriculum-wide hardening todo — see the validation plan's Known Traps section for TRAP 22 follow-up.
+
 1. **Create workload namespace + RustFS S3 credentials secret**
    ```bash
    export KUBECONFIG=/tmp/${CLUSTER_NAME}.kubeconfig   # or ~/.kube/gpu-cluster.conf
