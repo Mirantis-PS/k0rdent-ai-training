@@ -265,328 +265,329 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
 
 > **Note:** If your environment does not have the MLflow ServiceTemplate available, or you need more control over the deployment, continue with Task 3 for a manual installation.
 
-### Task 3: Manual MLflow Deployment (30 min)
+### Task 3: Production-ready MLflow on k0rdent — RustFS + PostgreSQL + raw MLflow (45 min)
 
-This task deploys MLflow components manually. Skip this if you completed Task 2 successfully.
+**Use this path when Task 2 fails** (the `mlflow-1-8-1` ServiceTemplate hits TRAP 20 in the current catalog), **or when you need a persistent multi-user experiment tracker** that survives pod restarts. Empirically validated end-to-end on the Lab 5.1 gpu-cluster on 2026-04-17.
 
-1. **Create namespace and secrets**
+**Architecture (all Mirantis / Apache-2.0 ecosystem):**
+
+```
+┌──────────────── Workload cluster: namespace `mlflow` ─────────────────┐
+│                                                                        │
+│  ┌─────────────────┐   backend-store-uri   ┌──────────────────────┐   │
+│  │ MLflow Deploy   │──────────────────────▶│ PostgreSQL 18        │   │
+│  │ burakince/      │                       │ k0rdent catalog      │   │
+│  │ mlflow:3.7.0    │                       │ ServiceTemplate      │   │
+│  │ --allowed-hosts=│                       │ postgresql-18-3-0    │   │
+│  │   "*"           │                       │ (wraps Bitnami)      │   │
+│  └─────────────────┘                       └──────────────────────┘   │
+│        │                                                               │
+│        │ default-artifact-root=s3://mlflow-artifacts/                  │
+│        ▼                                                               │
+│  ┌──────────────────────┐                                              │
+│  │ RustFS standalone    │  Apache-2.0 MinIO-compatible S3,             │
+│  │ 1 pod + 50Gi PVC     │  installed from charts.rustfs.com            │
+│  └──────────────────────┘                                              │
+└───────────────────────────────────────────────────────────────────────┘
+
+      ▲
+      │ MCS from kcm-system on management cluster
+      │
+┌─────┴─────────────────── Management cluster ─────────────────────────┐
+│  ServiceTemplate postgresql-18-3-0 (kgst-installed from catalog)      │
+│  MultiClusterService mlflow-postgresql (selects environment:training) │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+**Why this mix (vs the old MinIO + manual Postgres path):**
+
+- **RustFS over MinIO** — RustFS is Apache-2.0; MinIO has moved to AGPLv3 which is incompatible with many commercial k0rdent distributions. RustFS is a drop-in S3 API replacement: MLflow's `boto3` client needs no config changes other than `MLFLOW_S3_ENDPOINT_URL`.
+- **PostgreSQL via k0rdent catalog** — MCS-managed, Sveltos-reconciled, matches the Mirantis-native deployment flow. Replaces the raw `postgres:16-alpine` Deployment from the previous revision of this lab.
+- **Raw MLflow Deployment (not via chart)** — the catalog's `mlflow-1-8-1` chart currently has TRAP 20 (SQLite in-memory hardcoded, no `--allowed-hosts` value). A raw Deployment gives full control over the CLI args we need: `--allowed-hosts="*"`, `--backend-store-uri=postgresql://...`, `--default-artifact-root=s3://mlflow-artifacts/`.
+
+**Prerequisites:**
+- `kubectl get storageclass` on the workload cluster shows at least one default — on Lab 5.1 gpu-cluster this is `ebs-csi-default-sc`.
+- `helm` ≥ 3.12 on the management node with network access to `ghcr.io` and `charts.rustfs.com`.
+- The RustFS helm chart's storage config requires an **explicit** storageclass name — it defaults to `local-path` which does not exist on AWS EBS CSI clusters.
+
+1. **Create workload namespace + RustFS S3 credentials secret**
+   ```bash
+   export KUBECONFIG=/tmp/${CLUSTER_NAME}.kubeconfig   # or ~/.kube/gpu-cluster.conf
+   kubectl create namespace mlflow
+
+   # These credentials will be used by MLflow (as S3 client) AND by the
+   # bucket-bootstrap Job. Rotate the values for production use.
+   kubectl create secret generic rustfs-credentials -n mlflow \
+     --from-literal=AWS_ACCESS_KEY_ID=mlflow \
+     --from-literal=AWS_SECRET_ACCESS_KEY=mlflow-s3cr3t-8392nX
+   ```
+
+2. **Deploy RustFS (standalone, 50Gi data PVC) via external helm repo**
+   ```bash
+   helm repo add rustfs https://charts.rustfs.com
+   helm repo update rustfs
+
+   helm install rustfs rustfs/rustfs \
+     --namespace mlflow \
+     --set mode.standalone.enabled=true \
+     --set mode.distributed.enabled=false \
+     --set replicaCount=1 \
+     --set secret.rustfs.access_key=mlflow \
+     --set secret.rustfs.secret_key=mlflow-s3cr3t-8392nX \
+     --set storageclass.name=ebs-csi-default-sc \
+     --set storageclass.dataStorageSize=50Gi \
+     --wait --timeout 8m
+   ```
+
+   > **Do NOT skip `storageclass.name`.** The RustFS chart defaults to `local-path` — if you omit the flag on an EBS CSI cluster, both `rustfs-data` and `rustfs-logs` PVCs stay `Pending` forever and the helm install times out. Use `kubectl get storageclass` first, pick your default, pass it explicitly.
+
+   Verify: `kubectl get pods,pvc,svc -n mlflow` should show `rustfs-*` pod Ready, `rustfs-data` Bound (50Gi), `rustfs-logs` Bound (1Gi), and `rustfs-svc` Service exposing `9000/TCP,9001/TCP`.
+
+3. **Deploy PostgreSQL via the k0rdent catalog ServiceTemplate**
+
+   The catalog provides `postgresql-18-3-0` (wraps Bitnami PostgreSQL chart 18.3.0, PostgreSQL 18). Install the ServiceTemplate on the management cluster, then apply a MultiClusterService that reconciles it onto the workload cluster.
+
+   ```bash
+   # On the management cluster
+   unset KUBECONFIG   # or use ~/.kube/config
+
+   helm upgrade --install postgresql-template \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set chart=postgresql:18.3.0 \
+     -n kcm-system --wait --timeout 5m
+
+   # Wait for the ServiceTemplate to validate
+   kubectl wait servicetemplate postgresql-18-3-0 -n kcm-system \
+     --for=jsonpath='{.status.valid}'=true --timeout=120s
+   ```
+
+   ```yaml
+   # Save as mlflow-postgresql-mcs.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: mlflow-postgresql
+     namespace: kcm-system
+   spec:
+     clusterSelector:
+       matchLabels:
+         environment: training     # label applied by Lab 5.1 ClusterDeployment
+     serviceSpec:
+       services:
+         - template: postgresql-18-3-0
+           name: postgresql
+           namespace: mlflow
+           values: |
+             auth:
+               database: mlflow
+               username: mlflow
+               password: mlflow-pg-s3cr3t
+               postgresPassword: pgadmin-s3cr3t
+             primary:
+               persistence:
+                 size: 10Gi
+   ```
+
+   ```bash
+   kubectl apply -f mlflow-postgresql-mcs.yaml
+
+   # Watch postgres come up on the workload cluster
+   export KUBECONFIG=/tmp/${CLUSTER_NAME}.kubeconfig
+   kubectl wait --for=condition=Ready pod/postgresql-0 -n mlflow --timeout=5m
+   ```
+
+   > **⚠️ TRAP 21: the wrapped Bitnami chart 18.3.0 silently ignores `auth.username`, `auth.password`, `auth.postgresPassword`, and `auth.database` values.** `helm get values postgresql -n mlflow` shows your values applied, but the rendered `postgresql` Secret contains only a random auto-generated `postgres-password` — no `password` key for the `mlflow` user, and no `mlflow` role or database exist in the running instance. Root cause under investigation (probable interaction between `global.defaultFips=restricted` and the kgst / Sveltos rendering path). Until the catalog chart is fixed, apply the one-shot workaround in step 4.
+
+4. **Bootstrap mlflow role + database (TRAP 21 workaround)**
    ```bash
    export KUBECONFIG=/tmp/${CLUSTER_NAME}.kubeconfig
-   kubectl create namespace mlflow
+
+   # Read the auto-generated postgres admin password from the Secret that Bitnami DID create
+   PG_ADMIN_PW=$(kubectl get secret postgresql -n mlflow \
+     -o jsonpath='{.data.postgres-password}' | base64 -d)
+
+   # Create the mlflow role + database + grants manually — single idempotent block
+   kubectl exec -n mlflow postgresql-0 -- bash -c \
+     "PGPASSWORD=${PG_ADMIN_PW} psql -U postgres -h localhost <<'SQL'
+   DO \$\$ BEGIN
+     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mlflow') THEN
+       CREATE ROLE mlflow WITH LOGIN PASSWORD 'mlflow-pg-s3cr3t';
+     END IF;
+   END \$\$;
+   SELECT 'CREATE DATABASE mlflow OWNER mlflow'
+     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mlflow')\\gexec
+   GRANT ALL PRIVILEGES ON DATABASE mlflow TO mlflow;
+   SQL"
+
+   # Verify the mlflow user can authenticate
+   kubectl exec -n mlflow postgresql-0 -- bash -c \
+     "PGPASSWORD=mlflow-pg-s3cr3t psql -U mlflow -d mlflow -h localhost -c 'SELECT current_user, current_database()'"
    ```
 
+   Expected output: `mlflow | mlflow`.
+
+5. **Create the `mlflow-artifacts` bucket on RustFS**
    ```yaml
-   # Save as mlflow-secrets.yaml
-   apiVersion: v1
-   kind: Secret
+   # Save as create-bucket-job.yaml
+   apiVersion: batch/v1
+   kind: Job
    metadata:
-     name: minio-credentials
-     namespace: mlflow
-   type: Opaque
-   stringData:
-     MINIO_ROOT_USER: "mlflow"
-     MINIO_ROOT_PASSWORD: "mlflow-s3cr3t"
-     AWS_ACCESS_KEY_ID: "mlflow"
-     AWS_SECRET_ACCESS_KEY: "mlflow-s3cr3t"
-   ---
-   apiVersion: v1
-   kind: Secret
-   metadata:
-     name: postgres-credentials
-     namespace: mlflow
-   type: Opaque
-   stringData:
-     POSTGRES_USER: "mlflow"
-     POSTGRES_PASSWORD: "pg-s3cr3t"
-     POSTGRES_DB: "mlflow"
-     DATABASE_URL: "postgresql://mlflow:pg-s3cr3t@postgres:5432/mlflow"
-   ```
-
-   ```bash
-   kubectl apply -f mlflow-secrets.yaml
-   ```
-
-2. **Deploy MinIO for artifact storage**
-   ```yaml
-   # Save as minio-deployment.yaml
-   apiVersion: v1
-   kind: PersistentVolumeClaim
-   metadata:
-     name: minio-pvc
+     name: create-mlflow-bucket
      namespace: mlflow
    spec:
-     accessModes:
-       - ReadWriteOnce
-     # storageClassName omitted — uses the cluster default. On the Lab 5.1
-     # k0rdent AWS gpu-cluster the default is `ebs-csi-default-sc`. Verify
-     # with `kubectl get storageclass` before applying.
-     resources:
-       requests:
-         storage: 50Gi
-   ---
-   apiVersion: apps/v1
-   kind: Deployment
-   metadata:
-     name: minio
-     namespace: mlflow
-   spec:
-     replicas: 1
-     selector:
-       matchLabels:
-         app: minio
+     backoffLimit: 3
      template:
-       metadata:
-         labels:
-           app: minio
        spec:
+         restartPolicy: OnFailure
          containers:
-           - name: minio
-             image: minio/minio:RELEASE.2024-10-02T17-50-41Z
-             args:
-               - server
-               - /data
-               - --console-address
-               - ":9001"
-             envFrom:
-               - secretRef:
-                   name: minio-credentials
-             ports:
-               - containerPort: 9000
-                 name: api
-               - containerPort: 9001
-                 name: console
-             volumeMounts:
-               - name: data
-                 mountPath: /data
-             readinessProbe:
-               httpGet:
-                 path: /minio/health/ready
-                 port: 9000
-               initialDelaySeconds: 10
-               periodSeconds: 10
-         volumes:
-           - name: data
-             persistentVolumeClaim:
-               claimName: minio-pvc
-   ---
-   apiVersion: v1
-   kind: Service
-   metadata:
-     name: minio
-     namespace: mlflow
-   spec:
-     selector:
-       app: minio
-     ports:
-       - name: api
-         port: 9000
-         targetPort: 9000
-       - name: console
-         port: 9001
-         targetPort: 9001
+           - name: awscli
+             image: amazon/aws-cli:latest
+             command:
+               - sh
+               - -c
+               - |
+                 aws --endpoint-url http://rustfs-svc.mlflow.svc:9000 s3 mb s3://mlflow-artifacts || true
+                 aws --endpoint-url http://rustfs-svc.mlflow.svc:9000 s3 ls
+             env:
+               - { name: AWS_ACCESS_KEY_ID,     valueFrom: { secretKeyRef: { name: rustfs-credentials, key: AWS_ACCESS_KEY_ID } } }
+               - { name: AWS_SECRET_ACCESS_KEY, valueFrom: { secretKeyRef: { name: rustfs-credentials, key: AWS_SECRET_ACCESS_KEY } } }
+               - { name: AWS_DEFAULT_REGION,    value: us-east-1 }
    ```
 
    ```bash
-   kubectl apply -f minio-deployment.yaml
-   kubectl wait --for=condition=Ready pod -l app=minio -n mlflow --timeout=120s
+   kubectl apply -f create-bucket-job.yaml
+   kubectl wait --for=condition=complete job/create-mlflow-bucket -n mlflow --timeout=3m
+   kubectl logs -n mlflow -l job-name=create-mlflow-bucket --tail=5
+   # Expected: "make_bucket: mlflow-artifacts"
    ```
 
-3. **Create the MLflow artifacts bucket**
-   ```bash
-   # Port forward MinIO
-   kubectl port-forward -n mlflow svc/minio 9000:9000 &
-   MINIO_PF_PID=$!
-   sleep 5
+6. **Deploy MLflow tracking server as a raw Deployment**
 
-   # Install MinIO client and create bucket
-   curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
-   chmod +x mc && sudo mv mc /usr/local/bin/
+   A raw Deployment (rather than the broken `mlflow-1-8-1` chart) lets us pass the CLI flags we actually need — `--allowed-hosts=*` to defeat MLflow 3.7's DNS-rebinding middleware, and `--backend-store-uri` / `--default-artifact-root` to point at our PostgreSQL and RustFS.
 
-   mc alias set minio http://localhost:9000 mlflow mlflow-s3cr3t
-   mc mb minio/mlflow-artifacts
-
-   kill $MINIO_PF_PID
-   echo "MinIO bucket created: mlflow-artifacts"
-   ```
-
-4. **Deploy PostgreSQL backend store**
-   ```yaml
-   # Save as postgres-deployment.yaml
-   apiVersion: v1
-   kind: PersistentVolumeClaim
-   metadata:
-     name: postgres-pvc
-     namespace: mlflow
-   spec:
-     accessModes:
-       - ReadWriteOnce
-     # storageClassName omitted — uses the cluster default (ebs-csi-default-sc on Lab 5.1 gpu-cluster).
-     resources:
-       requests:
-         storage: 10Gi
-   ---
-   apiVersion: apps/v1
-   kind: Deployment
-   metadata:
-     name: postgres
-     namespace: mlflow
-   spec:
-     replicas: 1
-     selector:
-       matchLabels:
-         app: postgres
-     template:
-       metadata:
-         labels:
-           app: postgres
-       spec:
-         containers:
-           - name: postgres
-             image: postgres:16-alpine
-             envFrom:
-               - secretRef:
-                   name: postgres-credentials
-             ports:
-               - containerPort: 5432
-             volumeMounts:
-               - name: data
-                 mountPath: /var/lib/postgresql/data
-                 subPath: pgdata
-             readinessProbe:
-               exec:
-                 command:
-                   - pg_isready
-                   - -U
-                   - mlflow
-               initialDelaySeconds: 10
-               periodSeconds: 5
-         volumes:
-           - name: data
-             persistentVolumeClaim:
-               claimName: postgres-pvc
-   ---
-   apiVersion: v1
-   kind: Service
-   metadata:
-     name: postgres
-     namespace: mlflow
-   spec:
-     selector:
-       app: postgres
-     ports:
-       - port: 5432
-         targetPort: 5432
-   ```
-
-   ```bash
-   kubectl apply -f postgres-deployment.yaml
-   kubectl wait --for=condition=Ready pod -l app=postgres -n mlflow --timeout=120s
-   ```
-
-5. **Deploy MLflow Tracking Server**
    ```yaml
    # Save as mlflow-deployment.yaml
    apiVersion: apps/v1
    kind: Deployment
    metadata:
-     name: mlflow-server
+     name: mlflow
      namespace: mlflow
+     labels:
+       app: mlflow
    spec:
      replicas: 1
      selector:
        matchLabels:
-         app: mlflow-server
+         app: mlflow
      template:
        metadata:
          labels:
-           app: mlflow-server
+           app: mlflow
        spec:
          containers:
            - name: mlflow
-             image: ghcr.io/mlflow/mlflow:v3.1.0
-             command:
-               - mlflow
+             image: burakince/mlflow:3.7.0      # same image the catalog chart uses, but with our args
+             command: ["mlflow"]
+             args:
                - server
-               - --backend-store-uri
-               - $(DATABASE_URL)
-               - --artifacts-destination
-               - s3://mlflow-artifacts
-               - --host
-               - "0.0.0.0"
-               - --port
-               - "5000"
+               - --host=0.0.0.0
+               - --port=5000
+               - --allowed-hosts=*                   # REQUIRED for MLflow 3.7+ behind a ClusterIP Service
+               - --backend-store-uri=postgresql://mlflow:mlflow-pg-s3cr3t@postgresql.mlflow.svc:5432/mlflow
+               - --default-artifact-root=s3://mlflow-artifacts/
              env:
-               - name: DATABASE_URL
-                 valueFrom:
-                   secretKeyRef:
-                     name: postgres-credentials
-                     key: DATABASE_URL
-               - name: MLFLOW_S3_ENDPOINT_URL
-                 value: "http://minio:9000"
-               - name: AWS_ACCESS_KEY_ID
-                 valueFrom:
-                   secretKeyRef:
-                     name: minio-credentials
-                     key: AWS_ACCESS_KEY_ID
-               - name: AWS_SECRET_ACCESS_KEY
-                 valueFrom:
-                   secretKeyRef:
-                     name: minio-credentials
-                     key: AWS_SECRET_ACCESS_KEY
+               - { name: MLFLOW_S3_ENDPOINT_URL, value: http://rustfs-svc.mlflow.svc:9000 }
+               - { name: MLFLOW_S3_IGNORE_TLS,   value: "true" }
+               - { name: AWS_ACCESS_KEY_ID,     valueFrom: { secretKeyRef: { name: rustfs-credentials, key: AWS_ACCESS_KEY_ID } } }
+               - { name: AWS_SECRET_ACCESS_KEY, valueFrom: { secretKeyRef: { name: rustfs-credentials, key: AWS_SECRET_ACCESS_KEY } } }
              ports:
-               - containerPort: 5000
+               - { containerPort: 5000, name: http }
+             readinessProbe: { httpGet: { path: /health, port: 5000 }, initialDelaySeconds: 20, periodSeconds: 5 }
+             livenessProbe:  { httpGet: { path: /health, port: 5000 }, initialDelaySeconds: 60, periodSeconds: 15 }
              resources:
-               requests:
-                 cpu: "500m"
-                 memory: 1Gi
-               limits:
-                 cpu: "2"
-                 memory: 4Gi
-             readinessProbe:
-               httpGet:
-                 path: /health
-                 port: 5000
-               initialDelaySeconds: 15
-               periodSeconds: 10
-             livenessProbe:
-               httpGet:
-                 path: /health
-                 port: 5000
-               initialDelaySeconds: 30
-               periodSeconds: 15
+               requests: { cpu: 200m, memory: 512Mi }
+               limits:   { cpu: 1,    memory: 1Gi }
    ---
    apiVersion: v1
    kind: Service
    metadata:
-     name: mlflow-server
+     name: mlflow
      namespace: mlflow
    spec:
      selector:
-       app: mlflow-server
+       app: mlflow
      ports:
-       - port: 5000
-         targetPort: 5000
+       - { name: http, port: 5000, targetPort: http }
    ```
 
    ```bash
    kubectl apply -f mlflow-deployment.yaml
-   kubectl wait --for=condition=Ready pod -l app=mlflow-server -n mlflow --timeout=180s
+   kubectl wait --for=condition=Available deployment/mlflow -n mlflow --timeout=3m
 
-   # Port forward to access UI
-   kubectl port-forward -n mlflow svc/mlflow-server 5000:5000 &
-
-   echo "MLflow UI: http://localhost:5000"
+   # Sanity check — should return HTTP 200 with empty body
+   kubectl port-forward -n mlflow svc/mlflow 5000:5000 &
+   PF=$!
+   sleep 3
+   curl -s -w "HTTP %{http_code}\n" http://localhost:5000/health
+   # Verify the DNS rebinding middleware is NOT blocking us:
+   curl -s -X POST http://localhost:5000/api/2.0/mlflow/experiments/search \
+        -H 'Content-Type: application/json' -d '{"max_results":10}' | head -3
+   kill $PF 2>/dev/null
    ```
 
-6. **Verify the deployment**
-   ```bash
-   # Check health endpoint
-   curl -s http://localhost:5000/health
-   # Should return HTTP 200
+   Expected: `HTTP 200` and a JSON body like `{"experiments":[...], "next_page_token":"..."}` — **not** a `403 Invalid Host header` (that's the TRAP 20 signature). If you still see 403, double-check the `--allowed-hosts=*` arg made it into the running pod.
 
-   # Check all pods
-   kubectl get pods -n mlflow
-   # Expected: minio, postgres, mlflow-server all Running
+7. **Verify the full stack**
+   ```bash
+   kubectl get pods,svc,pvc -n mlflow
+   # Expected pods all Running:
+   #   postgresql-0             (from catalog MCS)
+   #   rustfs-xxxxxxxxxx-yyyyy  (from rustfs helm)
+   #   mlflow-xxxxxxxxxx-yyyyy  (from raw Deployment)
+   # Expected services: postgresql, postgresql-hl, rustfs-svc, mlflow
+   # Expected PVCs Bound: data-postgresql-0 (8Gi), rustfs-data (50Gi),
+   #                     rustfs-logs (1Gi)
+   ```
+
+   End-to-end smoke test from the management node (validates MLflow → PostgreSQL → RustFS chain in one Job):
+   ```bash
+   kubectl create configmap mlflow-smoke-script --from-literal=smoke.py='
+   import mlflow, os
+   mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+   mlflow.set_experiment("smoke-test")
+   with mlflow.start_run(run_name="e2e-check"):
+       mlflow.log_param("hello", "world")
+       mlflow.log_metric("answer", 42)
+       with open("/tmp/artifact.txt","w") as f: f.write("rustfs ok")
+       mlflow.log_artifact("/tmp/artifact.txt")
+   print("OK")
+   ' -n mlflow
+
+   kubectl apply -n mlflow -f - <<EOF
+   apiVersion: batch/v1
+   kind: Job
+   metadata:
+     name: mlflow-smoke
+   spec:
+     backoffLimit: 1
+     template:
+       spec:
+         restartPolicy: Never
+         containers:
+           - name: s
+             image: python:3.11-slim
+             command: ["sh","-c","pip install --quiet 'mlflow>=3.1.0' boto3 && python /s/smoke.py"]
+             env:
+               - { name: MLFLOW_TRACKING_URI,    value: http://mlflow.mlflow.svc:5000 }
+               - { name: MLFLOW_S3_ENDPOINT_URL, value: http://rustfs-svc.mlflow.svc:9000 }
+               - { name: AWS_ACCESS_KEY_ID,     valueFrom: { secretKeyRef: { name: rustfs-credentials, key: AWS_ACCESS_KEY_ID } } }
+               - { name: AWS_SECRET_ACCESS_KEY, valueFrom: { secretKeyRef: { name: rustfs-credentials, key: AWS_SECRET_ACCESS_KEY } } }
+             volumeMounts: [ { name: s, mountPath: /s } ]
+         volumes: [ { name: s, configMap: { name: mlflow-smoke-script } } ]
+   EOF
+   kubectl wait --for=condition=complete job/mlflow-smoke -n mlflow --timeout=5m
+   kubectl logs -n mlflow -l job-name=mlflow-smoke --tail=3
+   # Expected last line: OK
    ```
 
 ### Task 4: Configure Client and Log GPU Experiments (30 min)
@@ -609,10 +610,13 @@ This task deploys MLflow components manually. Skip this if you completed Task 2 
    import os
    import time
 
-   # Configure MLflow
+   # Configure MLflow — these match the Task 3 rustfs-credentials secret.
+   # Before running this script from your laptop, port-forward BOTH services:
+   #   kubectl port-forward -n mlflow svc/mlflow     5000:5000 &
+   #   kubectl port-forward -n mlflow svc/rustfs-svc 9000:9000 &
    os.environ['MLFLOW_S3_ENDPOINT_URL'] = 'http://localhost:9000'
    os.environ['AWS_ACCESS_KEY_ID'] = 'mlflow'
-   os.environ['AWS_SECRET_ACCESS_KEY'] = 'mlflow-s3cr3t'
+   os.environ['AWS_SECRET_ACCESS_KEY'] = 'mlflow-s3cr3t-8392nX'
 
    mlflow.set_tracking_uri('http://localhost:5000')
    mlflow.set_experiment('gpu-training-experiments')
@@ -890,28 +894,30 @@ This task deploys MLflow components manually. Skip this if you completed Task 2 
          containers:
            - name: trainer
              image: nvcr.io/nvidia/pytorch:24.09-py3
-             # The nvcr pytorch image ships with torch + torchvision but NOT mlflow; install at pod start.
-             command: ["sh", "-c", "pip install --quiet mlflow>=3.1.0 && python /scripts/train.py"]
+             # The nvcr pytorch image ships with torch + torchvision but NOT mlflow.
+             # Pin numpy<2 — the nvcr build links torchvision against numpy 1.x; pip's default
+             # resolver upgrades to numpy 2.x when installing mlflow, which breaks torchvision
+             # datasets with "RuntimeError: Numpy is not available".
+             command: ["sh", "-c", "pip install --quiet 'numpy<2' 'mlflow>=3.1.0' boto3 && python /scripts/train.py"]
              env:
-               # Service name and port MUST match the manual deployment in Task 3.
-               # If you deploy via the Task 3 manifests below, the Service is named `mlflow-server`
-               # on port 5000. If you deploy via the Task 2 ServiceTemplate, the Service is named
-               # `mlflow` on port 80 (proxied to gunicorn :5000 inside the pod). Adjust accordingly.
+               # Points at the raw MLflow Deployment created in Task 3 step 6.
+               # Service name: `mlflow`, port 5000. In-cluster DNS FQDN shown for clarity.
                - name: MLFLOW_TRACKING_URI
-                 value: "http://mlflow-server.mlflow.svc:5000"
-               # S3/MinIO artifact storage vars — only needed if Task 3's MinIO is deployed.
-               # Remove this block entirely if running against a Task 2 (SQLite + local FS) MLflow.
+                 value: "http://mlflow.mlflow.svc:5000"
+               # RustFS S3 endpoint (replaces the AGPLv3 MinIO from the previous revision).
                - name: MLFLOW_S3_ENDPOINT_URL
-                 value: "http://minio.mlflow.svc:9000"
+                 value: "http://rustfs-svc.mlflow.svc:9000"
+               - name: MLFLOW_S3_IGNORE_TLS
+                 value: "true"
                - name: AWS_ACCESS_KEY_ID
                  valueFrom:
                    secretKeyRef:
-                     name: minio-credentials
+                     name: rustfs-credentials
                      key: AWS_ACCESS_KEY_ID
                - name: AWS_SECRET_ACCESS_KEY
                  valueFrom:
                    secretKeyRef:
-                     name: minio-credentials
+                     name: rustfs-credentials
                      key: AWS_SECRET_ACCESS_KEY
              volumeMounts:
                - name: training-script
@@ -1081,8 +1087,8 @@ MLflow 3.x replaces the stage-based model promotion workflow (Staging/Production
 ## Verification Checklist
 
 - [ ] MLflow server deployed and healthy (`/health` returns 200)
-- [ ] MinIO artifact store operational with `mlflow-artifacts` bucket
-- [ ] PostgreSQL backend store accepting connections
+- [ ] RustFS S3 artifact store operational with `mlflow-artifacts` bucket
+- [ ] PostgreSQL backend store accepting connections as user `mlflow`
 - [ ] Experiments logged with metrics, parameters, and artifacts
 - [ ] Model registered with alias-based promotion (not stage-based)
 - [ ] Model loadable via `models:/mnist-classifier@champion` URI
@@ -1094,15 +1100,15 @@ MLflow 3.x replaces the stage-based model promotion workflow (Staging/Production
 
 **Check logs:**
 ```bash
-kubectl logs -n mlflow -l app=mlflow-server
+kubectl logs -n mlflow -l app=mlflow
 ```
 
-**Verify database connection:**
+**Verify database connection from the mlflow pod:**
 ```bash
-kubectl exec -n mlflow deployment/mlflow-server -- \
+kubectl exec -n mlflow deployment/mlflow -- \
   python -c "
 import psycopg2
-conn = psycopg2.connect('postgresql://mlflow:pg-s3cr3t@postgres:5432/mlflow')
+conn = psycopg2.connect('postgresql://mlflow:mlflow-pg-s3cr3t@postgresql.mlflow.svc:5432/mlflow')
 print('Database connection: OK')
 conn.close()
 "
@@ -1111,21 +1117,35 @@ conn.close()
 **Check health endpoint:**
 ```bash
 # From inside the cluster
-kubectl exec -n mlflow deployment/mlflow-server -- curl -s http://localhost:5000/health
+kubectl exec -n mlflow deployment/mlflow -- curl -s http://localhost:5000/health
 ```
 
-### Artifacts Not Uploading
+**Did you hit TRAP 21 on PostgreSQL auth?** Bitnami postgresql 18.3.0 via kgst silently ignores the `auth.*` values in the MultiClusterService — the `mlflow` user and `mlflow` database may not exist. Re-run Task 3 step 4 (the manual `CREATE ROLE`/`CREATE DATABASE` block) and confirm `kubectl exec postgresql-0 -n mlflow -- psql -U postgres ...` shows the `mlflow` role in `\du`.
 
-**Check MinIO connectivity:**
+### Artifacts Not Uploading (403 / AccessDenied / connection refused)
+
+**Check RustFS connectivity from the mlflow pod:**
 ```bash
-kubectl exec -n mlflow deployment/mlflow-server -- \
-  curl -s http://minio:9000/minio/health/ready
+kubectl exec -n mlflow deployment/mlflow -- \
+  curl -s http://rustfs-svc.mlflow.svc:9000/
+# Expected: an S3 XML ListAllMyBucketsResult response or a 403 SignatureDoesNotMatch
+# (both confirm the S3 API is reachable; the 403 is expected because curl doesn't sign).
 ```
 
-**Verify S3 credentials are mounted from Secret:**
+**Verify the S3 credentials mounted from the Secret:**
 ```bash
-kubectl get secret minio-credentials -n mlflow -o jsonpath='{.data}' | \
+kubectl get secret rustfs-credentials -n mlflow -o jsonpath='{.data}' | \
   python3 -c "import sys,json,base64; d=json.load(sys.stdin); print({k:base64.b64decode(v).decode() for k,v in d.items()})"
+```
+
+**List the bucket directly with awscli (one-shot Pod):**
+```bash
+kubectl run rustfs-ls --rm -it --restart=Never -n mlflow \
+  --image=amazon/aws-cli:latest \
+  --env=AWS_ACCESS_KEY_ID=mlflow \
+  --env=AWS_SECRET_ACCESS_KEY=mlflow-s3cr3t-8392nX \
+  --env=AWS_DEFAULT_REGION=us-east-1 \
+  -- --endpoint-url http://rustfs-svc.mlflow.svc:9000 s3 ls s3://mlflow-artifacts/ --recursive
 ```
 
 ### Training Job Fails
