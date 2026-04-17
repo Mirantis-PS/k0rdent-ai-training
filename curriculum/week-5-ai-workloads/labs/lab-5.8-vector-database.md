@@ -436,6 +436,14 @@ This lab deploys **Milvus** as a production-grade distributed solution.
      -n vector-db
    ```
 
+   > **⚠️ Production hardening — three issues with the defaults above:**
+   >
+   > 1. **Milvus `root:Milvus` is the factory default** and stays unchanged if you only `create_user('mlops', ...)`. Add `utility.reset_password("root", "Milvus", "<new-long-random>")` before anything else, or disable the root account after the first admin user is provisioned — otherwise `root:Milvus` remains a valid login and every pymilvus client on the internet knows the defaults.
+   > 2. **`SecurePassword123!` literal in the lab markdown + in your shell history.** Same exfiltration surfaces as the Lab 5.10 postgres/rustfs passwords (shell history, `kubectl get secret -o yaml`, etcd backups, helm values dumps, git commits). For prod: generate with `openssl rand -base64 32`, push to your external secret store, and mount via an `ExternalSecret` instead of `kubectl create secret --from-literal`.
+   > 3. **Milvus `authorizationEnabled: true` authenticates but does NOT authorize per-collection read/write by default** — the `admin` role grants everything. For multi-tenant workloads, build custom roles via `Role("readonly").grant("CollectionA", "Search")` and assign users to the least-privileged one. Audit periodically with `utility.list_grants(role)`.
+   >
+   > Canonical k0rdent-native path for (1) + (2): install the `external-secrets` ServiceTemplate via MCS (it's in the catalog), wire a `ClusterSecretStore` against Vault / AWS Secrets Manager / Azure KV, and replace this `kubectl create secret --from-literal` block with an `ExternalSecret` CR that materializes `milvus-credentials` from the external store. Pattern and backend comparison table: see **Lab 5.10 Task 3's "⚠️ Production Secret Management" callout**. Tracked as part of TRAP 22 in `docs/plans/2026-04-14-week-5-labs-5.2-5.16-validation.md`.
+
 ### Task 4: Create Collection and Load Data (30 min)
 
 1. **Create Test Data Script**

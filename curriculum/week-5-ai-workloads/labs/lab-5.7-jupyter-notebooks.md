@@ -166,7 +166,7 @@ JupyterHub provides multi-user Jupyter notebook environments:
            - mlops
            - datascientist
        DummyAuthenticator:
-         password: "training123"
+         password: "training123"    # DEMO-ONLY — see production callout below
        JupyterHub:
          authenticator_class: dummy
 
@@ -272,6 +272,16 @@ JupyterHub provides multi-user Jupyter notebook environments:
      timeout: 3600  # Cull idle notebooks after 1 hour
      every: 300
    ```
+
+   > **⚠️ Production authentication — do NOT ship DummyAuthenticator + a literal password.**
+   >
+   > `DummyAuthenticator` with `password: "training123"` accepts any username + that one shared password. It's a training shortcut so every student can log in as `admin` / `mlops` / `datascientist` without a real IdP. In production:
+   >
+   > - **Switch the authenticator class to OIDC** (e.g. `oauthenticator.generic.GenericOAuthenticator` or the provider-specific Google/Okta/Entra variants). The k0rdent catalog ships `dex` as a ServiceTemplate — deploy it via MCS as an OIDC broker in front of your corp IdP, and point JupyterHub's `GenericOAuthenticator.{client_id, client_secret, token_url, userdata_url}` at the dex issuer. That collapses the shared-password problem and gives you per-user identity for audit + per-notebook RBAC.
+   > - **Source the client secret from an ExternalSecret**, not from the `jupyterhub-values.yaml` you `helm install`. Pattern is identical to the one documented in Lab 5.10 Task 3's "Production Secret Management" callout — install the `external-secrets` ServiceTemplate via MCS, define a `ClusterSecretStore` pointing at your backend (AWS Secrets Manager / Vault / Azure KV / GCP SM), and target a K8s Secret that the helm chart reads via `hub.existingSecret` (z2jh 4.x key).
+   > - **Drop `admin_users` + `allowed_users` string lists** in favor of OIDC group-based admin via `Authenticator.admin_groups` + your IdP's group claim. Hardcoded usernames in a YAML your team all has access to is a different leak surface: everyone who can `git log` can see the admin list and decide to add themselves.
+   >
+   > Tracked as part of TRAP 22 (curriculum-wide plaintext-secrets posture) in `docs/plans/2026-04-14-week-5-labs-5.2-5.16-validation.md`.
 
    > **Image tags:** The Jupyter Docker Stacks publish images to `quay.io` (Docker Hub images are frozen since October 2023). Tags use the format `cuda12-latest`, `cuda12-<date>`, or `cuda12-<git-sha>` — PyTorch version is NOT included in the tag. For reproducible deployments, pin to a date tag like `cuda12-2026-02-09`. CPU profiles use `latest` (no CUDA) to avoid pulling the larger CUDA image for CPU-only work.
 
