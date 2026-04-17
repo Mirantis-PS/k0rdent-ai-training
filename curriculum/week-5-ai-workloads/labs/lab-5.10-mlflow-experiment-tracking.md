@@ -51,7 +51,7 @@ FOUNDATION (Completed)                        ML PLATFORMS
 
 ## Objective
 
-Deploy MLflow as a centralized experiment tracking server on a k0rdent-managed GPU cluster, configure artifact storage with MinIO, and integrate it with GPU-based training workflows using the modern MLflow 3.x API for ML lifecycle management.
+Deploy MLflow as a centralized experiment tracking server on a k0rdent-managed GPU cluster, configure S3-compatible artifact storage with RustFS, and integrate it with GPU-based training workflows using the modern MLflow 3.x API for ML lifecycle management.
 
 ## Prerequisites
 
@@ -81,8 +81,8 @@ The k0rdent catalog currently exposes the `mlflow-1-8-1` ServiceTemplate, which 
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │              Workload Cluster (GPU)                           │   │
 │  │  ┌─────────────┐  ┌──────────┐  ┌───────────┐               │   │
-│  │  │ MLflow      │  │ MinIO    │  │PostgreSQL │               │   │
-│  │  │ Tracking    │  │ Artifacts│  │ Backend   │               │   │
+│  │  │ MLflow      │  │ RustFS   │  │PostgreSQL │               │   │
+│  │  │ Tracking    │  │ S3 Artif.│  │ Backend   │               │   │
 │  │  │ Server      │  │ Store    │  │ Store     │               │   │
 │  │  └──────┬──────┘  └──────────┘  └───────────┘               │   │
 │  │         │                                                    │   │
@@ -151,13 +151,11 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
 
 > **⚠️ Known limitations of the `mlflow-1-8-1` ServiceTemplate (community-charts/mlflow 1.8.1, app 3.7.0) — empirically validated 2026-04-17:**
 >
-> 1. **`minio.enabled`, `postgresql.enabled`, `tracking.persistence.*` values are SILENTLY IGNORED.** The wrapped community chart does NOT bundle MinIO or PostgreSQL subcharts; these values appear under `helm get values` but produce no pods. The deployment you get is a single-pod MLflow server.
+> 1. **`postgresql.enabled`, `tracking.persistence.*`, and other subchart toggle values are SILENTLY IGNORED.** The wrapped community chart does NOT bundle PostgreSQL or S3 subcharts; these values appear under `helm get values` but produce no pods. The deployment you get is a single-pod MLflow server.
 > 2. **The single pod runs with `--backend-store-uri=sqlite:///:memory:`** — in-memory SQLite. All experiments, runs, and metadata are lost on pod restart. Unsuitable for any persistent experiment tracking.
 > 3. **MLflow 3.7 security middleware blocks all non-localhost HTTP requests** with `403 "Invalid Host header - possible DNS rebinding attack detected"`. The chart does NOT expose a value to set `--allowed-hosts` or disable the middleware, so the Task 5 in-cluster Kubernetes Job (or any other client connecting via the `mlflow` Service's ClusterIP) cannot reach the tracking API.
 >
-> **Practical consequence:** the ServiceTemplate path is currently suitable only for a smoke test of "MLflow binary runs in a pod" — not for the experiment-tracking workflow this lab teaches. Use Task 3 (manual deployment) for a working MLflow stack until the catalog chart is updated to (a) support PostgreSQL + MinIO subchart toggles, (b) persist the SQLite store to a PVC, and (c) expose `server.allowedHosts` (or equivalent) as a value.
->
-> Tracked as TRAP 20 in `docs/plans/2026-04-14-week-5-labs-5.2-5.16-validation.md`.
+> **Practical consequence:** the ServiceTemplate path is currently suitable only for a smoke test of "MLflow binary runs in a pod" — not for the experiment-tracking workflow this lab teaches. Use Task 3 (manual deployment) for a working MLflow stack until the catalog chart is updated to (a) support PostgreSQL + S3 subchart toggles, (b) persist the SQLite store to a PVC, and (c) expose `server.allowedHosts` (or equivalent) as a value.
 
 1. **Install the MLflow ServiceTemplate from the catalog** (on the management cluster)
    ```bash
@@ -187,22 +185,11 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
          - template: mlflow-1-8-1
            name: mlflow
            namespace: mlflow
-           values: |
-             tracking:
-               persistence:
-                 enabled: true
-                 storageClass: ebs-gp3
-                 size: 10Gi
-             minio:
-               enabled: true
-               persistence:
-                 storageClass: ebs-gp3
-                 size: 50Gi
-             postgresql:
-               enabled: true
-               persistence:
-                 storageClass: ebs-gp3
-                 size: 10Gi
+           # Values intentionally omitted — per the ⚠️ warning above, the
+           # current catalog chart silently ignores persistence / subchart
+           # toggles. Applying this MCS only validates that the
+           # ServiceTemplate reconciles a single-pod MLflow against the
+           # workload cluster. See Task 3 for a production-viable deploy.
    ```
 
    ```bash
@@ -229,22 +216,7 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
          - template: mlflow-1-8-1
            name: mlflow
            namespace: mlflow
-           values: |
-             tracking:
-               persistence:
-                 enabled: true
-                 storageClass: ebs-gp3
-                 size: 10Gi
-             minio:
-               enabled: true
-               persistence:
-                 storageClass: ebs-gp3
-                 size: 50Gi
-             postgresql:
-               enabled: true
-               persistence:
-                 storageClass: ebs-gp3
-                 size: 10Gi
+           # Values intentionally omitted — see Option A note above.
    ```
 
    ```bash
@@ -267,7 +239,7 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
 
 ### Task 3: Production-ready MLflow on k0rdent — RustFS + PostgreSQL + raw MLflow (45 min)
 
-**Use this path when Task 2 fails** (the `mlflow-1-8-1` ServiceTemplate hits TRAP 20 in the current catalog), **or when you need a persistent multi-user experiment tracker** that survives pod restarts. Empirically validated end-to-end on the Lab 5.1 gpu-cluster on 2026-04-17.
+**Use this path when Task 2 fails** (the `mlflow-1-8-1` ServiceTemplate has the known limitations listed in Task 2's warning callout), **or when you need a persistent multi-user experiment tracker** that survives pod restarts. Empirically validated end-to-end on the Lab 5.1 gpu-cluster on 2026-04-17.
 
 **Architecture (all Mirantis / Apache-2.0 ecosystem):**
 
@@ -285,7 +257,7 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
 │        │ default-artifact-root=s3://mlflow-artifacts/                  │
 │        ▼                                                               │
 │  ┌──────────────────────┐                                              │
-│  │ RustFS standalone    │  Apache-2.0 MinIO-compatible S3,             │
+│  │ RustFS standalone    │  Apache-2.0 S3-compatible object store,      │
 │  │ 1 pod + 50Gi PVC     │  installed from charts.rustfs.com            │
 │  └──────────────────────┘                                              │
 └───────────────────────────────────────────────────────────────────────┘
@@ -299,11 +271,11 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
-**Why this mix (vs the old MinIO + manual Postgres path):**
+**Why this stack:**
 
-- **RustFS over MinIO** — RustFS is Apache-2.0; MinIO has moved to AGPLv3 which is incompatible with many commercial k0rdent distributions. RustFS is a drop-in S3 API replacement: MLflow's `boto3` client needs no config changes other than `MLFLOW_S3_ENDPOINT_URL`.
-- **PostgreSQL via k0rdent catalog** — MCS-managed, Sveltos-reconciled, matches the Mirantis-native deployment flow. Replaces the raw `postgres:16-alpine` Deployment from the previous revision of this lab.
-- **Raw MLflow Deployment (not via chart)** — the catalog's `mlflow-1-8-1` chart currently has TRAP 20 (SQLite in-memory hardcoded, no `--allowed-hosts` value). A raw Deployment gives full control over the CLI args we need: `--allowed-hosts="*"`, `--backend-store-uri=postgresql://...`, `--default-artifact-root=s3://mlflow-artifacts/`.
+- **RustFS for artifact storage** — Apache-2.0 licensed S3-compatible object store. Drop-in for any `boto3` client: MLflow needs no config beyond `MLFLOW_S3_ENDPOINT_URL` pointing at the RustFS Service.
+- **PostgreSQL via k0rdent catalog** — MCS-managed, Sveltos-reconciled, matches the Mirantis-native deployment flow for stateful workloads.
+- **Raw MLflow Deployment (not via chart)** — gives full control over the CLI args this stack needs: `--allowed-hosts="*"` (required so non-localhost clients can reach the tracking API), `--backend-store-uri=postgresql://...`, `--default-artifact-root=s3://mlflow-artifacts/`.
 
 **Prerequisites:**
 - `kubectl get storageclass` on the workload cluster shows at least one default — on Lab 5.1 gpu-cluster this is `ebs-csi-default-sc`.
@@ -373,13 +345,13 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
 >    ```
 >    ESO generates the same `Secret/rustfs-credentials` shape the raw Deployment expects, so downstream env/volumeMount references in step 6 (MLflow Deployment) and Task 5 (training Job) do **not** change. Drop-in at the secret boundary.
 >
-> 4. **Same pattern for the PostgreSQL user password** — after TRAP 21's manual `CREATE ROLE mlflow` in step 4, either (a) store `mlflow-pg-s3cr3t` in the external store and mount via ExternalSecret, or (b) preferred: use Vault's **dynamic database credentials** plugin so every pod restart gets a fresh short-TTL Postgres user, and the static password disappears entirely.
+> 4. **Same pattern for the PostgreSQL user password** — after the manual `CREATE ROLE mlflow` bootstrap in step 4, either (a) store `mlflow-pg-s3cr3t` in the external store and mount via ExternalSecret, or (b) preferred: use Vault's **dynamic database credentials** plugin so every pod restart gets a fresh short-TTL Postgres user, and the static password disappears entirely.
 >
 > 5. **Admin credential hygiene.** The Bitnami chart's auto-generated `postgres-password` (the one we extract in step 4 to bootstrap the mlflow user) stays in the `postgresql` Secret on-cluster. In production, rotate it via a one-shot Job that runs `ALTER USER postgres WITH PASSWORD '<new>'` + `kubectl patch secret postgresql ...` + `rollout restart statefulset/postgresql`. Bake that into your CI/CD rotation schedule alongside the application-level creds.
 >
 > 6. **Student / training runs only:** use the plaintext values below as they stand — just treat the cluster as ephemeral, never push the resulting YAML to a public repo, and `lab-destroy.sh` when done so the EBS volumes (which hold the Postgres + RustFS data at rest) are reclaimed.
 >
-> The same three-tier callout applies to **Lab 5.7 (JupyterHub `DummyAuthenticator.password: "training123"`)** and **Lab 5.8 (Milvus `root:Milvus` default root credentials + `milvus-credentials` secret creation)**. Swap DummyAuth for OIDC-via-dex (also in the catalog as `dex-*`) for JupyterHub in prod, and wire Milvus authorization through ExternalSecrets against a Vault KV mount. Tracked as a curriculum-wide hardening todo — see the validation plan's Known Traps section for TRAP 22 follow-up.
+> The same three-tier callout applies to **Lab 5.7 (JupyterHub `DummyAuthenticator.password: "training123"`)** and **Lab 5.8 (Milvus `root:Milvus` default root credentials + `milvus-credentials` secret creation)**. Swap DummyAuth for OIDC-via-dex (also in the catalog as `dex-*`) for JupyterHub in prod, and wire Milvus authorization through ExternalSecrets against a Vault KV mount.
 
 1. **Create workload namespace + RustFS S3 credentials secret**
    ```bash
@@ -467,9 +439,9 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
    kubectl wait --for=condition=Ready pod/postgresql-0 -n mlflow --timeout=5m
    ```
 
-   > **⚠️ TRAP 21: the wrapped Bitnami chart 18.3.0 silently ignores `auth.username`, `auth.password`, `auth.postgresPassword`, and `auth.database` values.** `helm get values postgresql -n mlflow` shows your values applied, but the rendered `postgresql` Secret contains only a random auto-generated `postgres-password` — no `password` key for the `mlflow` user, and no `mlflow` role or database exist in the running instance. Root cause under investigation (probable interaction between `global.defaultFips=restricted` and the kgst / Sveltos rendering path). Until the catalog chart is fixed, apply the one-shot workaround in step 4.
+   > **⚠️ Known limitation: the wrapped Bitnami chart 18.3.0 silently ignores `auth.username`, `auth.password`, `auth.postgresPassword`, and `auth.database` values.** `helm get values postgresql -n mlflow` shows your values applied, but the rendered `postgresql` Secret contains only a random auto-generated `postgres-password` — no `password` key for the `mlflow` user, and no `mlflow` role or database exist in the running instance. Root cause under investigation (probable interaction between `global.defaultFips=restricted` and the kgst / Sveltos rendering path). Until the catalog chart is fixed, apply the one-shot workaround in step 4.
 
-4. **Bootstrap mlflow role + database (TRAP 21 workaround)**
+4. **Bootstrap mlflow role + database (workaround for the Bitnami chart `auth.*` limitation above)**
    ```bash
    export KUBECONFIG=/tmp/${CLUSTER_NAME}.kubeconfig
 
@@ -606,7 +578,7 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
    kill $PF 2>/dev/null
    ```
 
-   Expected: `HTTP 200` and a JSON body like `{"experiments":[...], "next_page_token":"..."}` — **not** a `403 Invalid Host header` (that's the TRAP 20 signature). If you still see 403, double-check the `--allowed-hosts=*` arg made it into the running pod.
+   Expected: `HTTP 200` and a JSON body like `{"experiments":[...], "next_page_token":"..."}` — **not** a `403 Invalid Host header`. If you still see 403, double-check the `--allowed-hosts=*` arg made it into the running pod (that's the exact symptom the Task 2 warning callout describes, and means `--allowed-hosts` was stripped or overridden).
 
 7. **Verify the full stack**
    ```bash
@@ -975,7 +947,7 @@ The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated ML
                # Service name: `mlflow`, port 5000. In-cluster DNS FQDN shown for clarity.
                - name: MLFLOW_TRACKING_URI
                  value: "http://mlflow.mlflow.svc:5000"
-               # RustFS S3 endpoint (replaces the AGPLv3 MinIO from the previous revision).
+               # RustFS S3 endpoint for artifact uploads.
                - name: MLFLOW_S3_ENDPOINT_URL
                  value: "http://rustfs-svc.mlflow.svc:9000"
                - name: MLFLOW_S3_IGNORE_TLS
@@ -1191,7 +1163,7 @@ conn.close()
 kubectl exec -n mlflow deployment/mlflow -- curl -s http://localhost:5000/health
 ```
 
-**Did you hit TRAP 21 on PostgreSQL auth?** Bitnami postgresql 18.3.0 via kgst silently ignores the `auth.*` values in the MultiClusterService — the `mlflow` user and `mlflow` database may not exist. Re-run Task 3 step 4 (the manual `CREATE ROLE`/`CREATE DATABASE` block) and confirm `kubectl exec postgresql-0 -n mlflow -- psql -U postgres ...` shows the `mlflow` role in `\du`.
+**Did PostgreSQL auth fail with `password authentication failed for user "mlflow"`?** The Bitnami postgresql 18.3.0 chart used via kgst silently ignores the `auth.*` values in the MultiClusterService — the `mlflow` user and `mlflow` database may not exist. Re-run Task 3 step 4 (the manual `CREATE ROLE`/`CREATE DATABASE` block) and confirm `kubectl exec postgresql-0 -n mlflow -- psql -U postgres ...` shows the `mlflow` role in `\du`.
 
 ### Artifacts Not Uploading (403 / AccessDenied / connection refused)
 

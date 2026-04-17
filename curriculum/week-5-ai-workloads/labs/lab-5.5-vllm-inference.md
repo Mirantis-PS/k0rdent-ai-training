@@ -414,14 +414,15 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 >
 > ```bash
 > # Step 1 — On the MANAGEMENT cluster: install the ServiceTemplate via kgst
-> # Note: catalog version is "1.7.1" (no `v` prefix — see TRAP 10 pattern;
-> # don't blindly copy the upstream v1.7.1 / v1.3.0 tags).
+> # Note: catalog version is "1.7.1" (no `v` prefix — the kgst wrapper
+> # expects semver without the leading `v`; don't blindly copy upstream
+> # `v1.7.1` / `v1.3.0` tags or the helm pull fails).
 > helm upgrade --install envoy-gateway oci://ghcr.io/k0rdent/catalog/charts/kgst \
 >   --set "chart=envoy-gateway:1.7.1" \
 >   -n kcm-system
 >
-> # Poll until VALID=true (FluxCD OCI pull may take ~30-60s; transient
-> # VALID=false is TRAP 4, not a failure)
+> # Poll until VALID=true (FluxCD OCI pull may take ~30-60s; a transient
+> # empty/false VALID column during that window is expected, not a failure)
 > kubectl get servicetemplate envoy-gateway-1-7-1 -n kcm-system -w
 > ```
 >
@@ -491,7 +492,7 @@ This lab's default network stack is **Envoy Gateway**, a Gateway API implementat
 > EOF
 > ```
 >
-> > **TRAP 11 warning if switching from Path B to Path A later:** Sveltos will try to adopt the existing `eg` Helm release in `envoy-gateway-system` and may silently overwrite your values with the catalog chart's defaults (same class of bug Lab 5.2 hit with gpu-operator in commit `4442e2c`). To migrate safely: uninstall the direct `eg` release (`helm uninstall eg -n envoy-gateway-system`), delete the GatewayClass you created manually, then apply the MCS — let Sveltos do a fresh install. Drop your vLLM `Gateway` + `HTTPRoute` while the controller is down, then re-apply them once the Sveltos-installed envoy-gateway is Running.
+> > **Warning if switching from Path B to Path A later:** Sveltos will try to adopt the existing `eg` Helm release in `envoy-gateway-system` and may silently overwrite your values with the catalog chart's defaults. To migrate safely: uninstall the direct `eg` release (`helm uninstall eg -n envoy-gateway-system`), delete the GatewayClass you created manually, then apply the MCS — let Sveltos do a fresh install. Drop your vLLM `Gateway` + `HTTPRoute` while the controller is down, then re-apply them once the Sveltos-installed envoy-gateway is Running.
 >
 > **The cleaner architectural fix** is to add Envoy Gateway to Lab 5.1's `ClusterDeployment.spec.serviceSpec` so every newly-provisioned gpu-cluster starts with Envoy Gateway already installed (same pattern Lab 5.2 uses for cert-manager and gpu-operator). Until that change lands in Lab 5.1, Path A above is the workaround.
 
