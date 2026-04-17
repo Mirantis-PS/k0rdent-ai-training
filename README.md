@@ -6,7 +6,7 @@ A comprehensive 6-week training program (~90 hours) for engineers to master k0rd
 
 ```bash
 # 1. Clone and enter the repository
-git clone git@github.com:Mirantis-PS/k0rdent-ai-training.git
+git clone git@github.com:mgueye01/k0rdent-ai-training.git
 cd k0rdent-ai-training
 
 # 2. Configure AWS credentials
@@ -67,7 +67,7 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 | Component | Version | Notes |
 |-----------|---------|-------|
 | k0s | v1.32.4+k0s.0 | Kubernetes 1.32 |
-| k0rdent Enterprise | v1.2.1 | Management platform |
+| k0rdent Enterprise | v1.2.2 | Management platform (N-1; upgrade to v1.2.3 in Lab 1.8) |
 | KubeVirt | v1.6.3 | VM workloads |
 | NVIDIA GPU Operator | v25.10.0 | GPU management |
 | Cluster API | v1.11 | API v1beta2 |
@@ -80,7 +80,7 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 | Tool | Version | Install |
 |------|---------|---------|
-| Terraform | >= 1.5.0 | [hashicorp.com](https://developer.hashicorp.com/terraform/install) |
+| Terraform | >= 1.8.0 | [hashicorp.com](https://developer.hashicorp.com/terraform/install) |
 | AWS CLI | v2 | [aws.amazon.com](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) |
 | AWS credentials | configured | `aws configure` |
 
@@ -116,7 +116,7 @@ k0rdent-ai-training/
 When you complete Lab 1.1, you'll have:
 
 - **k0s** - Lightweight Kubernetes distribution (v1.32.4)
-- **k0rdent Enterprise** (v1.2.1)
+- **k0rdent Enterprise** (v1.2.2)
   - **KCM** - Cluster Manager for multi-cluster management
   - **KSM** - State Manager for service installation
   - **KOF** - Observability & FinOps
@@ -132,7 +132,7 @@ When you complete Lab 1.1, you'll have:
 
 ## Support
 
-- **Slack:** #k0rdent-services-training
+- **Slack:** #k0rdent-training
 - **Issues:** Create GitHub issue
 - **Docs:** [docs.mirantis.com/k0rdent-enterprise](https://docs.mirantis.com/k0rdent-enterprise/latest/)
 

@@ -1,4 +1,4 @@
-# Lab 5.14 - Multi-Cloud RDMA Deep Dive: AWS EFA vs Azure InfiniBand
+# Lab 5.15 - Multi-Cloud RDMA Deep Dive: AWS EFA vs Azure InfiniBand
 
 ---
 
@@ -6,27 +6,40 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Advanced Optimization | Optional | 4 hours |
+| Advanced | Optional | 4 hours |
 
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ADVANCED OPTIMIZATION
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.13 TensorRT-LLM
+FOUNDATION (Completed)                        ADVANCED
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━
+5.1 ➔ 5.2 ➔ ... ➔ 5.8 ✓                     5.13 TensorRT-LLM
+                                                  ↓
+                                              5.14 Slurm
                                                   ↓
                                              YOU ARE HERE
                                                   ↓
-                                             [5.14] Multi-Cloud RDMA
+                                             [5.15] RDMA Multi-Cloud
                                                   ↓
-                                              5.15 Distributed Training
-                                                  ↓
-                                             END (or ML Platforms)
+                                              5.16 Distributed Training
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) | **Lab 5.14 - Multi-Cloud RDMA** | [Lab 5.15 - Distributed Training](lab-5.15-distributed-training.md) |
+| [Lab 5.14 - Slurm on Kubernetes](lab-5.14-slurm-operator-hpc.md) | **Lab 5.15 - RDMA Multi-Cloud** | [Lab 5.16 - Distributed Training](lab-5.16-distributed-training.md) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background: High-Speed GPU Interconnects](#background-high-speed-gpu-interconnects)
+- [Part 1: Understanding RDMA Technologies](#part-1-understanding-rdma-technologies)
+- [Part 2: k0rdent Multi-Cloud GPU Infrastructure](#part-2-k0rdent-multi-cloud-gpu-infrastructure)
+- [Part 3: AWS EFA Configuration](#part-3-aws-efa-configuration)
+- [Part 4: Azure InfiniBand Configuration](#part-4-azure-infiniband-configuration)
+- [Part 5: Multi-Cloud Performance Comparison](#part-5-multi-cloud-performance-comparison)
 
 ---
 
@@ -41,7 +54,7 @@ Understand and configure Remote Direct Memory Access (RDMA) for GPU-accelerated 
 ## Prerequisites
 
 - Completed Lab 5.2 (vLLM Inference Service)
-- Completed Lab 5.3 (GPU Communication) recommended
+- Read Theory 5.3 (GPU Communication) recommended
 - Access to either:
   - AWS: p4d.24xlarge instances with EFA enabled
   - Azure: ND A100 v4 or ND H100 v5 VMSS with InfiniBand
@@ -244,7 +257,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
          workload-type: gpu-training
      serviceSpec:
        services:
-         - template: nvidia-network-operator-25-10-0
+         - template: network-operator-25-10-0
            name: network-operator
            namespace: nvidia-network-operator
            values: |
@@ -1071,4 +1084,4 @@ This lab demonstrates k0rdent's core value for GPU infrastructure:
 
 ## Next Lab
 
-Proceed to [Lab 5.15 - Multi-Node Distributed Training](lab-5.15-distributed-training.md)
+Proceed to [Lab 5.15 - Multi-Node Distributed Training](lab-5.16-distributed-training.md)

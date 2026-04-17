@@ -1,4 +1,4 @@
-# Lab 5.5 - Service Catalog Blueprints
+# Lab 5.2 - Service Catalog Blueprints
 
 ---
 
@@ -11,18 +11,42 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ [5.5] ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-                          ↑                   Compliance (5.7-5.8)
-                     YOU ARE HERE             Advanced (5.13-5.15)
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ [5.2] ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+        ↑                                                  Compliance (5.11-5.12)
+   YOU ARE HERE                                            Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.4 - Jupyter Notebooks](lab-5.4-jupyter-notebooks.md) | **Lab 5.5 - Service Catalog** | [Lab 5.6 - Troubleshooting GPU](lab-5.6-troubleshooting-gpu.md) |
+| [Lab 5.1 - GPU Cluster Setup](lab-5.1-gpu-cluster-setup.md) | **Lab 5.2 - Service Catalog** | [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+  - [How the k0rdent Service Catalog Works](#how-the-k0rdent-service-catalog-works)
+  - [Key Concepts](#key-concepts)
+  - [AI/ML Services in the Catalog](#aiml-services-in-the-catalog)
+- [Lab Environment](#lab-environment)
+- [Tasks](#tasks)
+  - [Task 1: Explore the External Catalog](#task-1-explore-the-external-catalog-15-min)
+  - [Task 2: Install ServiceTemplates from the Catalog](#task-2-install-servicetemplates-from-the-catalog-20-min)
+  - [Task 3: Deploy Services via MultiClusterService](#task-3-deploy-services-via-multiclusterservice-30-min)
+  - [Task 4: Customize Services with Helm Values](#task-4-customize-services-with-helm-values-30-min)
+  - [Task 5: Version Management with ServiceTemplateChain](#task-5-version-management-with-servicetemplatechain-15-min)
+  - [Task 6: Single-Cluster Deployment via ClusterDeployment](#task-6-single-cluster-deployment-via-clusterdeployment-15-min)
+  - [Task 7: Remove a ServiceTemplate](#task-7-remove-a-servicetemplate-10-min)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Cleanup](#cleanup)
+- [Key Takeaways](#key-takeaways)
+- [Next Lab](#next-lab)
 
 **Duration:** 2 hours
 **Type:** Hands-on Technical
@@ -34,7 +58,7 @@ Install ServiceTemplates from k0rdent's external catalog and deploy AI/ML servic
 
 ## Prerequisites
 
-- Completed Labs 5.1-5.4
+- Completed Lab 5.1
 - k0rdent management cluster access
 - At least one workload cluster with GPU nodes
 - Understanding of Helm and Kubernetes services
@@ -85,11 +109,11 @@ The k0rdent service catalog is **external to the k0rdent deployment** — it is 
 |----------|----------------|---------|
 | GPU Infrastructure | `gpu-operator-25-10-0` | NVIDIA GPU lifecycle management |
 | Model Serving | `kserve-v0-15-0`, `kserve-crd-v0-15-0` | Serverless inference |
-| Distributed Compute | `kuberay-operator-1-3-2` | Ray operator (manages RayCluster CRDs) |
+| Distributed Compute | `kuberay-operator-1-5-1` | Ray operator (manages RayCluster CRDs) |
 | Multi-host Inference | `lws-0-7-0` | LeaderWorkerSet for vLLM multi-node |
-| Experiment Tracking | `mlflow-1-7-1` | MLflow tracking and registry |
-| Notebooks | `jupyterhub-4-2-0` | Multi-user Jupyter environments |
-| Vector Databases | `milvus-5-0-1`, `qdrant-1-15-4` | Embedding storage |
+| Experiment Tracking | `mlflow-1-8-1` | MLflow tracking and registry |
+| Notebooks | `jupyterhub-4-3-2` | Multi-user Jupyter environments |
+| Vector Databases | `milvus-5-0-14`, `qdrant-1-15-4` | Embedding storage |
 | LLM Inference | `ollama-1-40-0` | Local LLM runtime |
 | Chat Interface | `open-webui-8-12-3` | UI for LLM interaction |
 | ML Tracking | `clearml-serving-1-6-2` | ClearML platform |
@@ -162,6 +186,18 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    > **Note:** Verify the OCI chart path before running. Check [catalog.k0rdent.io](https://catalog.k0rdent.io/) for the latest kgst chart URL. If the path below fails, consult the [k0rdent documentation](https://docs.k0rdent.io/) for updated installation instructions.
 
    ```bash
+   # Install cert-manager (required by KServe's webhook certificates)
+   helm upgrade --install cert-manager \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=cert-manager:1.17.2" \
+     -n kcm-system
+
+   # Install NVIDIA GPU Operator (no `v` prefix on this chart's tag)
+   helm upgrade --install gpu-operator \
+     oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=gpu-operator:25.10.0" \
+     -n kcm-system
+
    # Install KServe CRDs (required before KServe itself)
    helm upgrade --install kserve-crd \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
@@ -177,34 +213,40 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    # Install MLflow
    helm upgrade --install mlflow \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
-     --set "chart=mlflow:1.7.1" \
+     --set "chart=mlflow:1.8.1" \
      -n kcm-system
 
    # Install KubeRay operator
    helm upgrade --install kuberay-operator \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
-     --set "chart=kuberay-operator:1.3.2" \
+     --set "chart=kuberay-operator:1.5.1" \
      -n kcm-system
    ```
+
+   > **Why the mix of `v` and no-`v` version tags?** The `kgst` meta-chart passes the version string straight through to the OCI registry, and each catalog chart mirrors the upstream project's release convention. KServe tags releases `v0.15.0`; NVIDIA GPU Operator, MLflow, and KubeRay tag them `25.10.0`, `1.8.1`, `1.5.1`. Using the wrong prefix (e.g. `gpu-operator:v25.10.0`) causes the kgst pre-install `verify-job` to fail with `not found` because the OCI tag does not exist.
 
 2. **Verify the ServiceTemplates Were Created**
    ```bash
    kubectl get servicetemplates -n kcm-system
 
    # Expected output includes:
+   # cert-manager-1-17-2
+   # gpu-operator-25-10-0
    # kserve-crd-v0-15-0
    # kserve-v0-15-0
-   # mlflow-1-7-1
-   # kuberay-operator-1-3-2
+   # mlflow-1-8-1
+   # kuberay-operator-1-5-1
 
    # Check that templates are valid
    kubectl get servicetemplates -n kcm-system -o custom-columns='NAME:.metadata.name,VALID:.status.valid'
    ```
 
+   > **Templates may briefly show `VALID=false` or `<none>` right after `helm install` while FluxCD pulls the chart from the OCI registry (typically 30-60 s). Re-check after a short wait before treating it as an error.**
+
 3. **Inspect a Template's Chart Reference**
    ```bash
    # See what Helm chart the template wraps
-   kubectl get servicetemplate mlflow-1-7-1 -n kcm-system \
+   kubectl get servicetemplate mlflow-1-8-1 -n kcm-system \
      -o jsonpath='{.spec.helm.chartSpec}' | jq .
    ```
 
@@ -214,11 +256,19 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
 
 `MultiClusterService` deploys services to all clusters matching a label selector. This is the primary mechanism for multi-cluster service deployment in k0rdent.
 
-1. **Verify Target Cluster Labels**
+1. **Label the Target Cluster, then Verify**
+
+   Lab 5.1 provisions `gpu-cluster` with `environment=training, gpu-enabled=true`, but it does not add the `workload-type=ml-training` label this lab's `MultiClusterService` uses to segment AI/ML workloads. Add it now so the selector below has something to match:
+
    ```bash
-   # Check which clusters have the ml-training label
+   kubectl label clusterdeployment gpu-cluster -n kcm-system workload-type=ml-training --overwrite
+
+   # Verify the selector now matches at least one cluster
    kubectl get clusterdeployments -A -l workload-type=ml-training
+   # Expected: the gpu-cluster row appears
    ```
+
+   > **Why add the label here instead of in Lab 5.1?** Lab 5.1's labels (`environment`, `gpu-enabled`) describe the cluster's physical characteristics; `workload-type` describes which set of services it should receive. Keeping the two concerns separate lets a single GPU cluster host different workload profiles over time (`ml-training`, `ml-inference`, `batch`, etc.) just by relabeling.
 
 2. **Create a MultiClusterService for an ML Stack**
    ```yaml
@@ -234,10 +284,10 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
          workload-type: ml-training
      serviceSpec:
        services:
-         # GPU Operator (deploy first via higher priority)
-         - template: gpu-operator-25-10-0
-           name: gpu-operator
-           namespace: gpu-operator
+         # cert-manager (required for KServe's webhook certificates)
+         - template: cert-manager-1-17-2
+           name: cert-manager
+           namespace: cert-manager
 
          # KServe for model serving
          - template: kserve-crd-v0-15-0
@@ -248,16 +298,18 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
            namespace: kserve
 
          # MLflow for experiment tracking
-         - template: mlflow-1-7-1
+         - template: mlflow-1-8-1
            name: mlflow
            namespace: mlflow
 
          # KubeRay for distributed compute
-         - template: kuberay-operator-1-3-2
+         - template: kuberay-operator-1-5-1
            name: kuberay
            namespace: kuberay
        priority: 100
    ```
+
+   > **Why isn't `gpu-operator-25-10-0` in this MCS?** Lab 5.1's Pre-Lab Step 4 already installed GPU Operator directly on `gpu-cluster` via `helm install`, and it depends on k0s-specific `toolkit.env` values (`CONTAINERD_CONFIG=/etc/k0s/containerd.d/nvidia.toml`, `CONTAINERD_SOCKET=/run/k0s/containerd.sock`, `CONTAINERD_RUNTIME_CLASS=nvidia`). Adding `gpu-operator-25-10-0` to this MCS would cause Sveltos to adopt the existing Helm release and upgrade it using the ServiceTemplate's default chart values — which do **not** contain the k0s-specific overrides — silently re-registering the `nvidia` runtime class incorrectly and leaving the NVIDIA container toolkit daemonset flapping with `FailedCreatePodSandBox: no runtime for "nvidia" is configured`. The ServiceTemplate is still installed in Task 2 so Lab 5.6 and Lab 5.11 can reference it, but the actual deployment on `gpu-cluster` stays with the manual install from Lab 5.1. When you need to deploy GPU Operator via MCS on a new cluster, pass the k0s values explicitly in the `values: |` field (the pattern demonstrated for MLflow in Task 4).
 
    ```bash
    kubectl apply -f ml-platform-mcs.yaml
@@ -304,7 +356,7 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
          workload-type: ml-training
      serviceSpec:
        services:
-         - template: mlflow-1-7-1
+         - template: mlflow-1-8-1
            name: mlflow
            namespace: mlflow
            values: |
@@ -342,7 +394,7 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
    ```yaml
    # In MultiClusterService spec:
    services:
-     - template: mlflow-1-7-1
+     - template: mlflow-1-8-1
        name: mlflow
        namespace: mlflow
        valuesFrom:
@@ -476,7 +528,7 @@ For deploying services to a **specific cluster** (rather than all clusters match
              "namespace": "gpu-operator"
            },
            {
-             "template": "mlflow-1-7-1",
+             "template": "mlflow-1-8-1",
              "name": "mlflow",
              "namespace": "mlflow"
            }
@@ -515,7 +567,7 @@ For deploying services to a **specific cluster** (rather than all clusters match
    helm uninstall mlflow -n kcm-system
 
    # Verify removal
-   kubectl get servicetemplate mlflow-1-7-1 -n kcm-system
+   kubectl get servicetemplate mlflow-1-8-1 -n kcm-system
    # Expected: Error from server (NotFound)
    ```
 
@@ -627,4 +679,4 @@ kubectl get multiclusterservice,servicetemplatechains -n kcm-system
 
 ## Next Lab
 
-Proceed to [Lab 5.6 - Troubleshooting GPU Scheduling](lab-5.6-troubleshooting-gpu.md)
+Proceed to [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md)

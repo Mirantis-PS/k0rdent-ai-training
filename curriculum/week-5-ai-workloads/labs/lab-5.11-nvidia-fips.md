@@ -1,4 +1,4 @@
-# Lab 5.7 - FIPS Compliance for GPU Infrastructure
+# Lab 5.11 - FIPS Compliance for GPU Infrastructure
 
 ---
 
@@ -11,22 +11,18 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                    YOU ARE HERE
-━━━━━━━━━━━━━━━━━━━━                         ↓
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6      COMPLIANCE
-                                        ━━━━━━━━━━━
-                                        [5.7] ➔ 5.8
-                                              ↓
-                         ┌────────────────────┴────────────────────┐
-                         ▼                                         ▼
-                    ML PLATFORMS                              ADVANCED
-                    ━━━━━━━━━━━━                              ━━━━━━━━
-                    5.9 ➔ 5.10 ➔ 5.11 ➔ 5.12           5.13 ➔ 5.14 ➔ 5.15
+FOUNDATION (Completed)                        COMPLIANCE & TEMPLATES
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5               YOU ARE HERE
+     ➔ 5.6 ➔ 5.7 ➔ 5.8 ✓                        ↓
+                                             [5.11] FIPS
+                                                  ↓
+                                              5.12 Cluster Templates
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.6 - Troubleshooting](lab-5.6-troubleshooting-gpu.md) | **Lab 5.7 - FIPS Compliance** | [Lab 5.8 - Cluster Templates](lab-5.8-cluster-templates.md) |
+| [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) | **Lab 5.11 - FIPS Compliance** | [Lab 5.12 - Cluster Templates](lab-5.12-cluster-templates.md) |
 
 ---
 
@@ -34,9 +30,28 @@ FOUNDATION (Required)                    YOU ARE HERE
 **Type:** Hands-on Technical
 **Environment:** GPU Lab (k0rdent-managed workload cluster)
 
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [k0rdent Context](#k0rdent-context)
+- [Part 1: Understanding the FIPS Enforcement Boundary](#part-1-understanding-the-fips-enforcement-boundary)
+- [Tasks](#tasks)
+  - [Task 1: Access the k0rdent-Managed GPU Cluster](#task-1-access-the-k0rdent-managed-gpu-cluster-10-min)
+  - [Task 2: Verify and Enable Host FIPS Mode](#task-2-verify-and-enable-host-fips-mode-25-min)
+  - [Task 3: Deploy GPU Operator with Compliance-Oriented Settings](#task-3-deploy-gpu-operator-with-compliance-oriented-settings-30-min)
+  - [Task 4: Verify FIPS Enforcement in Containers](#task-4-verify-fips-enforcement-in-containers-25-min)
+  - [Task 5: DCGM Monitoring in FIPS Environment](#task-5-dcgm-monitoring-in-fips-environment-15-min)
+  - [Task 6: FIPS Compliance Audit](#task-6-fips-compliance-audit-15-min)
+- [Cleanup](#cleanup)
+- [Troubleshooting](#troubleshooting)
+- [Verification Checklist](#verification-checklist)
+- [Key Takeaways](#key-takeaways)
+- [Next Lab](#next-lab)
+
 ## Objective
 
-Deploy and verify FIPS-compliant GPU infrastructure on k0rdent-managed clusters. You will enable FIPS mode at the OS level, deploy the GPU Operator with FIPS-validated container images, and verify that the cryptographic enforcement boundary operates correctly across the stack.
+Understand and validate prerequisites for NVIDIA Government Ready / FIPS-oriented GPU infrastructure on k0rdent-managed clusters. You will enable FIPS mode at the OS level where supported, deploy GPU Operator settings through k0rdent, and verify cryptographic behavior in the parts of the stack that rely on validated crypto modules.
 
 ## Prerequisites
 
@@ -46,14 +61,14 @@ Deploy and verify FIPS-compliant GPU infrastructure on k0rdent-managed clusters.
 
 ## k0rdent Context
 
-The k0rdent catalog includes the `gpu-operator-25-10-0` ServiceTemplate for deploying the NVIDIA GPU Operator. For FIPS environments, the same ServiceTemplate is used with custom values that override default container images with UBI (Universal Base Image) variants containing FIPS-validated OpenSSL.
+The k0rdent catalog includes the `gpu-operator-25-10-0` ServiceTemplate for deploying the NVIDIA GPU Operator. In Government Ready / FIPS-oriented environments, use that template only after you have the required NVIDIA AI Enterprise entitlement, access to NVIDIA-documented Government Ready artifacts, and a validated platform. The examples in this lab show how k0rdent can distribute those settings; they are not, by themselves, proof of compliance.
 
-> **Key concept:** The GPU Operator itself does not have a "FIPS mode" toggle. FIPS compliance is achieved through a layered approach:
+> **Key concept:** The GPU Operator itself does not have a "FIPS mode" toggle. Government Ready / FIPS-oriented deployments require a layered approach:
 >
 > | Layer | What Provides FIPS | Example |
 > |-------|-------------------|---------|
 > | **OS kernel** | FIPS-validated kernel crypto modules | `fips_enabled=1` at boot |
-> | **Container images** | UBI images with FIPS-validated OpenSSL | `-ubi8` / `-ubi9` image tags |
+> | **Container images** | Vendor-documented gov-ready / UBI images with validated crypto modules | Verify against NVIDIA and OS vendor docs; do not assume any `-ubi8` / `-ubi9` tag is sufficient |
 > | **Application TLS** | FIPS-approved cipher suites for network ops | OpenSSL FIPS provider |
 > | **GPU compute** | *Not applicable* - CUDA/NCCL are compute, not crypto | N/A |
 >
@@ -66,7 +81,7 @@ The k0rdent catalog includes the `gpu-operator-25-10-0` ServiceTemplate for depl
 | FIPS 140-2 | Sunset September 2026 | Legacy, no new validations accepted |
 | FIPS 140-3 | Current | ISO/IEC 19790:2012 aligned, required for new submissions |
 
-Modern systems (RHEL 9, Ubuntu 22.04) validate against FIPS 140-3. This lab covers FIPS configuration that satisfies both standards.
+Modern systems (RHEL 9, Ubuntu 22.04) validate against FIPS 140-3. This lab focuses on operational checks that are relevant in FIPS-oriented environments rather than serving as a certification guide.
 
 ## Part 1: Understanding the FIPS Enforcement Boundary
 
@@ -83,7 +98,7 @@ Before deploying, understand what FIPS actually protects in a GPU cluster:
 │  └──────────────────┬───────────────────────────────────────┘   │
 │                     │                                            │
 │  ┌──────────────────▼───────────────────────────────────────┐   │
-│  │  OpenSSL FIPS Provider (in UBI container images)          │   │
+│  │  OpenSSL FIPS Provider (when present in approved images)  │   │
 │  │  - TLS 1.2/1.3 with FIPS cipher suites                   │   │
 │  │  - Certificate operations (X.509)                         │   │
 │  │  - Key derivation (HKDF, PBKDF2)                         │   │
@@ -214,11 +229,11 @@ FIPS must be enabled at the OS level **before** deploying the GPU Operator. This
    modinfo nvidia 2>/dev/null | grep -E "^sig|^signer"
    ```
 
-> **Repeat** steps 1-4 on each GPU worker node. All nodes must have FIPS enabled for cluster-wide compliance.
+> **Repeat** steps 1-4 on each GPU worker node. All nodes must have FIPS enabled for a consistent cluster-wide posture.
 
-### Task 3: Deploy GPU Operator with FIPS-Compliant Images (30 min)
+### Task 3: Deploy GPU Operator with Compliance-Oriented Settings (30 min)
 
-Deploy the GPU Operator using k0rdent's ServiceTemplate with UBI image overrides for FIPS compliance.
+Deploy the GPU Operator through k0rdent's ServiceTemplate after the platform and image prerequisites are satisfied.
 
 1. **Option A: Deploy via ClusterDeployment serviceSpec (recommended)**
 
@@ -268,7 +283,7 @@ Deploy the GPU Operator using k0rdent's ServiceTemplate with UBI image overrides
        priority: 100
    ```
 
-   > **Region note:** FIPS-validated AMIs and configurations are primarily tested in US regions (us-east-1, us-east-2, us-west-2). If deploying in other regions, verify that FIPS-validated AMIs are available.
+   > **Platform note:** If you rely on cloud marketplace images or internal golden images, verify regional availability and compliance status before deployment.
 
 2. **Option B: Deploy via MultiClusterService for existing clusters**
 
@@ -329,17 +344,17 @@ Deploy the GPU Operator using k0rdent's ServiceTemplate with UBI image overrides
    # List all images used by GPU Operator pods
    kubectl get pods -n gpu-operator -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{"\n"}{end}{end}'
 
-   # Check for UBI-based images (FIPS-compliant base)
+   # Check which images are deployed
    kubectl get pods -n gpu-operator -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' | sort -u
    ```
 
-   > **Note:** The GPU Operator v25.10.0 ships UBI-based images by default for most components. The `-ubi8` and `-ubi9` suffixed images include Red Hat's FIPS-validated OpenSSL, ensuring that all TLS operations (image pulls, API server communication, metrics endpoints) use FIPS-approved algorithms.
+   > **Note:** Do not infer FIPS compliance from `ubi8` / `ubi9` tags alone. Verify that the image set and platform match NVIDIA's documented Government Ready guidance for your environment.
 
 ### Task 4: Verify FIPS Enforcement in Containers (25 min)
 
 Test that FIPS cryptographic restrictions are enforced inside containers running on the GPU cluster.
 
-1. **Test GPU access with FIPS-compliant base image**
+1. **Test GPU access with a UBI-based example image**
 
    ```yaml
    # Save as fips-gpu-test.yaml
@@ -707,7 +722,7 @@ If missing, verify the GPU Operator toolkit env vars include the k0s containerd 
 
 **Symptom:** `openssl md5` succeeds even though `/proc/sys/crypto/fips_enabled` shows 1.
 
-**Cause:** The container's OpenSSL may not have the FIPS provider loaded. UBI images include it by default, but custom images may not.
+**Cause:** The container's OpenSSL may not have the FIPS provider loaded. A UBI base alone does not guarantee that the provider is present or active.
 
 ```bash
 # Inside the container, check if FIPS provider is active
@@ -718,7 +733,7 @@ openssl list -providers
 #     status: active
 ```
 
-**Fix:** Use UBI-based container images (e.g., `*-ubi8`, `*-ubi9` tags) or configure OpenSSL to load the FIPS provider in your custom images.
+**Fix:** Use NVIDIA's documented Government Ready or otherwise approved images for your platform, and verify that the OpenSSL FIPS provider is present and active in the container you run.
 
 ## Verification Checklist
 
@@ -733,13 +748,13 @@ openssl list -providers
 
 ## Key Takeaways
 
-1. **FIPS compliance is a layered OS + container concern**, not a GPU driver feature. GPU compute (CUDA, NCCL, cuDNN) is math, not cryptography.
+1. **FIPS-related validation is a layered OS + crypto-library concern**, not a GPU driver feature. GPU compute (CUDA, NCCL, cuDNN) is math, not cryptography.
 2. **FIPS must be enabled at the OS level first** (`fips-mode-setup --enable` on RHEL, `pro enable fips-updates` on Ubuntu Pro). This cannot be done from Kubernetes.
-3. **UBI-based container images** provide FIPS-validated OpenSSL for all in-container TLS and cryptographic operations.
-4. **k0rdent deploys GPU Operator via ServiceTemplate** with values overrides for k0s containerd paths. The same ServiceTemplate works for FIPS and non-FIPS clusters.
+3. **UBI-based images can help**, but you must verify the actual NVIDIA and OS-vendor image set plus the active crypto provider rather than assuming tag names prove compliance.
+4. **k0rdent can distribute GPU Operator settings via ServiceTemplate**, but the template alone does not make an environment vendor-validated for compliance.
 5. **Audit regularly** - generate FIPS compliance reports for each cluster and store them for audit purposes.
 6. **FIPS 140-3 is current** - new systems validate against 140-3 (superseding 140-2 which sunsets September 2026).
 
 ## Next Lab
 
-Proceed to [Lab 5.8 - Cluster Templates for AI Workloads](lab-5.8-cluster-templates.md)
+Proceed to [Lab 5.12 - Cluster Templates for AI Workloads](lab-5.12-cluster-templates.md)

@@ -56,8 +56,8 @@ kubectl describe credential <name> -n kcm-system
 kubectl get multiclusterservices -A
 
 # Template chains (upgrade paths)
-kubectl get clusterttemplatechains -n kcm-system
-kubectl get servicettemplatechains -n kcm-system
+kubectl get clustertemplatechains -n kcm-system
+kubectl get servicetemplatechains -n kcm-system
 ```
 
 ---
@@ -144,12 +144,16 @@ kubectl apply -f aws-secret.yaml
 # 2. Create identity
 kubectl apply -f aws-identity.yaml
 
+# 2b. Create the resource template ConfigMap
+kubectl apply -f aws-cluster-identity-resource-template.yaml
+
 # 3. Create credential
 kubectl apply -f aws-credential.yaml
 
 # Verify chain
 kubectl get secret aws-cluster-identity-secret -n kcm-system
-kubectl get awsclusterstaticidentity -n kcm-system
+kubectl get awsclusterstaticidentity
+kubectl get configmap aws-cluster-identity-resource-template -n kcm-system
 kubectl get credential aws-cluster-identity-cred -n kcm-system
 ```
 
@@ -159,25 +163,35 @@ kubectl get credential aws-cluster-identity-cred -n kcm-system
 
 ### Pre-Upgrade
 ```bash
-# Backup etcd
-k0s etcd backup /tmp/etcd-backup.tar.gz
+# Verify backup storage and create a ManagementBackup
+kubectl get backupstoragelocation -n kcm-system
+kubectl apply -f management-backup.yaml
 
 # Export resources
 kubectl get management,credentials,clustertemplates,servicetemplates -n kcm-system -o yaml > /tmp/backup.yaml
 
-# Current version
-helm list -n kcm-system
+# Current release
+kubectl get releases.k0rdent.mirantis.com
+kubectl get management kcm -o jsonpath='{.spec.release}' && echo ""
 ```
 
 ### Upgrade
 ```bash
-helm upgrade kcm oci://ghcr.io/k0rdent/kcm/charts/kcm --version <NEW> -n kcm-system --wait --timeout 10m
+kubectl create -f "https://get.mirantis.com/k0rdent-enterprise/<NEW_VERSION>/release.yaml"
+kubectl patch managements.k0rdent.mirantis.com kcm \
+  --patch '{"spec":{"release":"k0rdent-enterprise-<NEW_VERSION_WITH_DASHES>"}}' \
+  --type=merge
 ```
 
 ### Rollback
 ```bash
-helm history kcm -n kcm-system
-helm rollback kcm <REVISION> -n kcm-system --wait
+# Fastest rollback: point Management back to the previous release
+kubectl patch managements.k0rdent.mirantis.com kcm \
+  --patch '{"spec":{"release":"<PREVIOUS_RELEASE_NAME>"}}' \
+  --type=merge
+
+# If needed, restore from the pre-upgrade backup using Velero Restore
+kubectl get backups -n kcm-system
 ```
 
 ---

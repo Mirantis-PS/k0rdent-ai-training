@@ -95,7 +95,7 @@ k0rdent has **three independent upgrade layers**. Each uses a different mechanis
 # Check the current Release
 kubectl get releases.k0rdent.mirantis.com
 # Expected: k0rdent-enterprise-1-2-2 (for Enterprise v1.2.2)
-# Note: use the fully qualified name because "releases" conflicts with Flux HelmReleases
+# Note: use the fully qualified resource name to avoid short-name ambiguity
 
 # Check the Management object's release reference
 kubectl get management kcm -o jsonpath='{.spec.release}' && echo ""
@@ -137,7 +137,7 @@ kubectl get backup -n kcm-system --watch
 # Wait until phase shows "Completed", then Ctrl+C
 ```
 
-> **If Velero isn't configured (skipped Lab 1.4 backup):** Take a manual etcd snapshot:
+> **If Velero isn't configured (skipped Lab 1.4 backup):** Stop here and configure backup storage first. In this single-node training lab, you may also take a manual etcd snapshot as an extra platform safeguard, but that is outside the standard k0rdent management-backup workflow:
 > ```bash
 > sudo k0s etcd snapshot save /tmp/etcd-pre-upgrade.db
 > ```
@@ -148,8 +148,8 @@ kubectl get backup -n kcm-system --watch
 # Check what releases are available
 kubectl get releases.k0rdent.mirantis.com
 
-# In a real scenario, review release notes at:
-# https://docs.k0rdent.io/latest/admin/upgrade/
+# In a real scenario, review release notes and upgrade notes at:
+# https://docs.mirantis.com/k0rdent-enterprise/latest/admin/upgrade/
 #
 # Key things to look for:
 # - Breaking API changes (CRD field removals/renames)
@@ -160,7 +160,7 @@ kubectl get releases.k0rdent.mirantis.com
 
 > **Checkpoint:** Before proceeding, verify:
 > - [ ] All pods in kcm-system are Running
-> - [ ] ManagementBackup completed (or etcd snapshot taken)
+> - [ ] ManagementBackup completed successfully
 > - [ ] Pre-upgrade state documented
 > - [ ] Release notes reviewed
 
@@ -479,37 +479,48 @@ kubectl patch managements.k0rdent.mirantis.com kcm \
 kubectl get management kcm --watch
 ```
 
-**Option B: Velero Restore** (if CRDs are corrupted)
+**Option B: Velero Restore** (documented rollback path if a release revert is not enough)
 
 ```bash
-# Disable webhooks to prevent conflicts
-kubectl patch managements kcm --type=merge \
-  --patch='{"spec":{"core":{"kcm":{"config":{"admissionWebhook":{"enabled": false}}}}}}'
-kubectl wait management kcm --for=condition=Ready=True --timeout=10m
-
-# Restore from pre-upgrade backup
+# Restore from a clean k0rdent installation and patch the Management
+# object back to the pre-upgrade release during restore.
 cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patch-mgmt-spec-release
+  namespace: kcm-system
+data:
+  patch-mgmt-spec-release: |
+    version: v1
+    resourceModifierRules:
+    - conditions:
+        groupResource: managements.k0rdent.mirantis.com
+      patches:
+      - operation: replace
+        path: "/spec/release"
+        value: "<version-before-upgrade>"
+---
 apiVersion: velero.io/v1
 kind: Restore
 metadata:
   name: restore-pre-upgrade
   namespace: kcm-system
 spec:
-  backupName: pre-upgrade-$(date +%Y%m%d)
+  backupName: <pre-upgrade-backup-name>
   existingResourcePolicy: update
   includedNamespaces:
   - '*'
+  resourceModifier:
+    kind: ConfigMap
+    name: patch-mgmt-spec-release
 EOF
 
 kubectl -n kcm-system wait restores.velero.io restore-pre-upgrade \
   --for=jsonpath='{.status.phase}'='Completed' --timeout=10m
-
-# Re-enable webhooks
-kubectl patch managements kcm --type=merge \
-  --patch='{"spec":{"core":{"kcm":{"config":{"admissionWebhook":{"enabled": true}}}}}}'
 ```
 
-**Option C: etcd Restore** (last resort)
+**Option C: etcd Restore** (single-node lab / platform-level last resort)
 
 ```bash
 sudo k0s stop
@@ -517,7 +528,7 @@ sudo k0s etcd restore /tmp/etcd-pre-upgrade.db
 sudo k0s start
 ```
 
-> **Warning:** etcd restore reverts ALL cluster state, not just k0rdent.
+> **Warning:** etcd restore reverts ALL cluster state, not just k0rdent, and is not the primary rollback workflow described in the k0rdent docs.
 
 ### Layer 2: Managed Cluster Rollback
 

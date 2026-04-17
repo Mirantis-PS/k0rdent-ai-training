@@ -11,22 +11,42 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ADVANCED OPTIMIZATION
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6         YOU ARE HERE
-                                                  ↓
+FOUNDATION (Completed)                        ADVANCED OPTIMIZATION
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5               YOU ARE HERE
+     ➔ 5.6 ➔ 5.7 ➔ 5.8 ✓                        ↓
                                              [5.13] TensorRT-LLM
                                                   ↓
-                                              5.14 Multi-Cloud RDMA
+                                              5.14 Slurm
                                                   ↓
-                                              5.15 Distributed Training
+                                              5.15 Multi-Cloud RDMA
                                                   ↓
-                                             END (or ML Platforms)
+                                              5.16 Distributed Training
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.6 - Troubleshooting](lab-5.6-troubleshooting-gpu.md) | **Lab 5.13 - TensorRT-LLM** | [Lab 5.14 - Multi-Cloud RDMA](lab-5.14-rdma-multi-cloud.md) |
+| [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) | **Lab 5.13 - TensorRT-LLM** | [Lab 5.14 - Slurm on Kubernetes](lab-5.14-slurm-operator-hpc.md) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [k0rdent Context](#k0rdent-context)
+- [Background: TensorRT-LLM Architecture](#background-tensorrt-llm-architecture)
+- [Tasks](#tasks)
+  - [Task 1: Access the k0rdent-Managed GPU Cluster](#task-1-access-the-k0rdent-managed-gpu-cluster-10-min)
+  - [Task 2: Set Up TensorRT-LLM Environment](#task-2-set-up-tensorrt-llm-environment-25-min)
+  - [Task 3: Download and Quantize Model](#task-3-download-and-quantize-model-45-min)
+  - [Task 4: Build TensorRT Engine](#task-4-build-tensorrt-engine-45-min)
+  - [Task 5: Quick Test with trtllm-serve](#task-5-quick-test-with-trtllm-serve-15-min)
+  - [Task 6: Production Deployment with Triton Ensemble](#task-6-production-deployment-with-triton-ensemble-60-min)
+  - [Task 7: Test Triton Inference](#task-7-test-triton-inference-20-min)
+  - [Task 8: Performance Benchmarking](#task-8-performance-benchmarking-30-min)
+- [Cleanup](#cleanup)
+- [Deliverables](#deliverables)
 
 ---
 
@@ -271,7 +291,7 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
    cd TensorRT-LLM/examples
 
    # Download Llama-2-7B (use Llama-2-7b-chat-hf for a chat model)
-   huggingface-cli download meta-llama/Llama-2-7b-chat-hf \
+   huggingface-cli download NousResearch/Llama-2-7b-chat-hf \
      --local-dir /workspace/models/llama-2-7b-chat-hf \
      --token $HF_TOKEN
 
@@ -887,4 +907,4 @@ nvidia-smi --query-gpu=compute_cap --format=csv,noheader
 
 ## Next Lab
 
-Proceed to [Lab 5.14 - Multi-Cloud RDMA Deep Dive](lab-5.14-rdma-multi-cloud.md)
+Proceed to [Lab 5.14 - Multi-Cloud RDMA Deep Dive](lab-5.15-rdma-multi-cloud.md)

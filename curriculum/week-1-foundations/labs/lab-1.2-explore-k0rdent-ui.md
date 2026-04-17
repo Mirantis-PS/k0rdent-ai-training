@@ -685,10 +685,10 @@ k0rdent manages credentials for accessing infrastructure providers securely.
 ### Understand Credential Flow
 
 ```
-+-------------------+     +-------------------+     +-------------------+
-|  User provides    | --> |  k0rdent stores   | --> |  Cluster API uses |
-|  cloud creds      |     |  as K8s secrets   |     |  for provisioning |
-+-------------------+     +-------------------+     +-------------------+
++-------------------+     +-------------------+     +-------------------+     +-------------------+
+| Kubernetes Secret | --> | Provider Identity | --> | Credential CRD    | --> | ClusterDeployment |
+| (actual keys)     |     | (AWS/Azure/etc.)  |     | (k0rdent object)  |     | references it     |
++-------------------+     +-------------------+     +-------------------+     +-------------------+
 ```
 
 ### View Existing Credentials
@@ -701,7 +701,7 @@ kubectl get credentials -A
 kubectl get secrets -n kcm-system | grep credential
 ```
 
-> **Note:** The `aws-credentials` secret is a placeholder created during cloud-init. You'll replace it with real AWS credentials in Lab 1.3.
+> **Note:** Cloud-init creates an `aws-credentials` placeholder secret for local reference, but the actual AWS provider workflow in Lab 1.3 creates an `aws-cluster-identity-secret`, an `AWSClusterStaticIdentity`, and a `Credential` object.
 
 ### Credential Types
 
@@ -770,7 +770,7 @@ kgcred       # Get credentials
 
 1. **High Availability**
    - Deploy 3-node management cluster for HA
-   - Use etcd backup/restore procedures
+   - Configure `ManagementBackup` and test Velero-based restore procedures
 
 2. **Security**
    - Enable RBAC policies
@@ -799,7 +799,7 @@ Document your management cluster setup:
 - [ ] KCM (Cluster Manager)
 - [ ] Cert Manager
 - [ ] k0rdent UI
-- [ ] Flux CD
+- [ ] ProjectSveltos / KSM provider
 
 ### Enabled Providers
 - [ ] AWS

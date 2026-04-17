@@ -1,4 +1,4 @@
-# Lab 5.11 - NVIDIA Run:ai GPU Orchestration
+# Lab 5.4 - NVIDIA Run:ai GPU Orchestration
 
 ---
 
@@ -6,29 +6,49 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| ML Platforms | Recommended | 3 hours |
+| Foundation | Required | 3 hours |
 
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ML PLATFORMS
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.9 Kubeflow
-                                                  ↓
-                                              5.10 MLflow
-                                                  ↓
-                                             YOU ARE HERE
-                                                  ↓
-                                             [5.11] Run:ai
-                                                  ↓
-                                              5.12 Slurm ➔ Week 6
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ [5.4] ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+                     ↑                                     Compliance (5.11-5.12)
+                YOU ARE HERE                               Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.10 - MLflow](lab-5.10-mlflow-experiment-tracking.md) | **Lab 5.11 - NVIDIA Run:ai** | [Lab 5.12 - Slurm](lab-5.12-slurm-operator-hpc.md) |
+| [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md) | **Lab 5.4 - NVIDIA Run:ai** | [Lab 5.5 - vLLM Inference](lab-5.5-vllm-inference.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+  - [What is NVIDIA Run:ai?](#what-is-nvidia-runai)
+  - [Run:ai vs KAI Scheduler](#runai-vs-kai-scheduler)
+  - [Architecture](#architecture)
+- [Lab Environment](#lab-environment)
+- [Tasks](#tasks)
+  - [Task 1: Deploy Run:ai Cluster Component](#task-1-deploy-runai-cluster-component-30-min)
+  - [Task 2: Configure Departments and Projects](#task-2-configure-departments-and-projects-25-min)
+  - [Task 3: Install and Configure the Run:ai CLI](#task-3-install-and-configure-the-runai-cli-15-min)
+  - [Task 4: Submit Training Workloads](#task-4-submit-training-workloads-30-min)
+  - [Task 5: Fractional GPU Allocation](#task-5-fractional-gpu-allocation-30-min)
+  - [Task 6: Distributed Training with Gang Scheduling](#task-6-distributed-training-with-gang-scheduling-30-min)
+  - [Task 7: Priority, Preemption, and Over-Quota](#task-7-priority-preemption-and-over-quota-20-min)
+  - [Task 8: Explore the Run:ai Dashboard](#task-8-explore-the-runai-dashboard-15-min)
+  - [Task 9: k0rdent Integration Patterns](#task-9-k0rdent-integration-patterns-15-min)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [References](#references)
+- [Next Lab](#next-lab)
 
 **Duration:** 3 hours
 **Type:** Hands-on Technical
@@ -44,10 +64,10 @@ Deploy and operate NVIDIA Run:ai for enterprise GPU orchestration on a k0rdent-m
 - Kubernetes cluster with 2+ GPU nodes (k0rdent-managed)
 - NVIDIA GPU Operator v25.3-25.10 installed
 - `kubectl` and `helm` (v3.14+) installed
-- HAProxy ingress controller deployed (NGINX is deprecated in Run:ai v2.24)
+- A working ingress controller validated for your Run:ai release
 - Run:ai control plane URL and admin credentials (provided by instructor)
 
-> **Note:** This lab uses the NVIDIA Run:ai **commercial platform** (v2.24). Run:ai requires a license from NVIDIA. In a training environment, your instructor provides access to a shared Run:ai control plane. For the open-source KAI Scheduler alternative, see [Lab 5.16 - KAI Scheduler](lab-5.16-kai-scheduler.md).
+> **Note:** This lab uses the NVIDIA Run:ai **commercial platform** (v2.24). Run:ai requires a license from NVIDIA. In a training environment, your instructor provides access to a shared Run:ai control plane. For the open-source KAI Scheduler alternative, see [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md).
 
 ## Background
 
@@ -120,7 +140,7 @@ The **control plane** can be NVIDIA-hosted (SaaS) or self-hosted in your own inf
 **Cluster Requirements:**
 - Kubernetes 1.33-1.35
 - NVIDIA GPU Operator v25.3-25.10
-- HAProxy ingress controller
+- Ingress controller validated for your Run:ai release
 - Default StorageClass configured
 - Prometheus installed (for cluster metrics)
 - 4+ GPUs across 2+ nodes
@@ -148,8 +168,8 @@ The Run:ai control plane is already deployed (by your instructor or as SaaS). In
    # GPU Operator pods should be Running
    kubectl get pods -n gpu-operator -l app.kubernetes.io/managed-by=gpu-operator
 
-   # HAProxy ingress controller should be Running
-   kubectl get pods -A -l app.kubernetes.io/name=haproxy-ingress
+   # A supported ingress controller should be Running
+   kubectl get pods -A | grep -E 'ingress-nginx|haproxy'
 
    # Default StorageClass must exist
    kubectl get storageclass -o name
@@ -906,6 +926,6 @@ runai workload delete <workload-name> -p <project-name>
 
 ## Next Lab
 
-Proceed to [Lab 5.12 - Slurm Operator for HPC](lab-5.12-slurm-operator-hpc.md)
+Proceed to [Lab 5.5 - vLLM Inference Service](lab-5.5-vllm-inference.md)
 
-For the open-source KAI Scheduler alternative to Run:ai, see [Lab 5.16 - KAI Scheduler](lab-5.16-kai-scheduler.md).
+For the open-source KAI Scheduler alternative to Run:ai, see [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md).

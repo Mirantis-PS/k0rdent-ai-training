@@ -1,6 +1,6 @@
 # Week 1: k0rdent Enterprise Installation & Configuration
 
-**Duration:** 24.5 hours
+**Duration:** 26.5 hours
 **Focus:** k0rdent Enterprise deployment, architecture understanding, production-ready configuration
 
 ## Learning Objectives
@@ -22,13 +22,14 @@ By the end of this week, you will be able to:
 | 1 | Theory: k0rdent Architecture Deep Dive | 2h | Video/Reading |
 | 1 | Lab 1.1: Provision k0rdent Management Cluster | 3h | Hands-on |
 | 2 | Theory: k0rdent Components (KCM, KSM, KOF) | 2h | Video/Reading |
-| 2 | Lab 1.2: Explore k0rdent UI and Configuration | 2h | Hands-on |
+| 2 | Lab 1.2: Explore k0rdent UI and Configuration | 2.5h | Hands-on |
 | 3 | Theory: Infrastructure Providers and Cluster API | 1.5h | Video/Reading |
 | 3 | Lab 1.3: Configure AWS Infrastructure Provider | 3h | Hands-on |
 | 4 | Lab 1.4: Production Configuration and RBAC | 3h | Hands-on |
 | 4 | Lab 1.5: Provision Your First Managed Cluster | 2.5h | Hands-on |
 | 5 | Lab 1.6: Deploy KOF (Observability & FinOps) | 3h | Hands-on |
 | 5 | Lab 1.7: Multi-Cluster Services | 2h | Hands-on |
+| 5 | Lab 1.8: Upgrade k0rdent Enterprise | 1.5h | Hands-on |
 | 5 | Week 1 Assessment | 0.5h | Quiz |
 
 ## Theory Content
@@ -46,17 +47,18 @@ By the end of this week, you will be able to:
 - [Lab 1.5 - Provision Your First Managed Cluster](labs/lab-1.5-provision-managed-cluster.md)
 - [Lab 1.6 - Deploy KOF (Observability & FinOps)](labs/lab-1.6-deploy-kof.md)
 - [Lab 1.7 - Multi-Cluster Services](labs/lab-1.7-multicluster-services.md)
+- [Lab 1.8 - Upgrade k0rdent Enterprise](labs/lab-1.8-upgrade-k0rdent.md)
 
 ## Version Compatibility
 
-These labs are validated against the following versions. If your environment uses different versions, commands and template names may differ.
+These labs are validated against the repo-pinned versions and installation behavior below. Official Mirantis documentation may show newer releases; follow the versions in this table when working through Week 1 exactly.
 
 | Component | Version | Used In |
 |-----------|---------|---------|
-| k0rdent Enterprise | 1.2.1 | Lab 1.1 (auto-installed) |
+| k0rdent Enterprise | 1.2.2 | Lab 1.1 (auto-installed); upgrade to 1.2.3 in Lab 1.8 |
 | k0s | v1.32.4+k0s.0 | Lab 1.1 (auto-installed) |
-| Flux | v2.4.0 | Lab 1.1 (auto-installed) |
-| clusterctl | v1.9.0 | Lab 1.1 (auto-installed) |
+| Flux CLI | Installed by the upstream install script during provisioning (version may vary) | Lab 1.1 (auto-installed) |
+| clusterctl | v1.12.4 | Lab 1.1 (auto-installed) |
 | k0sctl | v0.19.4 | Lab 1.1 (auto-installed) |
 | KOF charts | 1.5.0 | Lab 1.6 |
 | cert-manager ServiceTemplate | 1.16.2 | Lab 1.7 |
@@ -80,16 +82,16 @@ These labs are validated against the following versions. If your environment use
     connect.sh)   |       |
                   v       v
               +--------------+     +---------------------+
-              |   Bastion    |     |   NLB               |
-              |   Host       |     |   (k0rdent UI:80)   |
+              |   Bastion    |     | AWS NLB (auto-      |
+              |   Host       |     | provisioned by CCM) |
               +------+-------+     +----------+----------+
                      |                        |
-                     | SSH jump               | NodePort 30080
+                     | SSH jump               | Envoy Gateway
                      v                        v
          +-------------------------------------------+
          |  Management Cluster         Labs 1.1-1.4  |
          |  (k0s + k0rdent)                          |
-         |                                           |
+         |  Envoy Gateway → k0rdent UI (:3000)       |
          |  KCM  |  KSM  |  KOF     Lab 1.6 (KOF)   |
          |  CAPI providers           Lab 1.3 (AWS)   |
          +-------------------+-----------------------+
@@ -112,7 +114,7 @@ These labs are validated against the following versions. If your environment use
 |----------|-------------|-------------|
 | Management cluster (t3.xlarge) | ~$0.17/hr | Labs 1.1-1.7 |
 | NAT Gateway | ~$0.045/hr | Labs 1.1-1.7 |
-| NLB (k0rdent UI) | ~$0.023/hr | Labs 1.1-1.7 |
+| AWS NLB (k0rdent UI via Envoy Gateway) | ~$0.023/hr | Labs 1.1-1.7 |
 | Managed cluster (2x t3.medium) | ~$0.15/hr | Labs 1.5-1.7 |
 | **Total (all running)** | **~$0.39/hr** | |
 

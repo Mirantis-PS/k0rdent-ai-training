@@ -1,4 +1,4 @@
-# Lab 5.3 - Vector Database Deployment
+# Lab 5.8 - Vector Database Deployment
 
 ---
 
@@ -11,16 +11,34 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ [5.3] ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-              ↑                               Compliance (5.7-5.8)
-         YOU ARE HERE                         Advanced (5.13-5.15)
+FOUNDATION (Required)                                    CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                                    ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ [5.8]  ──►  ML Platforms (5.9-5.10)
+                                               ↑           Compliance (5.11-5.12)
+                                          YOU ARE HERE      Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.2 - vLLM Inference](lab-5.2-vllm-inference.md) | **Lab 5.3 - Vector Database** | [Lab 5.4 - Jupyter Notebooks](lab-5.4-jupyter-notebooks.md) |
+| [Lab 5.7 - Jupyter Notebooks](lab-5.7-jupyter-notebooks.md) | **Lab 5.8 - Vector Database** | [Choose Your Path](#next-lab) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+- [Tasks](#tasks)
+  - [Task 1: Prepare Storage](#task-1-prepare-storage-15-min)
+  - [Task 2: Deploy Milvus](#task-2-deploy-milvus-45-min)
+  - [Task 3: Configure Authentication](#task-3-configure-authentication-15-min)
+  - [Task 4: Create Collection and Load Data](#task-4-create-collection-and-load-data-30-min)
+  - [Task 5: Test Similarity Search](#task-5-test-similarity-search-20-min)
+  - [Task 6: Access Attu Web UI](#task-6-access-attu-web-ui-10-min)
+  - [Task 7: Expose Service (Optional)](#task-7-expose-service-optional---10-min)
+- [Troubleshooting](#troubleshooting)
+- [Verification Checklist](#verification-checklist)
 
 ---
 
@@ -101,16 +119,11 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 
 2. **Create Milvus Configuration**
 
-   > **Architecture Note (Milvus v2.6.x — forward-looking):** Milvus v2.6 plans
-   > to unify four separate coordinators (root, data, query, index) into a single
-   > **MixCoord** process, merge IndexNode into DataNode, and introduce
-   > **StreamingNode** as a GA component. The recommended WAL backend will be
-   > **Woodpecker** (replacing Pulsar). **Note:** The current stable Helm chart
-   > (v4.2.x) deploys Milvus v2.5.x, which still uses separate coordinator pods
-   > and Pulsar/MinIO for WAL. The v2.6 features (Woodpecker, MixCoord,
-   > StreamingNode) are shown here for reference but may not yet be available in
-   > the chart version you install. Adjust the values file accordingly if your
-   > chart version does not support these keys.
+   > **Architecture Note (Milvus v2.6.x):** Current Milvus 5.0.x charts deploy the
+   > v2.6 architecture, which introduces **MixCoord**, **StreamingNode**, and
+   > **Woodpecker**-based WAL settings. Older 2.5-era charts used separate
+   > coordinator pods plus Pulsar-backed WAL. If you intentionally install an
+   > older chart, adjust the values file to match that legacy layout.
 
    ```yaml
    # Save as milvus-values.yaml
@@ -214,9 +227,11 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 
 3. **Deploy Milvus via k0rdent ServiceTemplate**
 
-   The k0rdent catalog includes `milvus-5-0-1` (Milvus v2.6.x). Deploy it
+   The k0rdent catalog includes `milvus-5-0-14` (Milvus v2.6.x). Deploy it
    using a `MultiClusterService` or `ClusterDeployment` service spec, consistent
    with the patterns from Labs 5.1 and 5.2:
+
+   > **Cluster selector — adjust to match YOUR ClusterDeployment labels.** The example below uses `workload-type: ai-inference` as an illustrative convention. Lab 5.1's default `ClusterDeployment` applies `environment: training` and `gpu-enabled: "true"` labels (and no `workload-type`). Either (a) swap the selector in this manifest to `environment: training`, or (b) patch the Lab 5.1 ClusterDeployment with `spec.config.clusterLabels.workload-type: ai-inference` before applying the MCS. Confirm with `kubectl get clusterdeployment <name> -n kcm-system --show-labels` first.
 
    ```yaml
    # Save as milvus-service.yaml
@@ -228,10 +243,10 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    spec:
      clusterSelector:
        matchLabels:
-         workload-type: ai-inference
+         environment: training      # matches Lab 5.1's default ClusterDeployment label; adjust if you renamed
      serviceSpec:
        services:
-         - template: milvus-5-0-1
+         - template: milvus-5-0-14
            name: milvus
            namespace: vector-db
            values: |
@@ -256,6 +271,13 @@ This lab deploys **Milvus** as a production-grade distributed solution.
                  enabled: true
                  size: 50Gi
              pulsar:
+               # NOTE (empirical 2026-04-17): the milvus-5-0-14 catalog chart
+               # IGNORES `pulsar.enabled: false` for cluster mode and still
+               # deploys Pulsar v3 (plus BookKeeper + ZooKeeper, ~11 extra
+               # pods). If you need a lighter mq backend, either (a) use the
+               # Simplified Alternative (standalone mode) at the end of this
+               # lab, or (b) fork the chart to wire in a different mq. The
+               # key is tracked upstream on the Zilliz helm repo.
                enabled: false
              queryNode:
                replicas: 2
@@ -334,8 +356,8 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 6. **Expected Pod List**
 
    > **Note:** Pod names vary by Milvus version. The list below shows the v2.6.x
-   > target architecture with MixCoord and Woodpecker. If you are running
-   > Milvus v2.5.x (the current stable Helm chart default), you will instead see
+   > target architecture with MixCoord and Woodpecker. If you intentionally run
+   > an older Milvus v2.5.x chart, you will instead see
    > separate coordinator pods: `milvus-rootcoord-*`, `milvus-querycoord-*`,
    > `milvus-datacoord-*`, `milvus-indexcoord-*`, and an `milvus-indexnode-*`
    > pod. You will also see Pulsar-related pods (broker, bookie, zookeeper)
@@ -413,6 +435,14 @@ This lab deploys **Milvus** as a production-grade distributed solution.
      --from-literal=password='SecurePassword123!' \
      -n vector-db
    ```
+
+   > **⚠️ Production hardening — three issues with the defaults above:**
+   >
+   > 1. **Milvus `root:Milvus` is the factory default** and stays unchanged if you only `create_user('mlops', ...)`. Add `utility.reset_password("root", "Milvus", "<new-long-random>")` before anything else, or disable the root account after the first admin user is provisioned — otherwise `root:Milvus` remains a valid login and every pymilvus client on the internet knows the defaults.
+   > 2. **`SecurePassword123!` literal in the lab markdown + in your shell history.** Same exfiltration surfaces as the Lab 5.10 postgres/rustfs passwords (shell history, `kubectl get secret -o yaml`, etcd backups, helm values dumps, git commits). For prod: generate with `openssl rand -base64 32`, push to your external secret store, and mount via an `ExternalSecret` instead of `kubectl create secret --from-literal`.
+   > 3. **Milvus `authorizationEnabled: true` authenticates but does NOT authorize per-collection read/write by default** — the `admin` role grants everything. For multi-tenant workloads, build custom roles via `Role("readonly").grant("CollectionA", "Search")` and assign users to the least-privileged one. Audit periodically with `utility.list_grants(role)`.
+   >
+   > Canonical k0rdent-native path for (1) + (2): install the `external-secrets` ServiceTemplate via MCS (it's in the catalog), wire a `ClusterSecretStore` against Vault / AWS Secrets Manager / Azure KV, and replace this `kubectl create secret --from-literal` block with an `ExternalSecret` CR that materializes `milvus-credentials` from the external store. Pattern and backend comparison table: see **Lab 5.10 Task 3's "⚠️ Production Secret Management" callout**.
 
 ### Task 4: Create Collection and Load Data (30 min)
 
@@ -772,4 +802,4 @@ print(utility.load_state("documents"))
 
 ## Next Lab
 
-Proceed to [Lab 5.4 - Jupyter Notebook Stack](lab-5.4-jupyter-notebooks.md)
+Proceed to [Lab 5.4 - Jupyter Notebook Stack](lab-5.7-jupyter-notebooks.md)

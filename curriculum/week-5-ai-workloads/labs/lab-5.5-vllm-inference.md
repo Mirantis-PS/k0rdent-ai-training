@@ -1,4 +1,4 @@
-# Lab 5.2 - Deploy vLLM Inference Service
+# Lab 5.5 - Deploy vLLM Inference Service
 
 ---
 
@@ -11,18 +11,48 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-5.1 ➔ [5.2] ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-       ↑                                      Compliance (5.7-5.8)
-  YOU ARE HERE                                Advanced (5.13-5.15)
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ [5.5] ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+                           ↑                              Compliance (5.11-5.12)
+                      YOU ARE HERE                        Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.1 - GPU Scheduler](lab-5.1-gpu-scheduler.md) | **Lab 5.2 - vLLM Inference** | [Lab 5.3 - Vector Database](lab-5.3-vector-database.md) |
+| [Lab 5.4 - Run:ai GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) | **Lab 5.5 - vLLM Inference** | [Lab 5.6 - Troubleshooting GPU](lab-5.6-troubleshooting-gpu.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Lab Environment](#lab-environment)
+- [Background: LLM Inference Architecture](#background-llm-inference-architecture)
+  - [Why LLM Inference Is Challenging](#why-llm-inference-is-challenging)
+  - [Memory Breakdown for LLM Inference](#memory-breakdown-for-llm-inference)
+  - [Parallelism Strategies](#parallelism-strategies)
+  - [NVLink and GPU Topology](#nvlink-and-gpu-topology)
+  - [Quantization Overview](#quantization-overview)
+- [Tasks](#tasks)
+  - [Task 1: Prepare Model Access](#task-1-prepare-model-access-15-min)
+  - [Task 2: Deploy vLLM Server](#task-2-deploy-vllm-server-45-min)
+  - [Task 3: Create Service and Gateway Route](#task-3-create-service-and-gateway-route-20-min)
+  - [Task 4: Test Inference Endpoint](#task-4-test-inference-endpoint-30-min)
+  - [Task 5: Monitor GPU Utilization](#task-5-monitor-gpu-utilization-20-min)
+  - [Task 6: Configure Horizontal Scaling](#task-6-configure-horizontal-scaling-20-min)
+- [Advanced Tasks: Enterprise-Grade Optimizations](#advanced-tasks-enterprise-grade-optimizations)
+  - [Task 7: Tensor Parallelism Deep-Dive](#task-7-tensor-parallelism-deep-dive-45-min)
+  - [Task 8: Quantization Strategies](#task-8-quantization-strategies-45-min)
+  - [Task 9: Performance Benchmarking](#task-9-performance-benchmarking-30-min)
+- [k0rdent Enterprise Integration](#k0rdent-enterprise-integration)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [References](#references)
+- [Next Lab](#next-lab)
 
 **Duration:** 4 hours (includes advanced topics)
 **Type:** Hands-on Technical
@@ -34,7 +64,7 @@ Deploy a production-ready LLM inference service using vLLM on Kubernetes with pr
 
 ## Prerequisites
 
-- Completed Lab 5.1 (GPU Scheduler deployed)
+- Completed Lab 5.1 (GPU Cluster Setup)
 - Kubernetes cluster with GPU nodes
 - At least 1 GPU with 24GB+ VRAM (A100 recommended)
 - For Advanced Tasks: 4-8 GPUs with NVLink (p4d.24xlarge or ND A100 v4)
@@ -203,19 +233,37 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 ### Task 1: Prepare Model Access (15 min)
 
-1. **Create Hugging Face Token Secret**
-   ```bash
-   # Get token from https://huggingface.co/settings/tokens
-   # Accept Llama-2 license at https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+1. **Choose a Model**
 
+   This lab deploys a 7B-class instruction-tuned model. Two common choices:
+
+   | Model | License | HF token required? | Size (FP16) |
+   |---|---|---|---|
+   | `Qwen/Qwen2.5-7B-Instruct` | Apache 2.0 | **No** (anonymous download OK; token only needed for rate-limit headroom) | ~14 GB |
+   | `meta-llama/Llama-2-7b-chat-hf` | Llama 2 Community License | **Yes** + license acceptance at the HF model page | ~13 GB |
+
+   The rest of this lab uses `Qwen/Qwen2.5-7B-Instruct` as the default so students without a Hugging Face license can complete the lab out-of-the-box. To switch to Llama-2 or any other model, replace the `--model` flag value in Task 2's Deployment YAML and optionally wire in the `HF_TOKEN` env var (shown below as an optional block).
+
+2. **Create the namespace**
+
+   ```bash
    kubectl create namespace vllm-inference
+   ```
+
+3. **(Optional) Create a Hugging Face Token Secret**
+
+   Only required for gated models (Llama-2, some Gemma variants, etc.) or to raise your Hugging Face anonymous download rate limit. Skip this step if you're running the default Qwen2.5 model and don't expect to re-pull frequently.
+
+   ```bash
+   # Get a read-token from https://huggingface.co/settings/tokens
+   # For gated models, also click "Accept license" on the model's HF page.
 
    kubectl create secret generic hf-token \
      --from-literal=token=<your-hf-token> \
      -n vllm-inference
    ```
 
-2. **Create Model Cache PVC**
+4. **Create Model Cache PVC**
    ```yaml
    # Save as model-cache-pvc.yaml
    apiVersion: v1
@@ -244,26 +292,26 @@ Quantization reduces model precision to decrease memory usage and increase throu
    apiVersion: apps/v1
    kind: Deployment
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
      labels:
-       app: vllm-llama2
+       app: vllm-qwen
    spec:
      replicas: 1
      selector:
        matchLabels:
-         app: vllm-llama2
+         app: vllm-qwen
      template:
        metadata:
          labels:
-           app: vllm-llama2
+           app: vllm-qwen
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.11.2
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
-               - meta-llama/Llama-2-7b-chat-hf
+               - Qwen/Qwen2.5-7B-Instruct   # Swap to meta-llama/Llama-2-7b-chat-hf to use Llama-2 (requires HF license + HF_TOKEN below)
                - --tensor-parallel-size
                - "1"
                - --max-model-len
@@ -278,11 +326,13 @@ Quantization reduces model precision to decrease memory usage and increase throu
                - containerPort: 8000
                  name: http
              env:
-               - name: HF_TOKEN
-                 valueFrom:
-                   secretKeyRef:
-                     name: hf-token
-                     key: token
+               # HF_TOKEN is REQUIRED for gated models (Llama-2, etc.), OPTIONAL for Apache 2.0 / MIT models (Qwen2.5, Phi, SmolLM, etc.).
+               # Uncomment the following block and create the hf-token Secret (Task 1 Step 3) to supply a token.
+               # - name: HF_TOKEN
+               #   valueFrom:
+               #     secretKeyRef:
+               #       name: hf-token
+               #       key: token
                - name: HF_HOME
                  value: /root/.cache/huggingface
              resources:
@@ -333,20 +383,118 @@ Quantization reduces model precision to decrease memory usage and increase throu
    kubectl get pods -n vllm-inference -w
 
    # Check logs for model loading progress
-   kubectl logs -f deployment/vllm-llama2 -n vllm-inference
+   kubectl logs -f deployment/vllm-qwen -n vllm-inference
    ```
 
 3. **Expected Log Output**
    ```
    INFO:     Started server process [1]
    INFO:     Waiting for application startup.
-   INFO:     Loading model meta-llama/Llama-2-7b-chat-hf...
+   INFO:     Loading model Qwen/Qwen2.5-7B-Instruct...
    INFO:     Model loaded in 45.23 seconds.
    INFO:     Application startup complete.
    INFO:     Uvicorn running on http://0.0.0.0:8000
    ```
 
-### Task 3: Create Service and Ingress (20 min)
+### Task 3: Create Service and Gateway Route (20 min)
+
+This lab's default network stack is **Envoy Gateway**, a Gateway API implementation — the K8s-native successor to the legacy `networking.k8s.io/v1 Ingress` API. We expose vLLM via a `Gateway` + `HTTPRoute` pair. If you are on an ingress-nginx cluster instead, skip to the "Legacy Ingress alternative" block below.
+
+> **Prerequisite — is Envoy Gateway installed on your managed cluster?** Week 1 Lab 1.7 demonstrates installing platform services (including Envoy Gateway) on a managed cluster via a k0rdent `MultiClusterService`. However, the Week 5 `gpu-cluster` provisioned in Lab 5.1's Pre-Lab does **not** include Envoy Gateway by default — Lab 5.1's `ClusterDeployment.spec.serviceSpec` only wires in the GPU Operator. Before proceeding, verify and install as needed:
+>
+> ```bash
+> # On the gpu-cluster:
+> kubectl get crd gatewayclasses.gateway.networking.k8s.io 2>&1 | head -2
+> kubectl get gatewayclass 2>&1
+> ```
+>
+> If you see `No resources found` for either, install Envoy Gateway using **one** of the paths below. Path A is the **preferred k0rdent-native pattern** — matches how Lab 1.7 installs platform services and how Lab 5.2 handles cert-manager/gpu-operator. Path B is a direct-helm fallback for clusters that aren't k0rdent-managed or when you need a one-cluster, one-shot install.
+>
+> **Path A — k0rdent MCS (preferred).** The `envoy-gateway` chart is published in the k0rdent catalog at <https://catalog.k0rdent.io/v1.2.0/apps/envoy-gateway/>. Install the `ServiceTemplate` on the management cluster and deploy it to your gpu-cluster via a `MultiClusterService`:
+>
+> ```bash
+> # Step 1 — On the MANAGEMENT cluster: install the ServiceTemplate via kgst
+> # Note: catalog version is "1.7.1" (no `v` prefix — the kgst wrapper
+> # expects semver without the leading `v`; don't blindly copy upstream
+> # `v1.7.1` / `v1.3.0` tags or the helm pull fails).
+> helm upgrade --install envoy-gateway oci://ghcr.io/k0rdent/catalog/charts/kgst \
+>   --set "chart=envoy-gateway:1.7.1" \
+>   -n kcm-system
+>
+> # Poll until VALID=true (FluxCD OCI pull may take ~30-60s; a transient
+> # empty/false VALID column during that window is expected, not a failure)
+> kubectl get servicetemplate envoy-gateway-1-7-1 -n kcm-system -w
+> ```
+>
+> ```yaml
+> # Step 2 — On the MANAGEMENT cluster: apply the MCS targeting your gpu-cluster.
+> # The selector labels must match whatever Lab 5.1 put on the ClusterDeployment
+> # (default: environment=training, gpu-enabled=true).
+> apiVersion: k0rdent.mirantis.com/v1beta1
+> kind: MultiClusterService
+> metadata:
+>   name: envoy-gateway
+> spec:
+>   clusterSelector:
+>     matchLabels:
+>       environment: training
+>       gpu-enabled: "true"
+>   serviceSpec:
+>     services:
+>       - template: envoy-gateway-1-7-1
+>         name: envoy-gateway
+>         namespace: envoy-gateway-system
+> ```
+>
+> After applying the MCS, Sveltos will deploy the envoy-gateway Helm release on every matching cluster. Verify from the gpu-cluster:
+>
+> ```bash
+> # On the gpu-cluster (use the kubeconfig extracted in Lab 5.1 Pre-Lab Step 3)
+> kubectl get pods -n envoy-gateway-system
+> # Expected: envoy-gateway-<hash>  Running
+> ```
+>
+> > **You still need to create the GatewayClass manually after the MCS install.** The catalog `envoy-gateway:1.7.1` chart installs only the controller Deployment — it does NOT ship a `GatewayClass` resource (neither does the upstream `envoyproxy/gateway-helm` chart in Path B). Apply one:
+> >
+> > ```bash
+> > kubectl apply -f - <<EOF
+> > apiVersion: gateway.networking.k8s.io/v1
+> > kind: GatewayClass
+> > metadata:
+> >   name: envoy-gateway
+> > spec:
+> >   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+> > EOF
+> > kubectl get gatewayclass
+> > # Expected: envoy-gateway   gateway.envoyproxy.io/gatewayclass-controller   True
+> > ```
+>
+> > **Note on CLB health-check registration (AWS):** The catalog chart configures the per-Gateway `LoadBalancer` Service with `externalTrafficPolicy: Local`, which means the AWS Classic Load Balancer will only mark nodes healthy if they host an Envoy pod locally. On a 2-node cluster (1 CP + 1 worker) with a single-replica Envoy deployment, half of the CLB's initial health checks will fail until the unhealthy target is marked `OutOfService` (~60–120s). External curl will return HTTP 000 during this window — wait ~2 minutes after Gateway creation before concluding something is wrong.
+>
+> **Path B — Direct Helm (fallback for non-k0rdent clusters or one-shot installs).** Use this when the cluster isn't registered with a k0rdent management cluster:
+>
+> ```bash
+> # Gateway API CRDs (required by Envoy Gateway)
+> kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+>
+> # Envoy Gateway controller (upstream chart)
+> helm upgrade -i eg oci://docker.io/envoyproxy/gateway-helm --version v1.3.0 \
+>   -n envoy-gateway-system --create-namespace --wait --timeout 3m
+>
+> # The upstream chart doesn't auto-create a GatewayClass — create one:
+> kubectl apply -f - <<EOF
+> apiVersion: gateway.networking.k8s.io/v1
+> kind: GatewayClass
+> metadata:
+>   name: envoy-gateway
+> spec:
+>   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+> EOF
+> ```
+>
+> > **Warning if switching from Path B to Path A later:** Sveltos will try to adopt the existing `eg` Helm release in `envoy-gateway-system` and may silently overwrite your values with the catalog chart's defaults. To migrate safely: uninstall the direct `eg` release (`helm uninstall eg -n envoy-gateway-system`), delete the GatewayClass you created manually, then apply the MCS — let Sveltos do a fresh install. Drop your vLLM `Gateway` + `HTTPRoute` while the controller is down, then re-apply them once the Sveltos-installed envoy-gateway is Running.
+>
+> **The cleaner architectural fix** is to add Envoy Gateway to Lab 5.1's `ClusterDeployment.spec.serviceSpec` so every newly-provisioned gpu-cluster starts with Envoy Gateway already installed (same pattern Lab 5.2 uses for cert-manager and gpu-operator). Until that change lands in Lab 5.1, Path A above is the workaround.
 
 1. **Create ClusterIP Service**
    ```yaml
@@ -354,10 +502,10 @@ Quantization reduces model precision to decrease memory usage and increase throu
    apiVersion: v1
    kind: Service
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
      labels:
-       app: vllm-llama2
+       app: vllm-qwen
    spec:
      type: ClusterIP
      ports:
@@ -366,16 +514,62 @@ Quantization reduces model precision to decrease memory usage and increase throu
          protocol: TCP
          name: http
      selector:
-       app: vllm-llama2
+       app: vllm-qwen
    ```
 
-2. **Create Ingress (Optional)**
+2. **Create Gateway + HTTPRoute (Envoy Gateway, default path)**
+   ```yaml
+   # Save as vllm-gateway.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: Gateway
+   metadata:
+     name: vllm-gateway
+     namespace: vllm-inference
+   spec:
+     gatewayClassName: envoy-gateway   # Installed by the k0rdent envoy-gateway MCS/ServiceTemplate
+     listeners:
+       - name: http
+         protocol: HTTP
+         port: 80
+         allowedRoutes:
+           namespaces:
+             from: Same
+   ---
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: HTTPRoute
+   metadata:
+     name: vllm-qwen
+     namespace: vllm-inference
+   spec:
+     parentRefs:
+       - name: vllm-gateway
+     hostnames:
+       - vllm.example.com
+     rules:
+       - matches:
+           - path:
+               type: PathPrefix
+               value: /v1
+           - path:
+               type: PathPrefix
+               value: /health
+           - path:
+               type: PathPrefix
+               value: /metrics
+         backendRefs:
+           - name: vllm-qwen
+             port: 8000
+   ```
+
+   > **Why restrict the path prefixes?** vLLM's OpenAI-compatible API lives under `/v1/*`, plus standalone `/health` and `/metrics` endpoints. Leaving the HTTPRoute open to `/` would expose vLLM's full request surface including its internal admin endpoints.
+
+3. **Legacy Ingress alternative (ingress-nginx clusters only)**
    ```yaml
    # Save as vllm-ingress.yaml
    apiVersion: networking.k8s.io/v1
    kind: Ingress
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
      annotations:
        nginx.ingress.kubernetes.io/proxy-body-size: "100m"
@@ -383,48 +577,88 @@ Quantization reduces model precision to decrease memory usage and increase throu
    spec:
      ingressClassName: nginx
      rules:
-       - host: llama2.example.com
+       - host: vllm.example.com
          http:
            paths:
              - path: /
                pathType: Prefix
                backend:
                  service:
-                   name: vllm-llama2
+                   name: vllm-qwen
                    port:
                      number: 8000
    ```
 
-3. **Apply Service**
+4. **Apply the Service and Gateway resources**
    ```bash
    kubectl apply -f vllm-service.yaml
-   # kubectl apply -f vllm-ingress.yaml  # If using ingress
+   kubectl apply -f vllm-gateway.yaml           # Envoy Gateway (default)
+   # kubectl apply -f vllm-ingress.yaml         # Legacy path (ingress-nginx clusters only)
+
+   # Verify the Gateway programs an Envoy listener
+   kubectl get gateway -n vllm-inference vllm-gateway
+   # NAME            CLASS           ADDRESS         PROGRAMMED   AGE
+   # vllm-gateway    envoy-gateway   192.0.2.10      True         20s
+
+   # Verify the HTTPRoute is accepted by the Gateway
+   kubectl get httproute -n vllm-inference vllm-qwen \
+     -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'
+   # True
    ```
+
+   > **Note on the Envoy Gateway `LoadBalancer` Service:** The `envoy-gateway` GatewayClass provisions a dedicated Envoy pod + `Service: LoadBalancer` **per Gateway**, named `envoy-{namespace}-{gateway-name}-{hash}` in the `envoy-gateway-system` namespace. To find the external address, either use the Gateway's `status.addresses[0]` (shown above) or `kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=vllm-gateway`.
 
 ### Task 4: Test Inference Endpoint (30 min)
 
-1. **Port Forward for Testing**
-   ```bash
-   kubectl port-forward svc/vllm-llama2 8000:8000 -n vllm-inference &
-   ```
+1. **Choose an endpoint**
+
+   Two ways to reach vLLM, depending on your environment:
+
+   - **(A) External via Gateway LoadBalancer (production path).** Use this from any laptop, workstation, or CI runner with internet access — this is how real users will hit the service.
+
+     ```bash
+     # Extract the ELB hostname from the Gateway status (set in Task 3)
+     ELB=$(kubectl get gateway -n vllm-inference vllm-gateway \
+       -o jsonpath='{.status.addresses[0].value}')
+     export VLLM_URL="http://${ELB}"
+     export VLLM_HOST_HEADER="vllm.example.com"
+     echo "vLLM URL: $VLLM_URL (Host: $VLLM_HOST_HEADER)"
+
+     # Sanity check the health endpoint
+     curl -s -o /dev/null -w "HTTP=%{http_code} time=%{time_total}s\n" \
+       -H "Host: $VLLM_HOST_HEADER" $VLLM_URL/health
+     # Expected: HTTP=200 time=0.15s
+     ```
+
+     The `Host:` header matches the `hostnames` field in the `HTTPRoute` from Task 3. If you own DNS, create an A/CNAME record pointing `vllm.example.com` to the ELB hostname and drop the `-H "Host: ..."` flag from every `curl` in this lab.
+
+   - **(B) In-cluster via kubectl port-forward (debug/fallback).** Use this only when you're already inside the cluster or SSH'd into a control node that has `kubectl` working. Port-forward won't traverse a bastion + private-subnet setup from a laptop without an additional SSH tunnel, so it's fragile for student use.
+
+     ```bash
+     kubectl port-forward svc/vllm-qwen 8000:8000 -n vllm-inference &
+     export VLLM_URL="${VLLM_URL}"
+     unset VLLM_HOST_HEADER
+     ```
+
+   The subsequent steps use `$VLLM_URL` and `$VLLM_HOST_HEADER` so the same commands work on either path. If you used path (B), the `-H` flag expands to a no-op.
 
 2. **Test Health Endpoint**
    ```bash
-   curl -v http://localhost:8000/health
+   curl -v ${VLLM_URL}/health
    # Expected: HTTP/1.1 200 OK with empty body (healthy)
    # HTTP 503 indicates engine not ready or unhealthy
    ```
 
 3. **List Available Models**
    ```bash
-   curl http://localhost:8000/v1/models | jq .
+   curl ${VLLM_URL}/v1/models | jq .
 
    # Expected response:
    # {
    #   "object": "list",
    #   "data": [
    #     {
-   #       "id": "meta-llama/Llama-2-7b-chat-hf",
+   #       "id": "Qwen/Qwen2.5-7B-Instruct",
    #       "object": "model",
    #       ...
    #     }
@@ -434,10 +668,11 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 4. **Test Chat Completion**
    ```bash
-   curl http://localhost:8000/v1/chat/completions \
+   curl ${VLLM_URL}/v1/chat/completions \
+     ${VLLM_HOST_HEADER:+-H "Host: ${VLLM_HOST_HEADER}"} \
      -H "Content-Type: application/json" \
      -d '{
-       "model": "meta-llama/Llama-2-7b-chat-hf",
+       "model": "Qwen/Qwen2.5-7B-Instruct",
        "messages": [
          {"role": "system", "content": "You are a helpful assistant."},
          {"role": "user", "content": "What is Kubernetes?"}
@@ -449,10 +684,11 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 5. **Test Streaming Response**
    ```bash
-   curl http://localhost:8000/v1/chat/completions \
+   curl ${VLLM_URL}/v1/chat/completions \
+     ${VLLM_HOST_HEADER:+-H "Host: ${VLLM_HOST_HEADER}"} \
      -H "Content-Type: application/json" \
      -d '{
-       "model": "meta-llama/Llama-2-7b-chat-hf",
+       "model": "Qwen/Qwen2.5-7B-Instruct",
        "messages": [
          {"role": "user", "content": "Write a haiku about containers"}
        ],
@@ -464,10 +700,10 @@ Quantization reduces model precision to decrease memory usage and increase throu
    ```bash
    # Simple load test
    for i in {1..10}; do
-     time curl -s http://localhost:8000/v1/chat/completions \
+     time curl -s ${VLLM_URL}/v1/chat/completions \
        -H "Content-Type: application/json" \
        -d '{
-         "model": "meta-llama/Llama-2-7b-chat-hf",
+         "model": "Qwen/Qwen2.5-7B-Instruct",
          "messages": [{"role": "user", "content": "Hello!"}],
          "max_tokens": 50
        }' > /dev/null
@@ -479,17 +715,17 @@ Quantization reduces model precision to decrease memory usage and increase throu
 1. **Watch GPU Usage**
    ```bash
    # In a separate terminal, exec into the pod
-   kubectl exec -it deployment/vllm-llama2 -n vllm-inference -- nvidia-smi -l 1
+   kubectl exec -it deployment/vllm-qwen -n vllm-inference -- nvidia-smi -l 1
    ```
 
 2. **Check Memory Usage**
    ```bash
-   kubectl exec -it deployment/vllm-llama2 -n vllm-inference -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+   kubectl exec -it deployment/vllm-qwen -n vllm-inference -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    ```
 
 3. **View vLLM Metrics**
    ```bash
-   curl http://localhost:8000/metrics
+   curl ${VLLM_URL}/metrics
 
    # Key metrics to observe (V1 names, vLLM v0.11+):
    # - vllm:num_requests_running     — currently processing
@@ -498,17 +734,74 @@ Quantization reduces model precision to decrease memory usage and increase throu
    # - vllm:cpu_cache_usage_perc     — CPU offload cache usage
    ```
 
-4. **Create Prometheus ServiceMonitor (Optional)**
+4. **Create Prometheus ServiceMonitor**
+
+   > **Prerequisite — kube-prometheus-stack must be installed on the cluster.** The `ServiceMonitor` CRD and the scraping Prometheus are part of kube-prometheus-stack; Lab 5.1's Pre-Lab doesn't install it. Verify with `kubectl get crd servicemonitors.monitoring.coreos.com`. If absent, install via one of the two paths below:
+   >
+   > **Path A — k0rdent MCS (preferred).** The catalog publishes kube-prometheus-stack at <https://catalog.k0rdent.io/v1.2.0/apps/kube-prometheus-stack/>:
+   >
+   > ```bash
+   > # On the MANAGEMENT cluster
+   > helm upgrade --install kube-prometheus-stack oci://ghcr.io/k0rdent/catalog/charts/kgst \
+   >   --set "chart=kube-prometheus-stack:81.6.3" \
+   >   -n kcm-system
+   > kubectl get servicetemplate kube-prometheus-stack-81-6-3 -n kcm-system -w   # wait for VALID=true
+   >
+   > # Then apply an MCS targeting your gpu-cluster (or extend the envoy-gateway MCS from Task 3)
+   > kubectl apply -f - <<EOF
+   > apiVersion: k0rdent.mirantis.com/v1beta1
+   > kind: MultiClusterService
+   > metadata:
+   >   name: kube-prometheus-stack
+   > spec:
+   >   clusterSelector:
+   >     matchLabels:
+   >       environment: training
+   >       gpu-enabled: "true"
+   >   serviceSpec:
+   >     services:
+   >       - template: kube-prometheus-stack-81-6-3
+   >         name: kube-prometheus-stack
+   >         namespace: monitoring
+   > EOF
+   > ```
+   >
+   > **Path B — Direct Helm (fallback for non-k0rdent clusters).**
+   >
+   > ```bash
+   > helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   > helm upgrade -i kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+   >   -n monitoring --create-namespace \
+   >   --set grafana.enabled=false \
+   >   --set alertmanager.enabled=false \
+   >   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+   >   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+   >   --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false \
+   >   --wait --timeout 8m
+   > ```
+   >
+   > The `serviceMonitorSelectorNilUsesHelmValues=false` flag (Path B) is essential — without it, Prometheus only scrapes ServiceMonitors with a matching `release: kube-prometheus-stack` label, and the one below will be silently ignored. Path A's MCS install sets this via its default values.
+   >
+   > Verify scrape health after applying the ServiceMonitor below:
+   >
+   > ```bash
+   > kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090 &
+   > curl -s "http://localhost:9090/api/v1/query?query=vllm:generation_tokens_total" | jq .data.result
+   > # Expected: a non-empty array once the pod has served at least one request
+   > ```
+
    ```yaml
    apiVersion: monitoring.coreos.com/v1
    kind: ServiceMonitor
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
+     labels:
+       release: kube-prometheus-stack   # Required only on Path B; harmless on Path A
    spec:
      selector:
        matchLabels:
-         app: vllm-llama2
+         app: vllm-qwen
      endpoints:
        - port: http
          path: /metrics
@@ -517,35 +810,118 @@ Quantization reduces model precision to decrease memory usage and increase throu
 
 ### Task 6: Configure Horizontal Scaling (20 min)
 
+> **Prerequisite 1 — install prometheus-adapter** (serves HPA's custom-metrics API from Prometheus data). Task 5's kube-prometheus-stack does NOT include the adapter. The k0rdent catalog does not publish a prometheus-adapter chart as of this writing — direct helm only:
+>
+> ```bash
+> # On the gpu-cluster (requires kube-prometheus-stack already installed per Task 5 Step 4)
+> helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+> helm upgrade -i prometheus-adapter prometheus-community/prometheus-adapter \
+>   -n monitoring \
+>   --set prometheus.url=http://kube-prometheus-stack-prometheus.monitoring.svc \
+>   --set prometheus.port=9090 \
+>   --wait --timeout 3m
+>
+> # Verify custom-metrics API is available (takes ~30s after install to stabilize)
+> kubectl get apiservice v1beta1.custom.metrics.k8s.io
+> # Expected: AVAILABLE=True
+> ```
+>
+> **Prerequisite 2 — metric name rewrite rule (with gauge-aware query).** vLLM's Prometheus metrics use a `:` separator (e.g. `vllm:num_requests_running`). prometheus-adapter's default config exposes this via the custom-metrics API as `pods/vllm:num_requests_running`, preserving the colon. However, Kubernetes HPA `metric.name` is validated as a DNS-1123 label and **rejects colons**, so you cannot reference the metric directly from an HPA. Add an adapter rule that renames `vllm:X` → `vllm_X` at exposure time AND uses the correct PromQL for the metric's type (gauge vs counter):
+>
+> Install the adapter with both rule variants via a values file (simpler than `--set-json`):
+>
+> ```bash
+> cat > /tmp/adapter-values.yaml <<'YAML'
+> prometheus:
+>   url: http://kube-prometheus-stack-prometheus.monitoring.svc
+>   port: 9090
+> rules:
+>   default: true
+>   custom:
+>     # Gauge metrics: use raw value via sum(). vLLM gauges include num_requests_running,
+>     # num_requests_waiting, kv_cache_usage_perc, cpu_cache_usage_perc, gpu_cache_usage_perc.
+>     # Applying rate() to a gauge always returns ~0 because gauges aren't monotonic.
+>     - seriesQuery: '{__name__=~"^vllm:(num_requests_.*|kv_cache_usage_perc|cpu_cache_usage_perc|gpu_cache_usage_perc)$"}'
+>       resources: { template: <<.Resource>> }
+>       name: { matches: "^vllm:(.+)$", as: "vllm_$1" }
+>       metricsQuery: sum(<<.Series>>{<<.LabelMatchers>>}) by (<<.GroupBy>>)
+>     # Counter metrics: use rate() for per-second throughput.
+>     # Covers *_total series like prompt_tokens_total, generation_tokens_total, request_success_total.
+>     - seriesQuery: '{__name__=~"^vllm:.*_total$"}'
+>       resources: { template: <<.Resource>> }
+>       name: { matches: "^vllm:(.+)$", as: "vllm_$1" }
+>       metricsQuery: sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)
+> YAML
+>
+> helm upgrade -i prometheus-adapter prometheus-community/prometheus-adapter \
+>   -n monitoring -f /tmp/adapter-values.yaml --wait --timeout 2m
+>
+> # Wait for the api-server to rediscover the renamed metrics (~15-30s)
+> kubectl get --raw /apis/custom.metrics.k8s.io/v1beta1 \
+>   | jq '[.resources[] | select(.name | startswith("pods/vllm_"))] | length'
+> # Expected: 20+ renamed metrics available
+> ```
+>
+> Without both prerequisites, applying the HPA below will either fail validation (if the adapter is absent, `v1beta1.custom.metrics.k8s.io` returns 404), show `FailedGetPodsMetric: the server could not find the metric vllm_num_requests_running for pods` (if the rewrite rule isn't loaded), or — more subtly — report TARGETS as `0/<threshold>` indefinitely even under heavy load (if you used `rate()` on a gauge by mistake).
+>
+> **Why target `vllm_num_requests_running` rather than `vllm_num_requests_waiting`?** vLLM uses **continuous batching**: new concurrent requests are immediately absorbed into the active batch rather than queued — so `num_requests_waiting` typically stays at 0 even at 50+ concurrent clients. `num_requests_running` is the honest signal of engine saturation and is what you should autoscale against.
+>
+> **Load-test the HPA** once both prereqs are in place. Use `hey` (or any load generator) against the Service from a client that can reach it. Empirical validation on a 4× A10G worker scaled from 1 to 4 replicas:
+>
+> ```bash
+> # Sustained 50 concurrent, 240s, long responses (500 max_tokens) to keep requests
+> # live long enough for the HPA to observe the running metric
+> hey -z 240s -c 50 \
+>   -H "Content-Type: application/json" -m POST \
+>   -d '{"model":"Qwen/Qwen2.5-7B-Instruct","messages":[{"role":"user","content":"Write a 500-word technical deep-dive on Kubernetes HPA custom metrics and continuous batching in LLM inference servers."}],"max_tokens":500}' \
+>   http://<vllm-loadbalancer>/v1/chat/completions &
+>
+> watch -n 5 '
+>   kubectl get hpa -n vllm-inference vllm-qwen
+>   kubectl get pods -n vllm-inference -l app=vllm-qwen
+> '
+> # Empirical progression (g5.12xlarge worker, Qwen2.5-7B, hey -c 50):
+> #   t=0s     REPLICAS 1, TARGETS 0/5
+> #   t=15s    running_sum=50, TARGETS 50/5 → HPA triggers scale-up
+> #   t=30s    REPLICAS 1 (4 pods scheduled; 3 still loading model)
+> #   t=105s   REPLICAS 3 (new pods online — Qwen model loaded from PVC cache)
+> #   t=120s   REPLICAS 4 (all 4 replicas Ready and serving)
+> #   t=240s   load ends, running_sum=0, REPLICAS stays at 4
+> #   t=540s+  REPLICAS 4 -> 1 (after 5-min stabilization window, default)
+> ```
+
 1. **Create HPA (if multiple GPUs available)**
    ```yaml
    # Save as vllm-hpa.yaml
    apiVersion: autoscaling/v2
    kind: HorizontalPodAutoscaler
    metadata:
-     name: vllm-llama2
+     name: vllm-qwen
      namespace: vllm-inference
    spec:
      scaleTargetRef:
        apiVersion: apps/v1
        kind: Deployment
-       name: vllm-llama2
+       name: vllm-qwen
      minReplicas: 1
      maxReplicas: 4
      metrics:
        - type: Pods
          pods:
            metric:
-             name: vllm_num_requests_waiting
+             name: vllm_num_requests_running   # Underscore form exposed by the adapter rule above.
+                                                # Use `_running` (gauge) not `_waiting` — vLLM's continuous
+                                                # batching absorbs concurrent requests into running, so waiting
+                                                # stays ~0 even under load.
            target:
              type: AverageValue
-             averageValue: "10"
+             averageValue: "5"                   # Scale when average in-flight requests per replica > 5.
    ```
 
 2. **Alternative: Manual Scaling**
    ```bash
    # Scale to 2 replicas (requires 2 GPUs)
-   kubectl scale deployment vllm-llama2 --replicas=2 -n vllm-inference
+   kubectl scale deployment vllm-qwen --replicas=2 -n vllm-inference
    ```
 
 ---
@@ -564,7 +940,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
 
    ```bash
    # Check NVLink topology from a GPU pod
-   kubectl exec -it deployment/vllm-llama2 -n vllm-inference -- nvidia-smi topo -m
+   kubectl exec -it deployment/vllm-qwen -n vllm-inference -- nvidia-smi topo -m
    ```
 
    **Expected output for p4d.24xlarge (8x A100 with NVSwitch):**
@@ -581,7 +957,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
 
 2. **Check NVLink Bandwidth**
    ```bash
-   kubectl exec -it deployment/vllm-llama2 -n vllm-inference -- nvidia-smi nvlink -s
+   kubectl exec -it deployment/vllm-qwen -n vllm-inference -- nvidia-smi nvlink -s
    ```
 
 3. **Deploy Llama-2-70B with Tensor Parallelism**
@@ -605,7 +981,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.11.2
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                - meta-llama/Llama-2-70b-chat-hf
@@ -762,7 +1138,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.11.2
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                - meta-llama/Llama-2-70b-chat-hf
@@ -809,7 +1185,7 @@ The following tasks require multi-GPU infrastructure (p4d.24xlarge/ND A100 v4 wi
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.11.2
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                # Use pre-quantized AWQ model from HuggingFace
@@ -981,11 +1357,11 @@ spec:
   serviceSpec:
     services:
       # KServe CRDs (install first)
-      - template: kserve-crd-0-15-0
+      - template: kserve-crd-v0-15-0
         name: kserve-crd
         namespace: kserve
       # KServe controller
-      - template: kserve-0-15-0
+      - template: kserve-v0-15-0
         name: kserve
         namespace: kserve
         values: |
@@ -1015,7 +1391,7 @@ spec:
       autoSelect: true
   containers:
     - name: kserve-container
-      image: vllm/vllm-openai:v0.11.2
+      image: vllm/vllm-openai:v0.14.0
       args:
         - --port
         - "8080"
@@ -1127,14 +1503,14 @@ kubectl get pods -n vllm-inference -o wide
 
 **Check events:**
 ```bash
-kubectl describe pod -l app=vllm-llama2 -n vllm-inference
+kubectl describe pod -l app=vllm-qwen -n vllm-inference
 ```
 
 ### Model Loading Fails
 
 **Check Hugging Face token:**
 ```bash
-kubectl logs deployment/vllm-llama2 -n vllm-inference | grep -i error
+kubectl logs deployment/vllm-qwen -n vllm-inference | grep -i error
 ```
 
 **Common errors:**
@@ -1157,7 +1533,7 @@ kubectl logs deployment/vllm-llama2 -n vllm-inference | grep -i error
 
 **Check if model is on GPU:**
 ```bash
-kubectl exec deployment/vllm-llama2 -n vllm-inference -- nvidia-smi
+kubectl exec deployment/vllm-qwen -n vllm-inference -- nvidia-smi
 # GPU utilization should spike during inference
 ```
 
@@ -1176,7 +1552,7 @@ kubectl exec deployment/vllm-llama2 -n vllm-inference -- nvidia-smi
 3. **GPU memory utilization** should be tuned based on model size
 4. **Shared memory (shm)** is required for efficient tensor operations
 5. **Health/readiness probes** must account for model loading time
-6. **Always pin vLLM versions** in production (current: v0.11.2)
+6. **Always pin vLLM versions** in production (validated example in this lab: v0.14.0)
 7. **vLLM V1 architecture** (v0.11+) provides significant performance improvements
 
 ### Advanced Concepts
@@ -1228,4 +1604,4 @@ kubectl exec deployment/vllm-llama2 -n vllm-inference -- nvidia-smi
 
 ## Next Lab
 
-Proceed to [Lab 5.3 - Vector Database Deployment](lab-5.3-vector-database.md)
+Proceed to [Lab 5.6 - Troubleshooting GPU Scheduling](lab-5.6-troubleshooting-gpu.md)

@@ -116,11 +116,13 @@ kubectl create namespace team-platform
 kubectl create namespace team-ml
 kubectl create namespace team-data
 
-# Label namespaces for k0rdent
-kubectl label namespace team-platform k0rdent.mirantis.com/project=platform
-kubectl label namespace team-ml k0rdent.mirantis.com/project=ml-team
-kubectl label namespace team-data k0rdent.mirantis.com/project=data-team
+# Optional: add your own organizational labels for reporting or automation
+kubectl label namespace team-platform team=platform
+kubectl label namespace team-ml team=ml
+kubectl label namespace team-data team=data
 ```
+
+> **Note:** Current k0rdent access-control docs focus on namespace isolation and RoleBindings to built-in roles such as `kcm-namespace-editor-role` and `kcm-credentials-viewer-role`. A `k0rdent.mirantis.com/project` label is not required for namespace isolation, so this lab uses plain namespace boundaries and optional team labels instead.
 
 ### Create Cluster Roles
 
@@ -255,7 +257,7 @@ sudo k0s config create
 
 ## Part 4: Configure Backup and Recovery (~30 min)
 
-k0rdent ships with **Velero** built into the Helm chart. Velero handles backup and restore of the management cluster's state — including all CRDs, secrets, and cluster configurations. k0rdent provides the `ManagementBackup` CRD to manage backup schedules declaratively.
+k0rdent ships with **Velero** built into the Helm chart. Velero handles backup and restore of the management cluster's k0rdent state by backing up labeled k0rdent, CAPI, cert-manager, and related resources. k0rdent provides the `ManagementBackup` CRD to manage backup schedules declaratively.
 
 ### Step 1: Configure Backup Storage
 
@@ -400,12 +402,11 @@ kubectl get backup -n kcm-system
 
 ### Understanding What Gets Backed Up
 
-k0rdent's ManagementBackup captures:
-- All k0rdent CRDs (Management, ClusterDeployments, Credentials, Templates)
-- CAPI resources (Clusters, Machines, MachineDeployments)
-- Flux sources and HelmReleases
-- cert-manager certificates
-- Secrets referenced by the above
+k0rdent's ManagementBackup captures the resource sets selected by k0rdent's backup labels, including:
+- k0rdent resources labeled `k0rdent.mirantis.com/component="kcm"`
+- CAPI resources and ClusterDeployment-related objects
+- cert-manager resources needed for dependent component creation
+- Secrets referenced by the backed-up objects
 
 > **Restore scenario:** If the management cluster is lost, you provision a fresh k0rdent install, configure the same BackupStorageLocation, and create a `Restore` object pointing to the backup. k0rdent reconnects to the existing managed clusters automatically — they keep running even if the management cluster is down.
 
@@ -609,7 +610,7 @@ sudo /usr/local/bin/production-readiness.sh
 
 Before completing this lab, verify:
 
-- [ ] Created team namespaces with proper labels
+- [ ] Created separate team namespaces
 - [ ] Configured RBAC roles and bindings
 - [ ] Configured Velero with BackupStorageLocation (S3)
 - [ ] Created scheduled ManagementBackup (every 6 hours)

@@ -1,4 +1,4 @@
-# Lab 5.15 - Multi-Node Distributed Training
+# Lab 5.16 - Multi-Node Distributed Training
 
 ---
 
@@ -6,31 +6,50 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Advanced Optimization | Optional | 4.5 hours |
+| Advanced | Optional | 4.5 hours |
 
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ADVANCED OPTIMIZATION
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.13 TensorRT-LLM
+FOUNDATION (Completed)                        ADVANCED
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━
+5.1 ➔ 5.2 ➔ ... ➔ 5.8 ✓                     5.13 TensorRT-LLM
                                                   ↓
-                                              5.14 Multi-Cloud RDMA
+                                              5.14 Slurm
+                                                  ↓
+                                              5.15 RDMA Multi-Cloud
                                                   ↓
                                              YOU ARE HERE
                                                   ↓
-                                             [5.15] Distributed Training
+                                             [5.16] Distributed Training
                                                   ↓
                                               WEEK 5 COMPLETE!
 
 After this lab:
-• ML Platforms Track (5.9-5.12) for MLOps
-• Week 6: Multi-tenancy
+  ML Platforms (5.9-5.10) or Week 6
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.14 - Multi-Cloud RDMA](lab-5.14-rdma-multi-cloud.md) | **Lab 5.15 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multi-tenancy/README.md) |
+| [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) | **Lab 5.16 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multi-tenancy/README.md) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [k0rdent Context](#k0rdent-context)
+- [Background: Distributed Training Architecture](#background-distributed-training-architecture)
+- [Lab Environment](#lab-environment)
+- [Tasks](#tasks)
+  - [Task 1: Access k0rdent-Managed GPU Cluster](#task-1-access-k0rdent-managed-gpu-cluster-10-min)
+  - [Task 2: Install MPI Operator](#task-2-install-mpi-operator-20-min)
+  - [Task 3: Verify Multi-Node Connectivity](#task-3-verify-multi-node-connectivity-30-min)
+  - [Task 4: Deploy Megatron-LM Training Job](#task-4-deploy-megatron-lm-training-job-60-min)
+  - [Task 5: DeepSpeed ZeRO Optimization](#task-5-deepspeed-zero-optimization-45-min)
+  - [Task 6: PyTorch FSDP](#task-6-pytorch-fsdp-fully-sharded-data-parallel-45-min)
+  - [Task 7: Performance Optimization](#task-7-performance-optimization-30-min)
 
 ---
 
@@ -60,8 +79,8 @@ k0rdent manages the GPU infrastructure and provides catalog-based service deploy
 
 **Available in k0rdent Catalog:**
 - `gpu-operator-25-10-0` - GPU Operator (required for all GPU workloads)
-- `nvidia-network-operator-25-10-0` - Network Operator (RDMA/InfiniBand)
-- `kuberay-operator-1-3-2` - KubeRay Operator (Ray-based distributed training)
+- `network-operator-25-10-0` - Network Operator (RDMA/InfiniBand)
+- `kuberay-operator-1-5-1` - KubeRay Operator (Ray-based distributed training)
 - `lws-0-7-0` - LeaderWorkerSet (Kubernetes-native distributed workloads)
 
 **Not in Catalog (Direct Install Required):**
@@ -76,7 +95,7 @@ k0rdent manages the GPU infrastructure and provides catalog-based service deploy
 │  │ ClusterDeployment (GPU Cluster)                            │  │
 │  │  spec.serviceSpec.services:                                │  │
 │  │    - gpu-operator-25-10-0                                  │  │
-│  │    - nvidia-network-operator-25-10-0                       │  │
+│  │    - network-operator-25-10-0                              │  │
 │  └────────────────────────────────────────────────────────────┘  │
 ├──────────────────────────────────────────────────────────────────┤
 │                    Managed GPU Cluster                            │
@@ -226,7 +245,7 @@ Node 3 ─────────────│  │TP=0 │TP=1 │TP=2 │TP
 
 - NVIDIA GPU Operator v25.10.0
 - NVIDIA Network Operator (RDMA configured)
-- Kubeflow MPI Operator v0.7.0
+- Kubeflow MPI Operator v0.8.0
 - PyTorch 2.x with distributed support (via NVIDIA container)
 
 ---
@@ -280,12 +299,12 @@ Extract kubeconfig from the k0rdent management cluster to access the managed GPU
 
 The MPI Operator enables distributed training jobs on Kubernetes. There is no MPI Operator ServiceTemplate in the k0rdent catalog, so install directly on the managed cluster.
 
-> **k0rdent Catalog Alternatives:** For distributed workloads, the catalog provides `kuberay-operator-1-3-2` (Ray-based training) and `lws-0-7-0` (LeaderWorkerSet for Kubernetes-native distributed jobs). MPI Operator is preferred for traditional MPI-based training frameworks like Megatron-LM and DeepSpeed.
+> **k0rdent Catalog Alternatives:** For distributed workloads, the catalog provides `kuberay-operator-1-5-1` (Ray-based training) and `lws-0-7-0` (LeaderWorkerSet for Kubernetes-native distributed jobs). MPI Operator is preferred for traditional MPI-based training frameworks like Megatron-LM and DeepSpeed.
 
-1. **Install Kubeflow MPI Operator v0.7.0**
+1. **Install Kubeflow MPI Operator v0.8.0**
    ```bash
-   # Install MPI Operator v0.7.0 (latest stable release)
-   kubectl apply -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.7.0/deploy/v2beta1/mpi-operator.yaml
+   # Install MPI Operator v0.8.0
+   kubectl apply -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.8.0/deploy/v2beta1/mpi-operator.yaml
 
    # Verify installation
    kubectl get crd mpijobs.kubeflow.org
@@ -859,7 +878,7 @@ DeepSpeed ZeRO partitions optimizer states across GPUs, enabling larger models w
            torch.cuda.set_device(local_rank)
 
            # Model configuration (7B parameter model for demonstration)
-           model_name = "meta-llama/Llama-2-7b-hf"
+           model_name = "NousResearch/Llama-2-7b-hf"
            config = AutoConfig.from_pretrained(model_name)
 
            # Initialize model with DeepSpeed ZeRO-3 (on-demand parameter loading)
@@ -1078,7 +1097,7 @@ FSDP is PyTorch's native implementation of ZeRO-style sharding. It provides simi
            )
 
            # Load model
-           model_name = "meta-llama/Llama-2-7b-hf"
+           model_name = "NousResearch/Llama-2-7b-hf"
            config = AutoConfig.from_pretrained(model_name)
 
            # Initialize on CPU first for FSDP to shard efficiently
@@ -1341,7 +1360,7 @@ FSDP is PyTorch's native implementation of ZeRO-style sharding. It provides simi
 
 ### Basic Deliverables
 - [ ] k0rdent GPU cluster accessed via extracted kubeconfig
-- [ ] MPI Operator v0.7.0 installed and functional
+- [ ] MPI Operator v0.8.0 installed and functional
 - [ ] Multi-node NCCL connectivity verified with bandwidth benchmark
 - [ ] NCCL all-reduce bandwidth documented and compared to expectations
 
@@ -1500,7 +1519,7 @@ kubectl delete pvc training-checkpoints training-data -n distributed-training
 kubectl delete namespace distributed-training
 
 # Optionally remove MPI Operator
-kubectl delete -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.7.0/deploy/v2beta1/mpi-operator.yaml
+kubectl delete -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.8.0/deploy/v2beta1/mpi-operator.yaml
 ```
 
 ---
@@ -1521,7 +1540,7 @@ kubectl delete -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.7.0
 - [Distributed Training](https://pytorch.org/docs/stable/distributed.html) - PyTorch distributed reference
 
 ### Kubeflow
-- [MPI Operator v0.7.0](https://github.com/kubeflow/mpi-operator/releases/tag/v0.7.0) - Kubernetes MPI job scheduling
+- [MPI Operator v0.8.0](https://github.com/kubeflow/mpi-operator/releases/tag/v0.8.0) - Kubernetes MPI job scheduling
 
 ---
 

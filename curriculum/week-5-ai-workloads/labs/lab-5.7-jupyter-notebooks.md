@@ -1,4 +1,4 @@
-# Lab 5.4 - Jupyter Notebook Stack
+# Lab 5.7 - Jupyter Notebook Stack
 
 ---
 
@@ -11,16 +11,34 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ [5.4] ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-                    ↑                         Compliance (5.7-5.8)
-               YOU ARE HERE                   Advanced (5.13-5.15)
+FOUNDATION (Required)                                    CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                                    ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ [5.7] ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+                                        ↑                  Compliance (5.11-5.12)
+                                   YOU ARE HERE             Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.3 - Vector Database](lab-5.3-vector-database.md) | **Lab 5.4 - Jupyter Notebooks** | [Lab 5.5 - Service Catalog](lab-5.5-service-catalog.md) |
+| [Lab 5.6 - Troubleshooting GPU](lab-5.6-troubleshooting-gpu.md) | **Lab 5.7 - Jupyter Notebooks** | [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) |
+
+---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+- [Tasks](#tasks)
+  - [Task 1: Create Namespace and Storage](#task-1-create-namespace-and-storage-10-min)
+  - [Task 2: Deploy JupyterHub](#task-2-deploy-jupyterhub-30-min)
+  - [Task 3: Access JupyterHub](#task-3-access-jupyterhub-10-min)
+  - [Task 4: Test GPU Access in Notebook](#task-4-test-gpu-access-in-notebook-20-min)
+  - [Task 5: Configure Persistent User Storage](#task-5-configure-persistent-user-storage-15-min)
+  - [Task 6: Monitor Resource Usage](#task-6-monitor-resource-usage-10-min)
+  - [Task 7: Deploy via k0rdent Enterprise](#task-7-deploy-via-k0rdent-enterprise-15-min)
+- [Troubleshooting](#troubleshooting)
+- [Verification Checklist](#verification-checklist)
 
 ---
 
@@ -82,14 +100,26 @@ JupyterHub provides multi-user Jupyter notebook environments:
 
 ### Task 1: Create Namespace and Storage (10 min)
 
-1. **Create Namespace**
+1. **Preflight: verify a default StorageClass exists**
+   ```bash
+   kubectl get storageclass
+   # Expected: one entry marked (default) in the NAME column.
+   # On Lab 5.1's k0rdent AWS gpu-cluster this will be "ebs-csi-default-sc (default)".
+   # On EKS it may be "gp2 (default)" or "gp3".
+   # If no default is marked, either mark one with:
+   #   kubectl patch storageclass <name> -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+   # or add `storageClassName: <name>` explicitly to every PVC manifest below.
+   ```
+
+2. **Create Namespace**
    ```bash
    kubectl create namespace jupyter
    ```
 
-2. **Create Shared Storage PVC**
+3. **Create Shared Storage PVC**
    ```yaml
    # Save as jupyter-shared-pvc.yaml
+   # storageClassName intentionally omitted — uses the cluster default (see preflight above).
    apiVersion: v1
    kind: PersistentVolumeClaim
    metadata:
@@ -101,12 +131,13 @@ JupyterHub provides multi-user Jupyter notebook environments:
      resources:
        requests:
          storage: 100Gi
-     storageClassName: standard  # Adjust for your cluster (e.g., gp2/gp3 on EKS, default on AKS)
    ```
 
    ```bash
    kubectl apply -f jupyter-shared-pvc.yaml
    ```
+
+   > **EBS CSI `WaitForFirstConsumer` behaviour (k0rdent AWS default):** The PVC will stay in `Pending` status until the first pod mounts it — this is expected, not a bug. The volume is provisioned lazily at pod-bind time so that the EBS volume is created in the same AZ as the consuming pod. It transitions to `Bound` automatically once a user's notebook server starts with the shared volume attached.
 
 ### Task 2: Deploy JupyterHub (30 min)
 
@@ -135,15 +166,17 @@ JupyterHub provides multi-user Jupyter notebook environments:
            - mlops
            - datascientist
        DummyAuthenticator:
-         password: "training123"
+         password: "training123"    # DEMO-ONLY — see production callout below
        JupyterHub:
          authenticator_class: dummy
 
      db:
        type: sqlite-pvc
        pvc:
-         storageClassName: standard  # Adjust for your cluster
          storage: 1Gi
+         # storageClassName omitted — uses cluster default (see Task 1 preflight).
+         # Set explicitly here only if your cluster has multiple StorageClasses and
+         # you need to pick a specific one (e.g. high-IOPS gp3 vs standard gp2).
 
    singleuser:
      defaultUrl: "/lab"
@@ -163,8 +196,10 @@ JupyterHub provides multi-user Jupyter notebook environments:
      storage:
        type: dynamic
        capacity: 10Gi
-       dynamic:
-         storageClass: standard  # Adjust for your cluster
+       # dynamic.storageClass omitted — uses cluster default (see Task 1 preflight).
+       # Override only if a specific StorageClass is required, e.g.:
+       #   dynamic:
+       #     storageClass: gp3
 
      extraEnv:
        NVIDIA_VISIBLE_DEVICES: "all"
@@ -237,6 +272,16 @@ JupyterHub provides multi-user Jupyter notebook environments:
      timeout: 3600  # Cull idle notebooks after 1 hour
      every: 300
    ```
+
+   > **⚠️ Production authentication — do NOT ship DummyAuthenticator + a literal password.**
+   >
+   > `DummyAuthenticator` with `password: "training123"` accepts any username + that one shared password. It's a training shortcut so every student can log in as `admin` / `mlops` / `datascientist` without a real IdP. In production:
+   >
+   > - **Switch the authenticator class to OIDC** (e.g. `oauthenticator.generic.GenericOAuthenticator` or the provider-specific Google/Okta/Entra variants). The k0rdent catalog ships `dex` as a ServiceTemplate — deploy it via MCS as an OIDC broker in front of your corp IdP, and point JupyterHub's `GenericOAuthenticator.{client_id, client_secret, token_url, userdata_url}` at the dex issuer. That collapses the shared-password problem and gives you per-user identity for audit + per-notebook RBAC.
+   > - **Source the client secret from an ExternalSecret**, not from the `jupyterhub-values.yaml` you `helm install`. Pattern is identical to the one documented in Lab 5.10 Task 3's "Production Secret Management" callout — install the `external-secrets` ServiceTemplate via MCS, define a `ClusterSecretStore` pointing at your backend (AWS Secrets Manager / Vault / Azure KV / GCP SM), and target a K8s Secret that the helm chart reads via `hub.existingSecret` (z2jh 4.x key).
+   > - **Drop `admin_users` + `allowed_users` string lists** in favor of OIDC group-based admin via `Authenticator.admin_groups` + your IdP's group claim. Hardcoded usernames in a YAML your team all has access to is a different leak surface: everyone who can `git log` can see the admin list and decide to add themselves.
+   >
+   > See Lab 5.10 Task 3's **"⚠️ Production Secret Management"** callout for the full pattern (ExternalSecret CR + SecretStore backend comparison for AWS Secrets Manager / Vault / Azure KV / GCP SM / SOPS).
 
    > **Image tags:** The Jupyter Docker Stacks publish images to `quay.io` (Docker Hub images are frozen since October 2023). Tags use the format `cuda12-latest`, `cuda12-<date>`, or `cuda12-<git-sha>` — PyTorch version is NOT included in the tag. For reproducible deployments, pin to a date tag like `cuda12-2026-02-09`. CPU profiles use `latest` (no CUDA) to avoid pulling the larger CUDA image for CPU-only work.
 
@@ -429,12 +474,19 @@ JupyterHub provides multi-user Jupyter notebook environments:
 
 3. **View Hub Metrics**
    ```bash
-   # Port forward to hub
-   kubectl port-forward svc/hub -n jupyter 8081:8081 &
+   # Port forward to hub (service port is named "hub")
+   kubectl port-forward svc/hub -n jupyter 8081:hub &
 
-   # Access metrics
-   curl http://localhost:8081/hub/metrics
+   # Unauthenticated liveness check — always works, returns 200 + empty body
+   curl -s -w "HTTP %{http_code}\n" http://localhost:8081/hub/health
+
+   # Prometheus metrics endpoint — REQUIRES an admin API token.
+   # Generate one via the hub's CLI, then pass it as an Authorization header:
+   TOKEN=$(kubectl exec -n jupyter deploy/hub -- jupyterhub token admin | tail -1)
+   curl -s -H "Authorization: token $TOKEN" http://localhost:8081/hub/metrics | head -30
    ```
+
+   > **Why does `/hub/metrics` 403 without a token?** In JupyterHub 4.x the metrics endpoint is scoped to the `read:metrics` OAuth scope by default — an unauthenticated `curl` is redirected to the login page and eventually returns HTTP 403. The `jupyterhub token <user>` CLI (exposed by the hub container image) issues a token with full admin scopes, which covers metrics reads. For production scraping, prefer a Prometheus `ServiceMonitor` + `BearerTokenSecret` rather than a per-curl token — see the [z2jh metrics docs](https://z2jh.jupyter.org/en/latest/administrator/security.html) for the canonical pattern.
 
 ### Task 7: Deploy via k0rdent Enterprise (15 min)
 
@@ -599,4 +651,4 @@ kubectl get pods -n jupyter
 
 ## Next Lab
 
-Proceed to [Lab 5.5 - Service Catalog Blueprints](lab-5.5-service-catalog.md)
+Proceed to [Lab 5.5 - Service Catalog Blueprints](lab-5.2-service-catalog.md)

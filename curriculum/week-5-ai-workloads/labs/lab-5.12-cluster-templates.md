@@ -1,4 +1,4 @@
-# Lab 5.8: Cluster Templates for AI Workloads
+# Lab 5.12: Cluster Templates for AI Workloads
 
 ---
 
@@ -11,24 +11,40 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                    YOU ARE HERE
-━━━━━━━━━━━━━━━━━━━━                         ↓
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6      COMPLIANCE
-                                        ━━━━━━━━━━━
-                                        5.7 ➔ [5.8]
-                                              ↓
-                         ┌────────────────────┴────────────────────┐
-                         ▼                                         ▼
-                    ML PLATFORMS                              ADVANCED
-                    ━━━━━━━━━━━━                              ━━━━━━━━
-                    5.9 ➔ 5.10 ➔ 5.11 ➔ 5.12           5.13 ➔ 5.14 ➔ 5.15
+FOUNDATION (Completed)                        COMPLIANCE & TEMPLATES
+━━━━━━━━━━━━━━━━━━━━━━                       ━━━━━━━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5                5.11 FIPS
+     ➔ 5.6 ➔ 5.7 ➔ 5.8 ✓                        ↓
+                                             YOU ARE HERE
+                                                  ↓
+                                             [5.12] Cluster Templates
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.7 - NVIDIA FIPS](lab-5.7-nvidia-fips.md) | **Lab 5.8 - Cluster Templates** | Choose: [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) |
+| [Lab 5.11 - NVIDIA FIPS](lab-5.11-nvidia-fips.md) | **Lab 5.12 - Cluster Templates** | Choose: [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) |
 
 ---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Learning Objectives](#learning-objectives)
+- [Prerequisites](#prerequisites)
+- [Part 1: Understanding k0rdent Cluster Abstraction](#part-1-understanding-k0rdent-cluster-abstraction)
+- [Part 2: Hands-On Tasks](#part-2-hands-on-tasks)
+  - [Task 1: Explore Shipped ClusterTemplates](#task-1-explore-shipped-clustertemplates-15-min)
+  - [Task 2: Discover Template Parameters via status.config](#task-2-discover-template-parameters-via-statusconfig-15-min)
+  - [Task 3: Deploy an AI Development Cluster](#task-3-deploy-an-ai-development-cluster-25-min)
+  - [Task 4: Deploy an AI Training Cluster](#task-4-deploy-an-ai-training-cluster-25-min)
+  - [Task 5: Deploy AI Services via serviceSpec](#task-5-deploy-ai-services-via-servicespec-20-min)
+  - [Task 6: Cluster Lifecycle Management](#task-6-cluster-lifecycle-management-20-min)
+  - [Task 7: Understanding Custom ClusterTemplates](#task-7-understanding-custom-clustertemplates-15-min)
+- [Cleanup](#cleanup)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [Next Steps](#next-steps)
 
 ## Overview
 
@@ -48,7 +64,7 @@ By the end of this lab, you will be able to:
 ## Prerequisites
 
 - Completed Lab 5.1 (GPU Scheduler Deployment)
-- Completed Lab 5.5 (k0rdent Service Catalog) - recommended
+- Completed Lab 5.2 (k0rdent Service Catalog) - recommended
 - Access to k0rdent management cluster
 - AWS credentials configured via Credential object
 
@@ -152,30 +168,33 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
    kubectl get clustertemplates -n kcm-system
    ```
 
-   Expected output (template names include version suffixes):
+   Expected output on k0rdent Enterprise 1.2.x (template names include version suffixes — empirical 2026-04-17):
    ```
    NAMESPACE    NAME                              VALID
-   kcm-system   adopted-cluster-1-0-16            true
-   kcm-system   aws-eks-0-2-3                     true
-   kcm-system   aws-hosted-cp-0-2-3               true
-   kcm-system   aws-standalone-cp-0-2-3           true
-   kcm-system   azure-aks-0-1-0                   true
-   kcm-system   azure-hosted-cp-0-1-0             true
-   kcm-system   azure-standalone-cp-0-1-0         true
-   kcm-system   gcp-gke-0-1-0                     true
-   kcm-system   gcp-hosted-cp-0-1-0               true
-   kcm-system   gcp-standalone-cp-0-1-0           true
-   kcm-system   openstack-standalone-cp-0-1-0     true
-   kcm-system   vsphere-hosted-cp-0-1-0           true
-   kcm-system   vsphere-standalone-cp-0-1-0       true
+   kcm-system   adopted-cluster-1-0-1             true
+   kcm-system   aws-eks-1-0-4                     true
+   kcm-system   aws-hosted-cp-1-0-21              true
+   kcm-system   aws-standalone-cp-1-0-20          true
+   kcm-system   azure-aks-1-0-1                   true
+   kcm-system   azure-hosted-cp-1-0-22            true
+   kcm-system   azure-standalone-cp-1-0-19        true
+   kcm-system   docker-hosted-cp-1-0-4            true
+   kcm-system   gcp-gke-1-0-6                     true
+   kcm-system   gcp-hosted-cp-1-0-19              true
+   kcm-system   gcp-standalone-cp-1-0-17          true
+   kcm-system   openstack-hosted-cp-1-0-12        true
+   kcm-system   openstack-standalone-cp-1-0-21    true
+   kcm-system   remote-cluster-1-0-18             true
+   kcm-system   vsphere-hosted-cp-1-0-18          true
+   kcm-system   vsphere-standalone-cp-1-0-17      true
    ```
 
-   > **Note:** Version suffixes (e.g., `-0-2-3`) correspond to the chart version with dots replaced by dashes. Your environment may show different versions depending on the k0rdent release installed.
+   > **Note:** Version suffixes (e.g., `-1-0-20`) correspond to the chart version with dots replaced by dashes. Your environment may show different versions depending on the k0rdent release installed — always `kubectl get clustertemplate -n kcm-system` first and substitute the actual name your mgmt cluster carries into the rest of the lab. The 0.x template family from earlier k0rdent releases has been superseded by the 1.x family in k0rdent Enterprise 1.2.
 
 2. **Examine the AWS standalone template**
 
    ```bash
-   kubectl get clustertemplate aws-standalone-cp-0-2-3 -n kcm-system -o yaml
+   kubectl get clustertemplate aws-standalone-cp-1-0-20 -n kcm-system -o yaml
    ```
 
 3. **Understand the real ClusterTemplate structure**
@@ -186,7 +205,7 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
    apiVersion: k0rdent.mirantis.com/v1beta1
    kind: ClusterTemplate
    metadata:
-     name: aws-standalone-cp-0-2-3
+     name: aws-standalone-cp-1-0-20
      namespace: kcm-system
    spec:
      # Helm chart that generates CAPI resources
@@ -197,8 +216,8 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
          reconcileStrategy: ChartVersion
          sourceRef:
            kind: HelmRepository
-           name: k0rdent-catalog
-         version: 0.2.3
+           name: kcm-templates        # internal k0rdent Enterprise template repo
+         version: 1.0.20
 
      # Required CAPI providers (flat string array)
      providers:
@@ -222,7 +241,7 @@ After the k0rdent controller validates a ClusterTemplate, it populates `status.c
 1. **View the available parameters**
 
    ```bash
-   kubectl get clustertemplate aws-standalone-cp-0-2-3 -n kcm-system \
+   kubectl get clustertemplate aws-standalone-cp-1-0-20 -n kcm-system \
      -o jsonpath='{.status.config}' | python3 -m json.tool
    ```
 
@@ -287,6 +306,21 @@ After the k0rdent controller validates a ClusterTemplate, it populates `status.c
 
 Deploy a lightweight GPU cluster for ML development and experimentation.
 
+> **💰 Cost warning:** Tasks 3-6 each provision a **real** CAPA workload cluster on AWS. `ml-dev` runs a g5.xlarge (~$1.00/h), `ml-training` targets p4d.24xlarge (~$32/h, check quota first), `ml-inference` uses g5.2xlarge (~$1.20/h). Spin them down at the end of each task via `kubectl delete clusterdeployment` or the sequence in Task 6. A full Tasks 3-6 run with default shapes costs roughly $5-10 of EC2.
+
+> **Prerequisite — install the `gpu-operator-25-10-0` ServiceTemplate first** (not shipped by default in a fresh k0rdent install; you must pull it from the catalog once, then it is reusable for all Tasks 3-6):
+>
+> ```bash
+> helm upgrade --install gpu-operator-template \
+>   oci://ghcr.io/k0rdent/catalog/charts/kgst \
+>   --set chart=gpu-operator:25.10.0 \
+>   -n kcm-system --wait --timeout 5m
+> kubectl wait servicetemplate gpu-operator-25-10-0 -n kcm-system \
+>   --for=jsonpath='{.status.valid}'=true --timeout=120s
+> ```
+>
+> Same pattern applies to `ingress-nginx-4-11-3` and `kyverno-3-2-6` referenced in Task 5 — install via `kgst` on first use, then reference from any subsequent ClusterDeployment `serviceSpec` or MCS.
+
 1. **Verify your Credential exists**
 
    ```bash
@@ -305,7 +339,7 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
      name: ml-dev
      namespace: kcm-system
    spec:
-     template: aws-standalone-cp-0-2-3
+     template: aws-standalone-cp-1-0-20
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -401,7 +435,7 @@ Deploy a multi-GPU cluster for distributed training workloads.
      name: ml-training
      namespace: kcm-system
    spec:
-     template: aws-standalone-cp-0-2-3
+     template: aws-standalone-cp-1-0-20
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -484,7 +518,7 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
      name: ml-training
      namespace: kcm-system
    spec:
-     template: aws-standalone-cp-0-2-3
+     template: aws-standalone-cp-1-0-20
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -555,7 +589,7 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
    kubectl apply -f ai-common-services.yaml
    ```
 
-   > **k0rdent context:** `MultiClusterService` targets clusters by label. Since both `ml-dev` and `ml-training` have `k0rdent.mirantis.com/workload-type: ai` in their `clusterLabels`, both clusters receive the GPU Operator and ingress-nginx automatically. Any future cluster with that label will also receive these services. This is the same pattern used in [Lab 5.5](lab-5.5-service-catalog.md) for deploying services from the k0rdent catalog.
+   > **k0rdent context:** `MultiClusterService` targets clusters by label. Since both `ml-dev` and `ml-training` have `k0rdent.mirantis.com/workload-type: ai` in their `clusterLabels`, both clusters receive the GPU Operator and ingress-nginx automatically. Any future cluster with that label will also receive these services. This is the same pattern used in [Lab 5.2](lab-5.2-service-catalog.md) for deploying services from the k0rdent catalog.
 
 3. **Verify services deployed to training cluster**
 
@@ -596,8 +630,8 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
    Expected output:
    ```
    NAME           TEMPLATE                    WORKERS   INSTANCE
-   ml-dev         aws-standalone-cp-0-2-3     1         g5.xlarge
-   ml-training    aws-standalone-cp-0-2-3     4         p4d.24xlarge
+   ml-dev         aws-standalone-cp-1-0-20     1         g5.xlarge
+   ml-training    aws-standalone-cp-1-0-20     4         p4d.24xlarge
    ```
 
    Both clusters use the **same template** but with different configurations - this is k0rdent's approach to supporting diverse AI workloads without template proliferation.

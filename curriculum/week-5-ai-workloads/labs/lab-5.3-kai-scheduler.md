@@ -1,4 +1,4 @@
-# Lab 5.16 - KAI Scheduler (Open-Source GPU Scheduling)
+# Lab 5.3 - KAI Scheduler (Open-Source GPU Scheduling)
 
 ---
 
@@ -6,31 +6,48 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| ML Platforms | Optional | 2.5 hours |
+| Foundation | Required | 2.5 hours |
 
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required)                         ML PLATFORMS
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6          5.9 Kubeflow
-                                                  ↓
-                                              5.10 MLflow
-                                                  ↓
-                                              5.11 Run:ai (Commercial)
-                                                  ↓
-                                              5.12 Slurm ➔ Week 6
-
-OPTIONAL
-━━━━━━━━
-YOU ARE HERE → [5.16] KAI Scheduler (Open-Source alternative to Run:ai)
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ [5.3] ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+               ↑                                          Compliance (5.11-5.12)
+          YOU ARE HERE                                    Advanced (5.13-5.16)
 ```
 
-| Related | Current | Next |
-|---------|---------|------|
-| [Lab 5.11 - Run:ai (Commercial)](lab-5.11-runai-gpu-orchestration.md) | **Lab 5.16 - KAI Scheduler** | [Lab 5.12 - Slurm](lab-5.12-slurm-operator-hpc.md) |
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.2 - Service Catalog](lab-5.2-service-catalog.md) | **Lab 5.3 - KAI Scheduler** | [Lab 5.4 - Run:ai GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background](#background)
+  - [What is KAI Scheduler?](#what-is-kai-scheduler)
+  - [KAI vs Run:ai Comparison](#kai-vs-runai-comparison)
+  - [Architecture](#architecture)
+- [Lab Environment](#lab-environment)
+- [Tasks](#tasks)
+  - [Task 1: Install KAI Scheduler](#task-1-install-kai-scheduler-20-min)
+  - [Task 2: Configure GPU Queue Hierarchy](#task-2-configure-gpu-queue-hierarchy-25-min)
+  - [Task 3: Submit Workloads to Queues](#task-3-submit-workloads-to-queues-25-min)
+  - [Task 4: Fractional GPU Sharing](#task-4-fractional-gpu-sharing-25-min)
+  - [Task 5: Gang Scheduling for Distributed Training](#task-5-gang-scheduling-for-distributed-training-30-min)
+  - [Task 6: Priority and Preemption](#task-6-priority-and-preemption-20-min)
+  - [Task 7: Monitor KAI Metrics](#task-7-monitor-kai-metrics-15-min)
+  - [Task 8: k0rdent Integration](#task-8-k0rdent-integration-15-min)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [References](#references)
+- [Related Labs](#related-labs)
 
 **Duration:** 2.5 hours
 **Type:** Hands-on Technical
@@ -48,7 +65,7 @@ Deploy the NVIDIA KAI Scheduler — the open-source GPU scheduling engine extrac
 - `kubectl` and `helm` (v3.14+) installed
 - Understanding of Kubernetes scheduling concepts
 
-> **Run:ai vs KAI:** This lab covers the **open-source KAI Scheduler** (v0.12.11). For the full commercial platform with web UI, CLI, Departments/Projects, and memory-enforced fractional GPUs, see [Lab 5.11 - NVIDIA Run:ai](lab-5.11-runai-gpu-orchestration.md).
+> **Run:ai vs KAI:** This lab covers the **open-source KAI Scheduler** (`v0.14.0` as of April 2026). For the full commercial platform with web UI, CLI, Departments/Projects, and memory-enforced fractional GPUs, see [Lab 5.4 - NVIDIA Run:ai](lab-5.4-runai-gpu-orchestration.md).
 
 ## Background
 
@@ -131,10 +148,10 @@ In 2025, NVIDIA open-sourced the core scheduling engine from Run:ai as the **KAI
 
    ```bash
    helm upgrade -i kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
      --namespace kai-scheduler \
      --create-namespace \
-     --version 0.12.11
+     --version v0.14.0
    ```
 
 2. **Verify Installation**
@@ -143,19 +160,20 @@ In 2025, NVIDIA open-sourced the core scheduling engine from Run:ai as the **KAI
    # All KAI components should be Running
    kubectl get pods -n kai-scheduler
 
-   # Expected pods:
-   #   kai-scheduler-operator-*
-   #   kai-scheduler-scheduler-*
-   #   kai-scheduler-podgrouper-*
-   #   kai-scheduler-podgroupcontroller-*
-   #   kai-scheduler-binder-*
-   #   kai-scheduler-queuecontroller-*
-   #   kai-scheduler-admission-*
-   #   kai-scheduler-nodescaleadjuster-*
+   # Expected pods (KAI v0.14.0 drops the `kai-scheduler-` prefix on most components):
+   #   kai-operator-*
+   #   kai-scheduler-default-*
+   #   pod-grouper-*
+   #   podgroup-controller-*
+   #   binder-*
+   #   queue-controller-*
+   #   admission-*
 
    # Verify the scheduler is ready
-   kubectl get pods -n kai-scheduler -l app=kai-scheduler-scheduler
+   kubectl get pods -n kai-scheduler -l app=kai-scheduler-default
    ```
+
+   > **Note on naming:** The scheduler Deployment is named `kai-scheduler-default` (and can be extended with additional shards via the `SchedulingShard` CRD — see Task 7's metrics port-forward targets). The `nodescaleadjuster` component is not installed by default in v0.14.0; it is an optional cluster-autoscaler integration enabled via a separate Helm value.
 
 3. **Check Default Queues**
 
@@ -179,12 +197,16 @@ In 2025, NVIDIA open-sourced the core scheduling engine from Run:ai as the **KAI
    ```bash
    kubectl get crds | grep -E "scheduling.run.ai|kai.scheduler"
 
-   # Expected CRDs:
+   # Expected CRDs (KAI v0.14.0 — 6 total):
    # queues.scheduling.run.ai
    # podgroups.scheduling.run.ai
    # bindrequests.scheduling.run.ai
    # configs.kai.scheduler
+   # schedulingshards.kai.scheduler
+   # topologies.kai.scheduler
    ```
+
+   > **What the extra CRDs do:** `schedulingshards.kai.scheduler` defines named scheduler shards (each backed by a `kai-scheduler-<shard>` Deployment — the built-in shard is `default`), enabling multi-tenant scheduling with isolated scheduling policies per shard. `topologies.kai.scheduler` describes node topology hierarchies (rack → zone → region) that the scheduler consumes for topology-aware placement of distributed workloads (see Task 5).
 
 ### Task 2: Configure GPU Queue Hierarchy (25 min)
 
@@ -210,15 +232,15 @@ KAI uses a hierarchical queue tree where parent queues distribute resources amon
    spec:
      resources:
        gpu:
-         quota: 0         # No direct quota (distributed to children)
-         limit: -1        # Unlimited
+         quota: 4              # Sum of children's quotas (2+1+1)
+         limit: -1             # Unlimited
          overQuotaWeight: 1
        cpu:
-         quota: 0
+         quota: 32000          # Sum of children's quotas (16000+8000+8000)
          limit: -1
          overQuotaWeight: 1
        memory:
-         quota: 0
+         quota: 128000         # Sum of children's quotas (64000+32000+32000)
          limit: -1
          overQuotaWeight: 1
    ---
@@ -307,6 +329,7 @@ KAI uses a hierarchical queue tree where parent queues distribute resources amon
    > - `limit: -1` = no cap on over-quota borrowing
    > - `limit: 2` = hard cap at 2 GPUs even with idle resources
    > - `overQuotaWeight: 2` = gets twice the share of surplus compared to weight=1
+   > - **A parent queue's `quota` must be ≥ the sum of its children's `quota`** when any child will host non-preemptible workloads (K8s PriorityClass `value ≥ 100`). Non-preemptible workloads are *not allowed* to go over quota, and KAI enforces the limit at every ancestor level — if `cluster-root.quota.gpu = 0` you will see `NonPreemptibleOverQuota: Non-preemptible workload is over quota. ... cluster-root quota is 0 GPUs` when Task 6's `inference-critical` (value=125) tries to schedule, even though its own `inference-queue.quota` is 1. Leaf-queue quotas alone are not sufficient.
 
 ### Task 3: Submit Workloads to Queues (25 min)
 
@@ -409,14 +432,23 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
 
    ```bash
    helm upgrade kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
      --namespace kai-scheduler \
-     --version 0.12.11 \
+     --version v0.14.0 \
      --set "global.gpuSharing=true"
 
    # Wait for pods to restart
-   kubectl rollout status deployment -n kai-scheduler -l app=kai-scheduler-scheduler
+   kubectl rollout status deployment -n kai-scheduler -l app=kai-scheduler-default
+
+   # REQUIRED: force a scheduler rollover so it picks up the new ServiceAccount
+   # token (see explanation below).
+   kubectl rollout restart deployment/kai-scheduler-default -n kai-scheduler
+   kubectl rollout status deployment/kai-scheduler-default -n kai-scheduler --timeout=2m
    ```
+
+   > **Why the scheduler must be explicitly restarted:** Enabling `global.gpuSharing=true` causes the KAI Helm chart to delete and recreate every ServiceAccount in the `kai-scheduler` namespace (admission, binder, pod-grouper, podgroup-controller, queue-controller, **scheduler**). For all components except the scheduler, the change also bumps the Deployment's pod-template spec, so the Deployment controller rolls the pod automatically and the new pod mounts a token tied to the new SA UID. The **scheduler's** pod template is *not* modified by the `gpuSharing` flag, so no rollover happens — yet its projected token now references a dead SA UID.
+   >
+   > The symptom is subtle: RBAC checks pass (`kubectl auth can-i update podgroups/status --as=system:serviceaccount:kai-scheduler:scheduler` returns `yes`), but the scheduler log fills with `ERROR status_updater/concurrency.go ... Failed to update pod group status <ns>/<pg-name>: Unauthorized`, and *every fractional pod stays in `Pending` forever* because its `PodGroup.status` can never be written. The explicit `kubectl rollout restart` above forces the pod to remount a valid token.
 
 2. **Submit a Half-GPU Workload**
 
@@ -478,12 +510,21 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
    kubectl apply -f kai-fractional-1.yaml
    kubectl apply -f kai-fractional-2.yaml
 
-   # Both pods should be Running on the same node/GPU
+   # Both pods should be Running on the same node, sharing the same physical GPU
    kubectl get pods frac-gpu-1 frac-gpu-2 -o wide
 
-   # Check resource reservation pods (KAI creates these to hold GPU slots)
+   # Confirm they are on the same physical GPU (NVIDIA_VISIBLE_DEVICES should match)
+   kubectl exec frac-gpu-1 -- bash -c 'echo $NVIDIA_VISIBLE_DEVICES $RUNAI_NUM_OF_GPUS'
+   kubectl exec frac-gpu-2 -- bash -c 'echo $NVIDIA_VISIBLE_DEVICES $RUNAI_NUM_OF_GPUS'
+   # Expected output (same GPU UUID on both lines, and RUNAI_NUM_OF_GPUS=0.50):
+   #   GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx 0.50
+   #   GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx 0.50
+
+   # Optional: list any resource reservation pods (may or may not exist)
    kubectl get pods -n kai-resource-reservation
    ```
+
+   > **On the `kai-resource-reservation` namespace:** the namespace is created by the KAI chart but is frequently **empty** in v0.14.0 even with active fractional workloads. KAI v0.14.0's default fractional-sharing mechanism injects `NVIDIA_VISIBLE_DEVICES=<shared-gpu-uuid>` and `RUNAI_NUM_OF_GPUS=0.50` into each pod via an auto-generated ConfigMap; the two pods then see the same physical GPU directly. A reservation pod is only created when KAI needs to hold a GPU slot that the application pod cannot yet consume (e.g. during staged allocation). If the namespace is empty but both pods are `Running` and report the same `NVIDIA_VISIBLE_DEVICES`, fractional sharing is working as intended.
 
 5. **Request Fractional GPU by Memory Amount**
 
@@ -513,7 +554,7 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
    kubectl get pod frac-gpu-memory -o wide
    ```
 
-   > **Warning:** KAI schedules fractional workloads but does **not enforce** memory limits. If a pod allocated 50% tries to use 100% of GPU memory, it will succeed until another pod on the same GPU runs out of memory. For memory-enforced fractions, use Run:ai commercial (Lab 5.11).
+   > **Warning:** KAI schedules fractional workloads but does **not enforce** memory limits. If a pod allocated 50% tries to use 100% of GPU memory, it will succeed until another pod on the same GPU runs out of memory. For memory-enforced fractions, use Run:ai commercial (Lab 5.4).
 
 6. **Clean Up**
 
@@ -523,22 +564,32 @@ KAI supports fractional GPU allocation via pod annotations. Unlike Run:ai's comm
 
 ### Task 5: Gang Scheduling for Distributed Training (30 min)
 
-KAI's PodGrouper automatically detects distributed training workloads and creates PodGroup resources. All pods in a PodGroup are scheduled atomically — either all start or none start.
+KAI's PodGrouper watches pod owner references and emits a `PodGroup` CRD per top-level workload. Gang-scheduling semantics (all pods start atomically, or none) are **only applied when PodGrouper recognizes the owner as a gang workload**. For unrecognized owners — including vanilla `batch/v1` Jobs — PodGrouper falls back to a per-pod "legacy" PodGroup with `minMember: 1`, which means pods schedule independently as GPUs become available.
 
 1. **Understand PodGrouper's Automatic Detection**
 
-   PodGrouper works by traversing pod owner references to find the top-level workload:
+   PodGrouper traverses owner references to identify the top-level workload, then dispatches to a workload-specific plugin:
 
    ```
-   Pod → ReplicaSet → Deployment          → PodGroup (1 per Deployment)
-   Pod → Job                              → PodGroup (1 per Job)
-   Pod → PyTorchJob (Master/Worker)       → PodGroup (all replicas together)
-   Pod → RayCluster (Head/Worker)         → PodGroup (all pods together)
+   Pod → (no owner)                       → legacy PodGroup, minMember=1 (NOT gang)
+   Pod → ReplicaSet → Deployment          → legacy PodGroup per pod, minMember=1 (NOT gang)
+   Pod → batch/v1 Job                     → legacy PodGroup per pod, minMember=1 (NOT gang)
+   Pod → PyTorchJob (Master/Worker)       → gang PodGroup, minMember = Σ replicas
+   Pod → TFJob, MPIJob, XGBoostJob, etc.  → gang PodGroup, minMember = Σ replicas
+   Pod → RayCluster (Head/Worker)         → gang PodGroup, minMember = Σ replicas
    ```
 
-   For Kubeflow training operators, PodGrouper sets `minMember` to the **total replica count** across all roles (master + workers), enforcing gang scheduling.
+   **This means `batch/v1` Jobs do NOT trigger gang scheduling in KAI v0.14.0.** The BatchJob plugin emits one "legacy" `PodGroup` per pod (you will see the log line `"Using legacy pod-group"` in `pod-grouper` output). Pods bind one-by-one as GPUs free up. If you genuinely need atomic all-or-nothing scheduling for a plain Job, use one of these options:
 
-2. **Submit a Gang-Scheduled Job**
+   - Install a Kubeflow training operator (provides `PyTorchJob` / `TFJob` etc. — see Lab 5.9) — this is the standard path.
+   - Install the KubeRay operator for `RayCluster` / `RayJob`.
+   - Manually pre-create a `PodGroup` with the desired `minMember`, and set `pod-group-name: <pg-name>` as an annotation on every pod in the group.
+
+   For the Kubeflow / Ray operators, PodGrouper sets `minMember` to the total replica count across all roles (master + workers) automatically, enforcing gang scheduling without further configuration.
+
+2. **Submit a Parallel Job (demonstrates per-pod scheduling, not gang)**
+
+   The YAML below is useful to see PodGrouper's BatchJob plugin in action. Note: because we do NOT have a Kubeflow operator installed in this lab, the four pods from this Job will be scheduled **independently** — watch the output of `kubectl get pods -w` and you should see pods transition to `Running` one at a time, bound in the order GPUs become available (not all at once). Each pod gets its own `pg-gang-training-<pod-hash>-<job-uid>` PodGroup with `minMember: 1`.
 
    Create a Kubernetes Job with parallelism requiring multiple pods:
 
@@ -803,14 +854,16 @@ KAI exposes Prometheus metrics for queue utilization, scheduling latency, and pr
 1. **Check Available Metrics Endpoints**
 
    ```bash
-   # KAI scheduler metrics
-   kubectl port-forward -n kai-scheduler svc/kai-scheduler-scheduler 8080:8080 &
+   # KAI scheduler metrics (served by the default scheduler shard)
+   kubectl port-forward -n kai-scheduler svc/kai-scheduler-default 8080:8080 &
    curl -s http://localhost:8080/metrics | head -50
 
    # Queue controller metrics
-   kubectl port-forward -n kai-scheduler svc/kai-scheduler-queue-controller 8081:8080 &
+   kubectl port-forward -n kai-scheduler svc/queue-controller 8081:8080 &
    curl -s http://localhost:8081/metrics | grep queue_
    ```
+
+   > **Service naming:** KAI v0.14.0 uses short service names without the `kai-scheduler-` prefix (e.g. `queue-controller`, `binder`, `admission`). The one exception is the scheduler itself, which is named `kai-scheduler-<shard>` — here `kai-scheduler-default` for the built-in shard. Verify with `kubectl get svc -n kai-scheduler` if you add custom `SchedulingShard` resources.
 
 2. **Key Metrics to Monitor**
 
@@ -870,10 +923,10 @@ KAI Scheduler is open-source and can be deployed on k0rdent-managed clusters. Th
    # Install KAI Scheduler on the child cluster
    KUBECONFIG=/tmp/child-kubeconfig \
    helm upgrade -i kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
      --namespace kai-scheduler \
      --create-namespace \
-     --version 0.12.11
+     --version v0.14.0
 
    # Verify
    KUBECONFIG=/tmp/child-kubeconfig \
@@ -907,7 +960,7 @@ KAI Scheduler is open-source and can be deployed on k0rdent-managed clusters. Th
 
 ## Verification Checklist
 
-- [ ] KAI Scheduler v0.12.11 deployed with all components running
+- [ ] KAI Scheduler v0.14.0 deployed with all components running
 - [ ] Queue hierarchy created: cluster-root → training/inference/research queues
 - [ ] Workloads scheduled via `kai.scheduler/queue` label
 - [ ] Fractional GPU sharing enabled and working (`global.gpuSharing=true`)
@@ -933,14 +986,14 @@ kubectl get pod <pod-name> -o jsonpath='{.metadata.labels.kai\.scheduler/queue}'
 
 **Check scheduler logs:**
 ```bash
-kubectl logs -n kai-scheduler -l app=kai-scheduler-scheduler --tail=50
+kubectl logs -n kai-scheduler -l app=kai-scheduler-default --tail=50
 ```
 
 ### PodGroup Not Being Created
 
 **Check PodGrouper logs:**
 ```bash
-kubectl logs -n kai-scheduler -l app=kai-scheduler-podgrouper --tail=50
+kubectl logs -n kai-scheduler -l app=pod-grouper --tail=50
 ```
 
 **Verify the pod has an owner reference** (standalone pods without owners get individual PodGroups):
@@ -984,13 +1037,13 @@ kubectl apply -f workload.yaml -n default
 
 ## References
 
-- [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
-- [KAI Scheduler v0.12.11 Release](https://github.com/NVIDIA/KAI-Scheduler/releases/tag/v0.12.11)
+- [KAI Scheduler GitHub](https://github.com/kai-scheduler/KAI-Scheduler)
+- [KAI Scheduler v0.14.0 Release](https://github.com/kai-scheduler/KAI-Scheduler/releases/tag/v0.14.0)
 - [NVIDIA Blog: Open-Sourcing Run:ai Scheduler](https://developer.nvidia.com/blog/nvidia-open-sources-runai-scheduler-to-foster-community-collaboration/)
-- [Queue CRD API Reference](https://github.com/NVIDIA/KAI-Scheduler/tree/main/pkg/apis/scheduling)
-- [PodGrouper Workload Plugins](https://github.com/NVIDIA/KAI-Scheduler/tree/main/internal/podgrouper/podgrouper/plugins)
+- [Queue CRD API Reference](https://github.com/kai-scheduler/KAI-Scheduler/tree/main/pkg/apis/scheduling)
+- [PodGrouper Workload Plugins](https://github.com/kai-scheduler/KAI-Scheduler/tree/main/internal/podgrouper/podgrouper/plugins)
 
 ## Related Labs
 
-- [Lab 5.11 - NVIDIA Run:ai (Commercial)](lab-5.11-runai-gpu-orchestration.md) — Full commercial platform with web UI, CLI, and memory-enforced fractions
-- [Lab 5.1 - GPU Scheduler](lab-5.1-gpu-scheduler.md) — GPU Operator deployment and basic scheduling
+- [Lab 5.4 - NVIDIA Run:ai (Commercial)](lab-5.4-runai-gpu-orchestration.md) — Full commercial platform with web UI, CLI, and memory-enforced fractions
+- [Lab 5.1 - GPU Cluster Setup](lab-5.1-gpu-cluster-setup.md) — GPU Operator deployment and basic scheduling

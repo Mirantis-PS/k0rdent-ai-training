@@ -214,10 +214,10 @@ EOF
 > **Important Configuration Notes:**
 > - **template**: Must match an available ClusterTemplate. Run `kubectl get clustertemplates -n kcm-system | grep aws` to find it.
 > - **region**: Uses `$AWS_REGION` which you set earlier. This must match the region where your management cluster and SSH key pair live.
-> - **clusterIdentity**: References your AWSClusterStaticIdentity created in Lab 1.3. The identity's `allowedNamespaces.list` must include `kcm-system` (see Lab 1.3). If you skipped that, patch it now:
+> - **clusterIdentity**: References your AWSClusterStaticIdentity created in Lab 1.3. If you restricted `allowedNamespaces` during setup, make sure `kcm-system` is permitted. For the training lab, the simplest setting is unrestricted access:
 >   ```bash
 >   kubectl patch awsclusterstaticidentity aws-cluster-identity --type=merge \
->     -p '{"spec":{"allowedNamespaces":{"list":["kcm-system"]}}}'
+>     -p '{"spec":{"allowedNamespaces":{}}}'
 >   ```
 > - **sshKeyName** (commented out): Only needed if you want direct SSH access to managed cluster nodes. If included, the key pair must exist in the target region (see Lab 1.3, Part 6).
 
@@ -345,10 +345,10 @@ Common issues:
 - **Insufficient IAM permissions**: Check AWS credential has required permissions (see Lab 1.3)
 - **Instance type unavailable**: Try a different instance type or region
 - **SSH key not found**: Ensure key pair exists in the target region (must match `config.region`)
-- **"Namespace is not permitted to use AWSClusterStaticIdentity"**: Your identity's `allowedNamespaces` must include `kcm-system`. Patch with:
+- **"Namespace is not permitted to use AWSClusterStaticIdentity"**: Your identity's `allowedNamespaces` is too restrictive for the training namespace. Patch with:
   ```bash
-  kubectl patch awsclusterstaticidentity aws-cluster-identity -n kcm-system --type=merge \
-    -p '{"spec":{"allowedNamespaces":{"list":["kcm-system"]}}}'
+  kubectl patch awsclusterstaticidentity aws-cluster-identity --type=merge \
+    -p '{"spec":{"allowedNamespaces":{}}}'
   ```
 - **"AWS was not able to validate the provided access credentials"**: If using AWS SSO, ensure your secret includes `SessionToken`. Refresh credentials and update the secret (see Lab 1.3 SSO section). After updating the secret, you **must** restart the CAPA controller to pick up the new credentials:
   ```bash
@@ -367,14 +367,17 @@ Once the cluster shows `Ready`, retrieve the kubeconfig.
 ### Check Cluster is Ready
 
 ```bash
-# Wait for Ready status
+# Wait for Ready status — the READY column reads from the conditions array
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system
 
-# Status should show Ready: True (may return empty string while provisioning)
-kubectl get clusterdeployment managed-cluster-01 -n kcm-system -o jsonpath='{.status.ready}'
+# Extract the Ready condition explicitly (returns "True" when ready, empty while provisioning)
+kubectl get clusterdeployment managed-cluster-01 -n kcm-system \
+  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' && echo ""
 ```
 
-> **Note:** The `ready` field will be empty or `false` until all control plane and worker nodes are fully provisioned. If it has been more than 25 minutes and the cluster is still not ready, check the troubleshooting section in Part 3.
+> **Note:** The `Ready` condition transitions to `True` once all control plane and worker nodes are fully provisioned and the CAPI Cluster reports `Phase=Provisioned`. If it has been more than 25 minutes and the cluster is still not ready, check the troubleshooting section in Part 3.
+>
+> **Why the conditions array and not `.status.ready`?** k0rdent populates the readiness signal in the `conditions` array (like CAPI and most Kubernetes controllers) and in the `READY` print column, but does **not** expose a top-level `.status.ready` boolean. Using `.status.ready` in `kubectl get -o jsonpath` returns an empty string and will make automation think the cluster never becomes ready.
 
 ### Retrieve Kubeconfig
 

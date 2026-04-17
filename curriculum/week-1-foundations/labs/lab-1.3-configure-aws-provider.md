@@ -158,7 +158,9 @@ aws ec2 describe-instances --region <your-region> --max-items 1
 
 ### Step 1: Create AWS Secret
 
-SSH to your management cluster and create the credentials secret.
+SSH to your management cluster and create the credentials secret used by CAPA and k0rdent.
+
+> **Note:** The provisioning scripts create an `aws-credentials` placeholder secret for local reference. The official k0rdent AWS workflow uses a separate secret named `aws-cluster-identity-secret`, which you create in this lab.
 
 #### Option A: Using IAM User Credentials (Recommended for Training)
 
@@ -167,8 +169,8 @@ SSH to your management cluster and create the credentials secret.
 export AWS_ACCESS_KEY_ID="your-access-key-id"
 export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
 
-# Delete the placeholder secret from cloud-init (if it exists)
-kubectl delete secret aws-cluster-identity-secret -n kcm-system 2>/dev/null
+# Optional: remove the bootstrap placeholder so it does not cause confusion
+kubectl delete secret aws-credentials -n kcm-system 2>/dev/null
 
 # Create with your real credentials
 kubectl create secret generic aws-cluster-identity-secret \
@@ -188,8 +190,8 @@ aws sso login --profile your-sso-profile
 # Export credentials including session token
 eval "$(aws configure export-credentials --format env --profile your-sso-profile)"
 
-# Delete the placeholder secret from cloud-init (if it exists)
-kubectl delete secret aws-cluster-identity-secret -n kcm-system 2>/dev/null
+# Optional: remove the bootstrap placeholder so it does not cause confusion
+kubectl delete secret aws-credentials -n kcm-system 2>/dev/null
 
 # Create the secret with session token
 kubectl create secret generic aws-cluster-identity-secret \
@@ -246,15 +248,29 @@ metadata:
     k0rdent.mirantis.com/component: "kcm"
 spec:
   secretRef: aws-cluster-identity-secret
-  allowedNamespaces:
-    list:
-    - kcm-system
-    selector:
-      matchLabels: {}
+  allowedNamespaces: {}
 EOF
 ```
 
-> **Important:** The `allowedNamespaces.list` explicitly permits `kcm-system` to use this identity. The `selector` with empty `matchLabels: {}` also matches all namespaces, but CAPA v1beta2 requires the `list` field to be set for explicit namespace authorization. In production, restrict access to specific tenant namespaces (e.g., `list: [team-platform, team-ml]`).
+> **Important:** `allowedNamespaces: {}` keeps the lab setup simple by allowing all namespaces to use this identity. In production, restrict access with `allowedNamespaces.list` or `allowedNamespaces.selector`.
+
+### Step 2b: Create the Cluster Identity Resource Template ConfigMap
+
+The official AWS preparation flow also creates an empty ConfigMap used when k0rdent needs to template or propagate cluster identity resources:
+
+```bash
+cat << 'EOF' | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-cluster-identity-resource-template
+  namespace: kcm-system
+  labels:
+    k0rdent.mirantis.com/component: "kcm"
+  annotations:
+    projectsveltos.io/template: "true"
+EOF
+```
 
 ### Step 3: Create k0rdent Credential Object
 
@@ -281,6 +297,9 @@ EOF
 ```bash
 # Verify the secret exists
 kubectl get secret aws-cluster-identity-secret -n kcm-system
+
+# Verify the resource template ConfigMap exists
+kubectl get configmap aws-cluster-identity-resource-template -n kcm-system
 
 # Check the identity (cluster-scoped, no namespace needed)
 kubectl get awsclusterstaticidentity
@@ -323,7 +342,7 @@ You should see `capa-controller-manager` with `1/1 Running`. If there are creden
 
 ### Verify the Credential Chain
 
-Check that all three layers of the credential model are properly connected:
+Check that the credential chain and supporting template object are properly connected:
 
 ```bash
 # 1. Secret exists with AWS keys
@@ -332,19 +351,23 @@ kubectl get secret aws-cluster-identity-secret -n kcm-system
 # 2. AWSClusterStaticIdentity references the secret
 kubectl get awsclusterstaticidentity aws-cluster-identity -o jsonpath='{.spec.secretRef}' && echo ""
 
-# 3. k0rdent Credential references the identity
+# 3. Resource template ConfigMap exists (used in identity propagation workflows)
+kubectl get configmap aws-cluster-identity-resource-template -n kcm-system
+
+# 4. k0rdent Credential references the identity
 kubectl get credential aws-cluster-identity-cred -n kcm-system -o jsonpath='{.spec.identityRef}' && echo ""
 
 # Full chain summary
 echo "=== Credential Chain ==="
 echo "Secret:   aws-cluster-identity-secret"
 echo "Identity: aws-cluster-identity"
+echo "Template: aws-cluster-identity-resource-template"
 echo "Credential: aws-cluster-identity-cred"
 echo ""
 echo "Ready for cluster provisioning in Lab 1.5"
 ```
 
-> **What you're verifying:** The Credential object is what ClusterDeployments reference. If this chain is broken (wrong secret name, missing identity, etc.), cluster provisioning will fail with credential errors in Lab 1.5.
+> **What you're verifying:** The Credential object is what ClusterDeployments reference. The ConfigMap is an auxiliary object from the official AWS setup used for identity propagation and templating workflows. If the core chain is broken (wrong secret name, missing identity, etc.), cluster provisioning will fail with credential errors in Lab 1.5.
 
 ## Part 6: SSH Key Pair for Managed Clusters (~5 min, Optional)
 

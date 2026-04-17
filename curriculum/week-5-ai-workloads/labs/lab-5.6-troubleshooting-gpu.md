@@ -11,28 +11,37 @@
 ### Week 5 Learning Paths
 
 ```
-FOUNDATION (Required) ─ COMPLETE!             CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
-5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ [5.6]
-                                ↑
-                           YOU ARE HERE
-                                │
-         ┌──────────────────────┼──────────────────────┐
-         ▼                      ▼                      ▼
-    ML PLATFORMS           COMPLIANCE             ADVANCED
-    (Recommended)        (If Required)           (Optional)
-    ━━━━━━━━━━━━         ━━━━━━━━━━━━           ━━━━━━━━
-    5.9 Kubeflow         5.7 FIPS               5.13 TensorRT-LLM
-    5.10 MLflow          5.8 Templates          5.14 RDMA
-    5.11 Run:AI                                 5.15 Distributed
-    5.12 Slurm
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ [5.6] ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+                                 ↑                        Compliance (5.11-5.12)
+                            YOU ARE HERE                  Advanced (5.13-5.16)
 ```
 
-| Previous | Current | Next (Choose One) |
-|----------|---------|-------------------|
-| [Lab 5.5 - Service Catalog](lab-5.5-service-catalog.md) | **Lab 5.6 - Troubleshooting** | [5.7 FIPS](lab-5.7-nvidia-fips.md) / [5.9 Kubeflow](lab-5.9-kubeflow-ml-platform.md) / [5.13 TensorRT](lab-5.13-tensorrt-llm.md) |
+| Previous | Current | Next |
+|----------|---------|------|
+| [Lab 5.5 - vLLM Inference](lab-5.5-vllm-inference.md) | **Lab 5.6 - Troubleshooting** | [Lab 5.7 - Jupyter Notebooks](lab-5.7-jupyter-notebooks.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [k0rdent Context](#k0rdent-context)
+  - [Diagnostic Tools Reference](#diagnostic-tools-reference)
+- [Tasks](#tasks)
+  - [Task 1: Access the k0rdent-Managed GPU Cluster](#task-1-access-the-k0rdent-managed-gpu-cluster-10-min)
+  - [Scenario A: GPU Operator Component Failures](#scenario-a-gpu-operator-component-failures-30-min)
+  - [Scenario B: Workloads Stuck Pending](#scenario-b-workloads-stuck-pending-25-min)
+  - [Scenario C: vLLM Out-of-Memory Errors](#scenario-c-vllm-out-of-memory-errors-30-min)
+  - [Scenario D: Health Check Failures During Rolling Update](#scenario-d-health-check-failures-during-rolling-update-25-min)
+  - [Scenario E: GPU Hardware Faults](#scenario-e-gpu-hardware-faults-20-min)
+- [Summary: Troubleshooting Flowchart](#summary-troubleshooting-flowchart)
+- [Cleanup](#cleanup)
+- [Verification Checklist](#verification-checklist)
+- [Key Takeaways](#key-takeaways)
+- [Next Steps - Choose Your Path](#next-steps---choose-your-path)
 
 **Duration:** 2 hours
 **Type:** Hands-on Technical
@@ -46,9 +55,12 @@ Diagnose and resolve common GPU scheduling failures in AI/ML workloads on k0rden
 
 - Completed Labs 5.1-5.5
 - k0rdent management cluster with a GPU-enabled workload cluster provisioned via `ClusterDeployment`
-- GPU Operator deployed via `gpu-operator-25-10-0` ServiceTemplate
+- GPU Operator deployed — either via the `gpu-operator-25-10-0` ServiceTemplate (MCS-based Week 5 baseline) **or** via direct `helm install nvidia/gpu-operator` as shown in Lab 5.1 Pre-Lab Step 4
+- (Scenarios C and D only) Worker node must be able to pull the ~9 GB `vllm/vllm-openai:v0.14.0` image from Docker Hub — first-run pull takes ~4 minutes, cached pulls are near-instant
 
 > **Lab Hardware:** Students are running on **g5.12xlarge** instances with **4x NVIDIA A10G GPUs** (24 GB VRAM each), connected via PCIe (no NVLink). Keep the 24 GB per-GPU memory limit in mind when sizing models -- see Scenario C for OOM implications.
+
+> **If your GPU Operator was installed via direct helm (Lab 5.1 path), the Task 1 Step 2 check `kubectl get clusterdeployment ... -o jsonpath='{.status.services}'` will return empty — that's expected.** `status.services` is populated only by k0rdent-managed Sveltos releases (ServiceTemplate / MultiClusterService). Skip Step 2 in that case and rely on direct workload-cluster inspection (Step 3 onward).
 
 ## k0rdent Context
 
@@ -177,7 +189,7 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
    kubectl logs -n gpu-operator -l app=nvidia-device-plugin-daemonset --tail=30
 
    # GPU Feature Discovery (labels nodes with GPU properties)
-   kubectl get pods -n gpu-operator -l app.kubernetes.io/name=gpu-feature-discovery
+   kubectl get pods -n gpu-operator -l app=gpu-feature-discovery
    ```
 
 2. **Diagnose: Toolkit crash due to wrong containerd paths (k0s-specific)**
@@ -244,7 +256,12 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
    kubectl logs -n gpu-operator -l app=nvidia-device-plugin-daemonset --tail=30
 
    # Verify GPUs visible to the node
-   kubectl describe nodes | grep -A5 "Allocatable:" | grep nvidia
+   # -A7 because Allocatable: is followed by cpu, ephemeral-storage, 2x hugepages, memory
+   # before nvidia.com/gpu on k0s v1.32 / Ubuntu 22.04 nodes.
+   kubectl describe nodes | grep -A7 "Allocatable:" | grep nvidia
+
+   # Alternatively, a direct jsonpath avoids any grep-context drift:
+   kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.allocatable.nvidia\.com/gpu}{"\n"}{end}'
 
    # If nvidia.com/gpu shows 0, the device plugin may need restart
    kubectl delete pods -n gpu-operator -l app=nvidia-device-plugin-daemonset
@@ -274,14 +291,30 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
    kubectl debug node/$NODE_NAME -it --image=busybox -- cat /host/etc/k0s/containerd.d/nvidia.toml
    ```
 
-   **Expected content:**
+   **Expected content (GPU Operator v25.3.0 / nvidia-container-toolkit v1.17+):**
    ```toml
-   [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
-     privileged_without_host_devices = false
-     runtime_type = "io.containerd.runc.v2"
-   [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
-     BinaryName = "/usr/bin/nvidia-container-runtime"
+   version = 2
+
+   [plugins]
+
+     [plugins."io.containerd.grpc.v1.cri"]
+
+       [plugins."io.containerd.grpc.v1.cri".containerd]
+         default_runtime_name = "nvidia"
+
+         [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
+
+           [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+             privileged_without_host_devices = false
+             runtime_engine = ""
+             runtime_root = ""
+             runtime_type = "io.containerd.runc.v2"
+
+             [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
+               BinaryName = "/usr/local/nvidia/toolkit/nvidia-container-runtime"
    ```
+
+   > **`BinaryName` varies by toolkit version.** GPU Operator v25.3.0 ships nvidia-container-toolkit v1.17+, which mounts the runtime binary at `/usr/local/nvidia/toolkit/nvidia-container-runtime` (inside the toolkit container's filesystem, bind-mounted on the host). Older toolkit versions or host-side manual installs use `/usr/bin/nvidia-container-runtime`. If your node shows a different path, verify the nvidia-container-toolkit version with `kubectl get pod -n gpu-operator -l app=nvidia-container-toolkit-daemonset -o jsonpath='{.items[0].spec.containers[0].image}'`.
 
 ---
 
@@ -344,8 +377,14 @@ EOF
 
    kubectl describe pod $PENDING_POD -n gpu-troubleshoot | tail -20
 
-   # Look for:
-   # 0/3 nodes are available: 3 Insufficient nvidia.com/gpu
+   # Look for (wording depends on cluster size):
+   # - On a 3-worker cluster:
+   #   0/3 nodes are available: 3 Insufficient nvidia.com/gpu
+   # - On the Lab 5.1 gpu-cluster (1 worker + 1 control-plane):
+   #   0/2 nodes are available: 1 Insufficient nvidia.com/gpu,
+   #   1 node(s) had untolerated taint {node-role.kubernetes.io/master: }.
+   # The exact message varies; the scheduler signal to recognise is
+   # "Insufficient nvidia.com/gpu" on any node that tolerated the taint.
    ```
 
 3. **Check cluster-wide GPU allocation**
@@ -423,10 +462,10 @@ spec:
     spec:
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.11.2
+          image: vllm/vllm-openai:v0.14.0
           args:
             - --model
-            - meta-llama/Llama-2-13b-chat-hf
+            - NousResearch/Llama-2-13b-chat-hf
             - --gpu-memory-utilization
             - "0.99"
             - --max-model-len
@@ -516,7 +555,7 @@ EOF
    ```yaml
    args:
      - --model
-     - meta-llama/Llama-2-7b-chat-hf    # 7B instead of 13B
+     - NousResearch/Llama-2-7b-chat-hf    # 7B instead of 13B
    ```
 
 4. **Use tensor parallelism** (split across multiple GPUs)
@@ -576,10 +615,10 @@ spec:
     spec:
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.11.2
+          image: vllm/vllm-openai:v0.14.0
           args:
             - --model
-            - meta-llama/Llama-2-7b-chat-hf
+            - NousResearch/Llama-2-7b-chat-hf
           env:
             - name: HF_TOKEN
               valueFrom:
@@ -742,17 +781,20 @@ kubectl delete deployment vllm-health-test -n gpu-troubleshoot
    # Port-forward to DCGM exporter
    kubectl port-forward -n gpu-operator svc/nvidia-dcgm-exporter 9400:9400 &
 
-   # Check for ECC errors
-   curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV_ECC_SBE_VOL|DCGM_FI_DEV_ECC_DBE_VOL"
+   # Primary signal: XID errors (always exposed, err_code=0 means healthy)
+   curl -s http://localhost:9400/metrics | grep "DCGM_FI_DEV_XID_ERRORS"
 
    # Check GPU temperature and power
    curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE"
 
-   # Check for retired pages (indicator of failing memory)
+   # ECC and retired-pages counters (if enabled — see note below)
+   curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV_ECC_SBE_VOL|DCGM_FI_DEV_ECC_DBE_VOL"
    curl -s http://localhost:9400/metrics | grep "DCGM_FI_DEV_RETIRED_"
 
    kill %1 2>/dev/null
    ```
+
+   > **ECC counters may be empty on default config.** The GPU Operator v25.3.0 default `dcgm-exporter` csv (`/etc/dcgm-exporter/default-counters.csv`) does NOT include `DCGM_FI_DEV_ECC_SBE_VOL` / `DCGM_FI_DEV_ECC_DBE_VOL` / `DCGM_FI_DEV_RETIRED_*`. Empty grep output on a healthy system is expected; it does NOT mean ECC is broken. `DCGM_FI_DEV_XID_ERRORS` is exposed by default and is the primary signal for hardware faults (see Step 3). To enable ECC metrics, override the counters ConfigMap: `helm upgrade gpu-operator ... --set dcgmExporter.config.name=custom-metrics` with a ConfigMap containing the full [DCGM field enum](https://docs.nvidia.com/datacenter/dcgm/latest/dcgm-api/dcgm-api-field-ids.html).
 
 3. **Check Xid errors on the node**
 
@@ -761,7 +803,11 @@ kubectl delete deployment vllm-health-test -n gpu-troubleshoot
    NODE_NAME=$(kubectl get nodes -l nvidia.com/gpu.present=true \
      -o jsonpath='{.items[0].metadata.name}')
 
-   kubectl debug node/$NODE_NAME -it --image=ubuntu -- bash -c "dmesg | grep -i 'xid\|nvidia' | tail -20"
+   # --profile=sysadmin grants CAP_SYSLOG needed to read the kernel ring buffer.
+   # Without it, kubectl debug defaults to --profile=legacy and dmesg fails with
+   # "dmesg: read kernel buffer failed: Operation not permitted" on Ubuntu 22.04+.
+   kubectl debug node/$NODE_NAME -it --profile=sysadmin --image=ubuntu \
+     -- bash -c "dmesg | grep -i 'xid\|nvidia' | tail -20"
    ```
 
    Or query DCGM exporter metrics directly (if DCGM is deployed):
@@ -887,16 +933,16 @@ You have completed the **Foundation Track**! Choose your next learning path:
 Build end-to-end ML workflows:
 - [Lab 5.9 - Kubeflow ML Platform](lab-5.9-kubeflow-ml-platform.md) - Pipelines, training operators, Katib
 - [Lab 5.10 - MLflow Experiment Tracking](lab-5.10-mlflow-experiment-tracking.md) - Model registry, artifacts
-- [Lab 5.11 - Run:AI GPU Orchestration](lab-5.11-runai-gpu-orchestration.md) - Quotas, fractional GPU
-- [Lab 5.12 - Slurm Operator for HPC](lab-5.12-slurm-operator-hpc.md) - Traditional HPC integration
+- [Lab 5.11 - Run:AI GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) - Quotas, fractional GPU
+- [Lab 5.12 - Slurm Operator for HPC](lab-5.14-slurm-operator-hpc.md) - Traditional HPC integration
 
 ### Compliance & Templates Track (If Required)
 For regulated environments:
-- [Lab 5.7 - FIPS Compliance](lab-5.7-nvidia-fips.md) - FIPS 140-2/3 compliance for GPU infrastructure
-- [Lab 5.8 - Cluster Templates for AI](lab-5.8-cluster-templates.md) - k0rdent ClusterTemplates
+- [Lab 5.7 - FIPS Compliance](lab-5.11-nvidia-fips.md) - FIPS 140-2/3 compliance for GPU infrastructure
+- [Lab 5.8 - Cluster Templates for AI](lab-5.12-cluster-templates.md) - k0rdent ClusterTemplates
 
 ### Advanced Optimization Track (Optional)
 For maximum performance:
 - [Lab 5.13 - TensorRT-LLM Optimization](lab-5.13-tensorrt-llm.md) - Advanced inference
-- [Lab 5.14 - Multi-Cloud RDMA](lab-5.14-rdma-multi-cloud.md) - EFA vs InfiniBand
-- [Lab 5.15 - Distributed Training](lab-5.15-distributed-training.md) - Multi-node training
+- [Lab 5.14 - Multi-Cloud RDMA](lab-5.15-rdma-multi-cloud.md) - EFA vs InfiniBand
+- [Lab 5.15 - Distributed Training](lab-5.16-distributed-training.md) - Multi-node training

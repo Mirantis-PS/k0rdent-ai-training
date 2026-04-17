@@ -1,4 +1,4 @@
-# Lab 5.1 - GPU Scheduler Deployment (Validated)
+# Lab 5.1 - GPU Cluster Setup
 
 ---
 
@@ -11,20 +11,46 @@
 ### Week 5 Learning Paths
 
 ```
-YOU ARE HERE
-     ↓
-FOUNDATION (Required)                         CHOOSE YOUR PATH
-━━━━━━━━━━━━━━━━━━━━                         ━━━━━━━━━━━━━━━━
-[5.1] ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6    ──►  ML Platforms (5.9-5.12)
-                                              Compliance (5.7-5.8)
-                                              Advanced (5.13-5.15)
+FOUNDATION (Required)                              CHOOSE YOUR PATH
+━━━━━━━━━━━━━━━━━━━━                              ━━━━━━━━━━━━━━━━
+[5.1] ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
+  ↑                                                       Compliance (5.11-5.12)
+YOU ARE HERE                                              Advanced (5.13-5.16)
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Week 5 Overview](../README.md) | **Lab 5.1 - GPU Scheduler** | [Lab 5.2 - vLLM Inference](lab-5.2-vllm-inference.md) |
+| [Week 5 Overview](../README.md) | **Lab 5.1 - GPU Cluster Setup** | [Lab 5.2 - Service Catalog](lab-5.2-service-catalog.md) |
 
 ---
+
+## Table of Contents
+
+- [Objective](#objective)
+- [Prerequisites](#prerequisites)
+- [Background: GPU Communication Architecture](#background-gpu-communication-architecture)
+  - [Understanding GPU Interconnects](#understanding-gpu-interconnects)
+  - [What is NCCL?](#what-is-nccl)
+  - [Why NCCL Configuration Matters](#why-nccl-configuration-matters)
+- [Why Advanced GPU Schedulers?](#why-advanced-gpu-schedulers)
+  - [Scheduler Options](#scheduler-options)
+- [Pre-Lab: Deploy GPU Cluster via k0rdent](#pre-lab-deploy-gpu-cluster-via-k0rdent-15-min--15-min-wait)
+- [Tasks](#tasks)
+  - [Task 1: Verify GPU Environment](#task-1-verify-gpu-environment-15-min)
+  - [Task 2: Deploy KAI Scheduler](#task-2-deploy-kai-scheduler-45-min)
+  - [Task 3: Configure Scheduler Queues](#task-3-configure-scheduler-queues-30-min)
+  - [Task 4: Test Gang Scheduling](#task-4-test-gang-scheduling-30-min)
+  - [Task 5: Test Priority Preemption](#task-5-test-priority-preemption-30-min)
+  - [Task 6: Configure Fractional GPU Sharing](#task-6-configure-fractional-gpu-sharing-20-min)
+  - [Task 7: Configure Enterprise NCCL Settings](#task-7-configure-enterprise-nccl-settings-30-min)
+  - [Task 8: Monitor Scheduler Metrics](#task-8-monitor-scheduler-metrics-15-min)
+- [Deliverables](#deliverables)
+- [Verification Checklist](#verification-checklist)
+- [Cleanup](#cleanup)
+- [Troubleshooting](#troubleshooting)
+- [Key Takeaways](#key-takeaways)
+- [References](#references)
+- [Next Lab](#next-lab)
 
 **Duration:** 3.5 hours
 **Type:** Hands-on Technical
@@ -40,7 +66,7 @@ Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, e
 - k0rdent management cluster access (via `lab-connect.sh`)
 - AWS credentials configured in the management cluster
 - kubectl access with cluster-admin privileges
-- Familiarity with k0rdent ClusterDeployment (from [Lab 1.5](../../week-1-foundations/labs/lab-1.5-cluster-deployment.md))
+- Familiarity with k0rdent ClusterDeployment (from [Lab 1.5](../../week-1-foundations/labs/lab-1.5-provision-managed-cluster.md))
 
 > **k0rdent context:** This lab deploys a GPU cluster using the same `ClusterDeployment` pattern students learned in Week 1 Lab 1.5. The only difference is using a GPU instance type (`g5.12xlarge`) for the worker node.
 
@@ -117,7 +143,7 @@ This lab uses **KAI Scheduler** as the open-source option.
 
 ---
 
-## Pre-Lab: Deploy GPU Cluster via k0rdent (15 min + ~15 min wait)
+## Pre-Lab: Deploy GPU Cluster via k0rdent (15 min + ~10 min wait)
 
 The GPU cluster is deployed via k0rdent ClusterDeployment -- the same pattern from Week 1 Lab 1.5.
 
@@ -177,7 +203,7 @@ spec:
     workersNumber: 1
     worker:
       amiID: ami-00de3875b03809ec5  # Ubuntu 22.04
-      instanceType: g5.12xlarge     # 4x NVIDIA A10G, 24GB each
+      instanceType: g5.12xlarge     # 4x NVIDIA A10G, 24GB each (~22 GiB usable after firmware reserve)
       rootVolumeSize: 200
     clusterIdentity:
       name: aws-cluster-identity
@@ -192,11 +218,22 @@ spec:
 ```bash
 kubectl apply -f gpu-cluster-deployment.yaml
 
-# Monitor deployment (~15 minutes)
+# Monitor deployment (~7-10 minutes; can be faster on warm cache)
 kubectl get clusterdeployment gpu-cluster -n kcm-system -w
 ```
 
 Wait for `READY: True` before proceeding.
+
+> **AWS SSO users:** If you are using AWS SSO (Identity Center) credentials, your session token may expire during this wait (SSO sessions typically last 1–12 hours). If provisioning stalls, or if the CAPA controller logs show `RequestExpired` / `AuthFailure` errors on `awscluster/gpu-cluster`, refresh credentials from your local machine and push them into the management cluster:
+>
+> ```bash
+> # From your LOCAL machine (not the management node):
+> aws sso login --profile <your-profile>
+> eval "$(aws configure export-credentials --format env --profile <your-profile>)"
+> ./lab-infrastructure/scripts/lab-refresh-creds.sh <your-name>
+> ```
+>
+> The script updates `aws-cluster-identity-secret` in `kcm-system` and restarts the `capa-controller-manager` deployment so it reloads the fresh STS token from environment. Reconciliation resumes within ~30 seconds.
 
 ### Step 3: Get GPU Cluster Kubeconfig
 
@@ -241,7 +278,9 @@ helm install gpu-operator nvidia/gpu-operator \
 
 > **k0s-specific:** k0s stores containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, NOT the standard paths (`/etc/containerd/` and `/run/containerd/containerd.sock`). Without these toolkit env vars, the toolkit crashes with `containerd.sock: no such file or directory`.
 
-Wait ~8 minutes for NVIDIA driver compilation on the worker node, then verify:
+> **`helm install --wait` returns fast — but GPUs are NOT ready yet:** Helm considers the release "deployed" once its top-level resources (Deployments, DaemonSets) are *present*, which typically happens within ~60 seconds. But GPU Operator has a cascade: `nvidia-container-toolkit`, `nvidia-device-plugin`, `nvidia-dcgm`, and `nvidia-operator-validator` all have `initContainers` that **wait for `nvidia-driver-daemonset` to become Ready first**, and the driver daemonset compiles the NVIDIA kernel module against the running kernel (~2 minutes on A10G / Ubuntu 22.04). So `helm install` exits before GPUs are actually allocatable. **The real completion signal is `nvidia.com/gpu: 4` appearing on the worker** via the `kubectl get nodes` command in the next step — poll that, not helm exit status.
+
+Wait ~3-5 minutes for NVIDIA driver compilation on the worker node, then verify:
 
 ```bash
 kubectl get pods -n gpu-operator
@@ -313,7 +352,7 @@ kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatabl
      --wait
    ```
 
-   > **Reference:** [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
+   > **Reference:** [KAI Scheduler GitHub](https://github.com/kai-scheduler/KAI-Scheduler)
 
 2. **Verify Installation**
    ```bash
@@ -342,6 +381,8 @@ KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:
 > 3. The parent queue must also have `quota: -1` and `limit: -1` for all resources
 
 1. **Configure the Parent Queue**
+
+   > **Note:** KAI Scheduler v0.12.10 **auto-creates** `default-parent-queue` and a child `default-queue` during `helm install`, so they already exist before this step runs. The `kubectl apply` below **reconfigures** the existing parent queue with our explicit `quota: -1` / `limit: -1` values; you'll see a harmless warning `resource queues/default-parent-queue is missing the kubectl.kubernetes.io/last-applied-configuration annotation` — that's `kubectl` noting the object wasn't originally created declaratively. The patch is still applied correctly.
 
    ```bash
    cat <<EOF | kubectl apply -f -
@@ -461,7 +502,7 @@ KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:
    kubectl apply -f gpu-queues.yaml
    ```
 
-   > **Queue fields explained** (from [KAI Queue docs](https://github.com/NVIDIA/KAI-Scheduler/blob/main/docs/queues/README.md)):
+   > **Queue fields explained** (from [KAI Queue docs](https://github.com/kai-scheduler/KAI-Scheduler/blob/main/docs/queues/README.md)):
    > - `quota`: Guaranteed resource allocation (jobs within quota are protected from reclaim)
    > - `limit`: Hard cap (`-1` = unlimited, `0` = no resources allowed, which is the **DEFAULT**)
    > - `overQuotaWeight`: Relative weight for borrowing unused resources from other queues
@@ -470,6 +511,18 @@ KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:
    ```bash
    kubectl get queues
    ```
+
+   **Expected output (5 queues, not 4):**
+   ```
+   NAME                   PRIORITY   PARENT                 CHILDREN
+   default-parent-queue                                     ["default-queue","training-queue","inference-queue","dev-queue"]
+   default-queue                     default-parent-queue
+   dev-queue              50         default-parent-queue
+   inference-queue        150        default-parent-queue
+   training-queue         100        default-parent-queue
+   ```
+
+   > **`default-queue` is auto-created by KAI Scheduler** (alongside `default-parent-queue`) as a catch-all for workloads that don't specify a `kai.scheduler/queue` label. It's safe to ignore for this lab — you should see **5 queues total**, including the auto-created `default-queue`.
 
 ### Task 4: Test Gang Scheduling (30 min)
 
@@ -514,7 +567,7 @@ Gang scheduling ensures all pods in a job start together or none start, critical
                  cpu: "2"
    ```
 
-   > **How it works:** KAI's PodGrouper automatically groups the 2 pods (parallelism: 2) into a gang by owner reference (Job). Both must be schedulable before either starts. No manual gang annotations required.
+   > **How it works (with a limitation):** KAI's PodGrouper creates PodGroups for the Job's pods. **In v0.12.10, each pod gets its own PodGroup** (`minMember: 1` each) — not a single Job-wide PodGroup with `minMember: 2` — so strictly speaking, each pod is scheduled independently, not as a true gang. The test above requests 2 GPUs of 4 available, which means there is **no resource pressure** to distinguish gang scheduling from independent scheduling; the test verifies only that both pods can run concurrently. For a **definitive** gang scheduling test, scale the Job to `parallelism: 5` (1 GPU each) on the 4-GPU worker and verify that **all 5 pods stay Pending together** — a true gang-aware scheduler will refuse to partially schedule, while a non-gang scheduler would schedule 4 and leave 1 stuck.
 
 2. **Submit Gang Job**
    ```bash
@@ -545,9 +598,12 @@ Gang scheduling ensures all pods in a job start together or none start, critical
 
 ### Task 5: Test Priority Preemption (30 min)
 
-This task demonstrates Kubernetes-native `PriorityClass` preemption with KAI Scheduler. Create low-priority workloads filling GPU capacity, then deploy high-priority to trigger preemption.
+This task demonstrates **KAI Scheduler's priority preemption**, which combines Kubernetes `PriorityClass` (preemption *order*) with KAI's own `kai.scheduler/preemptibility` label (preemption *eligibility*). Create low-priority workloads filling GPU capacity, then deploy high-priority to trigger preemption.
 
 1. **Create Low Priority Workload**
+
+   > **Why the `kai.scheduler/preemptibility: "preemptible"` label is required:** KAI v0.12.10 classifies any workload with K8s priority ≥ 100 as **non-preemptible by default** (source: [`preemptible.go`](https://github.com/NVIDIA/KAI-Scheduler/blob/v0.12.10/pkg/common/podgroup/preemptible.go)). Our `low-priority-gpu` PriorityClass has value 10000, so it must be explicitly marked preemptible — without this label, KAI refuses to evict it and the high-priority pod fails to schedule with `NonPreemptibleOverQuota`.
+
    ```yaml
    # Save as low-priority-workload.yaml
    apiVersion: apps/v1
@@ -563,7 +619,8 @@ This task demonstrates Kubernetes-native `PriorityClass` preemption with KAI Sch
        metadata:
          labels:
            app: low-priority-gpu
-           kai.scheduler/queue: dev-queue
+           kai.scheduler/queue: training-queue
+           kai.scheduler/preemptibility: "preemptible"
        spec:
          schedulerName: kai-scheduler
          priorityClassName: low-priority-gpu
@@ -673,8 +730,10 @@ Time-slicing multiplies allocatable GPU resources by sharing physical GPUs acros
 
    > **IMPORTANT:** Must include BOTH `name` AND `default` fields. The `default: "any"` tells the device plugin which key in the ConfigMap to use. Without it, time-slicing silently does nothing.
 
+   > **Name the API group explicitly:** Use `clusterpolicies.nvidia.com/cluster-policy` (with the `.nvidia.com` suffix), not the bare `clusterpolicy/cluster-policy`. Kyverno — deployed as a default k0rdent Service on the `aws-standalone-cp` template — registers its own `clusterpolicies.kyverno.io` CRD, and `kubectl` picks Kyverno's by default (it sorts first in API discovery), failing with `NotFound: clusterpolicies.kyverno.io "cluster-policy"`. The explicit `.nvidia.com` suffix targets the NVIDIA GPU Operator CRD unambiguously.
+
    ```bash
-   kubectl patch clusterpolicy/cluster-policy \
+   kubectl patch clusterpolicies.nvidia.com/cluster-policy \
      --type merge \
      --patch '{"spec": {"devicePlugin": {"config": {"name": "time-slicing-config", "default": "any"}}}}'
    ```
@@ -683,7 +742,7 @@ Time-slicing multiplies allocatable GPU resources by sharing physical GPUs acros
 
 3. **Verify Fractional GPUs**
 
-   Wait ~60 seconds for the device plugin to restart and re-register:
+   Wait ~10-30 seconds for the device plugin to restart and re-register:
 
    ```bash
    kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
@@ -832,9 +891,12 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    ```bash
    kubectl apply -f nccl-test.yaml
 
-   # NCCL test takes ~5 minutes (build + run)
+   # NCCL test takes ~8-10 minutes on first run (image pull ~4-5 min + build + benchmark).
+   # Subsequent runs on the same worker skip the image pull and take ~3-4 minutes.
    kubectl logs -f nccl-config-test
    ```
+
+   > **Why the first run is slow:** `nvcr.io/nvidia/pytorch:24.12-py3` is approximately 20 GB. Even over EC2's internal network, the initial pull takes 4-5 minutes and dominates wall-clock time. The pod will sit in `ContainerCreating` during this period; run `kubectl describe pod nccl-config-test` to confirm the current event is `Pulling image`. Once the image is cached on the worker's containerd store, any subsequent pod using the same image starts nearly instantly. **If the pod stays `Pending`/`ContainerCreating` for more than 10 minutes**, look for `ImagePullBackOff` or network issues in `kubectl describe`.
 
 4. **Interpret NCCL Test Results**
 
@@ -879,16 +941,51 @@ Proper NCCL configuration is critical for multi-GPU workloads. This task creates
    ```
 
 2. **Key Metrics to Monitor**
+
+   **Scheduling latency (how fast decisions happen):**
    ```
-   # Per-action scheduling latency
+   # Per-action scheduling latency (allocate, preempt, reclaim, consolidation, stalegangeviction)
    kai_action_scheduling_latency_milliseconds
 
-   # End-to-end scheduling latency
+   # End-to-end scheduling latency (full scheduler loop time)
    kai_e2e_scheduling_latency_milliseconds
 
-   # Per-plugin scheduling latency
+   # Per-plugin scheduling latency (predicates, priority, proportion, topology, gpupack, ...)
    kai_plugin_scheduling_latency_milliseconds
+
+   # Per-task scheduling + bind latency histograms (_bucket, _count, _sum variants)
+   kai_task_scheduling_latency_milliseconds
+   kai_task_bind_latency_milliseconds
    ```
+
+   **Queue resource accounting (who has what):**
+   ```
+   # Current resource usage per queue (training-queue, inference-queue, dev-queue, default-queue)
+   kai_queue_gpu_usage
+   kai_queue_cpu_usage
+   kai_queue_memory_usage
+
+   # Fair-share entitlement per queue (what each queue is entitled to under contention)
+   kai_queue_fair_share_gpu
+   kai_queue_fair_share_cpu_cores
+   kai_queue_fair_share_memory_gb
+   ```
+
+   **Preemption and PodGroup activity (operational signals):**
+   ```
+   # Total preemption attempts across the scheduler's lifetime
+   kai_total_preemption_attempts
+
+   # PodGroups acted on or scheduled, labeled by action
+   kai_podgroups_acted_on_by_action
+   kai_podgroups_scheduled_by_action
+
+   # Scheduling scenarios filtered or simulated during the decision loop
+   kai_scenarios_filtered_by_action
+   kai_scenarios_simulation_by_action
+   ```
+
+   > **Why `kai_total_preemption_attempts` is the cleanest Task 5 verification signal:** After running Task 5 (priority preemption) with the preemptibility label in place, this counter should be `>= 1`. It's a stronger verification than relying on timing or event observation — if the high-priority pod scheduled onto a free GPU without actually preempting anyone, the counter stays at `0`. Use `curl http://localhost:8080/metrics | grep '^kai_total_preemption_attempts'` after Task 5 to confirm.
 
 3. **Stop Port Forward**
    ```bash
@@ -942,7 +1039,7 @@ kubectl delete pod nccl-config-test gpu-test topo-test 2>/dev/null
 kubectl delete deploy low-priority-gpu high-priority-gpu 2>/dev/null
 
 # To revert time-slicing (restore 4 physical GPUs):
-kubectl patch clusterpolicy/cluster-policy \
+kubectl patch clusterpolicies.nvidia.com/cluster-policy \
   --type merge \
   --patch '{"spec": {"devicePlugin": {"config": {"name": "", "default": ""}}}}'
 
@@ -952,6 +1049,8 @@ export KUBECONFIG=~/.kube/config  # Switch back to mgmt cluster
 kubectl delete clusterdeployment gpu-cluster -n kcm-system
 # Wait for CAPI to clean up EC2 instances (~5 min)
 ```
+
+> **If deletion stalls:** If `kubectl get clusterdeployment gpu-cluster` stays in a `Deleting` state for more than 5 minutes, your STS session token likely expired during the lab — the CAPA controller cannot call AWS APIs to terminate instances with expired credentials. Refresh them with `./lab-infrastructure/scripts/lab-refresh-creds.sh <your-name>` and deletion will resume within ~30 seconds. **Do NOT force-remove finalizers** (`kubectl patch ... metadata.finalizers=null`) — that would orphan the underlying AWS resources (EC2 instances, VPCs, NAT gateways, load balancers) and continue billing indefinitely with no controller left to clean them up.
 
 ---
 
@@ -1018,7 +1117,7 @@ kubectl get podgroups
 
 **Verify ClusterPolicy patch includes both fields:**
 ```bash
-kubectl get clusterpolicy cluster-policy -o jsonpath='{.spec.devicePlugin.config}'
+kubectl get clusterpolicies.nvidia.com cluster-policy -o jsonpath='{.spec.devicePlugin.config}'
 # Must show: {"default":"any","name":"time-slicing-config"}
 ```
 
@@ -1034,6 +1133,63 @@ kubectl get pod <pod-name> -o jsonpath='{.spec.priorityClassName}'
 kubectl get priorityclass high-priority-gpu -o yaml
 # preemptionPolicy should be PreemptLowerPriority
 ```
+
+**Verify KAI preemptibility on the victim workload** (see Task 5 note):
+
+If you see `NonPreemptibleOverQuota` events on the high-priority pod, KAI has classified the low-priority workload as non-preemptible. KAI's preemptibility model is orthogonal to Kubernetes `PriorityClass` — workloads with priority >= 100 default to non-preemptible unless explicitly labeled otherwise. Inspect the PodGroup:
+```bash
+kubectl get podgroups -o jsonpath='{range .items[*]}{.metadata.name}  preemptibility={.spec.preemptibility}{"\n"}{end}'
+# Preemptible: spec.preemptibility = "preemptible"
+# Non-preemptible (default for priority >= 100): spec.preemptibility = "non-preemptible" or empty
+```
+
+If the low-priority workload's PodGroup is non-preemptible, add `kai.scheduler/preemptibility: "preemptible"` to its pod template labels and re-apply:
+```yaml
+template:
+  metadata:
+    labels:
+      kai.scheduler/preemptibility: "preemptible"
+```
+
+### Normal Transients (Not Failures)
+
+These messages and states appear during healthy lab execution and do NOT indicate problems. They're listed here so you recognize them when they happen instead of treating them as failures.
+
+**`NetworkPluginNotReady` on the CP Machine during Pre-Lab Step 2:**
+
+```
+Node.Ready: container runtime network not ready: NetworkReady=false
+reason:NetworkPluginNotReady message:Network plugin returns error
+```
+
+Appears for ~30-60 seconds while the CNI (Calico, in the `aws-standalone-cp-1-0-20` template) initializes on a freshly booted control plane VM. Clears automatically once `calico-node` pods become Ready.
+
+**`ServiceSetEnsureProfileFailed` warning event right after `kubectl apply -f gpu-cluster-deployment.yaml`:**
+
+```
+Failed to ensure Profile for ServiceSet gpu-cluster: ...
+Operation cannot be fulfilled on profiles.config.projectsveltos.io "gpu-cluster":
+the object has been modified; please apply your changes to the latest version and try again
+```
+
+Optimistic-concurrency race between reconciling controllers — two paths had stale versions of the same Profile object and one lost. The next reconcile (within milliseconds) emits `ServiceSetEnsureProfileSuccess` and the warning self-heals. Ignore a single occurrence; investigate only if it repeats more than 5 times.
+
+**`nvidia-dcgm-exporter` restarts 1-3 times during Pre-Lab Step 4 GPU Operator install:**
+
+The DCGM exporter sometimes starts before `nvidia-dcgm` is fully ready, hits a connection-refused error, crashes, gets restarted by kubelet, and eventually succeeds once DCGM is up. A `RESTARTS` count of 1-3 on this pod in `kubectl get pods -n gpu-operator` is normal. If restarts climb past 5, investigate with `kubectl logs -n gpu-operator <dcgm-exporter-pod> --previous`.
+
+**`nvidia.com/gpu.replicas` label lag after time-slicing patch (Task 6):**
+
+After applying the time-slicing ConfigMap, `kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'` shows the new count (16) within ~10-30 seconds, but the node label `nvidia.com/gpu.replicas` may still show `1` for up to 60 seconds. GPU Feature Discovery refreshes labels on its own cadence. **Trust the allocatable count for the real state**, not the node labels.
+
+**Kubernetes client/server version skew warning when running `kubectl` on the management node:**
+
+```
+Warning: version difference between client (1.35) and server (1.32)
+exceeds the supported minor version skew of +/-1
+```
+
+The management cluster ships a newer `kubectl` than the managed `gpu-cluster`'s k0s version. This is a warning only — all Lab 5.1 commands (get, apply, patch, logs, exec, describe, port-forward) work correctly despite the skew. Kubernetes guarantees only `+/-1` minor version compatibility, but in practice most operations are stable across wider skews.
 
 ---
 
@@ -1062,8 +1218,8 @@ kubectl get priorityclass high-priority-gpu -o yaml
 ## References
 
 ### NVIDIA
-- [KAI Scheduler GitHub](https://github.com/NVIDIA/KAI-Scheduler)
-- [KAI Scheduler Queue Configuration](https://github.com/NVIDIA/KAI-Scheduler/blob/main/docs/queues/README.md)
+- [KAI Scheduler GitHub](https://github.com/kai-scheduler/KAI-Scheduler)
+- [KAI Scheduler Queue Configuration](https://github.com/kai-scheduler/KAI-Scheduler/blob/main/docs/queues/README.md)
 - [NVIDIA GPU Operator Documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/)
 - [GPU Operator Time-Slicing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
 - [NCCL Environment Variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)
@@ -1079,4 +1235,4 @@ kubectl get priorityclass high-priority-gpu -o yaml
 
 ## Next Lab
 
-Proceed to [Lab 5.2 - vLLM Inference Service](lab-5.2-vllm-inference.md)
+Proceed to [Lab 5.2 - Service Catalog Blueprints](lab-5.2-service-catalog.md)

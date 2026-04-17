@@ -10,8 +10,10 @@ Quick-access links to official documentation for all Week 1 topics.
 | Architecture Overview | https://docs.mirantis.com/k0rdent-enterprise/latest/concepts/k0rdent-architecture/ |
 | Installation Guide | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/installation/install-k0rdent/ |
 | CRD Reference | https://docs.mirantis.com/k0rdent-enterprise/latest/reference/crds/ |
-| Release Notes (v1.2.0) | https://docs.mirantis.com/k0rdent-enterprise/latest/release-notes/release-notes-v1.2.0/ |
+| AWS Preparation | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/installation/prepare-mgmt-cluster/aws/ |
 | Authentication (OIDC) | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/installation/auth/ |
+| Upgrade Guide | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/upgrade/ |
+| Backup and Restore | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/backup/ |
 
 ## Cluster API (CAPI)
 
@@ -49,8 +51,9 @@ Quick-access links to official documentation for all Week 1 topics.
 | Resource | URL |
 |----------|-----|
 | Service Catalog | https://catalog.k0rdent.io/ |
-| MultiClusterService | https://docs.k0rdent.io/latest/admin/ksm/ksm-multiclusterservice/ |
-| ServiceTemplates | https://docs.k0rdent.io/latest/admin/ksm/ksm-service-templates/ |
+| Built-In KSM Provider | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/ksm/ksm-built-in-provider/ |
+| MultiClusterService | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/ksm/ksm-multiclusterservice/ |
+| ServiceTemplates | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/ksm/ksm-service-templates/ |
 | Service Upgrades | https://docs.k0rdent.io/latest/user/services/service-upgrade/ |
 
 ## GitOps & Helm
