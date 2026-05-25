@@ -6,6 +6,23 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 
 > **Scope:** This training covers **k0rdent Enterprise** exclusively (Mirantis commercial distribution). Open-source k0rdent documentation (`docs.k0rdent.io`) may differ in features and CRD versions. **k0rdent AI** is introduced in Week 5.
 
+## Two audiences, one curriculum
+
+This program serves two overlapping audiences:
+
+1. **Engineers learning core k0rdent / Kubernetes / AI-infrastructure skills** — transferable to any platform.
+2. **Engineers preparing to implement k0rdent on an NVIDIA Cloud Partner (NCP) engagement** delivering capacity to NVIDIA DGX Cloud (DGXC).
+
+Every lab and major theory section carries a domain tag so each audience can filter the right path:
+
+| Tag | Meaning |
+|-----|---------|
+| 🌐 **CORE** | Core K8s / k0rdent / AI-infra concept. Transferable to any platform. |
+| 🟢 **NCP** | Specifically required by the **NVIDIA Requirements Guide for AI Clouds v2.3 (Apr 2026)**. Maps to one or more Req IDs (CNP01, NET02, BFX01, …). |
+| 🔵 **BOTH** | Core concept AND specific NCP requirement. Double-duty. |
+
+See **[`ncp-domain-tagging.md`](../ncp-domain-tagging.md)** for the full Req ID → lab mapping and guidance for NCP cert prep. The companion repo **[`ncp-compliance-pack`](https://github.com/mgueye01/ncp-compliance-pack)** holds the evidence artifacts those Req IDs map to.
+
 ## Program Structure
 
 | Attribute | Value |
@@ -70,14 +87,14 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 ## Weekly Schedule
 
-| Week | Topic | Duration | Focus Areas |
-|------|-------|----------|-------------|
-| 1 | Foundations | 24.5h | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services |
-| 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration |
-| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV |
-| 4 | KaaS | 15h | Cluster API, GPU Operator, hosted control planes |
-| 5 | AI Workloads | 21h | GPU schedulers, model serving, service catalog, ML platforms |
-| 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project |
+| Week | Topic | Duration | Focus Areas | README |
+|------|-------|----------|-------------|--------|
+| 1 | Foundations | 24.5h | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services | [week-1-foundations](../week-1-foundations/README.md) |
+| 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration | (no README yet) |
+| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV | (no README yet) |
+| 4 | KaaS | 15h | Cluster API, GPU Operator, hosted control planes (k0smotron), CNI/CSI for AI, autoscaling, day-2 ops | [week-4-kaas](../week-4-kaas/README.md) |
+| 5 | AI Workloads | 21h | GPU schedulers, model serving, service catalog, ML platforms | [week-5-ai-workloads](../week-5-ai-workloads/README.md) |
+| 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project | (no README yet) |
 
 ## Week 1 Learning Objectives
 
