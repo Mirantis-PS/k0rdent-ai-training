@@ -1,10 +1,6 @@
 # Lab 4.9 — Dynamic Resource Allocation (DRA) for GPUs
 
-| Domain | Tag | NVIDIA Req IDs |
-|--------|-----|----------------|
-| KaaS / GPU Scheduling / Resource API | 🟢 NCP | K8S24 |
-
-> **Compliance pack artifact targets:** `artifacts/K8S24-dra-feature-gates.yaml`, `artifacts/K8S24-resourceclaim-examples.yaml`
+**Domain:** KaaS / GPU Scheduling / Resource API
 
 ---
 
@@ -12,7 +8,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| KaaS / GPU Scheduling | Required (NCP track) | 2 hours |
+| KaaS / GPU Scheduling | Required | 2 hours |
 
 ### Week 4 Learning Paths
 
@@ -44,7 +40,6 @@ FOUNDATION       NETWORKING   STORAGE   OPERATIONS         TEMPLATES        SCHE
 - [Part 3: Install the NVIDIA DRA driver](#part-3-install-the-nvidia-dra-driver)
 - [Part 4: Run a workload backed by a ResourceClaim](#part-4-run-a-workload-backed-by-a-resourceclaim)
 - [Part 5: Failure modes — unsatisfiable claims, debug, recovery](#part-5-failure-modes--unsatisfiable-claims-debug-recovery)
-- [Part 6: Produce the compliance-pack artifacts](#part-6-produce-the-compliance-pack-artifacts)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
 - [Key Takeaways](#key-takeaways)
@@ -54,15 +49,9 @@ FOUNDATION       NETWORKING   STORAGE   OPERATIONS         TEMPLATES        SCHE
 
 ## Why this lab exists
 
-The NVIDIA Requirements Guide v2.3 is explicit about K8S24:
+Dynamic Resource Allocation (DRA) is the next-generation Kubernetes mechanism for allocating specialized hardware — GPUs, FPGAs, NICs with specific topology constraints. It replaces the legacy device-plugin model with parameterized resource requests (e.g., "give me a GPU with ≥40 GB memory AND NVLink to this other GPU"), ResourceClaim CRDs, and vendor-provided drivers. NVIDIA ships the k8s-dra-driver as the reference DRA driver for GPUs.
 
-> *"Enabled Dynamic Resource Allocation (DRA) regardless of upstream feature status (Beta/GA). Some DRA features require enabling feature gates for the control plane, in case our customers want to run AI workload with new DRA features."*
-
-In plain terms: NVIDIA's tenants will start submitting workloads that request GPUs through the **DRA API** — `ResourceClaim` and `ResourceClaimTemplate` — long before DRA hits GA in upstream Kubernetes. NCPs that ship clusters with DRA disabled silently block those tenant workloads. The pod just sits `Pending` forever, the tenant blames the NCP, and the audit finding writes itself.
-
-DRA supersedes the legacy device-plugin model (`nvidia.com/gpu: 1`) with **parameterized requests** (CEL selectors over device attributes), **CRD-driven allocation** (`ResourceClaim` is a first-class auditable object), **topology-aware constraints** (NVLink domains, MIG slice geometry), and **vendor-driven drivers** — NVIDIA ships its own at [github.com/NVIDIA/k8s-dra-driver](https://github.com/NVIDIA/k8s-dra-driver).
-
-This lab enables DRA on a k0rdent-managed cluster, installs the NVIDIA driver, runs a workload that requests a GPU through a `ResourceClaim`, and produces the audit artifacts.
+This lab teaches how to enable DRA feature gates on k0rdent Enterprise managed clusters, install the NVIDIA DRA driver, and write workloads that consume ResourceClaims.
 
 ---
 
@@ -75,7 +64,6 @@ By completing this lab, you will be able to:
 - [ ] Install the NVIDIA DRA driver and verify `DeviceClass` objects appear cluster-wide
 - [ ] Write a `ResourceClaimTemplate` plus a Pod spec that consumes it
 - [ ] Debug an unsatisfiable claim through `kubectl describe resourceclaim` + driver logs
-- [ ] Produce Req-ID-stamped artifacts (`K8S24-dra-feature-gates.yaml`, `K8S24-resourceclaim-examples.yaml`) for the compliance pack
 
 ---
 
@@ -93,8 +81,8 @@ By completing this lab, you will be able to:
 
 | Choice | Option A | Option B | Recommendation |
 |--------|----------|----------|----------------|
-| Where to enable DRA feature gates | Per-ClusterTemplate (only for GPU flavors) | Default-on for every managed cluster | **Default-on for every cluster** — K8S24 requires DRA "regardless of upstream feature status"; per-template gating creates silent capability drift between clusters and is an audit liability |
-| GPU DRA driver source | NVIDIA's `k8s-dra-driver` | A custom in-house driver | **NVIDIA `k8s-dra-driver`** ([repo](https://github.com/NVIDIA/k8s-dra-driver)) — it's the reference implementation NVIDIA itself ships; custom drivers fail audit unless you can show feature parity |
+| Where to enable DRA feature gates | Per-ClusterTemplate (only for GPU flavors) | Default-on for every managed cluster | **Default-on for every cluster** — DRA should be available regardless of upstream feature status; per-template gating creates silent capability drift between clusters and is operationally fragile |
+| GPU DRA driver source | NVIDIA's `k8s-dra-driver` | A custom in-house driver | **NVIDIA `k8s-dra-driver`** ([repo](https://github.com/NVIDIA/k8s-dra-driver)) — it's the reference implementation NVIDIA itself ships; custom drivers are hard to justify unless you can show feature parity |
 | Claim binding style | Inline `ResourceClaim` per pod | `ResourceClaimTemplate` referenced by pod spec | **`ResourceClaimTemplate`** for any workload with `replicas > 1` or Job-style retries — the template generates a fresh claim per pod, so claims are garbage-collected with the pod and don't pile up |
 | Admission policy for misconfigured claims | Let scheduler keep retrying (`Pending` forever) | Reject at admission via ValidatingAdmissionPolicy | **Reject at admission** — fail-fast on impossible selectors (e.g., asking for a GPU SKU you don't have) gives tenants an immediate error instead of a stuck pod the on-call has to triage |
 | Coexistence with device-plugin GPU requests | Migrate everything to DRA immediately | Run both side-by-side during transition | **Run both side-by-side** for ≥1 release cycle — tenants on legacy `nvidia.com/gpu: 1` keep working while new tenants opt into DRA; both models can target the same physical GPU pool through the NVIDIA driver |
@@ -134,7 +122,7 @@ spec:
 | "Tenant is on Kubeflow / Slurm-on-K8s / Ray that emits ResourceClaims" | **DRA** (no choice) |
 | Multi-vendor heterogeneous fleet (NVIDIA + AMD + Intel GPUs) | **DRA** — each vendor ships its own DRA driver |
 
-The K8S24 requirement is: **DRA must be available**. Whether your tenants use it today or not, the capability must be on.
+The operational rule is: **DRA must be available**. Whether your tenants use it today or not, the capability must be on.
 
 ---
 
@@ -370,7 +358,7 @@ kubectl get resourceslices -o json | jq '.items[].spec.devices[].attributes'
 # 3. Compare — does any device match the selector?
 ```
 
-**Mitigation:** add a `ValidatingAdmissionPolicy` that rejects claims whose CEL selector matches zero `ResourceSlice` devices at admit time. (Sample policy lives in the compliance-pack examples.)
+**Mitigation:** add a `ValidatingAdmissionPolicy` that rejects claims whose CEL selector matches zero `ResourceSlice` devices at admit time.
 
 ### Failure mode 2: driver crash mid-allocation
 
@@ -398,31 +386,6 @@ A k0s upgrade resets `extraArgs` if the new `ClusterTemplate` doesn't carry them
 
 ---
 
-## Part 6: Produce the compliance-pack artifacts
-
-```bash
-# 1. Feature-gate evidence — sourced from the ClusterDeployment spec
-kubectl -n <namespace> get clusterdeployment <name> \
-  -o jsonpath='{.spec.config.k0s}' > K8S24-dra-feature-gates.yaml
-
-# 2. ResourceClaim examples — what tenants actually file
-{
-  echo "# K8S24 — ResourceClaim examples (template + sample allocated claim)"
-  kubectl -n tenant-a get resourceclaimtemplate a100-40gb -o yaml
-  echo "---"
-  kubectl -n tenant-a get resourceclaim -o yaml | head -200
-} > K8S24-resourceclaim-examples.yaml
-
-# 3. DeviceClass + ResourceSlice evidence (driver published the device pool)
-kubectl get deviceclasses -o yaml > K8S24-deviceclasses.yaml
-kubectl get resourceslice $(kubectl get resourceslice -o name | head -1) -o yaml \
-  > K8S24-resourceslice-sample.yaml
-```
-
-These four files together prove K8S24 satisfaction: the gates are on (file 1), the driver is publishing slices (files 3 + 4), and tenants can file working claims (file 2). Stamp the Req ID in each filename and push to the [`ncp-compliance-pack`](https://github.com/mgueye01/ncp-compliance-pack) repo.
-
----
-
 ## Verification Checklist
 
 - [ ] `kubernetes_feature_enabled{name="DynamicResourceAllocation"} 1` on the apiserver `/metrics` endpoint
@@ -432,7 +395,6 @@ These four files together prove K8S24 satisfaction: the gates are on (file 1), t
 - [ ] Each GPU node publishes a `ResourceSlice` with device attributes populated
 - [ ] Sample `cuda-vectoradd` pod with a `ResourceClaimTemplate`-backed GPU completes successfully
 - [ ] Multi-GPU NVLink-domain `matchAttribute` constraint correctly fails when topology can't be satisfied
-- [ ] Compliance artifacts (`K8S24-*.yaml`) generated and Req-ID-stamped
 
 ---
 
@@ -450,13 +412,12 @@ These four files together prove K8S24 satisfaction: the gates are on (file 1), t
 
 ## Key Takeaways
 
-- **DRA is a contract, not a feature flag.** K8S24 requires it on every managed cluster, not just GPU-flavored ones, because tenants choose the API — the NCP can't pre-guess who needs it.
+- **DRA is a forward-looking contract, not a feature flag.** Enable it on every managed cluster, not just GPU-flavored ones, because tenants choose the API — you can't pre-guess who needs it.
 - **Feature gates must survive upgrades.** The single most common DRA outage is a `ClusterTemplate` change that silently drops `extraArgs`. Make "API group still registered" a CI smoke test on every upgrade.
 - **Prefer `ResourceClaimTemplate` over inline `ResourceClaim`.** Owner references mean claims are GC'd with their pods — no leaks, no orphaned allocations after a tenant cleanup script forgets a resource.
-- **Compliance evidence is four files.** Feature gates, DeviceClasses, a sample ResourceSlice, and a sample allocated claim — that's what an audit asks for, that's what the compliance pack stores.
 
 ---
 
 ## Next Lab
 
-[Lab 4.10 — BYOIP / PCI / MACsec](lab-4.10-byoip-pci-macsec.md) — once tenants can claim GPUs by capability, the next contractual surface is **how those GPUs reach NVIDIA's network**: BYOIP allocations, PCI connectivity to CorpIT, and MACsec link encryption to the DGXC POP. Move from "GPU is allocatable" to "GPU is reachable."
+[Lab 4.10 — Case Study: AI Cloud Provider Interconnect Patterns](lab-4.10-byoip-pci-macsec.md) — once tenants can claim GPUs by capability, the next layer is **how those GPUs reach external networks**: BYOIP allocations, dedicated interconnect with BGP, and MACsec link encryption.

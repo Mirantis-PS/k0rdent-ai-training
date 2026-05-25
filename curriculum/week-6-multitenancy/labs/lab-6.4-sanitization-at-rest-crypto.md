@@ -1,10 +1,6 @@
 # Lab 6.4 — Data Sanitization + At-Rest Encryption
 
-| Domain | Tag | NVIDIA Req IDs |
-|--------|-----|----------------|
-| Multi-Tenancy / Security / Lifecycle | 🟢 NCP | SEC11, SEC19, SEC20, SEC21, K8S19, STG02 |
-
-> **Compliance pack artifact targets:** `artifacts/SEC21-sanitization-runbook.md`, `artifacts/SEC21-evidence-template.yaml`, `artifacts/SEC20-sed-attestation.md`, `artifacts/K8S19-etcd-encryption-config.yaml`
+**Domain:** Multi-Tenancy / Security / Lifecycle
 
 > **Standards reference:** NIST SP 800-88 rev1 — *Guidelines for Media Sanitization* (Clear / Purge / Destroy taxonomy). Throughout this lab, "crypto-erase" maps to **Purge** in 800-88 terms; "overwrite" maps to **Clear**.
 
@@ -14,7 +10,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Multi-Tenancy / Security | Required (NCP track) | 2.5 hours |
+| Multi-Tenancy / Security | Required | 2.5 hours |
 
 | Previous | Current | Next |
 |----------|---------|------|
@@ -31,7 +27,7 @@ Tenant N releases node
           └─────────────────┴─────────────────┴─────────────────┘
                                     │
                                     ▼
-                     Evidence YAML → Compliance pack
+                       Evidence YAML → Audit trail
                                     │
                                     ▼
                        Node returns to pool (Tenant N+1)
@@ -55,7 +51,6 @@ Tenant N releases node
 - [Part 4: etcd + secrets encryption at rest](#part-4-etcd--secrets-encryption-at-rest)
 - [Part 5: TPM + BIOS reset](#part-5-tpm--bios-reset)
 - [Part 6: Wiring sanitization into the Breakfix lifecycle](#part-6-wiring-sanitization-into-the-breakfix-lifecycle)
-- [Part 7: Produce the compliance-pack artifacts](#part-7-produce-the-compliance-pack-artifacts)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
 - [Key Takeaways](#key-takeaways)
@@ -65,15 +60,15 @@ Tenant N releases node
 
 ## Why this lab exists
 
-The v2.3 guide is explicit about what "tenancy ends" means:
+What "tenancy ends" means operationally: the next tenant on the same hardware must not be able to recover any data from the previous tenant. The standard requirements that any serious multi-tenant operator commits to:
 
-> **SEC21 — Data Sanitization between tenants:** *"All data drives between storage system tenants must be cryptographically erased. All persistent and volatile memory, including SRAM and GPU memory, must be sanitized/wiped. The TPM and BIOS shall be reset before the host returns to the available pool."*
+- All data drives between tenants must be **cryptographically erased**.
+- All persistent and volatile memory, including SRAM and GPU memory, must be **sanitized/wiped**.
+- The **TPM and BIOS shall be reset** before the host returns to the available pool.
+- All host drives must support **at-rest encryption via Self-Encrypted Drives (SED)**.
+- Drive sanitization must come with **full attestation of host firmware** so a compromised drive firmware can't simply log without erasing.
 
-> **SEC20 — At-Rest Data Protection:** *"Mandatory encryption of all data at rest via Self-Encrypted Drives (SED)."*
-
-> **STG02 — Drive Sanitization Policy:** *"Cryptographically erase data drive contents between storage system tenants, with full attestation of host firmware."*
-
-Engineers commonly read this as "wipe the disks." It is wider than that. Tenant data lands in **four** classes of storage on a DGXC node, and all four must be sanitized before the node returns to the pool:
+Engineers commonly read this as "wipe the disks." It is wider than that. Tenant data lands in **four** classes of storage on a GPU node, and all four must be sanitized before the node returns to the pool:
 
 | # | Location | Examples | Persistence |
 |---|----------|----------|-------------|
@@ -96,7 +91,7 @@ By completing this lab, you will be able to:
 - [ ] Configure etcd encryption-at-rest with `aescbc` (or KMS) and rotate the data-encryption key
 - [ ] Reset TPM and BIOS state via tpm2-tools and Redfish, and capture a firmware-version attestation
 - [ ] Extend the `BreakfixRequest` CRD with a `sanitization` phase that gates re-provisioning
-- [ ] Produce the SEC20 / SEC21 / K8S19 / STG02 compliance-pack artifacts with operator/timestamp/serial evidence
+- [ ] Produce verifiable evidence (operator, timestamp, drive serial, sanitize-status, firmware-signature) for each step
 
 ---
 
@@ -105,7 +100,7 @@ By completing this lab, you will be able to:
 - **Lab 6.2 (Breakfix API)** — required. Sanitization is a phase in the breakfix lifecycle; this lab extends the CRD from 6.2.
 - **Lab 2.4 (BMC Hardening)** — required. Redfish-over-TLS is the transport for BIOS reset and firmware attestation.
 - **Lab 2.5 (Secure Boot / TPM)** — recommended. You will be clearing the TPM you provisioned there.
-- **CNP09 attestation pipeline** — referenced; SED firmware trust depends on signed-firmware attestation.
+- **Signed-firmware attestation pipeline** (see Lab 2.5) — referenced; SED firmware trust depends on it.
 - Tools: `sg_inq`, `hdparm`, `nvme-cli`, `nvidia-smi`, `tpm2-tools`, `curl`, `kubectl`, `jq`, `yq`.
 
 ---
@@ -131,7 +126,7 @@ Mapping each location to its required action and evidence:
 | 1 | NVMe / SATA data drives (SED) | `nvme sanitize` (crypto-erase) or `sg_format --cmplst` | **Purge** | Drive serial, sanitize action ID, completion timestamp, operator |
 | 2 | GPU HBM + on-die SRAM | Drain → idle dwell → ECC scrub → optional fill-pattern → power-cycle | **Purge** (vendor-specific) | GPU UUID, scrub start/end ts, ECC counter delta, operator |
 | 3 | etcd DB + k8s Secrets | DEK rotation + namespace secret re-encryption | N/A (key-rotation, not media) | DEK ID before/after, rotation ts, KMS audit log line |
-| 4 | TPM + BIOS NVRAM | `tpm2_clear`, Redfish BIOS factory reset, firmware re-attest | **Purge** | TPM clear ts, PCR0 post-reset, BIOS version, firmware sig (CNP09) |
+| 4 | TPM + BIOS NVRAM | `tpm2_clear`, Redfish BIOS factory reset, firmware re-attest | **Purge** | TPM clear ts, PCR0 post-reset, BIOS version, firmware signature (Lab 2.5) |
 
 Two observations anchor the rest of the lab:
 
@@ -159,11 +154,11 @@ sudo nvme id-ctrl /dev/nvme0 -H | grep -E 'sanicap|Sanitize'
 
 A drive is acceptable when TCG Opal 2 is supported **and** the PSID is recorded in asset inventory, or when NVMe SANICAP indicates `Crypto Erase Supported = 1`. Drives failing both checks are flagged "non-SED, requires 800-88 Clear" — a slow path you don't want to discover at 02:00 on an RMA.
 
-### 2.2 SED firmware trust — pair with CNP09
+### 2.2 SED firmware trust — pair with firmware attestation
 
 > SED crypto-erase is only as trustworthy as the firmware running it. Compromised drive firmware could log-without-erasing the DEK, or refuse the sanitize while reporting success.
 
-The control here is **CNP09 — Firmware Signing and Attestation**. Before the drive's first tenant assignment, and before each crypto-erase event, capture:
+The control here is firmware signing + attestation (see Lab 2.5). Before the drive's first tenant assignment, and before each crypto-erase event, capture:
 
 ```bash
 sudo nvme fw-log /dev/nvme0                           # firmware history slots
@@ -402,7 +397,7 @@ sudo tpm2_clear -c lockout
 BMC="https://$BMC_HOST"
 AUTH=(-u "$BMC_USER:$BMC_PASS" -k)
 
-# 1. Capture firmware versions BEFORE (CNP09 evidence)
+# 1. Capture firmware versions BEFORE (attestation evidence)
 curl "${AUTH[@]}" "$BMC/redfish/v1/UpdateService/FirmwareInventory" \
   | jq '.Members[].["@odata.id"]' \
   | xargs -I{} curl "${AUTH[@]}" "$BMC{}" \
@@ -416,7 +411,7 @@ curl "${AUTH[@]}" -X POST "$BMC/redfish/v1/Managers/1/Actions/Oem/TpmClear"   # 
 curl "${AUTH[@]}" -X POST "$BMC/redfish/v1/Systems/1/Actions/ComputerSystem.Reset" \
   -d '{"ResetType":"ForceRestart"}'
 
-# 4. Re-collect post-reset and diff for CNP09 attestation
+# 4. Re-collect post-reset and diff for the attestation log
 # ... same FirmwareInventory query > firmware-post-reset.json
 diff firmware-pre-reset.json firmware-post-reset.json
 ```
@@ -469,7 +464,7 @@ spec:
     platform:
       clearTpm: true
       resetBios: true
-      attestFirmware: true                  # ties to CNP09
+      attestFirmware: true                  # ties to firmware-signing pipeline (Lab 2.5)
 status:
   phase: Sanitizing                         # Pending|InProgress|Sanitizing|Completed|Failed
   steps:
@@ -490,7 +485,7 @@ Controller rules:
 - `bmh-deprovision` **must not start** until every sanitization step is `Succeeded` (or explicitly waived via `spec.sanitization.profile=none` — RBAC-gated, audit-annotated).
 - Each `evidenceRef` points to a `SanitizationEvidence` CR with the per-step YAML from Parts 2-5.
 - Refuse `replace` if any non-SED drive is present and `drives.method = nvme-crypto-erase` (fail closed).
-- Refuse `replace` if CNP09 firmware attestation fails after BIOS reset.
+- Refuse `replace` if firmware attestation fails after BIOS reset.
 
 This is what makes SEC21 enforceable rather than aspirational.
 
@@ -541,7 +536,7 @@ status:
 
 ### Artifact 3 — `SEC20-sed-attestation.md`
 
-Per-node table: every drive, with serial, model, firmware rev, SED capability (TCG Opal / NVMe SANICAP), PSID stored location, and CNP09 signed-firmware attestation reference. Generated by the same DaemonSet that powers BFX03 diagnostics in Lab 6.2.
+Per-node table: every drive, with serial, model, firmware rev, SED capability (TCG Opal / NVMe SANICAP), PSID stored location, and a reference to the signed-firmware attestation (Lab 2.5). Generated by the same DaemonSet that powers the diagnostics surface in Lab 6.2.
 
 ### Artifact 4 — `K8S19-etcd-encryption-config.yaml`
 
@@ -581,7 +576,7 @@ kubectl get cm -n kube-system encryption-config -o yaml \
 - [ ] etcd encryption-at-rest enabled with `aescbc` (or `kms` v2); raw etcd read shows `k8s:enc:aescbc:v1:<key-name>:` prefix
 - [ ] DEK rotation procedure runs cleanly: new key prepended, all secrets re-encrypted, old key retired
 - [ ] `tpm2_clear` succeeds and PCR0 reads as zeros post-reset
-- [ ] Redfish `Bios.ResetBios` executed; firmware-inventory diff captured pre/post; signatures validated against CNP09 manifest
+- [ ] Redfish `Bios.ResetBios` executed; firmware-inventory diff captured pre/post; signatures validated against the firmware-signing manifest
 - [ ] `BreakfixRequest` CRD extended with the `sanitization` block; controller refuses `bmh-deprovision` until all steps `Succeeded`
 - [ ] All four compliance-pack artifacts generated and staged under `artifacts/`
 - [ ] Evidence YAML for at least one end-to-end run sealed (hash captured) and stored
@@ -596,7 +591,7 @@ kubectl get cm -n kube-system encryption-config -o yaml \
 | GPU shows non-zero `ecc.errors.uncorrected.aggregate.total` after scrub | Genuine HBM error, or counter is sticky across the ECC disable/enable cycle | Power-cycle the node (not just the GPU) and re-read. Persistent non-zero = drive the GPU into RMA, not back to the pool. |
 | etcd encryption rollout breaks API server start | Encryption config YAML malformed, or referenced key file missing | Validate with `kube-apiserver --encryption-provider-config=... --dry-run`-equivalent in a side container first; ensure the file is readable by the apiserver user; never edit live without a tested rollback. |
 | `tpm2_clear` returns `TPM_RC_AUTHORIZATION` or `TPM_RC_DISABLED` | Platform requires physical-presence assertion; lockout auth set | Drive the clear via Redfish (`Oem.TpmClear`) or set a one-shot BIOS attribute (`TpmClearOnReboot=Enabled`) and reboot. Capture the BMC audit log line as evidence. |
-| `nvme sanitize` returns `Invalid Field in Command` or "not supported" | Older drive firmware does not implement the Sanitize command set | Two paths: (a) upgrade drive firmware via signed-firmware pipeline (CNP09) and retry; (b) fall back to TCG Opal Revert via `sedutil-cli` if Opal is supported; (c) 800-88 Clear as last resort. |
+| `nvme sanitize` returns `Invalid Field in Command` or "not supported" | Older drive firmware does not implement the Sanitize command set | Two paths: (a) upgrade drive firmware via the signed-firmware pipeline (Lab 2.5) and retry; (b) fall back to TCG Opal Revert via `sedutil-cli` if Opal is supported; (c) 800-88 Clear as last resort. |
 
 ---
 
@@ -604,7 +599,7 @@ kubectl get cm -n kube-system encryption-config -o yaml \
 
 - **Sanitization is four problems, not one.** Drives, GPU memory, cluster state, and platform state each need their own mechanism and their own evidence.
 - **`nvidia-smi --gpu-reset` is not HBM sanitization.** The correct sequence is drain → FM-detach → dwell → ECC cycle → power-cycle, with the ECC counter delta as the evidence.
-- **SED crypto-erase is only as strong as the firmware running it.** Pair every sanitize with a CNP09 firmware attestation — without it, you are trusting the drive's word.
+- **SED crypto-erase is only as strong as the firmware running it.** Pair every sanitize with a firmware attestation (Lab 2.5) — without it, you are trusting the drive's word.
 - **Encryption-at-rest is sanitization by another name.** Rotating the etcd DEK between tenants makes leaked backup snapshots cryptographically useless. Don't skip the retire step.
 - **Make the controller refuse to skip steps.** A `BreakfixRequest` that re-provisions a node without `sanitization.status = Completed` is the bug class SEC21 exists to prevent.
 

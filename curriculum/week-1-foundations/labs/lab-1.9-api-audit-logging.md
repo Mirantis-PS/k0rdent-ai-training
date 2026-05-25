@@ -1,10 +1,6 @@
 # Lab 1.9 — Kubernetes API Audit Logging
 
-| Domain | Tag | NVIDIA Req IDs |
-|--------|-----|----------------|
-| Foundations / Security / Observability | 🔵 BOTH | SEC08 (Audit Logs ≥30-day retention), K8S20 (Control plane logging — apiserver, kcm), SDN03 (Security ops audit) |
-
-> **Compliance pack artifact targets:** `artifacts/SEC08-audit-policy.yaml`, `artifacts/SEC08-retention-evidence.md`, `artifacts/K8S20-control-plane-log-export.md`
+**Domain:** Foundations / Security / Observability
 
 > **Mirantis docs:** [KOF Architecture](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/kof/kof-architecture/) · [Using KOF](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/kof/kof-using/) · [k0rdent CRD reference](https://docs.mirantis.com/k0rdent-enterprise/latest/reference/crds/)
 
@@ -14,7 +10,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Foundations / Production | Required (NCP track), Recommended (Core) | 1.5 hours |
+| Foundations / Production | Recommended | 1.5 hours |
 
 | Previous | Current | Next |
 |----------|---------|------|
@@ -37,7 +33,6 @@
 - [Part 3: Configure audit on managed clusters via k0rdent](#part-3-configure-audit-on-managed-clusters-via-k0rdent)
 - [Part 4: Forward to an OTel pipeline with ≥30-day retention](#part-4-forward-to-an-otel-pipeline-with-30-day-retention)
 - [Part 5: Sample queries — what an audit will ask you to answer](#part-5-sample-queries--what-an-audit-will-ask-you-to-answer)
-- [Part 6: Produce the compliance-pack artifacts](#part-6-produce-the-compliance-pack-artifacts)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
 - [Key Takeaways](#key-takeaways)
@@ -47,12 +42,9 @@
 
 ## Why this lab exists
 
-Two requirements pull this lab into Week 1's "production hardening" arc:
+Audit logging is a foundational security and operational discipline for any Kubernetes cluster. Most engineers ship clusters with audit either off, or at a default policy that captures too little (no auth events, no RBAC changes) — or too much (verbose RequestResponse on everything, blowing log volume 100×).
 
-- **SEC08** — *"Audit logs must be generated and retained for all security-relevant events, including management and control plane API calls, authentication events, and authorization decisions. Audit logs shall be retained for a minimum of 30 days and accessible to authorized platform operators."*
-- **K8S20** — *"Ability to view or export Kubernetes control plane logs (apiserver, kcm)."*
-
-These are core production hygiene **and** specific NCP requirements — hence the 🔵 BOTH tag. Most engineers ship clusters with audit either disabled or at a default policy that captures too little (no auth events) or too much (verbose RequestResponse on everything). This lab gets it right.
+This lab teaches a right-sized audit policy, configures k0s + KCM to enforce it, routes events through KOF's existing OTel pipeline into VictoriaLogs, and verifies the retention guarantee with LogsQL.
 
 ---
 
@@ -65,7 +57,6 @@ By completing this lab, you will be able to:
 - [ ] Propagate that policy to managed clusters via a `ClusterTemplate` (referenced from `ClusterDeployment`) and ship cross-cluster via a `ServiceTemplate` in a `MultiClusterService`
 - [ ] Route audit events through the existing KOF kof-collectors OTel Collector into VictoriaLogs (≥30-day retention)
 - [ ] Write and run LogsQL queries against VictoriaLogs for the five canonical audit questions
-- [ ] Produce SEC08 and K8S20 compliance artifacts
 
 ---
 
@@ -74,7 +65,7 @@ By completing this lab, you will be able to:
 - Lab 1.4 (Production configuration) — required
 - Lab 1.5 (Provision managed cluster) — required
 - Lab 1.6 (KOF) — **required** (KOF's VictoriaLogs is the canonical log store; you need the kof-collectors OTel Collector deployed on each cluster)
-- Lab 5.17 (KOF → DGXC OTel export) — recommended; without it you'll only retain logs locally in KOF VictoriaLogs and not forward them to DGXC
+- Lab 5.17 (KOF → external OTel export) — recommended; without it you'll only retain logs locally in KOF VictoriaLogs and not forward them to any external consumer
 - `kubectl`, `yq`, `jq`, `helm` (for adjusting kof-collectors values)
 
 ---
@@ -86,7 +77,7 @@ By completing this lab, you will be able to:
 | Capture level for `secrets` | Metadata (filename only) | RequestResponse (full value) | **Metadata** — never log secret payloads; you'd be writing them to your audit store |
 | Capture level for `events` | Drop entirely (None) | Metadata | **None** — events are noise at audit scale; aggregate them via Kubernetes events to KOF instead |
 | Hot log store | KOF VictoriaLogs (Mirantis-shipped) | External SIEM (Splunk / Sentinel / Chronicle, customer-provided) | **KOF VictoriaLogs** — already shipped by Mirantis as part of k0rdent Enterprise, OTel-native, no extra licensing. External SIEM is the addition when the customer mandates one — both can run in parallel via a second OTel exporter |
-| Retention enforcement | At ingestor (VictoriaLogs retention via Helm values) | At cold-storage tier (S3 lifecycle) | **Both** — VictoriaLogs for hot queries (≥30 days, configured via the kof-storage chart), S3 lifecycle for cold tier (90+ days) for SEC08 audit recoverability |
+| Retention enforcement | At ingestor (VictoriaLogs retention via Helm values) | At cold-storage tier (S3 lifecycle) | **Both** — VictoriaLogs for hot queries (≥30 days, configured via the kof-storage chart), S3 lifecycle for cold tier (90+ days) for long-term recoverability |
 | Audit log path | File on disk | Webhook to kof-collectors | **Webhook + file fallback** — webhook to the KOF OTel Collector avoids disk pressure; file remains as a panic-mode fallback when KOF is unreachable |
 
 ---
@@ -256,7 +247,7 @@ Bundle the audit policy ConfigMap into the `ClusterTemplate`'s rendered manifest
 
 The webhook from Part 2 already targets the kof-collectors OTel Collector. KOF then routes logs to **VictoriaLogs** in the regional `kof-storage` chart — that's the canonical log store. No Loki, no Elasticsearch.
 
-Patch the `kof-collectors` Helm values via the `MultiClusterService` KSM uses, adding an audit-specific pipeline that tags the events and forwards to VictoriaLogs plus (optionally) DGXC:
+Patch the `kof-collectors` Helm values via the `MultiClusterService` KSM uses, adding an audit-specific pipeline that tags the events and forwards to VictoriaLogs plus (optionally) an external receiver:
 
 ```yaml
 # values-patch for the kof-collectors MultiClusterService
@@ -281,9 +272,9 @@ opentelemetry-collector:
         endpoint: https://vmauth.${REGIONAL_DOMAIN}/vls/insert/opentelemetry
         auth:
           authenticator: basicauth/victorialogs
-      # Optional: also fan out to DGXC via the exporter from Lab 5.17
-      otlphttp/dgxc:
-        endpoint: ${env:DGXC_OTLP_ENDPOINT}
+      # Optional: also fan out externally via the exporter from Lab 5.17
+      otlphttp/external:
+        endpoint: ${env:EXTERNAL_OTLP_ENDPOINT}
         tls: { cert_file: /etc/otel/tls/tls.crt, key_file: /etc/otel/tls/tls.key, ca_file: /etc/otel/tls/ca.crt }
     extensions:
       basicauth/victorialogs:
@@ -305,10 +296,10 @@ VictoriaLogs retention is configured on the regional cluster via the kof-storage
 # kof-storage values override (regional cluster)
 victoria-logs-single:
   server:
-    retentionPeriod: 35d   # ≥30 day SEC08 floor + headroom; storage usage scales linearly
+    retentionPeriod: 35d   # 30-day floor + headroom; storage usage scales linearly
 ```
 
-For cold tier beyond 30 days: VictoriaLogs supports streaming to object storage via its own `vlbackup` workflow, or you can add a second OTel pipeline that writes to S3 directly with `awss3` exporter. Either gets you ≥7 years of cold archive for SEC08.
+For cold tier beyond 30 days: VictoriaLogs supports streaming to object storage via its own `vlbackup` workflow, or you can add a second OTel pipeline that writes to S3 directly with `awss3` exporter. Either gets you ≥7 years of cold archive when long-term retention is required.
 
 ---
 
@@ -327,7 +318,7 @@ VM_PASS=$(kubectl -n kof get secret storage-vmuser-credentials -o jsonpath='{.da
 QUERY_URL="https://vmauth.${REGIONAL_DOMAIN}/vls/select/logsql/query"
 ```
 
-These are the questions a NCP audit (or a security incident) asks. Be able to answer all five within minutes.
+These are the questions a security incident (or any operational investigation) will ask. Be able to answer all five within minutes.
 
 **1. Who deleted `secret/tenant-a-prod` last Tuesday?**
 
@@ -362,35 +353,9 @@ _time:1h AND log.source:k8s.audit AND responseStatus.code:[400 TO 499]
   | fields _time, user.username, responseStatus.code, responseStatus.message
 ```
 
-Capture these as saved queries (drop them in a `SEC08-saved-queries.txt` artifact); they're part of the audit bundle.
+Capture these as saved LogsQL queries in your runbook; they're the muscle memory you want before an incident.
 
 > **LogsQL reference:** [VictoriaLogs LogsQL syntax](https://docs.victoriametrics.com/victorialogs/logsql/) (canonical upstream — Mirantis ships VictoriaLogs unmodified in KOF).
-
----
-
-## Part 6: Produce the compliance-pack artifacts
-
-```bash
-# 1. Audit policy
-cp /etc/k0s/audit-policy.yaml SEC08-audit-policy.yaml
-
-# 2. Retention evidence
-cat > SEC08-retention-evidence.md <<EOF
-# SEC08 Retention Evidence
-- Hot store: KOF VictoriaLogs (kof-storage chart, regional cluster), retentionPeriod=35d
-- Cold tier: S3 bucket \`ncp-audit-cold\`, lifecycle to Glacier @ 30d, retain 7 years (vlbackup or awss3 OTel exporter)
-- Sample LogsQL query against a 32-day-old timestamp: <attach result>
-- Audit policy SHA-256: $(sha256sum /etc/k0s/audit-policy.yaml | cut -d' ' -f1)
-EOF
-
-# 3. Control-plane log export config
-cat > K8S20-control-plane-log-export.md <<EOF
-# K8S20 Control Plane Log Export
-- apiserver: audit webhook → kof-collectors OTel Collector → kof-storage VictoriaLogs (+ DGXC via Lab 5.17 exporter)
-- kube-controller-manager: stdout → kof-collectors filelog receiver → VictoriaLogs (+ DGXC)
-- Sample LogsQL queries: SEC08-saved-queries.txt
-EOF
-```
 
 ---
 
@@ -405,7 +370,6 @@ EOF
 - [ ] All five sample queries from Part 5 succeed
 - [ ] `ClusterDeployment` references a `ClusterTemplate` that ships the audit policy
 - [ ] Secret/configmap audit captures Metadata only — no payloads visible in logs
-- [ ] Artifacts SEC08-*, K8S20-* produced and Req-ID-stamped
 
 ---
 
@@ -428,7 +392,7 @@ EOF
 - **KOF VictoriaLogs is the canonical log store for k0rdent Enterprise.** No Loki, no Elasticsearch — those are not what Mirantis ships.
 - **Never log secret payloads.** Metadata level is the rule; RequestResponse on secrets is a finding waiting to happen.
 - **30 days is the floor, not the target.** Pick something with headroom (35 d hot, 7 years cold).
-- **The compliance artifact is the policy + a LogsQL query that proves retention.** Both are short; both are what an audit will read.
+- **The deliverable is a documented audit policy + a saved LogsQL query that proves the retention guarantee.** Both are short; both are what an operator or auditor will read.
 
 ---
 

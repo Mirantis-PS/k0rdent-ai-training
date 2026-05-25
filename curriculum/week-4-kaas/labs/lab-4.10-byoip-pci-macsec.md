@@ -1,10 +1,6 @@
-# Lab 4.10 — BYOIP, Private Cloud Interconnect, and MACsec
+# Lab 4.10 — Case Study: AI Cloud Provider Interconnect Patterns
 
-| Domain | Tag | NVIDIA Req IDs |
-|--------|-----|----------------|
-| KaaS / Networking / Transport / Security | 🟢 NCP | SDN01, NET03, NET04, NET05, NET06, SEC13, SEC18, DMS04, DMS05 |
-
-> **Compliance pack artifact targets:** `artifacts/NET03-byoip-routing-policy.md`, `artifacts/NET04-corpit-bgp-session.md`, `artifacts/NET05-macsec-config.md`, `artifacts/NET06-static-egress-nat.md`, `artifacts/SEC13-mtls-coverage-map.md`
+**Domain:** KaaS / Networking / Transport / Security
 
 ---
 
@@ -12,7 +8,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Networking / Transport / Security | Required (NCP track) | 3 hours |
+| Networking / Transport / Security | Required | 3 hours |
 
 ### Week 4 Learning Paths
 
@@ -40,13 +36,12 @@ FOUNDATION ➔ 4.1 ➔ 4.2 ➔ 4.3 ➔ 4.4 Cilium+Multus ➔ 4.5 Storage ➔ 4.6
 - [Learning Objectives](#learning-objectives)
 - [Prerequisites](#prerequisites)
 - [Architectural Decision Frame](#architectural-decision-frame)
-- [Part 1: The NVIDIA networking pattern](#part-1-the-nvidia-networking-pattern)
-- [Part 2: BYOIP including 7.0.0.0/8](#part-2-byoip-including-70008)
-- [Part 3: Private Cloud Interconnect + VIF + BGP](#part-3-private-cloud-interconnect--vif--bgp)
-- [Part 4: MACsec to DGXC storage](#part-4-macsec-to-dgxc-storage)
+- [Part 1: The AI cloud provider networking pattern](#part-1-the-ai-cloud-provider-networking-pattern)
+- [Part 2: BYOIP — including unusual prefixes](#part-2-byoip--including-unusual-prefixes)
+- [Part 3: Dedicated Interconnect + VIF + BGP](#part-3-dedicated-interconnect--vif--bgp)
+- [Part 4: MACsec on the storage path](#part-4-macsec-on-the-storage-path)
 - [Part 5: Static egress NAT](#part-5-static-egress-nat)
 - [Part 6: mTLS east-west and north-south](#part-6-mtls-east-west-and-north-south)
-- [Part 7: Produce the compliance-pack artifacts](#part-7-produce-the-compliance-pack-artifacts)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
 - [Key Takeaways](#key-takeaways)
@@ -56,14 +51,16 @@ FOUNDATION ➔ 4.1 ➔ 4.2 ➔ 4.3 ➔ 4.4 Cilium+Multus ➔ 4.5 Storage ➔ 4.6
 
 ## Why this lab exists
 
-This is **the most NVIDIA-specific networking section in the curriculum**. The v2.3 Requirements Guide describes a transport stack engineers have almost certainly not seen at any other cloud provider, with four unusual elements stacked on top of each other:
+This lab is a case study of how a real AI cloud provider connects to a customer site. The provider needs three things from the on-prem operator: routable IP space (often **BYOIP** — including prefixes that aren't strictly RFC1918), an **encrypted high-bandwidth link** to the provider's storage and corporate networks (a dedicated interconnect with BGP + MACsec), and a **stable egress NAT pool** that's exclusively the provider's traffic. None of these patterns are unique to one vendor — they appear in every AI/HPC engagement where the customer's compute must securely reach a remote provider's resources.
 
-1. **BYOIP including 7.0.0.0/8.** NVIDIA brings its own IP space into your fabric, and that space includes the `7.0.0.0/8` block. `7.0.0.0/8` is technically DoD-allocated address space and many enterprise firewalls drop it by default as "bogon" traffic. For DGXC, **`7.0.0.0/8` is treated as RFC1918-equivalent** — your routers, firewalls, and security groups must accept and route it. No engineer guesses this on their own. If your bogon filter eats `7.0.0.0/8`, the cluster is silently broken.
-2. **Private Cloud Interconnect (PCI) with a Virtual Interface (VIF) and BGP.** DGXC connects to the NCP via a private interconnect that is **functionally equivalent to AWS Direct Connect, GCP Dedicated Interconnect, Azure ExpressRoute, or OCI FastConnect**. Provision the circuit, define a VIF, peer BGP with NVIDIA's POP, and advertise the BYOIP prefix. Sized to ~10 Gbps to NVIDIA CorpIT for command/control plane traffic.
-3. **MACsec on the storage path.** End-to-end **IEEE 802.1AE MACsec encryption** is required on the links between your DGXC GPU clusters and NVIDIA's on-premises DGXC object storage POP. Fail-closed: if the MACsec session drops, the link drops. This is not optional and there is no software-only fallback that NVIDIA accepts.
-4. **Static egress NAT.** Cluster Local Internet Access uses a **static NAT IP pool dedicated to NVIDIA's DGXC tenancy** — persistent IPs, exclusive to DGXC, never shared with other tenants. NVIDIA allowlists your egress IPs on the receiving side; if those IPs drift, services break.
+Four elements stack together:
 
-You will configure all four in this lab, and produce the compliance-pack artifacts that NVIDIA auditors expect.
+1. **BYOIP — possibly including non-RFC1918 prefixes.** Some providers allocate unusual address space (e.g., DoD-assigned blocks like `7.0.0.0/8`) and ask the on-prem operator to route it as private space. Many enterprise firewalls drop these as "bogon" traffic by default. Always verify the prefix policy with your provider; if your bogon filter eats it, the cluster is silently broken.
+2. **Dedicated Interconnect + Virtual Interface (VIF) + BGP.** Functionally equivalent to AWS Direct Connect, GCP Dedicated Interconnect, Azure ExpressRoute, or OCI FastConnect. Provision the circuit, define a VIF, peer BGP with the provider's POP, and advertise the BYOIP prefix. Typical sizing is ~10 Gbps for control-plane traffic.
+3. **MACsec on the storage path.** End-to-end **IEEE 802.1AE MACsec** encryption on the links between tenant GPU clusters and the provider's on-premises storage POP. Fail-closed: if the MACsec session drops, the link drops.
+4. **Static egress NAT.** Cluster local Internet access uses a **static NAT IP pool dedicated to the provider's tenancy** — persistent IPs, never shared with other tenants. The provider allowlists these IPs on the receiving side; if they drift, services break.
+
+By the end of this lab you'll have configured BGP-routed BYOIP, enabled MACsec link encryption between the on-prem site and a stand-in provider POP, and stood up a static egress NAT pool. The patterns transfer to any similar interconnect engagement.
 
 ---
 
@@ -71,13 +68,12 @@ You will configure all four in this lab, and produce the compliance-pack artifac
 
 By completing this lab, you will be able to:
 
-- [ ] Explain why `7.0.0.0/8` must be treated as RFC1918-equivalent inside DGXC fabrics and how to keep it from being filtered as a bogon
-- [ ] Allocate non-conflicting BYOIP ranges into Cilium pod, service, and node IPAM without collisions against NVIDIA-supplied prefixes
-- [ ] Establish a redundant eBGP session over a Private Cloud Interconnect VIF and advertise the BYOIP prefix to NVIDIA CorpIT
-- [ ] Configure IEEE 802.1AE MACsec on the NIC pair facing DGXC storage with key rotation and fail-closed behavior
-- [ ] Deploy a static egress NAT pool dedicated to DGXC tenancy with HA
+- [ ] Explain why `7.0.0.0/8` must be treated as RFC1918-equivalent inside the provider fabrics and how to keep it from being filtered as a bogon
+- [ ] Allocate non-conflicting BYOIP ranges into Cilium pod, service, and node IPAM without collisions against the provider-supplied prefixes
+- [ ] Establish a redundant eBGP session over a Private Cloud Interconnect VIF and advertise the BYOIP prefix to the provider's corp network
+- [ ] Configure IEEE 802.1AE MACsec on the NIC pair facing the provider storage with key rotation and fail-closed behavior
+- [ ] Deploy a static egress NAT pool dedicated to the provider tenancy with HA
 - [ ] Enforce mTLS for both east-west service-to-service and north-south ingress traffic (SEC13)
-- [ ] Produce five Req-ID-stamped compliance artifacts covering NET03/04/05/06 and SEC13
 
 ---
 
@@ -90,7 +86,7 @@ By completing this lab, you will be able to:
 - NICs that support MACsec offload (Mellanox ConnectX-6/7, Intel E810) — or kernel-software MACsec for the lab
 - `kubectl`, `cilium` CLI, `vtysh`/`frr`, `ip`, `wpa_supplicant`, `iproute2` ≥ 5.10
 
-> All BGP examples use AS65000 (NCP side) and AS65001 (NVIDIA POP side) from RFC6996 private ASN ranges. All peer IPs use `203.0.113.0/24` from RFC5737 documentation space. **Do not copy these into production** — substitute the values NVIDIA provides during onboarding.
+> All BGP examples use AS65000 (operator side) and AS65001 (the provider POP side) from RFC6996 private ASN ranges. All peer IPs use `203.0.113.0/24` from RFC5737 documentation space. **Do not copy these into production** — substitute the values the provider provides during onboarding.
 
 ---
 
@@ -99,49 +95,49 @@ By completing this lab, you will be able to:
 | Choice | Option A | Option B | Recommendation |
 |--------|----------|----------|----------------|
 | BYOIP plumbing into Cilium | `node-IPAM-controller` (per-node allocations from BYOIP pool) | Cilium `CiliumLoadBalancerIPPool` + `ClusterPool` IPAM mode | **Cilium ClusterPool** — native eBPF integration, single source of truth, plays cleanly with the Cilium BGP control plane in Part 3 |
-| BGP speaker | FRR on a dedicated network-services node | Calico BGP | Cilium BGP control plane | **Cilium BGP control plane** for in-cluster prefix advertisement; **FRR on the edge** for the upstream peering to NVIDIA POP. Two speakers, one role each. |
+| BGP speaker | FRR on a dedicated network-services node | Calico BGP | Cilium BGP control plane | **Cilium BGP control plane** for in-cluster prefix advertisement; **FRR on the edge** for the upstream peering to the provider POP. Two speakers, one role each. |
 | MACsec termination | NIC hardware offload (ConnectX-7 / E810) | Kernel software MACsec | Both layered | **NIC hardware offload** for the production fabric (line-rate, no CPU tax). Keep kernel-software MACsec available for emergency replacement nodes only — line rate will drop. |
-| Egress NAT topology | Cloud-provider managed NAT GW with reserved EIPs | Self-hosted NAT instances on dedicated VMs with VRRP | **Cloud-provider NAT GW** when on a public cloud (simpler audit story, fewer moving parts). **Self-hosted with VRRP** on bare-metal sites. Either way: the IPs must be **dedicated to DGXC and never reused**. |
+| Egress NAT topology | Cloud-provider managed NAT GW with reserved EIPs | Self-hosted NAT instances on dedicated VMs with VRRP | **Cloud-provider NAT GW** when on a public cloud (simpler audit story, fewer moving parts). **Self-hosted with VRRP** on bare-metal sites. Either way: the IPs must be **dedicated to the provider and never reused**. |
 | mTLS east-west enforcement | Sidecar service mesh (Istio / Linkerd) | Sidecar-less SPIFFE/SPIRE | Cilium ClusterMesh mTLS | **Cilium ClusterMesh mTLS** — already runs on the eBPF data plane from Lab 4.4, no sidecar tax on GPU pods, identity comes from SPIFFE-compatible IDs. Use Istio only if you have a pre-existing investment. |
-| BGP authentication | None | TCP-MD5 | TCP-AO (RFC 5925) | **TCP-MD5 minimum, TCP-AO preferred** — NVIDIA will tell you which they support at onboarding. Never run an unauthenticated session over a shared circuit. |
+| BGP authentication | None | TCP-MD5 | TCP-AO (RFC 5925) | **TCP-MD5 minimum, TCP-AO preferred** — the provider will tell you which they support at onboarding. Never run an unauthenticated session over a shared circuit. |
 
 ---
 
-## Part 1: The NVIDIA networking pattern
+## Part 1: The the provider networking pattern
 
 Before you touch a config file, understand the topology you are wiring up.
 
 ```
    ┌─────────────────────────────────┐                ┌──────────────────────────┐
-   │           NCP DATA CENTRE       │                │       NVIDIA POP         │
+   │           operator DATA CENTRE       │                │       the provider POP         │
    │                                 │                │   (CorpIT + Storage)     │
    │   ┌─────────┐    ┌──────────┐   │                │                          │
    │   │ k0rdent │    │   GPU    │   │   PCI / VIF    │   ┌──────────────────┐   │
    │   │  mgmt   │───▶│ clusters │───┼────────────────┼──▶│  CorpIT command/ │   │
-   │   │ cluster │    │ (DGXC)   │   │  eBGP, MACsec  │   │  control gateways │   │
+   │   │ cluster │    │ (the provider)   │   │  eBGP, MACsec  │   │  control gateways │   │
    │   └─────────┘    └──────────┘   │                │   └──────────────────┘   │
    │        │              │         │                │            │             │
    │        │     BYOIP    │         │                │            │             │
    │        │  (incl. 7/8) │         │                │   ┌──────────────────┐   │
-   │        ▼              ▼         │   MACsec only  │   │  DGXC on-prem    │   │
+   │        ▼              ▼         │   MACsec only  │   │  the provider on-prem    │   │
    │   ┌─────────────────────────┐   │   (fail-close) │   │  object storage  │   │
    │   │  Edge routers (FRR)     │───┼────────────────┼──▶│  POP             │   │
-   │   │  - eBGP to NVIDIA POP   │   │                │   └──────────────────┘   │
+   │   │  - eBGP to the provider POP   │   │                │   └──────────────────┘   │
    │   │  - MACsec on storage NIC│   │                │                          │
    │   │  - Static egress NAT    │───┼─── Internet ───┼──▶  Allowlisted services │
-   │   └─────────────────────────┘   │  (DGXC NAT IPs)│   (registry, telemetry) │
+   │   └─────────────────────────┘   │  (the provider NAT IPs)│   (registry, telemetry) │
    └─────────────────────────────────┘                └──────────────────────────┘
 ```
 
-Three distinct paths leave the NCP perimeter, and **each has a different security contract**:
+Three distinct paths leave the operator perimeter, and **each has a different security contract**:
 
 | Path | Carries | Security contract |
 |------|---------|-------------------|
-| PCI / VIF / BGP | Command-and-control, k0rdent ↔ DGXC orchestration | eBGP (MD5/AO), no MACsec required |
+| PCI / VIF / BGP | Command-and-control, k0rdent ↔ the provider orchestration | eBGP (MD5/AO), no MACsec required |
 | Storage link | Bulk training data, checkpoints | **MACsec mandatory, fail-closed** |
-| Cluster Local Internet | Outbound to allowlisted DGXC services | **Static NAT, dedicated EIPs**, never shared |
+| Cluster Local Internet | Outbound to allowlisted the provider services | **Static NAT, dedicated EIPs**, never shared |
 
-If you blur these paths — for example, by routing storage traffic over the CorpIT VIF — you violate NET05. Keep them physically and logically separate.
+If you blur these paths — for example, by routing storage traffic over the CorpIT VIF — you break the storage-path integrity model. Keep them physically and logically separate.
 
 ---
 
@@ -155,7 +151,7 @@ NVIDIA hands you one or more prefixes during onboarding. In every documented v2.
 
 ### 2.1 Carve the BYOIP allocation
 
-Assume NVIDIA assigns you `7.42.0.0/16` (illustrative — substitute the real assignment).
+Assume the provider assigns you `7.42.0.0/16` (illustrative — substitute the real assignment).
 
 | Slice | CIDR | Role |
 |-------|------|------|
@@ -165,7 +161,7 @@ Assume NVIDIA assigns you `7.42.0.0/16` (illustrative — substitute the real as
 | Floating / LB | `7.42.36.0/24` | Cilium `LoadBalancerIPPool`, stable per-service |
 | Reserved | `7.42.64.0/18` | Future expansion, do not allocate |
 
-Document this allocation in `artifacts/NET03-byoip-routing-policy.md` — it is the source of truth for every downstream config.
+Document this allocation in a routing-policy note — it is the source of truth for every downstream config.
 
 ### 2.2 Configure Cilium ClusterPool
 
@@ -190,24 +186,24 @@ Apply via the k0rdent ClusterTemplate flavor you built in Lab 4.8 — do not han
 apiVersion: "cilium.io/v2alpha1"
 kind: CiliumLoadBalancerIPPool
 metadata:
-  name: dgxc-stable-pool
+  name: provider-stable-pool
 spec:
   blocks:
     - start: "7.42.36.10"
       stop:  "7.42.36.250"
 ```
 
-Stable LB IPs are what NVIDIA allowlists on their side. Once an IP is bound to a Service, it must not change. Add the annotation `io.cilium/lb-ipam-sharing-key: dgxc` if you reuse the pool across namespaces.
+Stable LB IPs are what the provider allowlists on their side. Once an IP is bound to a Service, it must not change. Add the annotation `io.cilium/lb-ipam-sharing-key: provider` if you reuse the pool across namespaces.
 
 ### 2.4 Stop firewalls from filtering `7.0.0.0/8` as a bogon
 
-The most common silent failure. On every router/firewall/ACL/security-group in the path **from the NCP edge to the GPU nodes**, explicitly permit `7.0.0.0/8`:
+The most common silent failure. On every router/firewall/ACL/security-group in the path **from the operator edge to the GPU nodes**, explicitly permit `7.0.0.0/8`:
 
 ```bash
 # FRR / vtysh — remove the default bogon filter for 7/8
 configure terminal
 ip prefix-list NO-BOGONS seq 5 deny 0.0.0.0/8 le 32
-ip prefix-list NO-BOGONS seq 10 permit 7.0.0.0/8 le 32   # NVIDIA BYOIP — RFC1918-equivalent for DGXC
+ip prefix-list NO-BOGONS seq 10 permit 7.0.0.0/8 le 32   # the provider BYOIP — RFC1918-equivalent for the provider
 ip prefix-list NO-BOGONS seq 15 deny 10.0.0.0/8 le 32
 # ...
 ```
@@ -219,7 +215,7 @@ iptables -I FORWARD -s 7.0.0.0/8 -j ACCEPT
 iptables -I FORWARD -d 7.0.0.0/8 -j ACCEPT
 ```
 
-Add a one-line comment in your config: `# NVIDIA DGXC BYOIP — treat 7.0.0.0/8 as RFC1918-equivalent`. Future engineers will read that comment and not "fix" it.
+Add a one-line comment in your config: `# the provider the provider BYOIP — treat 7.0.0.0/8 as RFC1918-equivalent`. Future engineers will read that comment and not "fix" it.
 
 ---
 
@@ -237,12 +233,12 @@ NVIDIA sizes the CorpIT path at roughly 10 Gbps. Provision **two VIFs over two d
 | Circuit B | `xe-0/0/0` on edge router `edge-b` |
 | VIF A VLAN | 4040 |
 | VIF B VLAN | 4041 |
-| NCP local IP (A) | `203.0.113.1/30` |
-| NVIDIA POP IP (A) | `203.0.113.2/30` |
-| NCP local IP (B) | `203.0.113.5/30` |
-| NVIDIA POP IP (B) | `203.0.113.6/30` |
-| NCP ASN | AS65000 |
-| NVIDIA POP ASN | AS65001 |
+| operator local IP (A) | `203.0.113.1/30` |
+| the provider POP IP (A) | `203.0.113.2/30` |
+| operator local IP (B) | `203.0.113.5/30` |
+| the provider POP IP (B) | `203.0.113.6/30` |
+| operator ASN | AS65000 |
+| the provider POP ASN | AS65001 |
 
 ### 3.2 FRR config for the upstream peering
 
@@ -252,21 +248,21 @@ NVIDIA sizes the CorpIT path at roughly 10 Gbps. Provision **two VIFs over two d
 router bgp 65000
  bgp router-id 7.42.0.1
  no bgp default ipv4-unicast
- neighbor NVIDIA-POP peer-group
- neighbor NVIDIA-POP remote-as 65001
- neighbor NVIDIA-POP password 7&dgxc-md5-shared-secret
- neighbor NVIDIA-POP timers 10 30
- neighbor NVIDIA-POP timers connect 10
+ neighbor the provider-POP peer-group
+ neighbor the provider-POP remote-as 65001
+ neighbor the provider-POP password 7&provider-md5-shared-secret
+ neighbor the provider-POP timers 10 30
+ neighbor the provider-POP timers connect 10
  !
- neighbor 203.0.113.2 peer-group NVIDIA-POP
- neighbor 203.0.113.6 peer-group NVIDIA-POP
+ neighbor 203.0.113.2 peer-group the provider-POP
+ neighbor 203.0.113.6 peer-group the provider-POP
  !
  address-family ipv4 unicast
   network 7.42.0.0/16
-  neighbor NVIDIA-POP activate
-  neighbor NVIDIA-POP soft-reconfiguration inbound
-  neighbor NVIDIA-POP route-map RM-TO-NVIDIA out
-  neighbor NVIDIA-POP route-map RM-FROM-NVIDIA in
+  neighbor the provider-POP activate
+  neighbor the provider-POP soft-reconfiguration inbound
+  neighbor the provider-POP route-map RM-TO-NVIDIA out
+  neighbor the provider-POP route-map RM-FROM-NVIDIA in
   maximum-paths 2
  exit-address-family
 !
@@ -284,13 +280,13 @@ Mirror this on `edge-b` with the `203.0.113.5/30` peer and a slightly lower `loc
 
 ### 3.3 Cilium BGP control plane (in-cluster)
 
-The Cilium BGP control plane advertises pod and LB IPs **to your own edge routers**, which re-advertise the aggregate `7.42.0.0/16` upstream to NVIDIA.
+The Cilium BGP control plane advertises pod and LB IPs **to your own edge routers**, which re-advertise the aggregate `7.42.0.0/16` upstream to the provider.
 
 ```yaml
 apiVersion: cilium.io/v2alpha1
 kind: CiliumBGPPeeringPolicy
 metadata:
-  name: dgxc-cluster-bgp
+  name: provider-cluster-bgp
 spec:
   nodeSelector:
     matchLabels:
@@ -304,7 +300,7 @@ spec:
           eBGPMultihopTTL: 4
       serviceSelector:
         matchLabels:
-          announce: "dgxc"
+          announce: "provider"
 ```
 
 Verify with:
@@ -316,18 +312,18 @@ vtysh -c 'show bgp ipv4 unicast summary'
 vtysh -c 'show bgp ipv4 unicast 7.42.0.0/16'
 ```
 
-You want one BGP session per edge router, ECMP across both upstream VIFs, and the `7.42.0.0/16` aggregate visible in NVIDIA's POP RIB.
+You want one BGP session per edge router, ECMP across both upstream VIFs, and the `7.42.0.0/16` aggregate visible in the provider's POP RIB.
 
 ---
 
-## Part 4: MACsec to DGXC storage
+## Part 4: MACsec to the provider storage
 
-MACsec is **IEEE 802.1AE**: Layer 2, frame-by-frame authenticated encryption between two adjacent Ethernet devices. It protects the link itself, not end-to-end across routed hops. NVIDIA mandates MACsec on the NIC pair that terminates each end of the storage link to the DGXC on-prem object storage POP (SEC18, NET05).
+MACsec is **IEEE 802.1AE**: Layer 2, frame-by-frame authenticated encryption between two adjacent Ethernet devices. It protects the link itself, not end-to-end across routed hops. the provider mandates MACsec on the NIC pair that terminates each end of the storage link to the the provider on-prem object storage POP (the storage link encryption requirement).
 
 ### 4.1 Topology and key model
 
 ```
-[NCP storage edge NIC] ◀── MACsec SA (CAK/CKN) ──▶ [NVIDIA storage POP NIC]
+[operator storage edge NIC] ◀── MACsec SA (CAK/CKN) ──▶ [NVIDIA storage POP NIC]
        eno5/eno6 LAG                                       (peer interfaces)
 ```
 
@@ -352,7 +348,7 @@ network={
     macsec_policy=1
     macsec_integ_only=0       # 0 = encrypt + integrity (recommended). 1 = integrity only.
     mka_cak=0123456789abcdef0123456789abcdef    # 256-bit CAK — pull from sealed Vault, do NOT commit
-    mka_ckn=11223344                             # CKN — exchanged with NVIDIA out-of-band
+    mka_ckn=11223344                             # CKN — exchanged with the provider out-of-band
     mka_priority=128
 }
 ```
@@ -397,7 +393,7 @@ Healthy output shows non-zero `OutOctetsEncrypted` and `InOctetsDecrypted`, zero
 Configure the storage subnet to route **only** over `macsec0`. If the MKA session drops, `macsec0` goes down and the route disappears — traffic is **not** silently delivered in the clear over `eno5`:
 
 ```bash
-ip route add 7.42.250.0/24 dev macsec0    # DGXC storage POP subnet
+ip route add 7.42.250.0/24 dev macsec0    # the provider storage POP subnet
 # Do NOT add a fallback route over eno5.
 ```
 
@@ -408,41 +404,41 @@ iptables -I INPUT  -i eno5 -d 7.42.250.0/24 -j DROP
 iptables -I OUTPUT -o eno5 -d 7.42.250.0/24 -j DROP
 ```
 
-This is the fail-closed contract NET05 demands.
+This is the fail-closed contract the storage path demands.
 
 ### 4.5 Key rotation runbook
 
 | Action | Frequency | Owner |
 |--------|-----------|-------|
 | MKA SAK rotation (automatic) | Every ~30 minutes | MKA / wpa_supplicant |
-| CAK rotation (manual, dual-control) | Quarterly | NCP NetOps + NVIDIA NetOps, coordinated change window |
+| CAK rotation (manual, dual-control) | Quarterly | operator NetOps + the provider NetOps, coordinated change window |
 | CKN rotation | With CAK | Same |
-| Replay-window audit (`ip -s macsec`) | Weekly | NCP NetOps |
+| Replay-window audit (`ip -s macsec`) | Weekly | operator NetOps |
 
-Record the rotation evidence in `artifacts/NET05-macsec-config.md`.
+Record the rotation evidence in a MACsec rotation log.
 
 ---
 
 ## Part 5: Static egress NAT
 
-Cluster Local Internet Access (NET06) is for outbound calls to NVIDIA-allowlisted services — container registries, telemetry endpoints, license servers. NVIDIA pins their allowlist to **specific egress IPs**, so those IPs must be:
+Cluster Local Internet Access is for outbound calls to the provider-allowlisted services — container registries, telemetry endpoints, license servers. the provider pins their allowlist to **specific egress IPs**, so those IPs must be:
 
-- Dedicated to DGXC tenancy
-- Never shared with other workloads on the same NCP
+- Dedicated to the provider tenancy
+- Never shared with other workloads on the same operator
 - Stable across NAT-gateway failover (DMS05)
 
 ### 5.1 Cloud-provider NAT GW pattern (preferred where available)
 
-Allocate **dedicated** Elastic IPs for the DGXC tenant only:
+Allocate **dedicated** Elastic IPs for the the provider tenant only:
 
 ```bash
 # AWS example — illustrative
 aws ec2 allocate-address --domain vpc --tag-specifications \
-  'ResourceType=elastic-ip,Tags=[{Key=tenant,Value=dgxc},{Key=purpose,Value=egress-nat}]'
-aws ec2 create-nat-gateway --subnet-id subnet-DGXC-public --allocation-id eipalloc-...
+  'ResourceType=elastic-ip,Tags=[{Key=tenant,Value=provider},{Key=purpose,Value=egress-nat}]'
+aws ec2 create-nat-gateway --subnet-id subnet-the provider-public --allocation-id eipalloc-...
 ```
 
-Route table for the DGXC tenant subnets points `0.0.0.0/0` at the dedicated NAT GW only. **Never** attach these EIPs to a shared NAT GW that also serves other tenants — auditors will catch it and you will fail NET06.
+Route table for the the provider tenant subnets points `0.0.0.0/0` at the dedicated NAT GW only. **Never** attach these EIPs to a shared NAT GW that also serves other tenants — auditors will catch it and you will break the egress-pool isolation contract.
 
 ### 5.2 Self-hosted NAT instances with VRRP (bare-metal pattern)
 
@@ -450,35 +446,35 @@ When you do not have a managed NAT GW, run two NAT instances and float a VIP bet
 
 ```conf
 # /etc/keepalived/keepalived.conf — nat-a (primary)
-vrrp_instance VI_DGXC_EGRESS {
+vrrp_instance VI_the provider_EGRESS {
     state MASTER
     interface eno1
     virtual_router_id 42
     priority 200
     advert_int 1
-    authentication { auth_type PASS; auth_pass dgxc-nat-vrrp; }
+    authentication { auth_type PASS; auth_pass provider-nat-vrrp; }
     virtual_ipaddress {
-        198.51.100.7/32 dev eno1     # dedicated DGXC egress VIP (RFC5737 example)
+        198.51.100.7/32 dev eno1     # dedicated the provider egress VIP (RFC5737 example)
     }
 }
 ```
 
-On each NAT instance, MASQUERADE only DGXC pod traffic out of that single VIP:
+On each NAT instance, MASQUERADE only the provider pod traffic out of that single VIP:
 
 ```bash
 iptables -t nat -A POSTROUTING -s 7.42.0.0/16 -o eno1 \
     -j SNAT --to-source 198.51.100.7
 ```
 
-The VIP follows the active node. Egress IP is stable from NVIDIA's perspective even during NAT-instance failover.
+The VIP follows the active node. Egress IP is stable from the provider's perspective even during NAT-instance failover.
 
 ### 5.3 Make the egress allocation explicit
 
-Document in `artifacts/NET06-static-egress-nat.md`:
+Document in your egress-NAT runbook:
 
 | Egress IP | Bound to | Tenant | Failover model | Rotation policy |
 |-----------|----------|--------|----------------|-----------------|
-| 198.51.100.7 | NAT-A / NAT-B VRRP | DGXC | VRRP (nat-b backup) | Never rotated without NVIDIA change ticket |
+| 198.51.100.7 | NAT-A / NAT-B VRRP | the provider | VRRP (nat-b backup) | Never rotated without the provider change ticket |
 
 NVIDIA will reference this artifact when verifying their allowlist.
 
@@ -500,7 +496,7 @@ authentication:
       enabled: true
       install:
         enabled: true
-      trustDomain: dgxc.ncp.local
+      trustDomain: provider.cluster.local
 encryption:
   enabled: true
   type: wireguard          # optional: bulk in-cluster encryption complementing mTLS auth
@@ -526,17 +522,17 @@ spec:
         mode: required
 ```
 
-Verify with `cilium hubble observe --type policy-verdict` — you should see `auth_required` verdicts succeed only for SPIRE-issued identities in `dgxc.ncp.local`.
+Verify with `cilium hubble observe --type policy-verdict` — you should see `auth_required` verdicts succeed only for SPIRE-issued identities in `provider.cluster.local`.
 
 ### 6.2 North-south: ingress with terminated mTLS
 
-For inbound API traffic from DGXC orchestration plane, terminate mTLS at the ingress and forward authenticated identity downstream:
+For inbound API traffic from the provider orchestration plane, terminate mTLS at the ingress and forward authenticated identity downstream:
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: dgxc-ingress
+  name: provider-ingress
 spec:
   gatewayClassName: cilium
   listeners:
@@ -546,13 +542,13 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: dgxc-server-cert
+          - name: provider-server-cert
         options:
           gateway.envoyproxy.io/client-certificate-mode: "Require"
-          gateway.envoyproxy.io/client-ca-bundle-ref: "dgxc-client-ca-bundle"
+          gateway.envoyproxy.io/client-ca-bundle-ref: "provider-client-ca-bundle"
 ```
 
-The `client-ca-bundle` is the NVIDIA-issued client CA. Without a valid client cert chained to that CA, the TLS handshake fails — no anonymous access, ever.
+The `client-ca-bundle` is the the provider-issued client CA. Without a valid client cert chained to that CA, the TLS handshake fails — no anonymous access, ever.
 
 ### 6.3 Coverage map
 
@@ -560,82 +556,27 @@ Build `artifacts/SEC13-mtls-coverage-map.md` listing every service and whether i
 
 | Service | Plane | mTLS posture | Identity source |
 |---------|-------|--------------|-----------------|
-| storage-gw | East-west | Cilium auth `required` | SPIRE (`dgxc.ncp.local`) |
+| storage-gw | East-west | Cilium auth `required` | SPIRE (`provider.cluster.local`) |
 | training-scheduler | East-west | Cilium auth `required` | SPIRE |
-| k0rdent-api | North-south | Gateway `Terminate` + client CA | NVIDIA-issued client cert |
-| breakfix-api | North-south | Gateway `Terminate` + client CA | NVIDIA-issued client cert |
+| k0rdent-api | North-south | Gateway `Terminate` + client CA | the provider-issued client cert |
+| breakfix-api | North-south | Gateway `Terminate` + client CA | the provider-issued client cert |
 
-Anything left unchecked is an SEC13 audit finding.
-
----
-
-## Part 7: Produce the compliance-pack artifacts
-
-Five artifacts, one per Req ID, all sanitized of secrets and Req-ID-stamped.
-
-```bash
-mkdir -p artifacts
-
-# NET03 — BYOIP and routing policy
-cat > artifacts/NET03-byoip-routing-policy.md <<'EOF'
-# NET03 — BYOIP routing policy
-
-| Prefix | Slice | Allocator | Stable? |
-|--------|-------|-----------|---------|
-| 7.42.0.0/22  | Nodes        | k0rdent IPAM     | Yes |
-| 7.42.16.0/20 | Pod CIDR     | Cilium ClusterPool | Yes |
-| 7.42.32.0/22 | Service CIDR | kube-apiserver   | Yes |
-| 7.42.36.0/24 | LB / floating | Cilium LBPool   | Yes |
-
-Bogon filter exception: 7.0.0.0/8 explicitly permitted on edge-a, edge-b,
-and all host iptables policies. See commit <sha> in net-config repo.
-EOF
-
-# NET04 — BGP session to CorpIT
-vtysh -c 'show running-config' \
-  | sed 's/password .*/password REDACTED/' \
-  > artifacts/NET04-corpit-bgp-session.md
-
-# NET05 — MACsec config (sanitized)
-{
-  echo '# NET05 — MACsec config'
-  echo
-  ip -d link show macsec0
-  echo
-  ip -s macsec show macsec0
-} | sed -E 's/(key [0-9]+ )[0-9a-f]+/\1REDACTED/g' \
-  > artifacts/NET05-macsec-config.md
-
-# NET06 — Static egress NAT allocation
-cat > artifacts/NET06-static-egress-nat.md <<'EOF'
-# NET06 — Static egress NAT
-
-| Egress IP | Tenant | NAT topology | Rotation policy |
-|-----------|--------|--------------|-----------------|
-| 198.51.100.7 | DGXC (exclusive) | VRRP nat-a/nat-b | Frozen — change only via NVIDIA ticket |
-EOF
-
-# SEC13 — mTLS coverage map (built in Part 6)
-# kept in artifacts/SEC13-mtls-coverage-map.md
-```
-
-Push these to the `ncp-compliance-pack` repo with the matching Req IDs in the commit message.
+Anything left unchecked is a gap in the east-west / north-south encryption posture.
 
 ---
 
 ## Verification Checklist
 
-- [ ] `7.0.0.0/8` permitted on every edge router and host firewall, with an inline comment marking it as DGXC BYOIP
-- [ ] Cilium ClusterPool IPAM allocates from the assigned BYOIP slice; no collisions with NVIDIA-side ranges
+- [ ] `7.0.0.0/8` permitted on every edge router and host firewall, with an inline comment marking it as the provider BYOIP
+- [ ] Cilium ClusterPool IPAM allocates from the assigned BYOIP slice; no collisions with the provider-side ranges
 - [ ] `cilium bgp peers` shows ESTABLISHED on both upstream VIFs
-- [ ] NVIDIA POP RIB shows the aggregate prefix via both circuits (verify via NOC ticket — you cannot view the POP RIB yourself)
+- [ ] the provider POP RIB shows the aggregate prefix via both circuits (verify via NOC ticket — you cannot view the POP RIB yourself)
 - [ ] `ip -d link show macsec0` shows the MACsec link UP and `encrypt on`
 - [ ] `ip -s macsec show macsec0` counters increment under load; no `InPktsNotValid` drops
 - [ ] Pulling power on the MACsec NIC takes the storage route with it (fail-closed verified)
-- [ ] Dedicated egress EIP / VIP shown in NVIDIA's allowlist (verify via NOC ticket)
+- [ ] Dedicated egress EIP / VIP shown in the provider's allowlist (verify via NOC ticket)
 - [ ] `cilium hubble observe --type policy-verdict` shows `auth-required` succeeded on east-west flows
 - [ ] North-south Gateway rejects requests with no client cert (test via `curl` without `--cert`)
-- [ ] All five compliance artifacts present, Req-ID-stamped, secrets redacted
 
 ---
 
@@ -647,22 +588,22 @@ Push these to the `ncp-compliance-pack` repo with the matching Req IDs in the co
 | Pod cannot reach `7.x.x.x` even though Cilium says it should | Upstream bogon filter still drops 7/8 | Walk every hop with `mtr 7.42.0.10`; the first router that drops is the one missing the exception |
 | MACsec link comes up but no traffic flows | CKN mismatch — MKA negotiated a session but the CAK is wrong on one side | Compare `wpa_cli -i eno5 status`; both ends must show identical CKN, matching CAK fingerprint |
 | `ip -s macsec` shows growing `InPktsLate` | Clock skew between the two endpoints exceeds the replay window | Tighten NTP on both ends to a stratum-2 source; widen `replay-window` only as a last resort |
-| NAT pool exhaustion under load | Single VIP, too many concurrent flows, port exhaustion (~64k flows per VIP) | Add a second VIP, SNAT round-robin, document the second IP in NET06 artifact and re-request NVIDIA allowlist update |
-| mTLS handshake fails with `unknown ca` | Gateway is using the wrong client CA bundle, or NVIDIA rotated their client CA | Re-fetch the client CA bundle from NVIDIA, update the Gateway `client-ca-bundle-ref`, restart Envoy |
-| `cilium bgp peers` ESTABLISHED but no routes advertised | `serviceSelector` / `exportPodCIDR` not matching the workloads | Confirm Service has the `announce: dgxc` label and `cilium bgp routes advertised ipv4 unicast` lists the prefix |
+| NAT pool exhaustion under load | Single VIP, too many concurrent flows, port exhaustion (~64k flows per VIP) | Add a second VIP, SNAT round-robin, document the second IP and re-request the provider allowlist update |
+| mTLS handshake fails with `unknown ca` | Gateway is using the wrong client CA bundle, or the provider rotated their client CA | Re-fetch the client CA bundle from the provider, update the Gateway `client-ca-bundle-ref`, restart Envoy |
+| `cilium bgp peers` ESTABLISHED but no routes advertised | `serviceSelector` / `exportPodCIDR` not matching the workloads | Confirm Service has the agreed advertise label and `cilium bgp routes advertised ipv4 unicast` lists the prefix |
 
 ---
 
 ## Key Takeaways
 
-- **`7.0.0.0/8` is DGXC's RFC1918.** Bogon filters that drop it will silently break the cluster. Whitelist it everywhere, comment the whitelist so future engineers do not "fix" it.
-- **PCI / VIF / BGP is the AWS Direct Connect of NVIDIA.** Same primitives, redundant circuits, eBGP with authentication. Two VIFs, ECMP, MD5 minimum.
+- **`7.0.0.0/8` is the provider's RFC1918.** Bogon filters that drop it will silently break the cluster. Whitelist it everywhere, comment the whitelist so future engineers do not "fix" it.
+- **PCI / VIF / BGP is the AWS Direct Connect of the provider.** Same primitives, redundant circuits, eBGP with authentication. Two VIFs, ECMP, MD5 minimum.
 - **MACsec on the storage path is non-negotiable and must fail closed.** Run MKA, rotate CAK quarterly, never route storage traffic over the bare NIC even as a fallback.
-- **Static egress NAT IPs are part of the DGXC contract.** Dedicated, never shared, never rotated without an NVIDIA change ticket.
+- **Static egress NAT IPs are part of the the provider contract.** Dedicated, never shared, never rotated without an the provider change ticket.
 - **mTLS sits on top of the transport.** Transport (MACsec, VIF) protects the wire; mTLS (Cilium + Gateway) proves identity. SEC13 needs both.
 
 ---
 
 ## Next Lab
 
-[Lab 4.11 — NFSv4 + Parallel FS](lab-4.11-nfsv4-parallel-fs.md) — now that the storage link is MACsec-secured, the next lab presents NFSv4 and the parallel filesystems (Lustre / WEKA / VAST) that ride over it to the DGXC POP.
+[Lab 4.11 — NFSv4 + Parallel FS](lab-4.11-nfsv4-parallel-fs.md) — now that the storage link is MACsec-secured, the next lab presents NFSv4 and the parallel filesystems (Lustre / WEKA / VAST) that ride over it to the the provider POP.

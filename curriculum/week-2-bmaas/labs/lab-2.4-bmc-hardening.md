@@ -1,10 +1,6 @@
-# Lab 2.4 — BMC Hardening for NCP
+# Lab 2.4 — BMC Hardening
 
-| Domain | Tag | NVIDIA Req IDs |
-|--------|-----|----------------|
-| BMaaS / Security | 🟢 NCP | SEC12 (BMC Security), CNP10 (Remote Management — Redfish over TLS, no IPMI), CNP06 (Console Access), CNP08 (Stable Identifiers) |
-
-> **Compliance pack artifact targets:** `artifacts/SEC12-bmc-network-isolation.md`, `artifacts/CNP10-redfish-config-snapshot.json`, `artifacts/CNP06-console-retention-policy.md`
+**Domain:** BMaaS / Security
 
 ---
 
@@ -12,7 +8,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| BMaaS / Security | Required (NCP track) | 1.5 hours |
+| BMaaS / Security | Required | 1.5 hours |
 
 | Previous | Current | Next |
 |----------|---------|------|
@@ -30,13 +26,13 @@
 - [Learning Objectives](#learning-objectives)
 - [Prerequisites](#prerequisites)
 - [Architectural Decision Frame](#architectural-decision-frame)
-- [Part 1: The BMC security posture NVIDIA expects](#part-1-the-bmc-security-posture-nvidia-expects)
+- [Part 1: The BMC security posture](#part-1-the-bmc-security-posture)
 - [Part 2: Network isolation — dedicated VLAN/VRF + jumphost](#part-2-network-isolation--dedicated-vlanvrf--jumphost)
 - [Part 3: Disable IPMI, enforce Redfish over TLS](#part-3-disable-ipmi-enforce-redfish-over-tls)
-- [Part 4: Stable identifiers (CNP08)](#part-4-stable-identifiers-cnp08)
-- [Part 5: Serial console access + retention (CNP06)](#part-5-serial-console-access--retention-cnp06)
-- [Part 6: Produce the compliance-pack artifacts](#part-6-produce-the-compliance-pack-artifacts)
+- [Part 4: Stable identifiers](#part-4-stable-identifiers)
+- [Part 5: Serial console access + retention](#part-5-serial-console-access--retention)
 - [Verification Checklist](#verification-checklist)
+
 - [Troubleshooting](#troubleshooting)
 - [Key Takeaways](#key-takeaways)
 - [Next Lab](#next-lab)
@@ -45,12 +41,7 @@
 
 ## Why this lab exists
 
-The v2.3 guide is unambiguous about BMC posture:
-
-- **SEC12** — *"Out-of-band management (BMC) must be on a dedicated, restricted network (physically separate or VLAN/VRF-isolated). Direct access from the public internet or general corporate networks must be blocked, and only accessed via a hardened bastion (jumphost) server."*
-- **CNP10** — *"Platform management solutions (e.g., BMC) must support Redfish over TLS (Disable IPMI)."*
-- **CNP06** — *"Serial console access is required (read-only sufficient, interactive preferred). Serial console output shall be logged and be available for historic queries (at least 1 month retention)."*
-- **CNP08** — *"All resources (e.g. nodes, switches) must have a stable and persistent ID that does not change during the lifespan."*
+The BMC is the highest-privilege surface in the stack — it can power-cycle, reflash, and console into the host independent of the OS. Treating it casually is the most common way to lose a fleet. This lab covers the standard hardening posture: dedicated management network, jumphost-only access, Redfish-over-TLS, disable IPMI, capture serial console output for forensics, and stamp stable identifiers that persist across firmware reset.
 
 Lab 2.2 covered BMC discovery — the happy-path setup. This lab puts the security perimeter around it.
 
@@ -66,7 +57,6 @@ By completing this lab, you will be able to:
 - [ ] Verify no IPMI ports are reachable from outside the BMC subnet
 - [ ] Stamp a stable identifier onto every BareMetalHost that persists across re-provision
 - [ ] Wire serial console output to a centralized log store with ≥30 day retention
-- [ ] Produce the SEC12/CNP10/CNP06 compliance-pack artifacts
 
 ---
 
@@ -86,12 +76,12 @@ By completing this lab, you will be able to:
 | BMC network isolation | Dedicated physical NIC + switch | VLAN/VRF on shared switching | **VLAN + VRF** — physical is gold standard but cost-prohibitive; VRF gives equivalent isolation when properly implemented |
 | Jumphost transport | SSH (line-mode) | mTLS-wrapped HTTPS proxy | **SSH with cert-based auth + session recording** — operators already know SSH; session recording satisfies audit |
 | BMC certificate authority | Public CA | Internal CA (cert-manager) | **Internal CA** — BMC certs are short-lived per node; cert-manager rotates them; you don't want public-CA bills + privacy exposure |
-| IPMI fallback | Allow on quarantined VLAN | Hard-disable | **Hard-disable where firmware supports it**, allow on quarantined VLAN otherwise — the v2.3 wording wants explicit disable |
-| Stable ID source | BMC GUID | Custom NCP-issued UUID | **Custom UUID** — survives BMC firmware reset / motherboard swap where GUID may not |
+| IPMI fallback | Allow on quarantined VLAN | Hard-disable | **Hard-disable where firmware supports it**, allow on quarantined VLAN otherwise — explicit disable is the safer posture |
+| Stable ID source | BMC GUID | Custom platform-issued UUID | **Custom UUID** — survives BMC firmware reset / motherboard swap where GUID may not |
 
 ---
 
-## Part 1: The BMC security posture NVIDIA expects
+## Part 1: The BMC security posture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -167,7 +157,7 @@ curl -kI https://10.99.0.10/redfish/v1/
 # Expected: HTTPS handshake succeeds (TLS will be tightened in Part 3)
 ```
 
-Document the diagram + ACL rules in `SEC12-bmc-network-isolation.md`.
+Document the diagram + ACL rules in a runbook your team can revisit (e.g., `bmc-network-isolation.md`).
 
 ---
 
@@ -246,7 +236,7 @@ Verify cert verification is enforced by attempting a connection with the wrong C
 
 ---
 
-## Part 4: Stable identifiers (CNP08)
+## Part 4: Stable identifiers
 
 Stable identifiers must persist across:
 
@@ -255,15 +245,15 @@ Stable identifiers must persist across:
 - Storage swap
 - OS re-provision
 
-Implementation: stamp a UUID generated by your NCP onto each chassis at first commissioning, store it in the `BareMetalHost` annotation, and project it onto:
+Implementation: stamp a UUID generated by your platform onto each chassis at first commissioning, store it in the `BareMetalHost` annotation, and project it onto:
 
 - the chassis asset tag (via Redfish `PATCH /Chassis/{id}` `AssetTag`)
-- the `Node` annotation `nvidia.com/node-ref` on every K8s provisioning
-- the diagnostics output (Lab 6.2 BFX03)
+- the `Node` annotation `platform/node-ref` on every K8s provisioning
+- the diagnostics output (Lab 6.2)
 
 ```bash
 # Generate stable ID once at commissioning
-STABLE_ID="nvr-$(uuidgen | cut -c1-8)-$(uuidgen | cut -c1-4)-$(uuidgen | cut -c1-4)"
+STABLE_ID="node-$(uuidgen | cut -c1-8)-$(uuidgen | cut -c1-4)-$(uuidgen | cut -c1-4)"
 echo "$STABLE_ID"
 
 # Stamp it on the chassis via Redfish
@@ -273,16 +263,16 @@ curl -k -u root:... -X PATCH \
   -d "{\"AssetTag\": \"$STABLE_ID\"}"
 
 # Stamp it on the BareMetalHost
-kubectl annotate bmh node01 nvidia.com/node-ref=$STABLE_ID --overwrite
+kubectl annotate bmh node01 platform/node-ref=$STABLE_ID --overwrite
 ```
 
-The CAP02 + CAP03 + BFX02 + BFX03 APIs all consume this ID. Don't reinvent it per surface.
+Every downstream inventory, diagnostics, and capacity API should consume this single ID. Don't reinvent it per surface.
 
 ---
 
-## Part 5: Serial console access + retention (CNP06)
+## Part 5: Serial console access + retention
 
-CNP06 requires:
+Standard expectations for BMC serial console:
 - Serial console access (read-only OK, interactive preferred)
 - Logged output
 - At least 1 month retention
@@ -305,38 +295,7 @@ ipmiconsole -h 10.99.0.10 -u sol -p ... 2>&1 \
   | logger -t bmc-sol -p local6.info --tag "bmc-sol node_ref=$STABLE_ID"
 ```
 
-Retention: forward syslog (TLS) to the OTel Gateway from Lab 5.17; downstream OTLP receiver (DGXC or your own log store) must retain ≥30 days. Document the retention policy in `CNP06-console-retention-policy.md`.
-
----
-
-## Part 6: Produce the compliance-pack artifacts
-
-```bash
-# 1. Network isolation diagram + ACL spec
-cat > SEC12-bmc-network-isolation.md <<'EOF'
-# BMC Network Isolation Posture
-- VLAN 100, VRF BMC-MGMT, RD 65001:100
-- No route leak
-- Jumphost: bmc-jump-01, only inbound from operator-VPN CIDR (10.10.0.0/16)
-- Outbound from BMCs: blocked
-- nmap negative test from external host: <attach>
-EOF
-
-# 2. Redfish config snapshot per BMC
-for bmc in $BMC_LIST; do
-  curl -ks -u root:... https://$bmc/redfish/v1/Managers/iDRAC.Embedded.1/NetworkProtocol \
-    | jq '{ host: "'"$bmc"'", IPMI: .IPMI, HTTPS: .HTTPS, SSH: .SSH, redfish_tls: .HTTPS.ProtocolEnabled }'
-done | jq -s '.' > CNP10-redfish-config-snapshot.json
-
-# 3. Console retention policy
-cat > CNP06-console-retention-policy.md <<'EOF'
-# Console Retention Policy
-- All node SOL captured via BMC, tagged with node_ref (per CNP08)
-- Forwarded via OTel (TLS) to DGXC-compatible log endpoint
-- Retention: 35 days (5 days headroom over the v2.3 30-day minimum)
-- Test query: `<example log query>` against the OTLP receiver
-EOF
-```
+Retention: forward syslog (TLS) to the OTel Collector from Lab 5.17; downstream OTLP receiver must retain ≥30 days.
 
 ---
 
@@ -350,7 +309,6 @@ EOF
 - [ ] Every `BareMetalHost` carries a `nvidia.com/node-ref` annotation matching the chassis AssetTag
 - [ ] SOL traffic from every node reaching the central log store
 - [ ] Log store retention ≥30 days, verified by sample query for >30-day-old data
-- [ ] Artifacts SEC12, CNP10, CNP06 produced and Req-ID-stamped
 
 ---
 
@@ -370,8 +328,8 @@ EOF
 
 - **BMC is the highest-privilege surface in the stack.** Treat it like the gate to the kingdom, because it is.
 - **Disabling IPMI is non-negotiable** where firmware supports it. Document exceptions, plan firmware upgrades.
-- **Stable identifiers are infrastructure, not metadata.** Every NCP API surface (CAP02, BFX02/03, CNP02) consumes them — pick the scheme once and reuse everywhere.
-- **The compliance-pack artifact for BMC posture is a packet capture + a config snapshot.** Both are easy to produce; both are what auditors actually read.
+- **Stable identifiers are infrastructure, not metadata.** Every downstream API surface — fleet inventory, breakfix events, diagnostics — consumes them. Pick the scheme once and reuse everywhere.
+- **The standard evidence for BMC posture is a packet capture (showing isolation) + a Redfish config snapshot (showing IPMI disabled + TLS enforced).** Both are easy to produce; both are what reviewers actually read.
 
 ---
 

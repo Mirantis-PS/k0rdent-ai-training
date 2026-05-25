@@ -1,10 +1,6 @@
 # Lab 6.3 — Capacity & Fleet Management APIs
 
-| Domain | Tag | NVIDIA Req IDs |
-|--------|-----|----------------|
-| Multi-Tenancy / Fleet Governance | 🟢 NCP | CAP01 (Governance metrics), CAP02 (Resource Governance API), CAP03 (Resource Discovery API), CAP04 (Logical Compartmentalization + Atomic Topology Block), CAP05 (Unified Health & Lifecycle APIs) |
-
-> **Compliance pack artifact targets:** `artifacts/CAP01-governance-metrics.json`, `artifacts/CAP02-resource-governance-api.yaml`, `artifacts/CAP03-discovery-api.yaml`, `artifacts/CAP04-reservation-spec.yaml`, `artifacts/CAP05-unified-health.yaml`
+**Domain:** Multi-Tenancy / Fleet Governance / API Design
 
 ---
 
@@ -12,7 +8,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Multi-Tenancy / Day-2 Ops | Required (NCP track) | 2.5 hours |
+| Multi-Tenancy / Day-2 Ops | Required | 2.5 hours |
 
 | Previous | Current | Next |
 |----------|---------|------|
@@ -30,11 +26,11 @@
 - [Learning Objectives](#learning-objectives)
 - [Prerequisites](#prerequisites)
 - [Architectural Decision Frame](#architectural-decision-frame)
-- [Part 1: The four governance metrics (CAP01)](#part-1-the-four-governance-metrics-cap01)
-- [Part 2: Resource Governance API (CAP02)](#part-2-resource-governance-api-cap02)
-- [Part 3: Resource Discovery API (CAP03)](#part-3-resource-discovery-api-cap03)
-- [Part 4: Atomic Topology Block reservation (CAP04)](#part-4-atomic-topology-block-reservation-cap04)
-- [Part 5: Unified Health & Lifecycle (CAP05)](#part-5-unified-health--lifecycle-cap05)
+- [Part 1: The four governance metrics](#part-1-the-four-governance-metrics)
+- [Part 2: Resource Governance API](#part-2-resource-governance-api)
+- [Part 3: Resource Discovery API](#part-3-resource-discovery-api)
+- [Part 4: Atomic Topology Block reservation](#part-4-atomic-topology-block-reservation)
+- [Part 5: Unified Health & Lifecycle](#part-5-unified-health--lifecycle)
 - [Part 6: Produce the compliance-pack artifacts](#part-6-produce-the-compliance-pack-artifacts)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
@@ -45,9 +41,7 @@
 
 ## Why this lab exists
 
-A standout sentence from the v2.3 guide, under CAP03:
-
-> *"It is not acceptable to have capacity be 'handed' to DGXC through a phone, Slack or email message."*
+At fleet scale, capacity awareness has to be **programmatic**. Handing off resources via Slack, email, or spreadsheets stops working the day a single cluster handoff happens more than once a week — which is every day on a growing AI fleet.
 
 NVIDIA wants **programmatic** capacity awareness — they will poll, you will publish, the contract is the API. This lab builds that surface.
 
@@ -59,12 +53,12 @@ You already have node lifecycle (Week 4), telemetry export (Lab 5.17), topology 
 
 By completing this lab, you will be able to:
 
-- [ ] Define and emit the four CAP01 governance metrics with correct semantics
-- [ ] Design a CAP02-conformant Resource Governance API returning the required per-node field set
-- [ ] Stand up a CAP03 Resource Discovery API that DGXC can poll for new/changed capacity
-- [ ] Implement CAP04 atomic topology-block reservations (single-unit grouping of compute + network + storage)
-- [ ] Provide CAP05 unified per-host + aggregate health
-- [ ] Produce Req-ID-stamped artifacts for the compliance pack
+- [ ] Define and emit the four governance metrics with correct semantics
+- [ ] Design a Resource Governance API returning the documented per-node field set
+- [ ] Stand up a Resource Discovery API that downstream consumers can poll for new/changed capacity
+- [ ] Implement atomic topology-block reservations (single-unit grouping of compute + network + storage)
+- [ ] Provide unified per-host + aggregate health
+- [ ] Produce reference OpenAPI specs and a metric snapshot for your team's documentation
 
 ---
 
@@ -82,16 +76,16 @@ By completing this lab, you will be able to:
 | Choice | Option A | Option B | Recommendation |
 |--------|----------|----------|----------------|
 | State store | k0rdent CRDs only | CRDs + materialized view in a DB | **CRDs + read-side projection** — CRDs are the source of truth; projection gives sub-second list queries at scale |
-| API surface | REST | gRPC | **gRPC primary, REST projection** — DGXC will poll at scale; gRPC streaming reduces overhead |
-| Reservation semantics | Soft (advisory labels) | Hard (admission webhook rejects conflicts) | **Hard** — CAP04 specifies *atomic* allocation; soft will let workloads sneak in |
+| API surface | REST | gRPC | **gRPC primary, REST projection** — downstream consumers will poll at scale; gRPC streaming reduces overhead |
+| Reservation semantics | Soft (advisory labels) | Hard (admission webhook rejects conflicts) | **Hard** — atomic allocation is the goal; soft will let workloads sneak in |
 | Health aggregation | On every read | Pre-computed in a controller | **Pre-computed** — per-cluster aggregations can touch hundreds of nodes; recompute on event |
-| Update push to DGXC | Webhook | DGXC polls | **DGXC polls** — the v2.3 wording is explicit; webhook can be added as an enhancement |
+| Update push to downstream consumers | Webhook | Consumers poll | **Consumers poll** — simplest contract; webhook can be added as an enhancement |
 
 ---
 
-## Part 1: The four governance metrics (CAP01)
+## Part 1: The four governance metrics
 
-Define each precisely. Engineers often conflate them; CAP01 won't pass review if the semantics are mushy.
+Define each precisely. Engineers often conflate them; the metric set won't pass review if the semantics are mushy.
 
 | Metric | Definition | Counts toward |
 |--------|------------|---------------|
@@ -128,12 +122,12 @@ When invariants break, fire an alert. They break = bug in your fleet controller,
 
 ---
 
-## Part 2: Resource Governance API (CAP02)
+## Part 2: Resource Governance API
 
 For each node, the API must return:
 
 ```yaml
-nodeId: nvr-7f2a-9c3b-2e8a       # stable, persistent (per CNP08)
+nodeId: nvr-7f2a-9c3b-2e8a       # stable, persistent (see Lab 2.4)
 healthState: Healthy              # Healthy | Unhealthy | Maintenance | Unknown
 instanceId: vm-or-bm-instance-7   # virtual workload identifier; null for bare metal
 creationTimestamp: 2026-04-12T00:00:00Z
@@ -148,7 +142,7 @@ region: us-east-2
 OpenAPI shape:
 
 ```yaml
-# CAP02-resource-governance-api.yaml (excerpt)
+# resource-governance-api.yaml (excerpt)
 paths:
   /v1alpha1/fleet/nodes:
     get:
@@ -191,9 +185,9 @@ Build the controller as a watch over `Node`, `Cluster` (CAPI), `Machine`, and yo
 
 ---
 
-## Part 3: Resource Discovery API (CAP03)
+## Part 3: Resource Discovery API
 
-This is the API that **replaces phone/Slack handoff**. When new capacity comes online (new rack delivered, RMA returned, etc.), it must appear here within the polling SLA agreed with DGXC.
+This is the API that **replaces phone/Slack handoff**. When new capacity comes online (new rack delivered, RMA returned, etc.), it must appear here within the polling SLA agreed with downstream consumers.
 
 Required response fields:
 
@@ -221,11 +215,11 @@ GET /v1alpha1/fleet/discovery?since=2026-05-25T00:00:00Z
 }
 ```
 
-The `watermark` field is what makes this safe for DGXC to poll incrementally without missing events. Persist it in the read-side projection.
+The `watermark` field is what makes this safe for downstream consumers to poll incrementally without missing events. Persist it in the read-side projection.
 
 ---
 
-## Part 4: Atomic Topology Block reservation (CAP04)
+## Part 4: Atomic Topology Block reservation
 
 A **topology block** = a coherent unit of compute + network + storage that shares performance characteristics and security boundaries. Examples:
 
@@ -233,7 +227,7 @@ A **topology block** = a coherent unit of compute + network + storage that share
 - 1 × half-rack (36 GPUs, smaller domain)
 - N × node group on the same leaf switch
 
-CAP04 says the API must support reserving such a block **atomically** — either all members reserved or none.
+The API must support reserving such a block **atomically** — either all members reserved or none.
 
 Define a CRD:
 
@@ -246,14 +240,14 @@ spec:
   account: nvidia-dgxc-acct-1
   project: proj-A
   topologyConstraint:
-    nvlinkDomain: nvl72-rack-A      # from Lab 5.18 / NET02
-    leafSwitch:   leaf-01            # from Lab 5.18 / NET01
+    nvlinkDomain: nvl72-rack-A      # from Lab 5.18 (NVLink Domain API)
+    leafSwitch:   leaf-01            # from Lab 5.18 (Backend Switch Fabric API)
   resources:
     - nvr-7f2a-9c3b-2e8a
     - nvr-7f2a-9c3b-2e8b
     - nvr-7f2a-9c3b-2e8c
     # ... full set
-  atomic: true                       # required: true (CAP04 hard requirement)
+  atomic: true                       # required: true (atomic allocation is the contract)
 status:
   phase: Reserved                    # Pending | Reserved | Released | Failed
   reservedAt: 2026-05-25T10:00:00Z
@@ -264,9 +258,9 @@ The admission webhook MUST reject the CR if any member is already reserved or ha
 
 ---
 
-## Part 5: Unified Health & Lifecycle (CAP05)
+## Part 5: Unified Health & Lifecycle
 
-CAP05 has two halves:
+The health surface has two halves:
 
 **Per-host health (P0)** — real-time API per node:
 
@@ -314,43 +308,19 @@ Health sources to fuse:
 
 ---
 
-## Part 6: Produce the compliance-pack artifacts
-
-```bash
-# 1. CAP01 metric snapshot
-curl -s http://localhost:9090/api/v1/query?query=ncp_fleet_delivered_gpus \
-  | jq . > CAP01-governance-metrics.json
-
-# 2. CAP02 OpenAPI spec
-openapi-cli bundle api/fleet/openapi.yaml -o CAP02-resource-governance-api.yaml
-
-# 3. CAP03 OpenAPI spec
-openapi-cli bundle api/discovery/openapi.yaml -o CAP03-discovery-api.yaml
-
-# 4. CAP04 reservation example + admission policy
-kubectl get topologyblockreservations.fleet.k0rdent.mirantis.com -o yaml > CAP04-reservation-examples.yaml
-kubectl get validatingwebhookconfigurations -l app=fleet-controller -o yaml > CAP04-admission-policy.yaml
-
-# 5. CAP05 OpenAPI spec + sample health response
-openapi-cli bundle api/health/openapi.yaml -o CAP05-unified-health.yaml
-```
-
----
-
 ## Verification Checklist
 
-- [ ] The four CAP01 metrics emitted with exact naming and labels
-- [ ] CAP01 invariants enforced (alert on violation)
-- [ ] CAP02 endpoint returns all required fields for every node
-- [ ] CAP02 supports pagination
-- [ ] CAP03 endpoint returns watermark for delta polls
-- [ ] CAP04 atomic reservation: admission webhook rejects any conflict
-- [ ] CAP04 reservation succeeds only when *all* members are free
-- [ ] CAP05 per-host health endpoint responds < 100 ms for cached reads
-- [ ] CAP05 aggregate health is pre-computed (controller-driven, not on-demand)
-- [ ] All endpoints use mTLS (per SEC13)
+- [ ] The four governance metrics emitted with canonical naming and labels
+- [ ] Metric invariants enforced (alert on violation)
+- [ ] Resource Governance endpoint returns all required fields for every node
+- [ ] Resource Governance endpoint supports pagination
+- [ ] Resource Discovery endpoint returns a watermark for delta polls
+- [ ] Atomic reservation: admission webhook rejects any conflict
+- [ ] Reservation succeeds only when *all* members are free
+- [ ] Per-host health endpoint responds < 100 ms for cached reads
+- [ ] Aggregate health is pre-computed (controller-driven, not on-demand)
+- [ ] All endpoints use mTLS
 - [ ] All endpoints emit access logs to OTel (per Lab 5.17)
-- [ ] Artifacts CAP01–CAP05 produced and Req-ID-stamped
 
 ---
 
@@ -359,20 +329,20 @@ openapi-cli bundle api/health/openapi.yaml -o CAP05-unified-health.yaml
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `delivered > reserved` violation alert | Controller race: new node admitted before its account label was set | Add a delay before counting; require the account label to be present |
-| CAP02 list paginates inconsistently | Page tokens not stable (e.g., based on offset) | Switch to opaque resumable tokens (cursor over a stable order) |
-| CAP04 partial reservation observed | Atomic check happens after some members locked | Move the conflict check inside the admission webhook *before* any mutation |
-| CAP05 aggregate health drifts from per-host | Controller-recompute cadence too slow | Trigger recompute on every per-host state change, not on a timer |
-| CAP03 misses new nodes for hours | Discovery controller polls cloud APIs too slowly | Drive discovery from Metal3 / Cluster API events instead of polling |
+| Resource Governance list paginates inconsistently | Page tokens not stable (e.g., based on offset) | Switch to opaque resumable tokens (cursor over a stable order) |
+| Partial reservation observed | Atomic check happens after some members locked | Move the conflict check inside the admission webhook *before* any mutation |
+| Aggregate health drifts from per-host | Controller-recompute cadence too slow | Trigger recompute on every per-host state change, not on a timer |
+| Resource Discovery misses new nodes for hours | Discovery controller polls cloud APIs too slowly | Drive discovery from Metal3 / Cluster API events instead of polling |
 
 ---
 
 ## Key Takeaways
 
-- **The four governance metrics are contractual names.** Don't paraphrase them.
-- **CAP04 atomic** means refuse-the-whole-thing on any conflict; never partial-allocate.
-- **CAP03 watermarking** is what makes incremental polling safe. Without it, DGXC has to full-scan.
+- **The four governance metrics are canonical names.** Don't paraphrase them — downstream tooling will hardcode them.
+- **Atomic reservation** means refuse-the-whole-thing on any conflict; never partial-allocate.
+- **Watermarking** is what makes incremental polling safe. Without it, consumers have to full-scan.
 - **Aggregate health is a controller's job**, not a request-time aggregation. Pre-compute on event.
-- **CAP01-05 together replace the phone-and-Slack handoff** with a programmatic contract. That contract is also the surface a compliance audit reads first.
+- **Together these five APIs replace the phone-and-Slack handoff** with a programmatic contract — the foundation of any serious fleet-management story.
 
 ---
 

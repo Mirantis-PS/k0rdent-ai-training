@@ -1,10 +1,6 @@
-# Lab 5.18 — Network Topology + NVLink Domain Discovery API
+# Lab 5.18 — Network Topology + NVLink Domain Discovery
 
-| Domain | Tag | NVIDIA Req IDs |
-|--------|-----|----------------|
-| Network Fabric / Topology Awareness | 🟢 NCP | NET01 (Backend Switch Fabric API), NET02 (NVLink Domain API), CNP03 (NVLink-Aware Allocation), CAP04 (Atomic Topology Block) |
-
-> **Compliance pack artifact target:** `artifacts/NET01-switch-fabric-topology.json`, `artifacts/NET02-nvlink-domain-map.json`
+**Domain:** Network Fabric / Topology Awareness / GPU Scheduling
 
 > **Reference implementation:** [`github.com/NVIDIA/topograph`](https://github.com/NVIDIA/topograph)
 
@@ -14,7 +10,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Operations & Telemetry | Required (NCP track) | 2 hours |
+| Operations & Telemetry | Required | 2 hours |
 
 ### Week 5 Learning Paths
 
@@ -38,13 +34,12 @@
 - [Learning Objectives](#learning-objectives)
 - [Prerequisites](#prerequisites)
 - [Architectural Decision Frame](#architectural-decision-frame)
-- [Part 1: What NVIDIA expects from NET01/NET02](#part-1-what-nvidia-expects-from-net01net02)
+- [Part 1: The topology APIs you want to expose](#part-1-the-topology-apis-you-want-to-expose)
 - [Part 2: Deploy topograph against your cluster](#part-2-deploy-topograph-against-your-cluster)
 - [Part 3: Expose the Backend Switch Fabric API](#part-3-expose-the-backend-switch-fabric-api)
 - [Part 4: Expose the NVLink Domain API](#part-4-expose-the-nvlink-domain-api)
 - [Part 5: Integrate with the scheduler (KAI / Volcano)](#part-5-integrate-with-the-scheduler-kai--volcano)
 - [Part 6: Validate topology-aware placement vs naive placement](#part-6-validate-topology-aware-placement-vs-naive-placement)
-- [Part 7: Produce the compliance-pack artifacts](#part-7-produce-the-compliance-pack-artifacts)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
 - [Key Takeaways](#key-takeaways)
@@ -68,7 +63,7 @@ A workload that *crosses* either boundary at the wrong granularity loses substan
 | All-reduce on 72 GPUs (1 NVL72 rack) | yes | no | 10-20% vs in-domain |
 | All-reduce on 144 GPUs (2 NVL72 racks) | yes | **yes** | 30-50% vs in-domain |
 
-NVIDIA's solution is to **expose topology as data**, then let the scheduler use it. NET01 and NET02 are the API contract.
+The only defense is to **expose topology as data**, then let the scheduler use it. This lab teaches the two API surfaces — a Backend Switch Fabric API (leaf/spine/core hierarchy) and an NVLink Domain API (which nodes share NVSwitch trays) — that let your scheduler answer questions like *"give me 144 GPUs that share an NVLink domain AND a leaf switch."*
 
 ---
 
@@ -76,13 +71,12 @@ NVIDIA's solution is to **expose topology as data**, then let the scheduler use 
 
 By completing this lab, you will be able to:
 
-- [ ] Explain the difference between the Backend Switch Fabric (NET01) and NVLink Domain (NET02) APIs
+- [ ] Explain the difference between a Backend Switch Fabric API and an NVLink Domain API
 - [ ] Deploy NVIDIA's `topograph` reference implementation against a k0rdent-managed cluster
-- [ ] Query the topology API and validate the response shape against the v2.3 guide
+- [ ] Query the topology API and validate the response shape
 - [ ] Annotate K8s nodes with `network.nvidia.com/topology-layer-{leaf,spine,core}` and `nvlink-domain-id`
 - [ ] Author a scheduler plugin or PodTopologySpread constraint that prefers in-domain placement
 - [ ] Measure throughput uplift vs naive placement on a multi-node NCCL all-reduce
-- [ ] Produce Req-ID-stamped artifacts for the compliance pack
 
 ---
 
@@ -101,18 +95,18 @@ By completing this lab, you will be able to:
 | Choice | Option A | Option B | Recommendation |
 |--------|----------|----------|----------------|
 | Topology discovery source | Static config (Terraform / IaC) | Dynamic discovery (LLDP, IB SM query, NVLink CLI) | **Dynamic discovery** — IaC drifts; topograph already implements LLDP + IB queries |
-| API surface | Native CRD on k0rdent | REST / gRPC service | **CRD + projection to REST** — CRD for K8s consumers, REST proxy for off-cluster (DGXC) consumers |
+| API surface | Native CRD on k0rdent | REST / gRPC service | **CRD + projection to REST** — CRD for K8s consumers, REST proxy for off-cluster consumers |
 | Node labeling strategy | k0rdent ClusterDeployment template | Operator that watches `Node` resources | **Operator** — handles add/remove/repair without redeploying |
 | Update cadence | On every node change | Periodic full re-scan + on-demand | **Both** — event-driven for fast convergence + 1 h full re-scan for self-heal |
 | Scheduler integration | `PodTopologySpread` + node selectors | Custom scheduler plugin | **Spread + selectors first** (works with stock kube-scheduler); plugin only if measured uplift demands it |
 
 ---
 
-## Part 1: What NVIDIA expects from NET01/NET02
+## Part 1: The topology APIs you want to expose
 
-Direct from the v2.3 guide (paraphrased — see source for exact wording):
+You want two API surfaces. They can be a single service with two methods, or two separate services — but the schemas need to be distinct.
 
-**NET01 — Backend Switch Fabric API**
+**Backend Switch Fabric API**
 
 For each compute node, the API must expose:
 
@@ -121,14 +115,14 @@ For each compute node, the API must expose:
 - A pagination-friendly response (multiple nodes per page).
 - gRPC or REST (gRPC preferred for high node counts).
 
-**NET02 — NVLink Domain API**
+**NVLink Domain API**
 
 For NVLink-capable nodes (GB200, GB300, Vera Rubin):
 
 - Return a **unique NVLink domain identifier** per node.
-- May be a separate method or folded into NET01's response.
+- May be a separate method or folded into the Backend Switch Fabric API response.
 
-The two APIs together let DGXC's scheduler answer: *"give me 144 GPUs that share an NVLink domain AND a leaf switch."*
+Together they let the scheduler answer: *"give me 144 GPUs that share an NVLink domain AND a leaf switch."*
 
 ---
 
@@ -191,21 +185,21 @@ Two ways to expose this:
 kubectl get topologyviews.topology.nvidia.com -o yaml
 ```
 
-**Option B — via REST (DGXC consumers).** Stand up a tiny REST proxy that translates the CR into the JSON shape NET01 expects:
+**Option B — via REST (off-cluster consumers).** Stand up a tiny REST proxy that translates the CR into the JSON shape downstream consumers expect:
 
 ```bash
 # Example: a 30-line Go service or even a kubectl-proxy + jq pipeline for first-pass validation
 kubectl get topologyviews.topology.nvidia.com -o json \
   | jq '{ nodes: [ .items[].spec.nodes[] | { name, switches, nvlink_domain_id } ] }' \
-  > NET01-switch-fabric-topology.json
+  > switch-fabric-topology.json
 ```
 
 For production, build a proper REST service with:
 
-- TLS (mTLS for DGXC)
+- TLS (mTLS for off-cluster consumers)
 - Pagination (`?page=2&limit=100`)
 - ETags / cache headers
-- Auth (OIDC token validation per SEC01)
+- Auth (OIDC token validation)
 
 ---
 
@@ -219,7 +213,7 @@ nvidia-smi nvlink --status
 sudo nvidia-fabric-manager-cli -d -t
 ```
 
-topograph normalizes this into the `nvlink_domain_id` field. For non-NVLink hardware, omit the field; consumers must tolerate its absence (per the v2.3 wording).
+topograph normalizes this into the `nvlink_domain_id` field. For non-NVLink hardware, omit the field; consumers must tolerate its absence.
 
 Project an NVLink-domain-aware Node label so the K8s scheduler can use it:
 
@@ -300,7 +294,7 @@ grep "size .* GB/s" naive.log topo.log
 | 72 GPU (full NVL72) | 30-50% lower if it crossed | full NVLink rate | 30-50% |
 | 144 GPU (2× NVL72) | depends on spine | matches single-domain rate × 2 | substantial |
 
-Record actual numbers in `NET01-perf-evidence.md`.
+Record actual numbers in a perf-evidence log.
 
 On synthetic / non-NVLink hardware, you won't see the perf uplift but you can still validate that:
 
@@ -310,37 +304,15 @@ On synthetic / non-NVLink hardware, you won't see the perf uplift but you can st
 
 ---
 
-## Part 7: Produce the compliance-pack artifacts
-
-```bash
-# 1. Switch fabric topology snapshot (NET01)
-kubectl get topologyviews.topology.nvidia.com -o json \
-  | jq '{ nodes: [ .items[].spec.nodes[] | { name, switches, nvlink_domain_id } ] }' \
-  > NET01-switch-fabric-topology.json
-
-# 2. NVLink domain map (NET02)
-kubectl get nodes -o json \
-  | jq '{ domains: ( [ .items[] | { node: .metadata.name,
-        domain: .metadata.labels["network.nvidia.com/nvlink-domain"] } ]
-        | group_by(.domain) | map({ domain: .[0].domain, nodes: [.[].node] }) ) }' \
-  > NET02-nvlink-domain-map.json
-
-# 3. Perf evidence (from Part 6)
-cp naive.log topo.log NET01-perf-evidence/
-```
-
----
-
 ## Verification Checklist
 
 - [ ] topograph DaemonSet healthy on every node
 - [ ] `TopologyView` CR populated with non-empty `nodes` list
 - [ ] Every node carries `network.nvidia.com/topology-layer-leaf` (and spine/core where applicable)
 - [ ] NVLink-capable nodes carry `network.nvidia.com/nvlink-domain`
-- [ ] REST projection returns NET01-shaped JSON (validated against v2.3 wording)
+- [ ] REST projection returns the documented Backend Switch Fabric API shape
 - [ ] PodTopologySpread + nodeAffinity successfully pins a job to one NVLink domain
 - [ ] Perf evidence captured (where hardware allows)
-- [ ] `NET01-*.json` and `NET02-*.json` artifacts produced
 
 ---
 
@@ -359,9 +331,8 @@ cp naive.log topo.log NET01-perf-evidence/
 ## Key Takeaways
 
 - **Topology is data — the scheduler is the consumer.** Half this lab is wiring data flow.
-- **NET01 and NET02 are the contract DGXC will program against.** Your job is to make the response shape exactly what they expect.
+- **Two distinct API surfaces matter:** Backend Switch Fabric (leaf/spine/core) and NVLink Domain. They can share a service, but the schemas are distinct because the consumers may differ.
 - **Topology-aware placement is not a micro-optimization on GB200+** — it's the difference between healthy training throughput and a job that costs 50% more to finish.
-- **The compliance pack artifact for this lab is the API response itself.** A sanitized JSON snapshot, timestamped, is what an audit asks for.
 
 ---
 

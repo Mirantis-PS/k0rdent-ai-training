@@ -1,15 +1,6 @@
 # Lab 6.2 — Breakfix API Design & Implementation
 
-| Domain | Tag | NVIDIA Req IDs |
-|--------|-----|----------------|
-| Multi-Tenancy / Operations / Lifecycle | 🟢 NCP | BFX01 (Breakfix lifecycle), BFX02 (Breakfix events), BFX03 (Diagnostics) |
-
-> **Compliance pack artifact targets:** `artifacts/BFX01-breakfix-runbook.md`, `artifacts/BFX02-event-api-openapi.yaml`, `artifacts/BFX03-diagnostics-schema.json`
-
-> **References:**
-> - [B200 DGXC Lazarus BreakFix Requirements](https://docs.google.com/document/d/11BTa61_T2cG5EbZ9Js6_yO5yMVMYWKFesnHOn5prqFw/edit) (NVIDIA — external link from v2.3 appendix)
-> - [GB300 DGXC Lazarus BreakFix Requirements](https://docs.google.com/document/d/1PA12vVrlkjAuElFaMscfuEa5yJ_DQQmWpq1Oe4KDBho/edit)
-> - [DGXC Breakfix Maintenance Events](https://docs.google.com/document/d/1fp7JQ_5M1VHT-qJ-ZQCu01qn1DLlTp-YXViMiXhgA68/edit)
+**Domain:** Multi-Tenancy / Operations / Lifecycle / API Design
 
 ---
 
@@ -17,7 +8,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Multi-Tenancy / Day-2 Ops | Required (NCP track) | 3 hours |
+| Multi-Tenancy / Day-2 Ops | Required | 3 hours |
 
 | Previous | Current | Next |
 |----------|---------|------|
@@ -36,9 +27,9 @@
 - [Prerequisites](#prerequisites)
 - [Architectural Decision Frame](#architectural-decision-frame)
 - [Part 1: The Breakfix surface NVIDIA expects](#part-1-the-breakfix-surface-nvidia-expects)
-- [Part 2: Implement BFX01 — lifecycle actions](#part-2-implement-bfx01--lifecycle-actions)
-- [Part 3: Implement BFX02 — maintenance event queries](#part-3-implement-bfx02--maintenance-event-queries)
-- [Part 4: Implement BFX03 — diagnostics](#part-4-implement-bfx03--diagnostics)
+- [Part 2: Lifecycle actions](#part-2-lifecycle-actions)
+- [Part 3: Maintenance event queries](#part-3-maintenance-event-queries)
+- [Part 4: Diagnostics](#part-4-diagnostics)
 - [Part 5: The NVLink reconfiguration safety rule](#part-5-the-nvlink-reconfiguration-safety-rule)
 - [Part 6: Drill — full breakfix walkthrough](#part-6-drill--full-breakfix-walkthrough)
 - [Part 7: Produce the compliance-pack artifacts](#part-7-produce-the-compliance-pack-artifacts)
@@ -55,7 +46,7 @@ The v2.3 Breakfix section opens with a sentence engineers should memorize:
 
 > *"Any node-level remediation must not impact other parts of the tenancy; specifically, NVLink must be re-configured properly to take a node out of the tenancy."*
 
-DGXC consumes capacity at scale, and at scale **hardware fails routinely**. The contract is not "no failures" — it's "**failures handled predictably via an API, without breaking other tenants**." That's what Breakfix is.
+Operating an AI fleet at scale means hardware failures are routine: a GPU throws uncorrectable ECC errors, a NIC's retransmit rate spikes, a power supply dies. Handling them by ticketing humans through runbooks doesn't scale, and unsafe sequencing (especially on NVLink-coupled GPUs) can corrupt in-flight tenant workloads. The mature pattern is an operational API surface — cordon, drain, GPU reset, replace, RMA event log — with safety invariants enforced in the controller, not in operator memory.
 
 Today the curriculum has Lab 2.3 (BMC troubleshooting) and Lab 5.6 (GPU troubleshooting). Neither is the *API surface NVIDIA programs against*. This lab designs and implements that surface end-to-end.
 
@@ -66,12 +57,12 @@ Today the curriculum has Lab 2.3 (BMC troubleshooting) and Lab 5.6 (GPU troubles
 By completing this lab, you will be able to:
 
 - [ ] Distinguish Breakfix (API contract) from troubleshooting (operator activity)
-- [ ] Design the BFX01 lifecycle API (power-cycle / GPU reset / cordon / replace) on top of k0rdent CRDs + Metal3
-- [ ] Design the BFX02 events API (current, retirement, history) with the exact field set NVIDIA requires
-- [ ] Design the BFX03 diagnostics API (serial numbers, firmware versions)
+- [ ] Design the lifecycle API (power-cycle / GPU reset / cordon / replace) on top of k0rdent CRDs + Metal3
+- [ ] Design the events API (current, retirement, history) with a comprehensive field set
+- [ ] Design the diagnostics API (serial numbers, firmware versions)
 - [ ] Explain why NVLink reconfiguration is a safety prerequisite for `replace` on GB200+
 - [ ] Run a drill: take a "broken" node out of a tenancy via the API, confirm no tenant impact, return the node
-- [ ] Produce a Breakfix runbook, OpenAPI spec, and diagnostics schema for the compliance pack
+- [ ] Produce a Breakfix runbook, OpenAPI spec, and diagnostics schema for your team's operations manual
 
 ---
 
@@ -99,25 +90,25 @@ By completing this lab, you will be able to:
 
 ## Part 1: The Breakfix surface NVIDIA expects
 
-The v2.3 guide breaks Breakfix into three Req IDs:
+A well-designed Breakfix surface has three layers:
 
-**BFX01 — Lifecycle Actions** (P1). API must enable:
+**Lifecycle Actions.** API must enable:
 
 | Verb | Scope | Effect |
 |------|-------|--------|
 | `power-cycle` | individual node | Hard reboot (BMC-driven) |
 | `gpu-reset` | individual node | `nvidia-smi --gpu-reset` or DRA-managed equivalent |
 | `cordon` | individual node | Mark unschedulable; let existing pods drain naturally |
-| `report-maintenance` | node or rack | Hand resource back to NCP for repair |
+| `report-maintenance` | node or rack | Hand resource back to the operator for repair |
 | `replace` | individual node | Request host replacement when health thresholds breached |
 
-**BFX02 — Event Queries** (P1). API must answer:
+**Event Queries.** API must answer:
 
 - Upcoming/current maintenance events for a node or rack
 - Retirement notices for a node/rack
 - Historical / status info for repair tickets
 
-Required fields per event (from v2.3):
+Required fields per event:
 
 - `ticket_open_date`, `ticket_update_date`, `ticket_close_date`
 - Hardware Stable Identifier (e.g., node ID)
@@ -128,7 +119,7 @@ Required fields per event (from v2.3):
 - `ticket_id`
 - Node Handover Date (when node entered production)
 
-**BFX03 — Diagnostics** (P1). API must expose:
+**Diagnostics.** API must expose:
 
 - Serial numbers of installed hardware (chassis, baseboard, NICs, CPU, GPU). Obfuscated-but-stable identifiers OK.
 - Firmware versions of compute nodes and NVSwitch trays.
@@ -137,7 +128,7 @@ This is the contract surface. Everything in Parts 2-4 implements it.
 
 ---
 
-## Part 2: Implement BFX01 — lifecycle actions
+## Part 2: Lifecycle actions
 
 Define a `Breakfix` CRD that wraps the underlying primitives. Skeleton:
 
@@ -149,7 +140,7 @@ metadata:
 spec:
   target:
     nodeName: gpu-node-01
-    nodeRef:                       # stable ID per CNP08
+    nodeRef:                       # stable ID (see Lab 2.4)
       uid: nvr-7f2a-9c3b-2e8a
   action: replace                   # one of: power-cycle | gpu-reset | cordon | report-maintenance | replace
   reason: "GPU0 ECC errors > threshold for 24h"
@@ -170,7 +161,7 @@ status:
       ts: 2026-05-25T10:08:30Z
     - name: bmh-deprovision
       status: InProgress
-  ticketId: NCP-RMA-2026-00482       # cross-link to BFX02 event store
+  ticketId: RMA-2026-00482       # cross-link to the BreakfixEvent store
 ```
 
 Implementation skeleton in your controller:
@@ -198,7 +189,7 @@ Expose as REST/gRPC for off-cluster consumers (mTLS per SEC13). The CRD is the s
 
 ---
 
-## Part 3: Implement BFX02 — maintenance event queries
+## Part 3: Maintenance event queries
 
 The events surface needs **history** beyond the lifetime of a Node resource. Use:
 
@@ -213,8 +204,8 @@ kind: BreakfixEvent
 metadata:
   name: evt-2026-00482
 spec:
-  ticketId: NCP-RMA-2026-00482
-  hardwareStableId: nvr-7f2a-9c3b-2e8a       # required by BFX02
+  ticketId: RMA-2026-00482
+  hardwareStableId: nvr-7f2a-9c3b-2e8a       # required for cross-referencing
   hardwareCategory: GPU                       # required
   faultDescription: "GPU0 ECC errors > threshold"
   action: "Replaced GPU0 module"
@@ -235,11 +226,11 @@ GET /v1alpha1/breakfix/events?rackId=rack-A-12&from=2026-04-01
 GET /v1alpha1/breakfix/retirements?from=2026-06-01
 ```
 
-Forward each event to OTel (Lab 5.17) for DGXC ingestion within 120 s.
+Forward each event to OTel (Lab 5.17) for downstream ingestion within the agreed latency budget.
 
 ---
 
-## Part 4: Implement BFX03 — diagnostics
+## Part 4: Diagnostics
 
 Diagnostics queries are read-only and frequent. Cache aggressively.
 
@@ -343,36 +334,17 @@ Capture:
 
 ---
 
-## Part 7: Produce the compliance-pack artifacts
-
-```bash
-# 1. Breakfix runbook (human-readable end-to-end procedure)
-cp docs/breakfix-runbook.md BFX01-breakfix-runbook.md
-
-# 2. OpenAPI spec for the REST surface
-openapi-cli bundle api/breakfix/openapi.yaml -o BFX02-event-api-openapi.yaml
-
-# 3. Diagnostics schema (BFX03 response shape)
-jq . api/breakfix/schemas/diagnostics.json > BFX03-diagnostics-schema.json
-
-# 4. Drill log from Part 6
-cp drill-output.log BFX01-drill-evidence-2026-05-25.log
-```
-
----
-
 ## Verification Checklist
 
 - [ ] `BreakfixRequest` CRD installed and validated by an admission webhook
-- [ ] All five BFX01 actions exercised end-to-end on at least one test node
-- [ ] BFX02 query endpoints return all required fields per v2.3 wording
-- [ ] BFX03 diagnostics returns all required hardware categories (chassis, baseboard, NICs, CPU, GPU, NVSwitch tray)
+- [ ] All five lifecycle actions exercised end-to-end on at least one test node
+- [ ] Event query endpoints return the full documented field set
+- [ ] Diagnostics returns all required hardware categories (chassis, baseboard, NICs, CPU, GPU, NVSwitch tray)
 - [ ] On NVLink-capable hardware: `replace` action refuses to proceed when FM API is unreachable
 - [ ] Drill from Part 6 completes without sentinel workload throughput dip
 - [ ] OpenAPI spec validates clean (`openapi-cli lint`)
-- [ ] mTLS enforced on the REST endpoint (per SEC13)
-- [ ] All Breakfix events forwarded to OTel within 120 s (per Lab 5.17)
-- [ ] Artifacts copied to compliance-pack scratch area
+- [ ] mTLS enforced on the REST endpoint
+- [ ] All Breakfix events forwarded to OTel within the agreed latency budget (per Lab 5.17)
 
 ---
 
@@ -381,7 +353,7 @@ cp drill-output.log BFX01-drill-evidence-2026-05-25.log
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `replace` succeeds but sentinel workload errors mid-drill | NVLink detach skipped or raced | Make detach a hard precondition; ensure FM convergence wait is in-controller |
-| BFX02 event count grows unbounded | No retention/archive on the CRD | Move closed events to backing store after N days; keep open events in CRD |
+| BreakfixEvent count grows unbounded | No retention/archive on the CRD | Move closed events to backing store after N days; keep open events in CRD |
 | Diagnostics returns stale firmware versions | Cache too long-lived | Drop diagnostics cache TTL to ≤1 h; invalidate on `power-cycle` completion |
 | `cordon` action returns "ready" but pods linger | PDBs blocking drain | Don't force-evict — return `Pending` and surface the PDB(s) blocking |
 | Sentinel workload sees brief throughput dip on RMA return | NVLinks didn't fully reconverge before uncordon | Add explicit FM-status gate in the controller before uncordon |
