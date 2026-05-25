@@ -6,22 +6,7 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 
 > **Scope:** This training covers **k0rdent Enterprise** exclusively (Mirantis commercial distribution). Open-source k0rdent documentation (`docs.k0rdent.io`) may differ in features and CRD versions. **k0rdent AI** is introduced in Week 5.
 
-## Two audiences, one curriculum
-
-This program serves two overlapping audiences:
-
-1. **Engineers learning core k0rdent / Kubernetes / AI-infrastructure skills** — transferable to any platform.
-2. **Engineers preparing to implement k0rdent on an NVIDIA Cloud Partner (NCP) engagement** delivering capacity to NVIDIA DGX Cloud (DGXC).
-
-Every lab and major theory section carries a domain tag so each audience can filter the right path:
-
-| Tag | Meaning |
-|-----|---------|
-| 🌐 **CORE** | Core K8s / k0rdent / AI-infra concept. Transferable to any platform. |
-| 🟢 **NCP** | Specifically required by the **NVIDIA Requirements Guide for AI Clouds v2.3 (Apr 2026)**. Maps to one or more Req IDs (CNP01, NET02, BFX01, …). |
-| 🔵 **BOTH** | Core concept AND specific NCP requirement. Double-duty. |
-
-See **[`ncp-domain-tagging.md`](../ncp-domain-tagging.md)** for the full Req ID → lab mapping and guidance for NCP cert prep. The companion repo **[`ncp-compliance-pack`](https://github.com/mgueye01/ncp-compliance-pack)** holds the evidence artifacts those Req IDs map to.
+> **Reference:** See [`mirantis-k0rdent-enterprise-reference.md`](../mirantis-k0rdent-enterprise-reference.md) for the canonical fact sheet (CRDs, KCM/KSM/KOF components, version pins, voice patterns) used throughout this curriculum.
 
 ## Program Structure
 

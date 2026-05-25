@@ -1,12 +1,12 @@
-# Mirantis k0rdent Enterprise — Curriculum Validation Reference
+# Mirantis k0rdent Enterprise — Reference
 
-> **Purpose:** This is the canonical fact sheet for the k0rdent AI Infrastructure Training curriculum. Every lab in this curriculum must align with the facts below before it can be considered production-ready training material. If the curriculum says something that contradicts this file, **this file wins** — or the docs URL it cites does.
+> **Purpose:** Canonical fact sheet for the k0rdent AI Infrastructure Training curriculum. Use this to keep CRD names, component names, version pins, and the Mirantis-oriented voice consistent across all labs. If a lab says something that contradicts this file, **this file wins** — or the docs URL it cites does.
 >
 > **Source of truth:** [docs.mirantis.com/k0rdent-enterprise/latest](https://docs.mirantis.com/k0rdent-enterprise/latest/) (current released version: **v1.3.2** at time of writing).
 >
 > **Companion sources (allowed):**
-> - NVIDIA official docs / GitHub repos (e.g., `github.com/NVIDIA/topograph`, `github.com/NVIDIA/k8s-dra-driver`, the v2.3 Requirements Guide) — for NCP-specific topics where Mirantis docs are silent
-> - OSS alternatives only when k0rdent Enterprise doesn't cover the capability AND with an explicit `// OSS-ALTERNATIVE` callout in the lab text
+> - NVIDIA / vendor official docs / GitHub repos (e.g., `github.com/NVIDIA/topograph`, `github.com/NVIDIA/k8s-dra-driver`) — for topics where Mirantis docs are silent and the vendor provides the canonical reference
+> - OSS alternatives only when k0rdent Enterprise doesn't cover the capability — flag with an explicit `// OSS-ALTERNATIVE` callout in the lab text
 
 ## Version pinning
 
@@ -142,7 +142,7 @@ KubeVirt-based VM provisioning is via **Mirantis k0rdent Virtualization** (separ
 - Supported providers: AWS, Azure, Bare Metal, OpenStack, VMware, GCP, KubeVirt
 - Backed by **k0smotron** — control plane components run as pods on the management cluster
 - Enables decoupling: "Kubernetes controller nodes and worker nodes to reside not only in different clusters, but even in different clouds"
-- This **satisfies NCP requirement K8S14** (control plane isolation — separate from workers, outside tenant cluster/VPC)
+- Naturally provides control-plane isolation (control plane separated from tenant workers and tenant VPCs)
 
 **Reference:** [docs.mirantis.com/k0rdent-enterprise/latest/admin/hosted-control-plane/](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/hosted-control-plane/)
 
@@ -179,7 +179,7 @@ These are real OSS projects the curriculum already references; safe to keep usin
 | **k0smotron** | Lab 4.1 | OSS; k0rdent KCM depends on it for hosted CP |
 | **Kyverno** | Lab 1.7 | CNCF; policy engine |
 | **cert-manager** | Lab 1.7 | CNCF graduated; cert lifecycle |
-| **topograph** (NVIDIA) | Lab 5.18 | NVIDIA-shipped; reference impl for NET01/NET02 |
+| **topograph** (NVIDIA) | Lab 5.18 | NVIDIA-shipped; reference implementation for network/NVLink topology discovery |
 | **k8s-dra-driver** (NVIDIA) | Lab 4.9 | NVIDIA-shipped; reference DRA driver for GPUs |
 | **fwupd** | Lab 2.5 | OSS; firmware update daemon — only OSS option for some vendors |
 | **tpm2-tools** | Lab 2.5 | OSS; TPM 2.0 utility suite |
@@ -213,10 +213,10 @@ Every lab — new or being revised — must:
 4. **Stamp OSS dependencies** explicitly when they're outside the Mirantis catalog. Use the `// OSS-ALTERNATIVE` callout pattern.
 5. **Position k0rdent Enterprise as the answer**, not as one option. The lab is teaching engineers to deliver Mirantis, not generic Kubernetes.
 
-When in doubt, prefer Mirantis docs; if Mirantis is silent, prefer NVIDIA docs (for NCP-specific topics); if both are silent, OSS alternative with an explicit flag.
+When in doubt, prefer Mirantis docs; if Mirantis is silent, prefer the relevant vendor docs (NVIDIA for GPU/AI topics, Metal3 for bare metal, etc.); if both are silent, OSS alternative with an explicit flag.
 
 ## Version sync log
 
 | Date | What changed | Source |
 |------|--------------|--------|
-| 2026-05-25 | Initial validation reference created against k0rdent Enterprise v1.3.2 docs | docs.mirantis.com/k0rdent-enterprise/latest/ |
+| 2026-05-25 | Initial reference created against k0rdent Enterprise v1.3.2 docs | docs.mirantis.com/k0rdent-enterprise/latest/ |
