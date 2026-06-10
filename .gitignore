@@ -51,13 +51,3 @@ temp/
 !*secret*.example
 !*secret*.md
 credentials.json
-
-# Claude Code
-.auto-claude/
-.auto-claude-security.json
-.auto-claude-status
-.claude_settings.json
-.worktrees/
-.security-key
-logs/security/
-graphify-out/
