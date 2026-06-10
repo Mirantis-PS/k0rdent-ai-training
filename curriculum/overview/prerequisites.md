@@ -29,17 +29,22 @@
 
 ## Technical Requirements
 
-### For Local Development
-- Workstation with 16GB+ RAM
-- Docker or Podman installed
-- kubectl installed
-- Helm installed
-- Git installed
+Labs are self-provisioned: you fork (or copy) this repository and run its Terraform against your own AWS account. There is no hosted lab portal.
 
-### For Cloud Labs
-- Browser (Chrome/Firefox recommended)
-- SSH client
-- Access to lab provisioning portal (provided)
+### AWS Account
+- A personal (or dedicated) AWS account where your principal can create IAM roles, policies, and instance profiles — effectively AdministratorAccess (the lab Terraform creates `aws_iam_role`, `aws_iam_role_policy`, and `aws_iam_instance_profile`)
+- Budget for Week 1: roughly **$25-50** (everything running 24/7 for 5 days ≈ $47; stopping instances outside an ~8h/day working window ≈ $25-30) — later weeks vary, see each week's README
+- Service quotas: the AWS default limits of **5 VPCs and 5 Elastic IPs per region** are exactly consumed by Week 1's footprint (management + managed cluster) — request increases beforehand, or use a dedicated account per student for cohorts
+
+### Workstation
+- macOS or Linux (Windows: use WSL2 with Ubuntu — native PowerShell/Git Bash are not supported); labs are driven by bash scripts
+- AWS CLI v2 installed
+- Terraform >= 1.8.0 installed
+- Git installed, plus your own fork or copy of this training repository
+- `jq` installed
+- Browser (Chrome/Firefox recommended) and an SSH client
+
+> kubectl, Helm, and the other cluster tooling are pre-installed on the lab instances — no local installation is required.
 
 ## Recommended Pre-Reading
 

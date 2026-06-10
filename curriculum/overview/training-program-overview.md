@@ -12,11 +12,11 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 |-----------|-------|
 | **Target Audience** | Engineers proficient in Kubernetes |
 | **Format** | Self-paced online with cloud-based labs |
-| **Duration** | 6 weeks (~15-25 hours/week, ~96+ total hours) |
+| **Duration** | 6 weeks (~15-25 scheduled hours/week; ~83-91 hours across the currently available weeks, ~98-106 once Week 4 ships — see each week's README for active vs scheduled breakdown) |
 | **Lab Ratio** | 70% hands-on / 30% theory |
 | **Cohort Size** | 5-15 engineers |
 | **Primary Outcome** | Implement k0rdent for customer deployments |
-| **Lab Environment** | On-demand cloud instances (central budget) |
+| **Lab Environment** | Self-provisioned AWS instances (student's own account, via this repo's Terraform) |
 
 ## Products Covered
 
@@ -24,9 +24,11 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 |---------|---------|-------------|
 | **BMaaS** | 2 | Bare Metal Hardware Rental/Utilization |
 | **VMaaS** | 3 | Virtual Machine Provisioning |
-| **KaaS** | 4 | Bare Metal & Instance-based Kubernetes Clusters |
+| **KaaS** | 4 *(in development)* | Bare Metal & Instance-based Kubernetes Clusters |
 | **MaaS** | 5 | Models as a Service (Endpoints, API Keys, Per-token pricing) |
 | **AI Tools** | 5-6 | Vector DBs, Notebooks, Gateways, Routers |
+
+> **Note:** Week 4 (Kubernetes as a Service) is under development and not yet included in this repository; Week 5 currently assumes its concepts. Week 1 Labs 1.5 and 1.8 already cover much of the CAPI cluster lifecycle in the meantime.
 
 ## Target Audience
 
@@ -38,18 +40,19 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 
 ## Software Versions
 
-This curriculum is validated against the following component versions:
+This curriculum is validated against the following component versions. Each week's README carries the authoritative version table for its labs — if a pin here disagrees with a week's table, the week's table wins.
 
 | Component | Version | Notes |
 |-----------|---------|-------|
+| k0rdent Enterprise | 1.2.2 | Installed in Lab 1.1; upgraded to 1.2.3 in Lab 1.8 |
 | k0s | v1.32.4+k0s.0 | Kubernetes 1.32 |
 | KubeVirt | v1.6.3 | Aligns with K8s 1.32 |
 | NVIDIA GPU Operator | v25.10.0 | Calendar versioning (YY.MM.PP) |
-| Cluster API | v1.11 | API v1beta2 |
+| Cluster API (clusterctl) | v1.12.4 | Auto-installed in Lab 1.1 |
 | Metal3 CAPM3 | v1.8.0 | CNCF Incubating (Aug 2025) |
 | Metal3 BMO | v0.8.0 | Baremetal Operator |
 | Cilium | v1.18.4 | CNI |
-| vLLM | v0.11.2 | LLM inference |
+| vLLM | v0.14.0 | Validated example pin (Week 5) |
 | Terraform | >= 1.8.0 | IaC |
 
 ## Learning Path
@@ -72,12 +75,14 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 | Week | Topic | Duration | Focus Areas |
 |------|-------|----------|-------------|
-| 1 | Foundations | 24.5h | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services |
+| 1 | Foundations | ~15-17h active + 5.5h theory (~23-25h scheduled incl. waits) | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services |
 | 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration |
 | 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV |
-| 4 | KaaS | 15h | Cluster API, GPU Operator, hosted control planes |
-| 5 | AI Workloads | 21h | GPU schedulers, model serving, service catalog, ML platforms |
+| 4 | KaaS *(in development)* | ~15h (planned) | Cluster API, GPU Operator, hosted control planes |
+| 5 | AI Workloads | ~15-21h guided path (~50h if all elective tracks are attempted) | GPU schedulers, model serving, service catalog, ML platforms |
 | 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project |
+
+> Week 4 is under development and not yet included in this repository (see note above). Scheduled totals: ~83-91 hours across the available weeks; ~98-106 once Week 4 ships.
 
 ## Week 1 Learning Objectives
 
