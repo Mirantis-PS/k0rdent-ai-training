@@ -14,7 +14,7 @@ terraform {
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_id = data.aws_caller_identity.current.account_id
+  account_id  = data.aws_caller_identity.current.account_id
   name_prefix = "${var.project_name}-${var.engineer_id}"
 
   common_tags = merge(var.tags, {

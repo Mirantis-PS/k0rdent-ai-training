@@ -1,0 +1,121 @@
+# Quality gates for the k0rdent training repo.
+#
+# Targets the defect classes found in the Week 1 senior review
+# (docs/plans/2026-06-10-week-1-senior-review-findings.md):
+#   - dead internal links in curriculum markdown   -> markdown-links
+#   - bugs in lab provisioning scripts             -> shellcheck
+#   - terraform that doesn't parse/validate        -> terraform
+#   - scripts consuming terraform outputs that
+#     don't exist (F9 class)                       -> output-references
+#
+# Deliberately lean: external URLs are NOT checked (flaky), and shellcheck
+# runs at warning severity to suppress style noise.
+
+name: quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Check internal/relative links in all markdown files.
+  # --offline skips every external URL, so only file-path links can fail.
+  markdown-links:
+    name: markdown internal links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          # Tooling/artifact dirs are excluded; they are not student-facing.
+          # docs/ is excluded: audit-report plans contain pseudo-links that
+          # should not gate CI.
+          args: >-
+            --offline
+            --no-progress
+            --exclude-path .auto-claude
+            --exclude-path graphify-out
+            --exclude-path node_modules
+            --exclude-path docs
+            './**/*.md'
+          fail: true
+
+  # Lint the lab provisioning scripts. shellcheck is preinstalled on
+  # ubuntu-latest runners.
+  shellcheck:
+    name: shellcheck lab scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # -S warning: report warnings and errors only (no info/style noise).
+      # Excluded checks (both fire on the current scripts and are benign;
+      # excluded so CI passes today while still catching real regressions):
+      #   SC2155 "declare and assign separately" - stylistic; the masked
+      #          return values ($(date +%s) etc.) are not failure modes here.
+      #   SC2034 "variable appears unused" - intentional throwaway loop
+      #          counters in retry loops (e.g. `for i in $(seq 1 24)`).
+      - name: Run shellcheck
+        run: shellcheck -S warning -e SC2155 -e SC2034 lab-infrastructure/scripts/*.sh
+
+  # Formatting + static validation of the lab terraform.
+  terraform:
+    name: terraform fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.8"
+      - name: terraform fmt check
+        working-directory: lab-infrastructure/terraform
+        run: terraform fmt -check -recursive
+      # -backend=false: the student-lab env declares an s3 backend; CI has no
+      # AWS credentials and validate doesn't need state.
+      - name: terraform validate (student-lab)
+        working-directory: lab-infrastructure/terraform/environments/student-lab
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+  # Every terraform output name consumed by the lab scripts must exist in
+  # student-lab/outputs.tf. Catches the F9 defect class: scripts reading
+  # outputs that were renamed or never defined.
+  output-references:
+    name: scripts consume real terraform outputs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check terraform output references
+        run: |
+          set -euo pipefail
+          outputs_file="lab-infrastructure/terraform/environments/student-lab/outputs.tf"
+
+          # Collect every `terraform output [-raw|-json] <name>` reference.
+          # The identifier pattern deliberately ignores non-checkable forms:
+          #   - bare `terraform output` / `terraform output -json` (no name)
+          #   - dynamic names such as `terraform output -raw "$var"`
+          # (grep may legitimately find nothing, hence the `|| true`)
+          names=$( { grep -hoE 'terraform output (-raw |-json )?[A-Za-z_][A-Za-z0-9_]*' \
+                       lab-infrastructure/scripts/*.sh || true; } \
+                   | sed -E 's/^terraform output (-raw |-json )?//' | sort -u)
+
+          if [ -z "$names" ]; then
+            echo "No terraform output references found in scripts; nothing to check."
+            exit 0
+          fi
+
+          missing=0
+          for name in $names; do
+            if grep -qE "^output \"$name\"" "$outputs_file"; then
+              echo "ok: $name"
+            else
+              echo "::error::scripts reference terraform output '$name' but it is not defined in $outputs_file"
+              missing=1
+            fi
+          done
+          exit "$missing"

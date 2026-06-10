@@ -14,6 +14,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Respect NO_COLOR and non-TTY output (piped logs, CI, screen readers)
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    RED="" GREEN="" YELLOW="" BLUE="" NC=""
+fi
+
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -271,6 +276,9 @@ if [[ -z "$REGION" ]]; then
     log_error "No AWS region specified. Use --region or set AWS_REGION"
     exit 1
 fi
+
+# jq is required to read connection details from the Terraform state
+command -v jq &> /dev/null || { log_error "jq is required but not installed. Install: brew install jq (macOS) or sudo apt-get install -y jq (Ubuntu)"; exit 1; }
 
 # Show password and exit if requested
 if [[ "$SHOW_PASSWORD" == "true" ]]; then

@@ -1,8 +1,9 @@
 # Week 1 Assessment: k0rdent Enterprise Foundations
 
-**Duration:** 30 minutes
-**Passing Score:** 80% (15/18 correct)
-**Format:** 12 multiple choice + 6 short answer
+**Duration:** 45-60 minutes
+**Format:** 14 multiple choice + 7 short answer (21 items)
+**Target:** 80% -- at least 17 of 21 (self-assessment; the answer key is at the bottom of this file)
+**Self-scoring:** For short answers, mark yourself correct if your response covers the required elements listed in the answer key entry for that question.
 
 ---
 
@@ -59,7 +60,7 @@ b) OpenTelemetry Collector -> VictoriaMetrics -> Grafana
 c) Fluentd -> Elasticsearch -> Kibana
 d) kube-state-metrics -> InfluxDB -> Grafana
 
-### 8. How does KSM (k0rdent State Manager) install and manage Helm charts on workload clusters?
+### 8. How does KSM (k0rdent State Management) install and manage Helm charts on workload clusters?
 
 a) It SSHs into each workload cluster node and runs `helm install` directly
 b) It creates ServiceSet objects that the built-in provider translates into ProjectSveltos Profile or ClusterProfile resources
@@ -94,25 +95,39 @@ b) RemoteMachine uses OAuth2 tokens instead of static credentials
 c) The Credential CRD references a Secret directly without an intermediate provider identity CRD
 d) RemoteMachine credentials are stored in a ConfigMap instead of a Secret
 
+### 13. A platform engineer creates a MultiClusterService with `clusterSelector.matchLabels: {environment: production}`, then runs `kubectl label cluster prod-cluster-1 environment=production` to label the CAPI Cluster object. The MultiClusterService still matches 0 clusters. Where must the label be applied?
+
+a) On the CAPI `Cluster` object -- the command was correct but needs a controller restart to take effect
+b) On the `ClusterDeployment` object in the management cluster, because `clusterSelector` matches labels on ClusterDeployments, not on CAPI Cluster objects
+c) On every node of the target cluster so the service scheduler can discover it
+d) On the namespace containing the cluster resources
+
+### 14. A ClusterDeployment has been stuck provisioning for over an hour. The `capa-controller-manager` logs in `kcm-system` show repeated `ExpiredTokenException` errors -- the engineer's AWS SSO session expired after the credential Secret was created. What is the correct fix?
+
+a) Delete and recreate the ClusterDeployment to trigger a fresh provisioning attempt
+b) Recreate the AWSClusterStaticIdentity, since provider identities cache credentials permanently
+c) Refresh the AWS credentials, update the credential Secret with the new values, and run `kubectl rollout restart` on the capa-controller-manager deployment so it picks them up
+d) Wait -- CAPA automatically refreshes expired SSO tokens on its next reconcile loop
+
 ---
 
 ## Short Answer
 
 Answer each question in 1-3 sentences.
 
-### 13. Why does k0rdent use a three-layer credential model (Secret -> Provider Identity CRD -> Credential CRD) instead of having ClusterDeployments reference Kubernetes Secrets directly?
+### 15. Why does k0rdent use a three-layer credential model (Secret -> Provider Identity CRD -> Credential CRD) instead of having ClusterDeployments reference Kubernetes Secrets directly?
 
-### 14. A managed cluster provisioned via k0rdent shows a `Failed` status. Describe the sequence of resources and logs you would check to diagnose the root cause, starting from the highest-level k0rdent resource.
+### 16. A managed cluster provisioned via k0rdent shows a `Failed` status. Describe the sequence of resources and logs you would check to diagnose the root cause, starting from the highest-level k0rdent resource.
 
-### 15. Explain how MultiClusterService and ServiceTemplateChain work together to manage service lifecycle across a fleet of clusters.
+### 17. Explain how MultiClusterService and ServiceTemplateChain work together to manage service lifecycle across a fleet of clusters.
 
-### 16. KOF deploys OpenTelemetry collectors to child clusters, but in a multi-VPC AWS environment the collectors cannot reach VictoriaMetrics on the management cluster. Explain why this happens and name two approaches to solve it.
+### 18. KOF deploys OpenTelemetry collectors to child clusters, but in a multi-VPC AWS environment the collectors cannot reach VictoriaMetrics on the management cluster. Explain why this happens and name two approaches to solve it.
 
-### 17. Why is `ManagementBackup` critical before upgrading k0rdent Enterprise, and under what circumstances would you use a Velero restore versus an etcd restore?
+### 19. Why is `ManagementBackup` critical before upgrading k0rdent Enterprise, and under what circumstances would you use a Velero restore versus a `k0s restore` from a `k0s backup` archive?
 
-### 18. Explain how RBAC and namespace isolation work together in k0rdent to support multi-team access to shared management infrastructure. Include the role of `allowedNamespaces` on provider identity CRDs.
+### 20. Explain how RBAC and namespace isolation work together in k0rdent to support multi-team access to shared management infrastructure. Include the role of `allowedNamespaces` on provider identity CRDs.
 
-### 19. A student provisions a management cluster and the k0rdent UI Gateway shows `PROGRAMMED: True` with an ELB hostname, but the ELB has zero registered instances and HTTP requests fail. Explain the four AWS tags that CCM requires and why a missing `providerID` on the node prevents instance registration.
+### 21. A student provisions a management cluster and the k0rdent UI Gateway shows `PROGRAMMED: True` with an ELB hostname, but the ELB has zero registered instances and HTTP requests fail. Explain the four AWS tags that CCM requires and why a missing `providerID` on the node prevents instance registration.
 
 ---
 
@@ -147,20 +162,24 @@ Answer each question in 1-3 sentences.
 
 12. **c)** -- The RemoteMachine provider is the only provider where the Credential CRD references a Kubernetes Secret (containing an SSH private key) directly, without an intermediate provider identity CRD like AWSClusterStaticIdentity or VSphereClusterIdentity. It still requires credentials (eliminating a), uses SSH keys not OAuth2 (b), and uses Secrets not ConfigMaps (d).
 
+13. **b)** -- MultiClusterService's `clusterSelector` matches labels on `ClusterDeployment` objects in the management cluster, not on the underlying CAPI `Cluster` objects. Labeling the CAPI Cluster is a common trap because the two objects share the same name; the fix is `kubectl label clusterdeployment prod-cluster-1 -n <namespace> environment=production`. No controller restart is involved (a), and node (c) or namespace (d) labels play no role in MultiClusterService matching.
+
+14. **c)** -- CAPA reads AWS credentials from the Kubernetes Secret referenced by the AWSClusterStaticIdentity, and the running controller caches what it loaded. When SSO-derived credentials expire, every cloud API call fails with `ExpiredTokenException` and provisioning stalls. The fix is to refresh the credentials (re-login, export new keys), update the Secret, and `kubectl rollout restart -n kcm-system deploy/capa-controller-manager` so the controller picks up the new values. Recreating the ClusterDeployment (a) does not fix the stale credentials, recreating the identity (b) is unnecessary, and CAPA cannot refresh SSO tokens on its own (d).
+
 ### Short Answer
 
-13. The three-layer model provides separation of concerns and access control. The Kubernetes Secret holds raw credentials that should be tightly restricted. The Provider Identity CRD adds provider-specific configuration (such as `allowedNamespaces` to control which tenants can use the credential) and abstracts the secret reference. The Credential CRD provides a k0rdent-native abstraction that ClusterDeployments reference, decoupling cluster definitions from provider-specific identity types. This allows credential rotation at the Secret layer without modifying ClusterDeployments, and enables administrators to restrict credential usage across namespaces via the identity layer's `allowedNamespaces` field.
+15. The three-layer model provides separation of concerns and access control. The Kubernetes Secret holds raw credentials that should be tightly restricted. The Provider Identity CRD adds provider-specific configuration (such as `allowedNamespaces` to control which tenants can use the credential) and abstracts the secret reference. The Credential CRD provides a k0rdent-native abstraction that ClusterDeployments reference, decoupling cluster definitions from provider-specific identity types. This allows credential rotation at the Secret layer without modifying ClusterDeployments, and enables administrators to restrict credential usage across namespaces via the identity layer's `allowedNamespaces` field.
 
-14. Start with the ClusterDeployment: `kubectl describe clusterdeployment <name> -n <namespace>` to check `status.conditions` for error messages. Next, inspect the underlying CAPI Cluster resource: `kubectl describe cluster <name> -n <namespace>`. Then check individual Machine resources: `kubectl describe machines -n <namespace>` for infrastructure-level failures (e.g., instance type unavailable, insufficient IAM permissions). Finally, check the CAPI provider controller logs: `kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tail=100` for API-level errors from the cloud provider.
+16. Start with the ClusterDeployment: `kubectl describe clusterdeployment <name> -n <namespace>` to check `status.conditions` for error messages. Next, inspect the underlying CAPI Cluster resource: `kubectl describe cluster <name> -n <namespace>`. Then check individual Machine resources: `kubectl describe machines -n <namespace>` for infrastructure-level failures (e.g., instance type unavailable, insufficient IAM permissions). Finally, check the CAPI provider controller logs: `kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --tail=100` for API-level errors from the cloud provider.
 
-15. MultiClusterService deploys services from ServiceTemplates to all clusters matching a label selector, providing centralized fleet-wide service management. ServiceTemplateChain defines allowed upgrade paths between ServiceTemplate versions (e.g., `ingress-nginx-4-10-0` can upgrade to `ingress-nginx-4-11-0`), preventing incompatible version jumps. Together, they enable an operator to update the template reference in a MultiClusterService to a newer version, and the chain ensures only validated upgrade paths are followed across the fleet.
+17. MultiClusterService deploys services from ServiceTemplates to all clusters matching a label selector, providing centralized fleet-wide service management. ServiceTemplateChain defines allowed upgrade paths between ServiceTemplate versions (e.g., `ingress-nginx-4-10-0` can upgrade to `ingress-nginx-4-11-0`), preventing incompatible version jumps. Together, they enable an operator to update the template reference in a MultiClusterService to a newer version, and the chain ensures only validated upgrade paths are followed across the fleet.
 
-16. CAPA creates a new, isolated VPC for each managed cluster. The internal Kubernetes DNS names (e.g., `vminsert-cluster.kof.svc.cluster.local`) only resolve within the management cluster, and the management cluster's pod/service CIDRs are not routable from the managed cluster's VPC. Two solutions: (1) VPC Peering -- create a peering connection between the management and managed cluster VPCs with appropriate route table and security group updates; (2) LoadBalancer exposure -- expose KOF storage services (vminsert, VictoriaLogs vlinsert, Jaeger collector) via AWS Network Load Balancers and update the child cluster configuration to use the NLB endpoints (requires AWS Cloud Controller Manager on the management cluster).
+18. CAPA creates a new, isolated VPC for each managed cluster. The internal Kubernetes DNS names (e.g., `vminsert-cluster.kof.svc.cluster.local`) only resolve within the management cluster, and the management cluster's pod/service CIDRs are not routable from the managed cluster's VPC. Two solutions: (1) VPC Peering -- create a peering connection between the management and managed cluster VPCs with appropriate route table and security group updates; (2) LoadBalancer exposure -- expose KOF storage services (vminsert, VictoriaLogs vlinsert, and the trace ingestion endpoint -- a jaeger-collector compatibility service in front of the VictoriaTraces backend) via AWS Network Load Balancers and update the child cluster configuration to use the NLB endpoints (requires AWS Cloud Controller Manager on the management cluster).
 
-17. `ManagementBackup` provides the documented recovery point for k0rdent upgrades because it captures the k0rdent, CAPI, cert-manager, and related resources selected by the product's backup labels. Use a Velero restore when a release revert is not enough and you need to restore those management-plane resources to the pre-upgrade state. Use an etcd restore only as a platform-level last resort, because it reverts the entire cluster state, not just k0rdent.
+19. `ManagementBackup` provides the documented recovery point for k0rdent upgrades because it captures the k0rdent, CAPI, cert-manager, and related resources selected by the product's backup labels. Use a Velero restore of the ManagementBackup when a release revert is not enough and you need to restore those k0rdent-scoped management-plane resources to the pre-upgrade state. Use `sudo k0s restore` from an archive previously taken with `sudo k0s backup` only as the platform-level last resort, because it rolls back the entire k0s control plane state (cluster store, certificates, configuration), not just k0rdent resources.
 
-18. k0rdent uses Kubernetes namespaces as the primary tenant boundary. Teams should work in their own namespaces with namespace-scoped RoleBindings, while `kcm-system` remains reserved for platform components and sensitive resources. Built-in roles such as `kcm-namespace-editor-role` and `kcm-credentials-viewer-role` help separate cluster-management permissions from credential visibility, and the provider identity CRD's `allowedNamespaces` field further restricts which namespaces are allowed to use a given cloud identity.
+20. k0rdent uses Kubernetes namespaces as the primary tenant boundary. Teams should work in their own namespaces with namespace-scoped RoleBindings, while `kcm-system` remains reserved for platform components and sensitive resources. Built-in roles such as `kcm-namespace-editor-role` and `kcm-credentials-viewer-role` help separate cluster-management permissions from credential visibility, and the provider identity CRD's `allowedNamespaces` field further restricts which namespaces are allowed to use a given cloud identity.
 
-19. CCM requires four tags to function: (1) `kubernetes.io/cluster/<cluster-name>=owned` on the EC2 instance, so CCM can determine which cluster the instance belongs to (without it, CCM refuses to start with "ClusterID not found"); (2) `kubernetes.io/role/elb=1` on public subnets, so CCM knows where to place internet-facing load balancers; (3) `kubernetes.io/role/internal-elb=1` on private subnets for internal load balancers; (4) `kubernetes.io/cluster/<cluster-name>=owned` on subnets so CCM only uses subnets belonging to its cluster. The `providerID` (format: `aws:///az/instance-id`) is critical because CCM uses it to map a Kubernetes node to its EC2 instance. When CCM creates an ELB and calls `RegisterInstances`, it needs the EC2 instance ID — which it extracts from the providerID. Without it, CCM creates the ELB but registers zero instances, resulting in a load balancer that accepts connections but has no backends to forward to.
+21. CCM requires four tags to function: (1) `kubernetes.io/cluster/<cluster-name>=owned` on the EC2 instance, so CCM can determine which cluster the instance belongs to (without it, CCM refuses to start with "ClusterID not found"); (2) `kubernetes.io/role/elb=1` on public subnets, so CCM knows where to place internet-facing load balancers; (3) `kubernetes.io/role/internal-elb=1` on private subnets for internal load balancers; (4) `kubernetes.io/cluster/<cluster-name>=owned` on subnets so CCM only uses subnets belonging to its cluster. The `providerID` (format: `aws:///az/instance-id`) is critical because CCM uses it to map a Kubernetes node to its EC2 instance. When CCM creates an ELB and calls `RegisterInstances`, it needs the EC2 instance ID — which it extracts from the providerID. Without it, CCM creates the ELB but registers zero instances, resulting in a load balancer that accepts connections but has no backends to forward to.
 
 </details>

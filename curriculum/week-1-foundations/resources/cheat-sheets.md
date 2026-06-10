@@ -14,10 +14,10 @@ These aliases are pre-configured on the management cluster:
 | `kgp` | `kubectl get pods` | List pods |
 | `kgn` | `kubectl get nodes` | List nodes |
 | `kgaa` | `kubectl get all -A` | All resources, all namespaces |
-| `kgm` | `kubectl get management` | k0rdent Management object |
-| `kgcd` | `kubectl get clusterdeployments -A` | All cluster deployments |
-| `kgct` | `kubectl get clustertemplates -n kcm-system` | Available cluster templates |
-| `kgcred` | `kubectl get credentials -n kcm-system` | Configured credentials |
+| `kgm` | `kubectl get management -A` | k0rdent Management object |
+| `kgcd` | `kubectl get clusterdeployment -A` | All cluster deployments |
+| `kgct` | `kubectl get clustertemplates -A` | Available cluster templates |
+| `kgcred` | `kubectl get credentials -A` | Configured credentials |
 
 ---
 
@@ -29,17 +29,20 @@ kubectl get crds | grep k0rdent.mirantis.com
 ```
 
 ### Core CRDs
+
+> **Scope note:** `Management`, `ProviderTemplate`, `Release`, and `MultiClusterService` are **cluster-scoped** (no `-n` flag). `ClusterTemplate`, `ServiceTemplate`, and `Credential` are namespaced and live in `kcm-system`.
+
 ```bash
-# Management object (one per cluster)
-kubectl get management -n kcm-system
-kubectl describe management kcm -n kcm-system
+# Management object (one per cluster, cluster-scoped)
+kubectl get management
+kubectl describe management kcm
 
 # Cluster templates (available blueprints)
 kubectl get clustertemplates -n kcm-system
 kubectl get clustertemplates -n kcm-system | grep aws
 
-# Provider templates (registered CAPI providers)
-kubectl get providertemplates -n kcm-system
+# Provider templates (registered CAPI providers, cluster-scoped)
+kubectl get providertemplates
 
 # Service templates (deployable services)
 kubectl get servicetemplates -n kcm-system
@@ -115,12 +118,20 @@ helm list -n kof
 
 ### Access Grafana
 ```bash
-# Get credentials
-kubectl get secret -n kof grafana-admin-credentials -o jsonpath='{.data.admin-password}' | base64 -d && echo
+# Get username (not guaranteed to be 'admin')
+kubectl get secret grafana-admin-credentials -n kof \
+  -o jsonpath='{.data.GF_SECURITY_ADMIN_USER}' | base64 -d && echo
 
-# Port forward
-kubectl port-forward svc/grafana-vm-service -n kof 3000:3000
-# Open http://localhost:3000
+# Get password
+kubectl get secret grafana-admin-credentials -n kof \
+  -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' | base64 -d && echo
+
+# Port forward (run on the management node)
+kubectl port-forward svc/grafana-vm-service -n kof 3000:3000 --address 0.0.0.0 &
+
+# From your LOCAL machine: tunnel through the bastion (see Lab 1.6 Part 4)
+./scripts/lab-connect.sh <engineer-id> --tunnel 3000:3000
+# Then open http://localhost:3000 locally
 ```
 
 ### Query Metrics
@@ -137,18 +148,56 @@ curl -s "http://localhost:8481/select/0/prometheus/api/v1/query?query=up" | jq '
 ## Credential Management
 
 ### AWS Credential (Three-Layer Model)
+
+These objects are created inline (no local YAML files) — full walkthrough in Lab 1.3 Part 3:
+
 ```bash
 # 1. Create secret
-kubectl apply -f aws-secret.yaml
+kubectl create secret generic aws-cluster-identity-secret \
+  --from-literal=AccessKeyID="${AWS_ACCESS_KEY_ID}" \
+  --from-literal=SecretAccessKey="${AWS_SECRET_ACCESS_KEY}" \
+  -n kcm-system
 
 # 2. Create identity
-kubectl apply -f aws-identity.yaml
+cat << 'EOF' | kubectl apply -f -
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: AWSClusterStaticIdentity
+metadata:
+  name: aws-cluster-identity
+  labels:
+    k0rdent.mirantis.com/component: "kcm"
+spec:
+  secretRef: aws-cluster-identity-secret
+  allowedNamespaces: {}
+EOF
 
 # 2b. Create the resource template ConfigMap
-kubectl apply -f aws-cluster-identity-resource-template.yaml
+cat << 'EOF' | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-cluster-identity-resource-template
+  namespace: kcm-system
+  labels:
+    k0rdent.mirantis.com/component: "kcm"
+  annotations:
+    projectsveltos.io/template: "true"
+EOF
 
 # 3. Create credential
-kubectl apply -f aws-credential.yaml
+cat << 'EOF' | kubectl apply -f -
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: Credential
+metadata:
+  name: aws-cluster-identity-cred
+  namespace: kcm-system
+spec:
+  identityRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+    kind: AWSClusterStaticIdentity
+    name: aws-cluster-identity
+    namespace: kcm-system
+EOF
 
 # Verify chain
 kubectl get secret aws-cluster-identity-secret -n kcm-system
@@ -163,12 +212,20 @@ kubectl get credential aws-cluster-identity-cred -n kcm-system
 
 ### Pre-Upgrade
 ```bash
-# Verify backup storage and create a ManagementBackup
+# Verify backup storage and create a ManagementBackup (see Lab 1.8 Part 1)
 kubectl get backupstoragelocation -n kcm-system
-kubectl apply -f management-backup.yaml
+cat <<EOF | kubectl apply -f -
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ManagementBackup
+metadata:
+  name: pre-upgrade-$(date +%Y%m%d)
+spec:
+  storageLocation: aws-s3
+EOF
 
-# Export resources
-kubectl get management,credentials,clustertemplates,servicetemplates -n kcm-system -o yaml > /tmp/backup.yaml
+# Export resources (Management is cluster-scoped, the rest live in kcm-system)
+kubectl get management kcm -o yaml > /tmp/backup-management.yaml
+kubectl get credentials,clustertemplates,servicetemplates -n kcm-system -o yaml > /tmp/backup.yaml
 
 # Current release
 kubectl get releases.k0rdent.mirantis.com
@@ -201,7 +258,7 @@ kubectl get backups -n kcm-system
 ```
 Cluster stuck in Provisioning?
 ├── Check credentials: kubectl get credentials -n kcm-system
-│   └── Missing? → Create credential chain (Secret → Identity → Credential)
+│   └── Missing? → Create credential chain (Secret → Identity → resource-template ConfigMap → Credential, see Lab 1.3)
 ├── Check CAPI controllers: kubectl get pods -n kcm-system | grep cap
 │   └── CrashLoop? → kubectl logs <pod> -n kcm-system
 ├── Check events: kubectl describe clusterdeployment <name> -n <ns>
@@ -209,7 +266,8 @@ Cluster stuck in Provisioning?
 │   ├── "credential not found" → Check namespace + credential name
 │   ├── "insufficient permissions" → Check IAM policy
 │   └── "SSH key not found" → Create key pair in correct region
-└── Check AWS: aws ec2 describe-instances --filters "Name=tag:cluster,Values=<name>"
+└── Check AWS: aws ec2 describe-instances --filters "Name=tag-key,Values=sigs.k8s.io/cluster-api-provider-aws/cluster/<name>"
+    (CCM-created resources like load balancers carry the kubernetes.io/cluster/<name> tag instead)
 
 Pods not starting in kcm-system?
 ├── ImagePullBackOff → Check registry access / image names
@@ -236,6 +294,9 @@ Network policies broke provisioning?
 # Check status
 ./scripts/lab-status.sh <engineer-id>
 
-# Destroy environment (end of day!)
+# Pause for the day (the management cluster is reused all program — do NOT destroy it)
+aws ec2 stop-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>
+
+# Destroy environment (ONLY after finishing all labs — see Lab 1.8 "End of Week 1" teardown)
 ./scripts/lab-destroy.sh <engineer-id>
 ```

@@ -30,7 +30,7 @@ variable "vpc_cidr" {
 }
 
 variable "allowed_ssh_cidrs" {
-  description = "CIDR blocks allowed to SSH to bastion"
+  description = "CIDRs allowed to SSH to the bastion. Default 0.0.0.0/0 is wide open — lab-provision.sh narrows this to your caller IP via --ssh-cidr; override deliberately for cohorts."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
@@ -43,7 +43,7 @@ variable "gpu_az" {
 
 # k0rdent cluster
 variable "node_count" {
-  description = "Number of management cluster nodes (1 for lab, 3 for HA)"
+  description = "Number of independent single-node management instances — NOT an HA cluster. Each instance runs its own k0s + k0rdent install; values > 1 multiply cost without adding redundancy."
   type        = number
   default     = 1
 }
@@ -111,7 +111,7 @@ variable "current_week" {
 }
 
 variable "ttl_hours" {
-  description = "Time to live in hours"
+  description = "Informational TTL tag (TTLHours) — NOT enforced; no automatic termination exists. You are billed until you stop or destroy the instance."
   type        = number
   default     = 8
 }

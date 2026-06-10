@@ -134,7 +134,7 @@ variable "git_repo_url" {
 #------------------------------------------------------------------------------
 
 variable "ttl_hours" {
-  description = "Time to live in hours before auto-termination"
+  description = "Informational TTL tag (TTLHours) — NOT enforced; no automatic termination exists. You are billed until you stop or destroy the instance."
   type        = number
   default     = 8
 }

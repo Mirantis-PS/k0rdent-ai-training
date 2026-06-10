@@ -1,6 +1,6 @@
 # Lab 1.5: Provision Your First Managed Cluster
 
-**Duration:** 2.5 hours (active: ~1h, waiting for cluster provisioning: ~1.5h)
+**Duration:** 2.5 hours (~1 hour active + ~30-40 min unattended provisioning wait; the remainder is buffer and the optional Azure path)
 **Type:** Hands-on Lab
 
 ## Table of Contents
@@ -60,7 +60,7 @@ In this lab, you will:
 
 - Completed Labs 1.1-1.4
 - AWS credentials configured (Lab 1.3)
-- SSH key pair created for cluster nodes (Lab 1.3)
+- SSH key pair for cluster nodes (Lab 1.3 Part 6 — an optional step; if you skipped it, Part 1 below shows how to create it now)
 - Understanding of ClusterDeployment concepts
 
 ## Cost Considerations
@@ -68,8 +68,8 @@ In this lab, you will:
 > **Important:** This lab provisions real cloud infrastructure that incurs costs.
 >
 > - **Estimated AWS cost:** ~$0.15/hour for minimal cluster (1 control plane + 1 worker)
-> - **Remember to clean up** when finished with the lab
-> - Cleanup instructions provided at the end
+> - **If you're continuing to Labs 1.6-1.8 (recommended), keep the cluster running** — it's required by Labs 1.6/1.7, and final cleanup happens at the end of Lab 1.8
+> - Cleanup instructions for those stopping after this lab are provided at the end (Part 7)
 
 ## Resuming This Lab
 
@@ -87,6 +87,20 @@ kubectl get pods -n kcm-system
 # Check if your managed cluster is still running
 kubectl get clusterdeployment -n kcm-system
 ```
+
+Shell variables do **not** survive a reconnect — re-establish them before re-running any command or heredoc that uses them (otherwise `${AWS_REGION}` and `${TEMPLATE_NAME}` silently render empty):
+
+```bash
+# Re-export your region (stored on the lab VM at provisioning time)
+export AWS_REGION=$(grep '^AWS_REGION=' /opt/k0rdent-lab/config/lab-info.env | cut -d= -f2)
+echo "AWS_REGION=$AWS_REGION"  # Must NOT be empty — if it is, export it manually
+
+# Re-derive the template name (same command as Part 2)
+kubectl get clustertemplates -n kcm-system | grep aws-standalone-cp
+TEMPLATE_NAME="aws-standalone-cp-1-0-20"  # Adjust based on your output
+```
+
+> **AWS SSO users:** If you're returning the next day, your CAPA session credentials have almost certainly expired (CAPA will show `ExpiredTokenException` and provisioning/deletion will stall). Refresh before continuing — on your **local machine**, run `aws sso login --profile <your-profile>`, then `./scripts/lab-refresh-creds.sh <your-name>` (from `lab-infrastructure/`), which updates the credential secret and restarts the CAPA controller. See the Lab 1.3 SSO section for details.
 
 ---
 
@@ -133,21 +147,25 @@ Note the available AWS template names. Common templates include:
 
 > **Important:** The SSH key pair must exist in the **same region** where you'll provision the cluster.
 
-> **Note:** Use the same region you chose for your management cluster in Lab 1.1 (e.g., `eu-west-1`, `us-east-1`). All examples below use `$AWS_REGION` -- set it once and the commands will be consistent.
+> **Note:** Use the same region you chose for your management cluster in Lab 1.1 (e.g., `us-east-1`, `eu-west-1`). All examples below use `$AWS_REGION` -- set it once and the commands will be consistent.
 
 ```bash
-# Set your target region — use the SAME region as your management cluster
-# Example: eu-west-1, us-east-1, etc.
-export AWS_REGION="eu-west-1"  # <-- adjust to YOUR region
+# Set your target region — use the SAME region you chose in Lab 1.1
+export AWS_REGION="us-east-1"  # <-- REPLACE with the region YOU chose in Lab 1.1
 
 # Check if your SSH key pair exists in AWS
 aws ec2 describe-key-pairs --key-names k0rdent-clusters --region $AWS_REGION
-
-# If not found, create it (from Lab 1.3):
-# ssh-keygen -t ed25519 -f ~/.ssh/k0rdent-clusters -N ""
-# aws ec2 import-key-pair --key-name k0rdent-clusters \
-#   --public-key-material fileb://~/.ssh/k0rdent-clusters.pub --region $AWS_REGION
 ```
+
+> **Note:** Lab 1.3's optional SSH-key step (Part 6) created this key pair. If you skipped it, you're not stuck — create the key pair now:
+>
+> ```bash
+> # Run from your LOCAL machine (same commands as Lab 1.3 Part 6)
+> ssh-keygen -t ed25519 -f ~/.ssh/k0rdent-clusters -N ""
+> aws ec2 import-key-pair --key-name k0rdent-clusters \
+>   --public-key-material fileb://~/.ssh/k0rdent-clusters.pub --region $AWS_REGION
+> chmod 600 ~/.ssh/k0rdent-clusters
+> ```
 
 ## Part 2: Create the ClusterDeployment (~10 min)
 
@@ -480,9 +498,24 @@ kubectl delete deployment nginx-test
 
 If you have Azure credentials, you can provision a cluster there too.
 
+> **Cost & cleanup:** This Azure cluster incurs real costs (2x `Standard_D2s_v3` is roughly $0.20/hour, plus load balancer and disks). Unlike `managed-cluster-01`, it is **not** used by any later lab — delete it as soon as you finish this part:
+>
+> ```bash
+> kubectl delete clusterdeployment azure-cluster-01 -n kcm-system
+> ```
+
 ### Configure Azure Credentials
 
-First, create Azure credentials (if not already done):
+First, set your Azure service principal details — the heredocs below expand these variables, so they must be exported in your current session:
+
+```bash
+export AZURE_TENANT_ID="<your-tenant-id>"
+export AZURE_CLIENT_ID="<your-service-principal-app-id>"
+export AZURE_CLIENT_SECRET="<your-service-principal-secret>"
+export AZURE_SUBSCRIPTION_ID="<your-subscription-id>"
+```
+
+Then create Azure credentials (if not already done):
 
 ```bash
 # Create Azure credentials secret
@@ -529,8 +562,20 @@ EOF
 
 ### Create Azure ClusterDeployment
 
+First, find the exact Azure template name (same discovery step as the AWS path):
+
 ```bash
-cat << 'EOF' > /tmp/azure-cluster-01.yaml
+# Find the Azure standalone control plane template
+kubectl get clustertemplates -n kcm-system | grep azure-standalone-cp
+
+# Note the exact name (e.g., azure-standalone-cp-1-0-19)
+AZURE_TEMPLATE="<azure-template-name>"  # Replace with the actual name from above
+```
+
+Then create the ClusterDeployment:
+
+```bash
+cat << EOF > /tmp/azure-cluster-01.yaml
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ClusterDeployment
 metadata:
@@ -540,7 +585,7 @@ metadata:
     environment: training
     provider: azure
 spec:
-  template: azure-standalone-cp-0-1-0
+  template: ${AZURE_TEMPLATE}
   credential: azure-cluster-identity-cred
   dryRun: false
   cleanupOnDeletion: true
@@ -555,6 +600,10 @@ spec:
       vmSize: Standard_D2s_v3
 EOF
 
+# Verify the variables were expanded — you should see the real template name and
+# your real subscription ID, NOT literal ${AZURE_TEMPLATE} / ${AZURE_SUBSCRIPTION_ID}
+grep -E 'template:|subscriptionID:' /tmp/azure-cluster-01.yaml
+
 kubectl apply -f /tmp/azure-cluster-01.yaml
 ```
 
@@ -567,7 +616,11 @@ kubectl get clusterdeployment azure-cluster-01 -n kcm-system -w
 
 ## Part 7: Clean Up (~10 min)
 
-> **Important:** Clean up resources to avoid unnecessary cloud costs!
+> **Important: SKIP this section if you are continuing to Labs 1.6-1.8 (the recommended path).**
+>
+> `managed-cluster-01` is **required** by Labs 1.6 and 1.7, and is inspected during the upgrade in Lab 1.8. Final cleanup happens at the **end of Lab 1.8**, not here. Keeping the cluster running costs ~$0.15/hour. Only run the steps below if you are genuinely stopping after this lab.
+>
+> If you created the optional Azure cluster in Part 6, delete it now regardless — it is not used by any later lab.
 
 ### Delete Managed Cluster(s)
 
@@ -613,7 +666,7 @@ Before completing this lab, verify:
 - [ ] Retrieved kubeconfig for the managed cluster
 - [ ] Connected to and verified the managed cluster
 - [ ] Deployed a test workload successfully
-- [ ] Cleaned up all resources
+- [ ] Cleaned up resources (only if **not** continuing to Lab 1.6 — see Part 7)
 
 ## Summary
 

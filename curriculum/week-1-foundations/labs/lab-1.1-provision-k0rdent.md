@@ -1,6 +1,6 @@
 # Lab 1.1: Provision k0rdent Management Cluster
 
-**Duration:** 3 hours (active: ~1.5h, waiting for provisioning: ~1.5h)
+**Duration:** ~1.5 hours (active: ~1h; unattended provisioning wait: ~15-20 min)
 **Type:** Hands-on Lab
 
 ## Table of Contents
@@ -18,11 +18,13 @@
 - [Part 2: Verify Prerequisites (~2 min)](#part-2-verify-prerequisites-2-min)
 - [Part 3: Provision the k0rdent Management Cluster (~20 min)](#part-3-provision-the-k0rdent-management-cluster-20-min)
   - [Understanding the Output](#understanding-the-output)
+  - [Under the Hood: What the Script Actually Runs](#under-the-hood-what-the-script-actually-runs)
 - [Part 4: Connect to the Management Cluster (~2 min)](#part-4-connect-to-the-management-cluster-2-min)
   - [Verify k0rdent Installation](#verify-k0rdent-installation)
 - [Part 5: Verify k0s Cluster (~2 min)](#part-5-verify-k0s-cluster-2-min)
 - [Part 6: Verify k0rdent Enterprise Installation (~5 min)](#part-6-verify-k0rdent-enterprise-installation-5-min)
-- [Part 7: Access the k0rdent UI (~2 min)](#part-7-access-the-k0rdent-ui-2-min)
+- [Part 7: Access the k0rdent UI (~10 min)](#part-7-access-the-k0rdent-ui-10-min)
+  - [Hands-On: Trace the Chain That Gave the UI Its URL](#hands-on-trace-the-chain-that-gave-the-ui-its-url)
 - [Part 8: Explore k0rdent Resources (~5 min)](#part-8-explore-k0rdent-resources-5-min)
   - [Explore Other Namespaces](#explore-other-namespaces)
 - [Validation Checklist](#validation-checklist)
@@ -46,8 +48,10 @@ In this lab, you will:
 
 - AWS CLI v2 installed
 - Terraform >= 1.8.0 installed
+- `jq` installed (the lab scripts use it to parse AWS CLI output)
 - Your own copy of this training repository (fork or template)
 - Basic terminal/shell knowledge
+- **Supported OS:** macOS or Linux. Windows is supported via **WSL2 only** — all lab scripts are bash and do not run in PowerShell or Git Bash.
 
 > **Setup Note:** You should have either forked this repository or used "Use this template" on GitHub to create your own copy, then cloned it locally.
 
@@ -181,6 +185,8 @@ The provisioning script automates the entire setup process including:
 - Deploying the k0rdent management cluster
 - Installing k0s and k0rdent Enterprise
 
+> **SSO users — log in fresh first:** The apply plus cloud-init takes 15-20+ minutes, so don't rely on credentials cached earlier in the session. Run `aws sso login` (and re-run the `eval "$(aws configure export-credentials ...)"` workaround if you use it — see [Troubleshooting](#troubleshooting)) **immediately before** the provisioning command. If your token expires mid-apply, Terraform aborts with `ExpiredToken` and leaves partially created resources recorded in state — that's recoverable: log in again and re-run the same command. Terraform is idempotent and resumes from the saved state.
+
 Run the provisioning command:
 
 ```bash
@@ -228,6 +234,44 @@ The script will display progress as it:
 ```
 
 > **Don't worry if it pauses:** Step 4 (k0rdent Enterprise Helm install) takes 8-10 minutes. The stream may appear to hang — this is normal while Helm pulls images and waits for pods.
+
+### Under the Hood: What the Script Actually Runs
+
+`lab-provision.sh` is a convenience wrapper — the commands it hides are exactly what you'd run on a real customer engagement. Two layers:
+
+**1. Terraform** (`terraform apply` over four modules): `networking` (VPC, subnets, NAT), `bastion` (Amazon Linux 2023 jump host), `iam` (instance role so the node can call AWS APIs), and `k0rdent-mgmt` (the t3.xlarge management node).
+
+**2. Cloud-init on the management node**, in order:
+
+1. Installs **k0s** v1.32.4+k0s.0 as a single-node cluster (`k0s install controller --enable-worker`)
+2. Installs the **local-path-provisioner** as the default StorageClass
+3. Installs the **AWS Cloud Controller Manager** Helm chart into `kube-system` and patches the node's `providerID` — this is what makes `LoadBalancer` Services work
+4. Installs **k0rdent Enterprise** — the one command customers pay for:
+
+```bash
+helm install kcm oci://registry.mirantis.com/k0rdent-enterprise/charts/k0rdent-enterprise \
+  --version 1.2.2 \
+  --namespace kcm-system --create-namespace \
+  --set k0rdent-ui.enabled=true \
+  --set k0rdent-ui.auth.basic.password="$K0RDENT_UI_PASSWORD"
+```
+
+5. Installs the **Gateway API CRDs** and **Envoy Gateway** (Helm chart into `envoy-gateway-system`), then exposes the UI with a Gateway + HTTPRoute (sketch):
+
+```yaml
+kind: Gateway                       # kcm-system/k0rdent-gateway
+spec:
+  gatewayClassName: envoy-gateway
+  listeners: [{ name: http, protocol: HTTP, port: 80 }]
+---
+kind: HTTPRoute                     # routes / to the UI Service
+spec:
+  parentRefs: [{ name: k0rdent-gateway }]
+  rules:
+    - backendRefs: [{ name: kcm-k0rdent-ui, port: 3000 }]
+```
+
+The generated UI password lands in `/opt/k0rdent-lab/config/lab-info.env` on the node. For the full scripts, see [`lab-infrastructure/terraform/modules/k0rdent-mgmt/templates/mgmt-cloud-init.yaml`](../../../lab-infrastructure/terraform/modules/k0rdent-mgmt/templates/mgmt-cloud-init.yaml).
 
 ## Part 4: Connect to the Management Cluster (~2 min)
 
@@ -333,24 +377,26 @@ kubectl wait management kcm --for=condition=Ready=True --timeout=300s
 
 > **Why this matters:** Lab 1.3 requires CAPI CRDs (like `AWSClusterStaticIdentity`) that are only installed after the Management object finishes deploying all providers. If you skip this step, `kubectl apply` commands in Lab 1.3 will fail with "no matches for kind".
 
-## Part 7: Access the k0rdent UI (~2 min)
+## Part 7: Access the k0rdent UI (~10 min)
 
 The provisioning script waits for k0rdent and Envoy Gateway to be fully operational before printing the UI URL.
 
 **How the UI is exposed:**
 
 ```
-Browser (HTTP) → AWS NLB (auto-provisioned) → Envoy Gateway → HTTPRoute → k0rdent UI (:3000)
+Browser (HTTP) → AWS Classic ELB (auto-provisioned) → Envoy Gateway → HTTPRoute → k0rdent UI (:3000)
 ```
 
-Envoy Gateway uses the Kubernetes Gateway API to route traffic. AWS Cloud Controller Manager automatically provisions a Network Load Balancer for the Gateway's Service.
+Envoy Gateway uses the Kubernetes Gateway API to route traffic. AWS Cloud Controller Manager automatically provisions a Classic ELB for the Gateway's Service.
+
+> **Why a Classic ELB?** The Gateway's `LoadBalancer` Service carries no load-balancer annotations, and the in-tree AWS CCM's default for an unannotated Service is a Classic ELB — an NLB would require the `service.beta.kubernetes.io/aws-load-balancer-type: nlb` annotation. Theory 1.2 covers this chain in depth.
 
 **The URL is printed at the end of provisioning:**
 
 ```
 ============================================
   k0rdent UI
-  URL:       http://xxxxx.elb.us-east-1.amazonaws.com
+  URL:       http://xxxxx.us-east-1.elb.amazonaws.com
   Username:  admin
   Password:  <generated>
 ============================================
@@ -381,6 +427,59 @@ kubectl get gateway k0rdent-gateway -n kcm-system
 # View all Gateway API resources
 kubectl get gatewayclass,gateway,httproute -A
 ```
+
+### Hands-On: Trace the Chain That Gave the UI Its URL
+
+The UI URL didn't appear by magic — the AWS Cloud Controller Manager built it. Trace the chain yourself with three commands (this is the same chain Theory 1.2 teaches):
+
+**1. The node's `providerID` maps the Kubernetes node to its EC2 instance** (run via SSH):
+
+```bash
+kubectl get nodes -o jsonpath='{.items[0].spec.providerID}'
+```
+
+```
+aws:///us-east-1a/i-0a1b2c3d4e5f67890
+```
+
+CCM uses this `aws:///<az>/<instance-id>` value to know which EC2 instance to register behind load balancers. Note the instance ID — you'll use it in step 3.
+
+**2. The LoadBalancer Service that Envoy Gateway created** (run via SSH):
+
+```bash
+kubectl get svc -n envoy-gateway-system
+```
+
+```
+NAME                                      TYPE           CLUSTER-IP      EXTERNAL-IP                          PORT(S)
+envoy-gateway                             ClusterIP      10.96.x.x       <none>                               18000/TCP,...
+envoy-kcm-system-k0rdent-gateway-xxxxx    LoadBalancer   10.96.x.x       xxxxx.us-east-1.elb.amazonaws.com    80:3xxxx/TCP
+```
+
+The `EXTERNAL-IP` is the Classic ELB hostname CCM provisioned — it's exactly the hostname in your UI URL.
+
+**3. The cluster tag CCM uses to find its AWS resources** (run from your laptop, using the instance ID from step 1):
+
+```bash
+aws ec2 describe-tags \
+  --filters "Name=resource-id,Values=<instance-id>" \
+            "Name=key,Values=kubernetes.io/cluster/k0rdent-mgmt-<your-engineer-id>"
+```
+
+```json
+{
+    "Tags": [
+        {
+            "Key": "kubernetes.io/cluster/k0rdent-mgmt-<your-engineer-id>",
+            "ResourceId": "i-0a1b2c3d4e5f67890",
+            "ResourceType": "instance",
+            "Value": "owned"
+        }
+    ]
+}
+```
+
+This `kubernetes.io/cluster/<name> = owned` tag (also on the VPC subnets) is how CCM discovers which instances and subnets belong to this cluster when it creates the ELB and registers instances behind it.
 
 ## Part 8: Explore k0rdent Resources (~5 min)
 
@@ -434,6 +533,7 @@ Before completing this lab, verify:
 - [ ] All pods in kcm-system namespace are Running
 - [ ] k0rdent CRDs are installed
 - [ ] k0rdent UI is accessible (optional)
+- [ ] You traced the CCM chain: node `providerID` → LoadBalancer Service → `kubernetes.io/cluster/<name>` tag
 
 ## Troubleshooting
 
@@ -461,6 +561,25 @@ brew install hashicorp/tap/terraform
 # 3. Verify
 terraform version
 ```
+
+```bash
+# Install newer Terraform (Linux)
+
+# Option 1: HashiCorp apt repository (Debian/Ubuntu)
+wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+
+# Option 2: Direct binary download (any distro) — pick the latest
+# version from https://releases.hashicorp.com/terraform/
+curl -fsSL -o terraform.zip "https://releases.hashicorp.com/terraform/<version>/terraform_<version>_linux_amd64.zip"
+unzip terraform.zip && sudo mv terraform /usr/local/bin/
+
+# Verify
+terraform version
+```
+
+> **Windows:** Use WSL2 and install Terraform *inside* your WSL2 distro with the Linux instructions above. The lab scripts are bash — they do not run in PowerShell, cmd, or Git Bash.
 
 **Error: AWS SSO profile not working with Terraform**
 
@@ -521,6 +640,8 @@ When finished with the lab, you can destroy the environment:
 ```
 
 > **Important:** Only destroy if you're done with **all labs in the curriculum**. The management cluster is reused in every subsequent week — Week 5 GPU labs create GPU clusters via ClusterDeployment on this same management cluster. If you need to stop for the day, leave the management cluster running and use `lab-connect.sh` to reconnect later.
+
+> **Cost reality check:** The management instance carries a `TTLHours` tag (default 8), but it is **informational only** — there is no reaper, and nothing auto-terminates the instance. You are billed continuously until you stop or destroy the environment yourself. Pause and final teardown guidance lives at the end of [Lab 1.8](lab-1.8-upgrade-k0rdent.md) (pausing = `aws ec2 stop-instances`; note the NAT gateway, EIP, and EBS volumes still bill while instances are stopped).
 
 ## Summary
 

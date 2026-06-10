@@ -31,7 +31,7 @@ After this lab:
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) | **Lab 5.16 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multi-tenancy/README.md) |
+| [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) | **Lab 5.16 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multitenancy/labs/lab-6.6-capstone.md) |
 
 ---
 

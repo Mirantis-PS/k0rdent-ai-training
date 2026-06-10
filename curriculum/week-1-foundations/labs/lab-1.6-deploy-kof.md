@@ -1,6 +1,6 @@
 # Lab 1.6: Deploy k0rdent Observability & FinOps (KOF)
 
-**Duration:** 3 hours (active: ~2h, waiting for Helm installs: ~1h)
+**Duration:** Full path ~3.5-4 hours / Core path ~2.5 hours (roughly 1h of that is waiting for Helm installs)
 **Type:** Hands-on Lab
 
 ## Table of Contents
@@ -55,6 +55,7 @@
   - [No Metrics in Dashboards](#no-metrics-in-dashboards)
   - [PVC Pending](#pvc-pending)
   - [Namespace Stuck Terminating (During Reinstall)](#namespace-stuck-terminating-during-reinstall)
+- [Cost & Cleanup](#cost--cleanup)
 - [Next Lab](#next-lab)
 
 ## Objectives
@@ -71,7 +72,7 @@ In this lab, you will:
 - Completed Labs 1.1-1.5
 - Basic understanding of monitoring concepts
 
-> **Keep your managed cluster running!** This lab requires the managed cluster from Lab 1.5 to be active. Do **not** run the Lab 1.5 cleanup steps until you have completed Labs 1.6 and 1.7.
+> **Keep your managed cluster running!** This lab requires the managed cluster from Lab 1.5 to be active. Do **not** run the Lab 1.5 cleanup steps -- the managed cluster is used through Lab 1.8, and final teardown happens at the end of Lab 1.8.
 
 ## Resuming This Lab
 
@@ -80,6 +81,12 @@ If your SSH session dropped or you're returning the next day:
 ```bash
 cd lab-infrastructure
 ./scripts/lab-connect.sh <your-engineer-id>
+
+# Re-export lab environment variables (AWS_REGION, ENGINEER_ID, etc.) --
+# shell variables do NOT survive a reconnect
+source /opt/k0rdent-lab/config/lab-info.env
+echo "AWS_REGION=$AWS_REGION"  # Must NOT be empty -- if it is, export it manually
+
 kubectl get nodes && kubectl get pods -n kcm-system
 
 # Verify managed cluster is still running
@@ -89,6 +96,8 @@ kubectl get clusterdeployment -n kcm-system
 kubectl get pods -n kof
 ```
 
+> **AWS SSO users:** If you're returning the next day, your session credentials have likely expired. Refresh before continuing -- on your **local machine**, run `aws sso login --profile <your-profile>`, then `./scripts/lab-refresh-creds.sh <your-name>` (from `lab-infrastructure/`). See the Lab 1.3 SSO section for details.
+
 ---
 
 ## Lab Path
@@ -97,10 +106,10 @@ This is the longest lab in Week 1. Choose your path based on available time:
 
 | Path | Parts | Duration | What You Learn |
 |------|-------|----------|----------------|
-| **Core** (recommended) | 1-4, 7 | ~2h | KOF installation, Grafana access, dashboard basics |
-| **Full** | 1-7 | ~3h | Above + child cluster deployment, custom dashboards, troubleshooting |
+| **Core** (recommended) | 1-5, 7 | ~2.5h | KOF installation, Grafana access, dashboard basics, telemetry verification |
+| **Full** | 1-7 | ~3.5-4h | Above + all child cluster deployment options, custom dashboards, troubleshooting |
 
-> Parts 5-6 cover child cluster KOF deployment options and advanced networking -- these are valuable but can be revisited later.
+> Part 5 is on the Core path on purpose -- it's the step that proves the stack you just installed actually works. Part 6 (custom dashboards) and the advanced child-cluster options in Part 3 are valuable but can be revisited later.
 
 ## What is KOF?
 
@@ -110,7 +119,7 @@ This is the longest lab in Week 1. Choose your path based on available time:
 |-----------|---------|
 | **VictoriaMetrics** | Time-series metrics storage (vmcluster, vmauth) |
 | **VictoriaLogs** | Scalable log aggregation |
-| **Jaeger + OpenTelemetry** | Distributed tracing |
+| **VictoriaTraces + OpenTelemetry** | Distributed tracing (OTel-native backend; Jaeger remains as a query-UI compatibility surface) |
 | **OpenCost** | Cost allocation and FinOps |
 | **Grafana** | Dashboards and visualization |
 | **Promxy** | Cross-cluster metric queries |
@@ -171,6 +180,8 @@ KOF requires **four Helm charts** installed in order:
 | **kof-mothership** | Core components: Grafana, VictoriaMetrics operator, Promxy |
 | **kof-storage** | Storage: VictoriaLogs cluster, Jaeger, PromxyServerGroup |
 | **kof-collectors** | Metrics collection: OpenTelemetry, kube-state-metrics, node-exporter |
+
+> **Why four charts, and why this order?** Each chart depends on the one before it. `kof-operators` goes first because it installs the CRDs and operators (Grafana, OpenTelemetry) that everything else is built from. `kof-mothership` comes next: its Grafana and VictoriaMetrics components are custom resources that those operators reconcile. `kof-storage` then adds the log/trace storage backends. `kof-collectors` goes last because collectors are agents -- they need a running storage target to ship telemetry to. Installing out of order either fails fast (missing CRDs) or silently drops data (collectors with nowhere to write).
 
 ### Step 1: Verify Prerequisites
 
@@ -398,8 +409,12 @@ kubectl get clusterdeployment managed-cluster-01 -n kcm-system --show-labels
 The child cluster needs to know where to send telemetry. Create a ConfigMap with the storage endpoints:
 
 ```bash
+# Re-export AWS_REGION so it expands to YOUR region in the manifest below
+source /opt/k0rdent-lab/config/lab-info.env
+echo "AWS_REGION=$AWS_REGION"  # Must NOT be empty -- if it is, export it manually
+
 # Create cluster configuration with storage endpoints
-cat << 'EOF' | kubectl apply -f -
+cat << EOF | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -412,7 +427,7 @@ data:
   regional_cluster_name: management
   regional_cluster_namespace: kcm-system
   regional_cluster_cloud: aws
-  aws_region: eu-west-1
+  aws_region: ${AWS_REGION}
 
   # Metrics endpoints (VictoriaMetrics)
   write_metrics_endpoint: "http://vminsert-cluster.kof.svc.cluster.local:8480/insert/0/prometheus/api/v1/write"
@@ -454,7 +469,8 @@ kubectl get multiclusterservice -A
 # Check ClusterDeployment services status
 kubectl get clusterdeployment managed-cluster-01 -n kcm-system
 
-# Should show: SERVICES 4/4 (nginx + cert-manager + kof-operators + kof-collectors)
+# Should show: SERVICES 3/3 (cert-manager + kof-operators + kof-collectors)
+# Note: this count grows as later labs add services -- Lab 1.7 deploys more via MultiClusterService
 ```
 
 #### Step 5: Verify Collectors on Child Cluster
@@ -626,11 +642,12 @@ When CAPA (Cluster API for AWS) provisions managed clusters, it creates a **new 
 
 ##### Option A: LoadBalancer Approach (Requires AWS CCM)
 
-To expose KOF services via AWS Network Load Balancers:
+To expose KOF services via AWS load balancers:
 
 ```bash
-# 1. Install AWS Cloud Controller Manager (required for LoadBalancer type)
-#    Note: k0s doesn't include CCM by default
+# 1. Ensure the AWS Cloud Controller Manager is running (required for LoadBalancer type).
+#    Plain k0s doesn't include a CCM, but the training management cluster already runs one --
+#    it's what provisioned the Classic ELB for the k0rdent UI in Lab 1.1.
 #    See: https://kubernetes.github.io/cloud-provider-aws/
 
 # 2. Patch services to LoadBalancer type
@@ -638,7 +655,7 @@ kubectl patch svc vminsert-cluster -n kof -p '{"spec": {"type": "LoadBalancer"}}
 kubectl patch svc kof-storage-victoria-logs-cluster-vlinsert -n kof -p '{"spec": {"type": "LoadBalancer"}}'
 kubectl patch svc kof-storage-jaeger-collector -n kof -p '{"spec": {"type": "LoadBalancer"}}'
 
-# 3. Wait for AWS to provision NLBs (1-2 minutes)
+# 3. Wait for AWS to provision the load balancers (1-2 minutes)
 kubectl get svc -n kof -w
 
 # 4. Update ConfigMap with LoadBalancer DNS names
@@ -646,7 +663,7 @@ VMINSERT_LB=$(kubectl get svc vminsert-cluster -n kof -o jsonpath='{.status.load
 # ... update kof-cluster-config-<cluster> ConfigMap
 ```
 
-> **Important:** Without AWS Cloud Controller Manager installed, `type: LoadBalancer` services will stay in `<pending>` state indefinitely.
+> **Important:** On clusters without a cloud controller manager, `type: LoadBalancer` services stay in `<pending>` state indefinitely. That's not the case here -- the management cluster's CCM **would** provision a load balancer for each patched service (a Classic ELB by default, ~$16+/month each). We don't run these patches in this lab: each exposed endpoint adds cost and would need to be secured (vmauth + TLS) before accepting telemetry from outside the VPC.
 
 ##### Option B: VPC Peering
 
@@ -665,7 +682,7 @@ aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $PEERING_ID
 
 #### Training Environment Limitation
 
-> **Training Environment Note:** In this training setup, the managed cluster runs in a separate AWS VPC created by CAPA. The management cluster uses k0s which doesn't include AWS Cloud Controller Manager by default.
+> **Training Environment Note:** In this training setup, the managed cluster runs in a separate AWS VPC created by CAPA, and the ConfigMap endpoints are internal Kubernetes DNS names that only resolve inside the management cluster. Bridging the two VPCs is a real infrastructure change: either expose each KOF storage service through a load balancer (Option A -- the management cluster's CCM can do this, but each ELB adds cost and the public endpoints must be secured with vmauth + TLS) or set up VPC peering with route table and security group changes (Option B). Both are beyond this lab's scope, so we don't establish the cross-VPC path here.
 >
 > **What you'll observe:**
 > - Collectors deploy successfully on the child cluster
@@ -742,19 +759,32 @@ echo "Grafana port-forward PID: $!"
 
 ### Create SSH Tunnel (if needed)
 
-If accessing remotely from your local machine:
+If accessing remotely from your local machine, use the lab helper script -- it handles the bastion jump and port-forwarding for you:
 
 ```bash
-# From local machine - create SSH tunnel through bastion
+# From your local machine, in lab-infrastructure/
+./scripts/lab-connect.sh <your-engineer-id> --tunnel 3000:3000
+```
+
+This opens an SSH session to the management node with local port 3000 forwarded. Make sure the `kubectl port-forward` from the previous step is running in that session (re-run it there if needed), then browse to `http://localhost:3000` locally.
+
+<details>
+<summary>Manual fallback (if the script is unavailable)</summary>
+
+```bash
+# From local machine (in lab-infrastructure/) - create SSH tunnel through bastion
+# Note: the bastion login user is ec2-user; the management node user is ubuntu
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -o ProxyCommand="ssh -i ./config/keys/bastion.pem -o StrictHostKeyChecking=no -W %h:%p ubuntu@<BASTION_IP>" \
-    -i ./config/keys/lab-validation-k0rdent.pem \
+    -o ProxyCommand="ssh -i ./config/keys/${LAB_ENGINEER_ID}-bastion.pem -o StrictHostKeyChecking=no -W %h:%p ec2-user@<BASTION_IP>" \
+    -i ./config/keys/${LAB_ENGINEER_ID}-k0rdent.pem \
     -L 3000:localhost:3000 \
     ubuntu@<MANAGEMENT_NODE_IP> \
     "kubectl port-forward svc/grafana-vm-service -n kof 3000:3000 --address 0.0.0.0"
 ```
 
-Replace `<BASTION_IP>` and `<MANAGEMENT_NODE_IP>` with your infrastructure IPs.
+Set `LAB_ENGINEER_ID` to your engineer id (the keys live under `./config/keys/`), and replace `<BASTION_IP>` and `<MANAGEMENT_NODE_IP>` with your infrastructure IPs.
+
+</details>
 
 ### Access Grafana
 
@@ -831,11 +861,12 @@ curl -s "http://localhost:9471/select/logsql/query?query=*&limit=10"
 ### Verify OpenCost Data
 
 ```bash
-# Port-forward OpenCost
-kubectl port-forward svc/kof-collectors-opencost -n kof 9090:9090 &
+# Port-forward the OpenCost cost-model API
+# Note: port 9003 serves the JSON API; port 9090 only serves the OpenCost UI
+kubectl port-forward svc/kof-collectors-opencost -n kof 9003:9003 &
 
 # Check OpenCost allocation API
-curl -s "http://localhost:9090/allocation/compute?window=1h&aggregate=namespace" | jq '.data[0] | keys'
+curl -s "http://localhost:9003/allocation/compute?window=1h&aggregate=namespace" | jq '.data[0] | keys'
 ```
 
 > **Note:** OpenCost may take a few minutes to start showing allocation data after initial deployment. In a training environment without cloud billing integration, cost values will use default pricing estimates rather than actual cloud costs. The allocation structure and namespace breakdown will still be visible.
@@ -1024,6 +1055,12 @@ done
 # Force finalize the namespace
 kubectl get ns kof -o json | jq '.spec.finalizers=[]' | kubectl replace --raw "/api/v1/namespaces/kof/finalize" -f -
 ```
+
+## Cost & Cleanup
+
+KOF adds roughly 25-30 pods to the management cluster (plus the collector pods on the managed cluster if you completed Part 3). This increases CPU/memory load on the existing nodes and creates a few small local-path PVCs, but it provisions **no new AWS resources** -- your hourly cost is unchanged from Lab 1.5.
+
+**Do not tear anything down yet.** Labs 1.7 and 1.8 build directly on this running KOF stack and on the managed cluster from Lab 1.5. Final teardown instructions for the whole environment are at the end of Lab 1.8.
 
 ## Next Lab
 

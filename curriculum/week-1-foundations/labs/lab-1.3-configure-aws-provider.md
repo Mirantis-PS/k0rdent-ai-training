@@ -1,6 +1,6 @@
 # Lab 1.3: Configure AWS Infrastructure Provider
 
-**Duration:** 3 hours
+**Duration:** ~1 hour active work (keep a small buffer for credential troubleshooting)
 **Type:** Hands-on Lab
 
 ## Table of Contents
@@ -12,7 +12,7 @@
   - [What are Infrastructure Providers?](#what-are-infrastructure-providers)
   - [Provider Components](#provider-components)
 - [Part 2: AWS IAM Requirements (~5 min)](#part-2-aws-iam-requirements-5-min)
-  - [Required Permissions](#required-permissions)
+  - [Required Permissions (Illustrative)](#required-permissions-illustrative)
   - [Exercise: Verify AWS Permissions](#exercise-verify-aws-permissions)
 - [Part 3: Create AWS Credentials in k0rdent (~10 min)](#part-3-create-aws-credentials-in-k0rdent-10-min)
   - [Step 1: Create AWS Secret](#step-1-create-aws-secret)
@@ -102,11 +102,11 @@ Each provider includes:
 
 ## Part 2: AWS IAM Requirements (~5 min)
 
-### Required Permissions
+### Required Permissions (Illustrative)
 
 > **Training vs Production:** The policy below uses broad permissions (`ec2:*`, `elasticloadbalancing:*`) for simplicity in this training environment. For production deployments, use a scoped-down policy -- see [Theory 1.3: Infrastructure Providers](../theory/1.3-infrastructure-providers.md) for a least-privilege reference policy.
 
-Create an IAM policy with these permissions:
+The policy below is an **illustrative subset** -- it shows the shape of what CAPA needs, not the complete list. The authoritative, complete CAPA policy is generated with `clusterawsadm bootstrap iam print-policy`. **You don't create or attach anything here:** this lab environment's actual IAM permissions are already provisioned via Terraform (`lab-infrastructure/terraform/modules/iam`).
 
 ```json
 {
@@ -161,6 +161,31 @@ aws ec2 describe-instances --region <your-region> --max-items 1
 SSH to your management cluster and create the credentials secret used by CAPA and k0rdent.
 
 > **Note:** The provisioning scripts create an `aws-credentials` placeholder secret for local reference. The official k0rdent AWS workflow uses a separate secret named `aws-cluster-identity-secret`, which you create in this lab.
+
+> **SECURITY WARNING -- Training-Only Credential Pattern**
+>
+> The steps below put **long-lived static IAM keys into shell exports**. This is acceptable for training only:
+>
+> - Exported keys land in your **shell history** in plain text.
+> - Kubernetes Secrets are stored **base64-encoded only -- NOT encrypted** -- in etcd.
+> - **Never reuse personal or production AWS keys here.**
+>
+> Production deployments avoid static keys entirely:
+>
+> - **IRSA (IAM Roles for Service Accounts):** pods assume IAM roles via the cluster's OIDC provider, getting short-lived credentials with no stored keys.
+> - **AWSClusterRoleIdentity:** CAPA assumes an IAM role instead of reading static keys from a Secret (see Part 8).
+>
+> **Recommended:** create a dedicated, scoped IAM user just for this course, and delete it when the course ends:
+>
+> ```bash
+> # Create the training user, then attach your training policy and create a key
+> aws iam create-user --user-name k0rdent-training-<your-id>
+> aws iam create-access-key --user-name k0rdent-training-<your-id>
+>
+> # At the end of the course (after the final lab teardown):
+> aws iam delete-access-key --user-name k0rdent-training-<your-id> --access-key-id <key-id>
+> aws iam delete-user --user-name k0rdent-training-<your-id>
+> ```
 
 #### Option A: Using IAM User Credentials (Recommended for Training)
 
@@ -377,13 +402,15 @@ The `sshKeyName` field in a ClusterDeployment is **optional**. If omitted, CAPA 
 - Debugging node-level issues (kubelet logs, networking, disk)
 - Advanced troubleshooting that requires shell access to managed cluster nodes
 
-**When you can skip it:**
-- Standard cluster operations (scaling, upgrades, service deployment)
-- The training labs in this course (Lab 1.5 does not require it)
+> **Lab 1.5 uses this key pair.** Creating it now is recommended. If you skip this step, Lab 1.5 Part 1 shows how to create the key at that point instead.
 
-If you want SSH access to managed cluster nodes, create a key pair now:
+To create the key pair now:
 
 ```bash
+# Key pairs are region-scoped: set AWS_REGION to the region where you'll
+# deploy managed clusters in Lab 1.5
+export AWS_REGION="us-east-1"  # <-- adjust to the region YOU chose in Lab 1.1
+
 # Generate a key pair (run from your LOCAL machine)
 ssh-keygen -t ed25519 -f /tmp/k0rdent-clusters -N ""
 
@@ -391,7 +418,7 @@ ssh-keygen -t ed25519 -f /tmp/k0rdent-clusters -N ""
 aws ec2 import-key-pair \
   --key-name k0rdent-clusters \
   --public-key-material fileb:///tmp/k0rdent-clusters.pub \
-  --region us-east-1
+  --region "${AWS_REGION}"
 
 # Save the private key
 mkdir -p ~/.ssh
@@ -399,6 +426,8 @@ mv /tmp/k0rdent-clusters ~/.ssh/
 mv /tmp/k0rdent-clusters.pub ~/.ssh/
 chmod 600 ~/.ssh/k0rdent-clusters
 ```
+
+> **Shared/cohort AWS account:** key pair names are unique per account+region, so a classmate may already own `k0rdent-clusters` (the import fails with `InvalidKeyPair.Duplicate`). Suffix the name with your engineer id (e.g., `k0rdent-clusters-<your-id>`) and use that same name consistently in Lab 1.5.
 
 Then include it in your ClusterDeployment spec:
 
@@ -445,16 +474,23 @@ Note the configurable parameters:
 ### Credential Rotation
 
 ```bash
-# To rotate credentials:
-# 1. Create new AWS access key in AWS Console
-# 2. Update the secret
+# To rotate credentials (CLI shown; the AWS Console works too):
+# 1. Create a new AWS access key
+aws iam create-access-key --user-name <your-iam-user>
+
+# 2. Update the secret with the new key
 kubectl create secret generic aws-cluster-identity-secret \
   --from-literal=AccessKeyID="${NEW_ACCESS_KEY_ID}" \
   --from-literal=SecretAccessKey="${NEW_SECRET_ACCESS_KEY}" \
   -n kcm-system \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# 3. Delete old AWS access key from AWS Console
+# 3. Restart CAPA to pick up the new credentials (it caches the AWS session)
+kubectl rollout restart deployment capa-controller-manager -n kcm-system
+
+# 4. Deactivate the old key, verify clusters still reconcile, then delete it
+aws iam update-access-key --user-name <your-iam-user> --access-key-id <old-key-id> --status Inactive
+aws iam delete-access-key --user-name <your-iam-user> --access-key-id <old-key-id>
 ```
 
 ### Multi-Account Access
@@ -483,7 +519,7 @@ Before completing this lab, verify:
 - [ ] k0rdent Credential object created
 - [ ] CAPA controller running and healthy
 - [ ] Full credential chain verified (Secret → Identity → Credential)
-- [ ] (Optional) SSH key pair created if you need node SSH access
+- [ ] (Optional) SSH key pair created -- Lab 1.5 uses it (or create it in Lab 1.5 Part 1)
 - [ ] Can list AWS cluster templates
 - [ ] Understand credential rotation process
 
@@ -493,7 +529,7 @@ Before completing this lab, verify:
 
 **Error: InvalidClientTokenId**
 - Verify access key is correct
-- Check if access key is active in AWS console
+- Check if access key is active: `aws iam list-access-keys --user-name <your-iam-user>` (or in the AWS Console)
 
 **Error: UnauthorizedAccess**
 - Review IAM policy permissions
@@ -515,7 +551,7 @@ In this lab, you:
 - Understood CAPI provider architecture
 - Created AWS credentials using the three-layer model (Secret → Identity → Credential)
 - Verified the CAPA controller and credential chain are healthy
-- Created SSH key pairs for managed cluster node access
+- (Optional) Created an SSH key pair for managed cluster node access -- Lab 1.5 uses it
 - Reviewed available AWS cluster templates
 - Learned security best practices for credential management
 

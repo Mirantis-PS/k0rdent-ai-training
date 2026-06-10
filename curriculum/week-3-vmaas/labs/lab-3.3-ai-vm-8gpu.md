@@ -425,4 +425,4 @@ lscpu | grep NUMA
 
 ## Next Lab
 
-Proceed to [Lab 3.4 - SR-IOV Networking](lab-3.4-sriov-networking.md)
+Proceed to Lab 3.4 - SR-IOV Networking (planned)
