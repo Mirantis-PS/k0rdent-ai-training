@@ -6,6 +6,8 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 
 > **Scope:** This training covers **k0rdent Enterprise** exclusively (Mirantis commercial distribution). Open-source k0rdent documentation (`docs.k0rdent.io`) may differ in features and CRD versions. **k0rdent AI** is introduced in Week 5.
 
+> **Reference:** See [`mirantis-k0rdent-enterprise-reference.md`](../mirantis-k0rdent-enterprise-reference.md) for the canonical fact sheet (CRDs, KCM/KSM/KOF components, version pins, voice patterns) used throughout this curriculum.
+
 ## Program Structure
 
 | Attribute | Value |
@@ -28,7 +30,7 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 | **MaaS** | 5 | Models as a Service (Endpoints, API Keys, Per-token pricing) |
 | **AI Tools** | 5-6 | Vector DBs, Notebooks, Gateways, Routers |
 
-> **Note:** Week 4 (Kubernetes as a Service) is under development and not yet included in this repository; Week 5 currently assumes its concepts. Week 1 Labs 1.5 and 1.8 already cover much of the CAPI cluster lifecycle in the meantime.
+> **Note:** Week 4 (Kubernetes as a Service) is under development — only two advanced labs (4.9, 4.10) exist so far, with no README or schedule yet; Week 5 currently assumes its concepts. Week 1 Labs 1.5 and 1.8 already cover much of the CAPI cluster lifecycle in the meantime.
 
 ## Target Audience
 
@@ -73,16 +75,16 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 ## Weekly Schedule
 
-| Week | Topic | Duration | Focus Areas |
-|------|-------|----------|-------------|
-| 1 | Foundations | ~15-17h active + 5.5h theory (~23-25h scheduled incl. waits) | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services |
-| 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration |
-| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV |
-| 4 | KaaS *(in development)* | ~15h (planned) | Cluster API, GPU Operator, hosted control planes |
-| 5 | AI Workloads | ~15-21h guided path (~50h if all elective tracks are attempted) | GPU schedulers, model serving, service catalog, ML platforms |
-| 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project |
+| Week | Topic | Duration | Focus Areas | README |
+|------|-------|----------|-------------|--------|
+| 1 | Foundations | ~15-17h active + 5.5h theory (~23-25h scheduled incl. waits) | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services | [week-1-foundations](../week-1-foundations/README.md) |
+| 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration | [week-2-bmaas](../week-2-bmaas/README.md) |
+| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV | (no README yet) |
+| 4 | KaaS *(in development)* | ~15h (planned) | Cluster API, GPU Operator, hosted control planes (k0smotron), CNI/CSI for AI, autoscaling, day-2 ops | (no README yet) |
+| 5 | AI Workloads | ~15-21h guided path (~50h if all elective tracks are attempted) | GPU schedulers, model serving, service catalog, ML platforms | [week-5-ai-workloads](../week-5-ai-workloads/README.md) |
+| 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project | (no README yet) |
 
-> Week 4 is under development and not yet included in this repository (see note above). Scheduled totals: ~83-91 hours across the available weeks; ~98-106 once Week 4 ships.
+> Week 4 is under development — two advanced labs exist, but no README or schedule yet (see note above). Scheduled totals: ~83-91 hours across the available weeks; ~98-106 once Week 4 ships.
 
 ## Week 1 Learning Objectives
 

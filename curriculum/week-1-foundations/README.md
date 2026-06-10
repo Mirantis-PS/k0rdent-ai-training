@@ -54,6 +54,7 @@ By the end of this week, you will be able to:
 - [Lab 1.6 - Deploy KOF (Observability & FinOps)](labs/lab-1.6-deploy-kof.md)
 - [Lab 1.7 - Multi-Cluster Services](labs/lab-1.7-multicluster-services.md)
 - [Lab 1.8 - Upgrade k0rdent Enterprise](labs/lab-1.8-upgrade-k0rdent.md)
+- [Lab 1.9 - Kubernetes API Audit Logging](labs/lab-1.9-api-audit-logging.md) *(supplemental — not part of the core Week 1 schedule)*
 
 ## Version Compatibility
 
