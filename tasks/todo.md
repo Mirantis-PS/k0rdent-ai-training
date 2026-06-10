@@ -1,6 +1,6 @@
 # Week 1 Improvements — Task Tracker
 
-**Plan:** [docs/plans/2026-03-17-week1-improvements-design.md](../docs/plans/2026-03-17-week1-improvements-design.md)
+**Plan:** `docs/plans/2026-03-17-week1-improvements-design.md` *(maintainer-local; docs/ is not committed)*
 
 ## Phase 1: Critical Accuracy Fixes ✅ COMPLETE
 
@@ -31,7 +31,7 @@
 
 ## Envoy Gateway UI Exposure ✅ COMPLETE
 
-**Plan:** [docs/plans/2026-03-18-envoy-gateway-ui-exposure-design.md](../docs/plans/2026-03-18-envoy-gateway-ui-exposure-design.md)
+**Plan:** `docs/plans/2026-03-18-envoy-gateway-ui-exposure-design.md` *(maintainer-local; docs/ is not committed)*
 
 - [x] 1. Remove NLB resources from k0rdent-mgmt Terraform module
 - [x] 2. Add Gateway API and Envoy Gateway version variables

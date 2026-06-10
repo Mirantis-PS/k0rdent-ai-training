@@ -21,7 +21,7 @@ FOUNDATION       NETWORKING   STORAGE   OPERATIONS         TEMPLATES        SCHE
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 4.8 — ClusterTemplate Flavors](lab-4.8-clustertemplate-flavors.md) | **Lab 4.9 — Dynamic Resource Allocation (DRA)** | [Lab 4.10 — BYOIP / PCI / MACsec](lab-4.10-byoip-pci-macsec.md) |
+| Lab 4.8 — ClusterTemplate Flavors *(planned)* | **Lab 4.9 — Dynamic Resource Allocation (DRA)** | [Lab 4.10 — BYOIP / PCI / MACsec](lab-4.10-byoip-pci-macsec.md) |
 
 ---
 
