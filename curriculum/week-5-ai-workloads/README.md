@@ -175,7 +175,7 @@ All lab files are in the [labs/](labs/) directory.
 ## Full Curriculum
 
 This file covers Week 5 only. The complete 6-week curriculum document is at
-[`curriculum/k0rdent-ai-infrastructure-training-curriculum.md`](../k0rdent-ai-infrastructure-training-curriculum.md)
+[`curriculum/overview/training-program-overview.md`](../overview/training-program-overview.md)
 (referenced from the top-level README).
 
 > **TODO:** The full curriculum file does not yet exist at that path. The content

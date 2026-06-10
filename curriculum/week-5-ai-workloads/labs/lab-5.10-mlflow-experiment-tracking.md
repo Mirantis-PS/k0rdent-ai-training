@@ -1240,4 +1240,4 @@ Choose your next elective track:
 
 - **Compliance Track:** [Lab 5.11 - FIPS Compliance](lab-5.11-nvidia-fips.md)
 - **Advanced Track:** [Lab 5.13 - TensorRT-LLM Optimization](lab-5.13-tensorrt-llm.md)
-- **Or proceed to:** [Week 6 - Multi-tenancy](../../week-6-multi-tenancy/README.md)
+- **Or proceed to:** [Week 6 - Multi-tenancy](../../week-6-multitenancy/labs/lab-6.6-capstone.md)

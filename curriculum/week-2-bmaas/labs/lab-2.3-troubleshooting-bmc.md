@@ -309,4 +309,4 @@ Create a troubleshooting runbook document with:
 
 ## Next Steps
 
-With Week 1 complete, proceed to the [Week 1 Quiz](../week-1-quiz.md), then continue to [Week 2: BMaaS](../../week-2-bmaas/README.md)
+With Week 1 complete, proceed to the [Week 1 Quiz](../../week-1-foundations/week-1-quiz.md), then continue to [Week 2: BMaaS](../../week-2-bmaas/README.md)
