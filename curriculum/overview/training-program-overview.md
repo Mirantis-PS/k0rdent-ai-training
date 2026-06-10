@@ -79,7 +79,7 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 |------|-------|----------|-------------|--------|
 | 1 | Foundations | ~15-17h active + 5.5h theory (~23-25h scheduled incl. waits) | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services | [week-1-foundations](../week-1-foundations/README.md) |
 | 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration | [week-2-bmaas](../week-2-bmaas/README.md) |
-| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV | (no README yet) |
+| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV | [week-3-vmaas](../week-3-vmaas/README.md) |
 | 4 | KaaS *(in development)* | ~15h (planned) | Cluster API, GPU Operator, hosted control planes (k0smotron), CNI/CSI for AI, autoscaling, day-2 ops | (no README yet) |
 | 5 | AI Workloads | ~15-21h guided path (~50h if all elective tracks are attempted) | GPU schedulers, model serving, service catalog, ML platforms | [week-5-ai-workloads](../week-5-ai-workloads/README.md) |
 | 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project | (no README yet) |

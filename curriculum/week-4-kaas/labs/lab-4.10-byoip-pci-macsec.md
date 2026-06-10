@@ -22,7 +22,7 @@ FOUNDATION ➔ 4.1 ➔ 4.2 ➔ 4.3 ➔ 4.4 Cilium+Multus ➔ 4.5 Storage ➔ 4.6
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 4.9 — Dynamic Resource Allocation](lab-4.9-dynamic-resource-allocation.md) | **Lab 4.10 — BYOIP, PCI, MACsec** | [Lab 4.11 — NFSv4 + Parallel FS](lab-4.11-nfsv4-parallel-fs.md) |
+| [Lab 4.9 — Dynamic Resource Allocation](lab-4.9-dynamic-resource-allocation.md) | **Lab 4.10 — BYOIP, PCI, MACsec** | Lab 4.11 — NFSv4 + Parallel FS *(planned)* |
 
 ---
 
@@ -606,4 +606,4 @@ Anything left unchecked is a gap in the east-west / north-south encryption postu
 
 ## Next Lab
 
-[Lab 4.11 — NFSv4 + Parallel FS](lab-4.11-nfsv4-parallel-fs.md) — now that the storage link is MACsec-secured, the next lab presents NFSv4 and the parallel filesystems (Lustre / WEKA / VAST) that ride over it to the the provider POP.
+Lab 4.11 — NFSv4 + Parallel FS *(planned)* — now that the storage link is MACsec-secured, the next lab presents NFSv4 and the parallel filesystems (Lustre / WEKA / VAST) that ride over it to the the provider POP.
