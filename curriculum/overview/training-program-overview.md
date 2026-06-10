@@ -116,9 +116,9 @@ Upon completion, engineers will be able to:
 ### Weekly Assessments
 
 Each week includes:
-- **Quiz:** 15-20 multiple choice/short answer questions
-- **Duration:** 30 minutes
-- **Passing Score:** 80%
+- **Quiz:** 15-20 multiple choice/short answer questions (self-assessment; answer key included)
+- **Duration:** 30-60 minutes (see each week's quiz header)
+- **Target Score:** 80%
 - **Retakes:** Unlimited
 
 ### Progress Tracking
@@ -134,16 +134,18 @@ Each week includes:
 
 ### Completion Requirements
 
-- All weekly quizzes passed (80%+)
+Quizzes ship with answer keys and are self-scored (see each week's quiz for its target).
+
+- All weekly self-assessment quizzes at 80%+
 - All labs completed with deliverables
 - Capstone project passed (80%+)
-- **Minimum 85% overall score for certification**
+- **Suggested completion bar: 85% overall (self-tracked)**
 
 ## Getting Started
 
 1. Review [Prerequisites](prerequisites.md)
-2. Start [Lab 1.1: Provision k0rdent](../week-1-foundations/labs/lab-1.1-provision-k0rdent.md)
-3. Continue [Week 1: Foundations](../week-1-foundations/README.md)
+2. Follow the [Week 1: Foundations](../week-1-foundations/README.md) day-by-day schedule
+3. Your first hands-on stop is [Lab 1.1: Provision k0rdent](../week-1-foundations/labs/lab-1.1-provision-k0rdent.md) (Day 1, after Theory 1.1)
 
 ## Resources
 

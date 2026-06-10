@@ -5,18 +5,18 @@ A comprehensive 6-week training program (~83-91 scheduled hours across the curre
 ## Quick Start (3 Steps)
 
 ```bash
-# 1. Clone and enter the repository
-git clone git@github.com:mgueye01/k0rdent-ai-training.git
+# 1. Fork this repository (or click "Use this template"), then clone YOUR copy
+git clone git@github.com:<your-github-user>/k0rdent-ai-training.git
 cd k0rdent-ai-training
 
-# 2. Configure AWS credentials
-aws configure
+# 2. Check the prerequisites (AWS account & quotas, AWS CLI v2, Terraform >= 1.8.0, jq)
+# Full list: curriculum/overview/prerequisites.md
 
-# 3. Start Lab 1.1
-# Follow: curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md
+# 3. Start Week 1
+# Follow: curriculum/week-1-foundations/README.md
 ```
 
-**That's it.** Lab 1.1 walks you through everything: provisioning, connecting, and verifying your k0rdent management cluster.
+**That's it.** The Week 1 README walks you through the week day by day — theory first, then Lab 1.1, which provisions, connects, and verifies your k0rdent management cluster.
 
 ## Program Overview
 
@@ -93,7 +93,7 @@ See [Prerequisites](curriculum/overview/prerequisites.md) for the full account, 
 ```
 k0rdent-ai-training/
 ├── curriculum/                  # Training content
-│   ├── week-1-foundations/     # START HERE → labs/lab-1.1-provision-k0rdent.md
+│   ├── week-1-foundations/     # START HERE → README.md (day-by-day schedule)
 │   ├── week-2-bmaas/           # Metal3, Ironic, bare metal provisioning
 │   ├── week-3-vmaas/           # KubeVirt, GPU passthrough
 │   ├── week-4-kaas/            # Cluster API, GPU operator (in development, not yet included)
@@ -109,9 +109,10 @@ k0rdent-ai-training/
 
 | Document | Purpose |
 |----------|---------|
-| [Lab 1.1: Provision k0rdent](curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md) | **Start here** - First lab |
+| [Week 1: Foundations](curriculum/week-1-foundations/README.md) | **Start here** - day-by-day schedule (theory + labs) |
+| [Lab 1.1: Provision k0rdent](curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md) | First hands-on lab (Day 1, after Theory 1.1) |
 | [Week 1 Theory](curriculum/week-1-foundations/theory/) | Architecture, components, providers |
-| [Lab Infrastructure Reference](lab-infrastructure/README.md) | Scripts, costs, technical details |
+| [Lab Infrastructure Reference](lab-infrastructure/README.md) | Script & cost reference (used by Lab 1.1 — not a starting point) |
 | [Troubleshooting Guide](lab-infrastructure/docs/troubleshooting.md) | Common issues and solutions |
 | [Program Overview](curriculum/overview/training-program-overview.md) | Complete syllabus |
 
@@ -122,17 +123,18 @@ When you complete Lab 1.1, you'll have:
 - **k0s** - Lightweight Kubernetes distribution (v1.32.4)
 - **k0rdent Enterprise** (v1.2.2)
   - **KCM** - Cluster Manager for multi-cluster management
-  - **KSM** - State Manager for service installation
-  - **KOF** - Observability & FinOps
+  - **KSM** - State Management for service installation
 - **Cluster API** - Kubernetes cluster provisioning
 - **k0rdent UI** - Web interface for management
 
+**KOF** (Observability & FinOps) is deployed later, in Lab 1.6.
+
 ## Assessment
 
-- Weekly quizzes (80% passing required)
-- Lab completion with verification
+- Weekly self-assessment quizzes (target 80%; answer keys included — self-scored)
+- Lab completion with verification checklists
 - Week 6 capstone project
-- Overall 85% score required for certification
+- Suggested completion bar: 85% overall (self-tracked)
 
 ## Support
 
@@ -142,4 +144,4 @@ When you complete Lab 1.1, you'll have:
 
 ---
 
-**Version:** 2.2 | **Last Updated:** January 2026
+**Version:** 2.3 | **Last Updated:** June 2026
