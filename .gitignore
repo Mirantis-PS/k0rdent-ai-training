@@ -1,15 +1,8 @@
 # OS generated files
-.DS_Store
 .DS_Store?
-._*
-.Spotlight-V100
-.Trashes
 ehthumbs.db
-Thumbs.db
-
 
 # IDE and editor files
-.idea/
 .vscode/
 *.swp
 *.swo
@@ -34,7 +27,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-venv/
 .venv/
 ENV/
 env/
@@ -61,7 +53,6 @@ temp/
 credentials.json
 
 # Claude Code
-.claude/
 .auto-claude/
 .auto-claude-security.json
 .auto-claude-status
@@ -69,3 +60,4 @@ credentials.json
 .worktrees/
 .security-key
 logs/security/
+graphify-out/
