@@ -38,8 +38,8 @@ Quick-access links to official documentation for all Week 1 topics.
 
 | Resource | URL |
 |----------|-----|
-| KOF Architecture | https://docs.k0rdent.io/latest/admin/kof/kof-architecture/ |
-| KOF Installation | https://docs.k0rdent.io/latest/admin/kof/kof-install/ |
+| KOF Architecture | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/kof/kof-architecture/ |
+| KOF Installation | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/kof/kof-install/ |
 | VictoriaMetrics | https://docs.victoriametrics.com/ |
 | OpenTelemetry | https://opentelemetry.io/docs/ |
 | Grafana | https://grafana.com/docs/grafana/latest/ |
@@ -54,7 +54,7 @@ Quick-access links to official documentation for all Week 1 topics.
 | Built-In KSM Provider | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/ksm/ksm-built-in-provider/ |
 | MultiClusterService | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/ksm/ksm-multiclusterservice/ |
 | ServiceTemplates | https://docs.mirantis.com/k0rdent-enterprise/latest/admin/ksm/ksm-service-templates/ |
-| Service Upgrades | https://docs.k0rdent.io/latest/user/services/service-upgrade/ |
+| Service Upgrades | https://docs.mirantis.com/k0rdent-enterprise/latest/user/services/service-upgrade/ |
 
 ## GitOps & Helm
 
