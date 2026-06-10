@@ -192,7 +192,7 @@ EOF
 # List any existing ServiceTemplates
 kubectl get servicetemplates -n kcm-system
 
-# You may already have kyverno-3-2-6 from Lab 1.2
+# You may already have kyverno-3-8-1 from Lab 1.2
 ```
 
 ### Install ServiceTemplates
@@ -205,13 +205,13 @@ cat <<EOF | kubectl apply -f -
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ServiceTemplate
 metadata:
-  name: cert-manager-1-16-2
+  name: cert-manager-1-20-2
   namespace: kcm-system
 spec:
   helm:
     chartSpec:
       chart: cert-manager
-      version: 1.16.2
+      version: 1.20.2
       interval: 10m0s
       sourceRef:
         kind: HelmRepository
@@ -220,13 +220,13 @@ spec:
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ServiceTemplate
 metadata:
-  name: ingress-nginx-4-11-0
+  name: ingress-nginx-4-15-1
   namespace: kcm-system
 spec:
   helm:
     chartSpec:
       chart: ingress-nginx
-      version: 4.11.0
+      version: 4.15.1
       interval: 10m0s
       sourceRef:
         kind: HelmRepository
@@ -235,13 +235,13 @@ spec:
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ServiceTemplate
 metadata:
-  name: kyverno-3-2-6
+  name: kyverno-3-8-1
   namespace: kcm-system
 spec:
   helm:
     chartSpec:
       chart: kyverno
-      version: 3.2.6
+      version: 3.8.1
       interval: 10m0s
       sourceRef:
         kind: HelmRepository
@@ -264,16 +264,16 @@ kubectl get servicetemplates -n kcm-system
 
 # Expected output:
 # NAME                    AGE
-# cert-manager-1-16-2     1m
-# ingress-nginx-4-11-0    1m
-# kyverno-3-2-6           1m
+# cert-manager-1-20-2     1m
+# ingress-nginx-4-15-1    1m
+# kyverno-3-8-1           1m
 ```
 
 ### Examine a ServiceTemplate
 
 ```bash
 # View the structure of a ServiceTemplate
-kubectl get servicetemplate cert-manager-1-16-2 -n kcm-system -o yaml
+kubectl get servicetemplate cert-manager-1-20-2 -n kcm-system -o yaml
 ```
 
 Key fields:
@@ -385,6 +385,10 @@ This shows how you can deploy mandatory services to every cluster while keeping 
 
 ### Create the Baseline MCS (All Training Clusters)
 
+> **⚠️ Pick the right variant — did you complete Lab 1.6 Part 3 (kof-child)?** If you completed Lab 1.6 Part 3 (the recommended path), cert-manager is **already on this cluster**: the `kof-child` chart deployed it (Helm release `cert-manager` in the `kof` namespace, CRDs included) alongside `kof-operators` and `kof-collectors` via its own MultiClusterService. A second cert-manager install fails Helm's CRD ownership check -- the cluster-scoped cert-manager CRDs carry `meta.helm.sh/release-namespace: kof`, so the new release is rejected with `invalid ownership metadata`. And because services in a MultiClusterService deploy **sequentially**, the failed cert-manager would also block kyverno. **Use the kyverno-only variant (Option A).**
+
+**Option A — kyverno-only variant** (use this if you completed Lab 1.6 Part 3):
+
 ```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: k0rdent.mirantis.com/v1beta1
@@ -397,14 +401,39 @@ spec:
       environment: training
   serviceSpec:
     services:
-    - template: cert-manager-1-16-2
+    - template: kyverno-3-8-1
+      name: kyverno
+      namespace: kyverno
+      values: |
+        kyverno:
+          admissionController:
+            replicas: 1
+    priority: 100
+EOF
+```
+
+**Option B — full variant** (only if you **skipped** Lab 1.6 Part 3, so the cluster has no cert-manager yet):
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: MultiClusterService
+metadata:
+  name: baseline-services
+spec:
+  clusterSelector:
+    matchLabels:
+      environment: training
+  serviceSpec:
+    services:
+    - template: cert-manager-1-20-2
       name: cert-manager
       namespace: cert-manager
       values: |
         cert-manager:
           crds:
             enabled: true
-    - template: kyverno-3-2-6
+    - template: kyverno-3-8-1
       name: kyverno
       namespace: kyverno
       values: |
@@ -433,7 +462,7 @@ spec:
       ingress: "true"
   serviceSpec:
     services:
-    - template: ingress-nginx-4-11-0
+    - template: ingress-nginx-4-15-1
       name: ingress-nginx
       namespace: ingress-nginx
       values: |
@@ -742,9 +771,17 @@ Learn how to update and remove services via MultiClusterService.
 # Edit the MultiClusterService to change values
 kubectl edit multiclusterservice training-baseline-services -n kcm-system
 
-# Or use patch
-kubectl patch multiclusterservice training-baseline-services -n kcm-system \
-  --type=merge -p '{"spec":{"serviceSpec":{"services":[{"template":"ingress-nginx-4-11-0","name":"ingress-nginx","namespace":"ingress-nginx","values":"controller:\n  replicaCount: 2\n"}]}}}'
+# Edit the MultiClusterService to change values (recommended for targeted changes)
+kubectl edit multiclusterservice baseline-services
+```
+
+> **⚠️ `--type=merge` replaces the entire `services` array!** A merge patch does not update a single entry in a list — it overwrites `spec.serviceSpec.services` with exactly what you supply. If you patched `baseline-services` with a one-entry array, every other service in it would be **silently removed** from all matched clusters. For targeted changes, prefer `kubectl edit`. If you do patch, you must include the **complete** services array — every service, including the one you're modifying.
+
+The example below is safe because `ingress-services` contains only one service, so the complete array is that single (modified) entry. Note the values are nested under `ingress-nginx:` — the wrapper-chart rule from Part 4 applies here too:
+
+```bash
+kubectl patch multiclusterservice ingress-services --type=merge \
+  -p '{"spec":{"serviceSpec":{"services":[{"template":"ingress-nginx-4-15-1","name":"ingress-nginx","namespace":"ingress-nginx","values":"ingress-nginx:\n  controller:\n    replicaCount: 2\n    service:\n      type: LoadBalancer\n"}]}}}'
 ```
 
 ### Remove a Service
@@ -772,10 +809,10 @@ metadata:
   namespace: kcm-system
 spec:
   supportedTemplates:
-  - name: ingress-nginx-4-11-0
+  - name: ingress-nginx-4-15-1
   - name: ingress-nginx-4-10-0
     availableUpgrades:
-    - name: ingress-nginx-4-11-0
+    - name: ingress-nginx-4-15-1
 ```
 
 ## Part 9: Clean Up
@@ -799,9 +836,9 @@ unset KUBECONFIG
 
 ```bash
 # Delete ServiceTemplates
-kubectl delete servicetemplate cert-manager-1-16-2 -n kcm-system
-kubectl delete servicetemplate ingress-nginx-4-11-0 -n kcm-system
-kubectl delete servicetemplate kyverno-3-2-6 -n kcm-system
+kubectl delete servicetemplate cert-manager-1-20-2 -n kcm-system
+kubectl delete servicetemplate ingress-nginx-4-15-1 -n kcm-system
+kubectl delete servicetemplate kyverno-3-8-1 -n kcm-system
 
 # Verify removal
 kubectl get servicetemplates -n kcm-system

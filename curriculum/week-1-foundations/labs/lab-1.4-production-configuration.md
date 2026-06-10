@@ -313,7 +313,7 @@ else
         "spec": {
           "initContainers": [{
             "name": "velero-plugin-for-aws",
-            "image": "velero/velero-plugin-for-aws:v1.11.0",
+            "image": "velero/velero-plugin-for-aws:v1.13.2",
             "imagePullPolicy": "IfNotPresent",
             "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
           }]
@@ -338,14 +338,15 @@ You should see `aws-s3` with phase `Available`. If it still shows `Unavailable` 
 >   core:
 >     kcm:
 >       config:
->         velero:
->           initContainers:
->           - name: velero-plugin-for-aws
->             image: velero/velero-plugin-for-aws:v1.11.0
->             imagePullPolicy: IfNotPresent
->             volumeMounts:
->             - mountPath: /target
->               name: plugins
+>         regional:
+>           velero:
+>             initContainers:
+>             - name: velero-plugin-for-aws
+>               image: velero/velero-plugin-for-aws:v1.13.2
+>               imagePullPolicy: IfNotPresent
+>               volumeMounts:
+>               - mountPath: /target
+>                 name: plugins
 > ```
 
 ### Step 3: Create a Scheduled Backup

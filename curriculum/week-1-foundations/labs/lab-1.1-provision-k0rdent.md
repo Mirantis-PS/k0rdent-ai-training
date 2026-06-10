@@ -153,8 +153,8 @@ Choose a region with good availability. Common choices:
 |-----------|--------------|
 | Instance Type | t3.xlarge (4 vCPU, 16GB RAM) |
 | OS | Ubuntu 22.04 LTS |
-| Kubernetes | k0s v1.32.4 |
-| k0rdent | Enterprise v1.2.2 |
+| Kubernetes | k0s v1.35.4 |
+| k0rdent | Enterprise v1.3.1 |
 
 ## Part 2: Verify Prerequisites (~2 min)
 
@@ -209,7 +209,7 @@ The script will display progress as it:
 [INFO] Streaming initialization progress (live)...
 
   [1/6] Installing k0s Kubernetes...
-  === Installing k0s v1.32.4+k0s.0 ===
+  === Installing k0s v1.35.4+k0s.0 ===
   [2/6] Installing CLI tools...
   === CLI tools installed ===
   [3/6] Waiting for cluster readiness...
@@ -228,6 +228,44 @@ The script will display progress as it:
 ```
 
 > **Don't worry if it pauses:** Step 4 (k0rdent Enterprise Helm install) takes 8-10 minutes. The stream may appear to hang — this is normal while Helm pulls images and waits for pods.
+
+### Under the Hood: What the Script Actually Runs
+
+`lab-provision.sh` is a convenience wrapper — the commands it hides are exactly what you'd run on a real customer engagement. Two layers:
+
+**1. Terraform** (`terraform apply` over four modules): `networking` (VPC, subnets, NAT), `bastion` (Amazon Linux 2023 jump host), `iam` (instance role so the node can call AWS APIs), and `k0rdent-mgmt` (the t3.xlarge management node).
+
+**2. Cloud-init on the management node**, in order:
+
+1. Installs **k0s** v1.35.4+k0s.0 as a single-node cluster (`k0s install controller --enable-worker`)
+2. Installs the **local-path-provisioner** as the default StorageClass
+3. Installs the **AWS Cloud Controller Manager** Helm chart into `kube-system` and patches the node's `providerID` — this is what makes `LoadBalancer` Services work
+4. Installs **k0rdent Enterprise** — the one command customers pay for:
+
+```bash
+helm install kcm oci://registry.mirantis.com/k0rdent-enterprise/charts/k0rdent-enterprise \
+  --version 1.3.1 \
+  --namespace kcm-system --create-namespace \
+  --set k0rdent-ui.enabled=true \
+  --set k0rdent-ui.auth.basic.password="$K0RDENT_UI_PASSWORD"
+```
+
+5. Installs the **Gateway API CRDs** and **Envoy Gateway** (Helm chart into `envoy-gateway-system`), then exposes the UI with a Gateway + HTTPRoute (sketch):
+
+```yaml
+kind: Gateway                       # kcm-system/k0rdent-gateway
+spec:
+  gatewayClassName: envoy-gateway
+  listeners: [{ name: http, protocol: HTTP, port: 80 }]
+---
+kind: HTTPRoute                     # routes / to the UI Service
+spec:
+  parentRefs: [{ name: k0rdent-gateway }]
+  rules:
+    - backendRefs: [{ name: kcm-k0rdent-ui, port: 3000 }]
+```
+
+The generated UI password lands in `/opt/k0rdent-lab/config/lab-info.env` on the node. For the full scripts, see [`lab-infrastructure/terraform/modules/k0rdent-mgmt/templates/mgmt-cloud-init.yaml`](../../../lab-infrastructure/terraform/modules/k0rdent-mgmt/templates/mgmt-cloud-init.yaml).
 
 ## Part 4: Connect to the Management Cluster (~2 min)
 
@@ -279,7 +317,7 @@ kubectl get pods -A
 **Expected output:**
 ```
 NAME                   STATUS   ROLES           AGE   VERSION
-ip-10-0-xxx-xxx        Ready    control-plane   10m   v1.32.4+k0s
+ip-10-0-xxx-xxx        Ready    control-plane   10m   v1.35.4+k0s
 ```
 
 ## Part 6: Verify k0rdent Enterprise Installation (~5 min)
