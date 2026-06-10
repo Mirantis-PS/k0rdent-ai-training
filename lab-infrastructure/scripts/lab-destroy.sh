@@ -15,6 +15,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Respect NO_COLOR and non-TTY output (piped logs, CI, screen readers)
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    RED="" GREEN="" YELLOW="" BLUE="" NC=""
+fi
+
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -76,27 +81,39 @@ get_state_output() {
         | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
 }
 
-# Clean up CCM-provisioned LoadBalancers before destroying infrastructure.
-# The AWS CCM creates ELBs at runtime (not managed by Terraform). If we
-# destroy the EC2 instance first, the CCM pod dies and the ELB is orphaned.
-# The fix: SSH in and delete the Gateway/Services so CCM cleans up the ELB.
-cleanup_load_balancers() {
+# Loud warning + explicit confirmation when pre-destroy cleanup cannot be
+# performed or confirmed. Resources created OUTSIDE Terraform (managed-cluster
+# VPCs from CAPA, CCM-created load balancers) would be orphaned and keep
+# billing -- never skip silently.
+confirm_orphan_risk() {
+    local reason="$1"
+
+    echo ""
+    echo -e "${RED}============================================================${NC}"
+    echo -e "${RED}WARNING: ${reason}.${NC}"
+    echo -e "${RED}${NC}"
+    echo -e "${RED}Managed clusters (ClusterDeployments) live in SEPARATE VPCs${NC}"
+    echo -e "${RED}that Terraform does NOT manage. If any still exist, their${NC}"
+    echo -e "${RED}EC2 instances, NAT gateways, and load balancers will be${NC}"
+    echo -e "${RED}ORPHANED by this destroy and KEEP BILLING until you delete${NC}"
+    echo -e "${RED}them manually in the AWS console.${NC}"
+    echo -e "${RED}============================================================${NC}"
+    echo ""
+
+    local reply=""
+    read -r -p "Proceed with destroy anyway? (y/N): " reply || reply=""
+    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
+        log_warn "Destruction cancelled. Fix the issue above and re-run."
+        exit 1
+    fi
+    log_warn "Proceeding at your own risk -- check the AWS console for orphans afterwards"
+}
+
+# Ensure the SSH keys for the management node exist locally, retrieving them
+# from the Terraform state if needed. Returns 1 if they cannot be obtained.
+ensure_ssh_keys() {
     local engineer_id="$1"
     local bucket="$2"
-
-    log_info "Cleaning up CCM-provisioned LoadBalancers..."
-
-    # Get connection details from Terraform state
-    local bastion_ip mgmt_ip
-    bastion_ip=$(get_state_output "$bucket" "bastion_public_ip")
-    mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
-
-    if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
-        log_warn "Could not get IPs from state. Skipping LB cleanup."
-        return 0
-    fi
-
-    # Get SSH keys
     local mgmt_key="$CONFIG_DIR/keys/${engineer_id}-k0rdent.pem"
     local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
 
@@ -118,8 +135,89 @@ cleanup_load_balancers() {
         fi
     fi
 
-    if [[ ! -f "$mgmt_key" || ! -f "$bastion_key" ]]; then
-        log_warn "SSH keys not available. Skipping LB cleanup."
+    [[ -f "$mgmt_key" && -f "$bastion_key" ]]
+}
+
+# Delete managed clusters (ClusterDeployments) BEFORE destroying the
+# management cluster. CAPA provisions each managed cluster into its own VPC
+# that Terraform knows nothing about -- if the management node dies first,
+# those VPCs (EC2, NAT, ELB, EBS) are orphaned and keep billing.
+cleanup_managed_clusters() {
+    local engineer_id="$1"
+    local bucket="$2"
+
+    log_info "Deleting managed clusters (MultiClusterServices + ClusterDeployments)..."
+
+    local bastion_ip mgmt_ip
+    bastion_ip=$(get_state_output "$bucket" "bastion_public_ip")
+    mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
+
+    if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
+        confirm_orphan_risk "Could not get bastion/management IPs from state -- managed clusters cannot be cleaned up"
+        return 0
+    fi
+
+    if ! ensure_ssh_keys "$engineer_id" "$bucket"; then
+        confirm_orphan_risk "SSH keys not available -- managed clusters cannot be cleaned up"
+        return 0
+    fi
+
+    local mgmt_key="$CONFIG_DIR/keys/${engineer_id}-k0rdent.pem"
+    local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10"
+    local proxy_cmd="ssh ${ssh_opts} -i ${bastion_key} -W %h:%p ec2-user@${bastion_ip}"
+
+    log_info "This can take up to 15 minutes per managed cluster..."
+    if ssh ${ssh_opts} -i "$mgmt_key" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+        'export KUBECONFIG=/home/ubuntu/.kube/config
+         # MultiClusterServices first so KSM stops reconciling services
+         if kubectl api-resources --api-group=k0rdent.mirantis.com 2>/dev/null | grep -q multiclusterservice; then
+             kubectl delete multiclusterservice --all --timeout=120s 2>/dev/null || true
+         fi
+         # No ClusterDeployment CRD => nothing to clean up
+         if ! kubectl api-resources --api-group=k0rdent.mirantis.com 2>/dev/null | grep -q clusterdeployment; then
+             echo "No ClusterDeployment CRD found -- nothing to clean up"
+             exit 0
+         fi
+         kubectl delete clusterdeployment --all -n kcm-system --wait=true --timeout=15m || true
+         REMAINING=$(kubectl get clusterdeployment -n kcm-system --no-headers 2>/dev/null | wc -l)
+         if [ "$REMAINING" -ne 0 ]; then
+             echo "ERROR: $REMAINING ClusterDeployment(s) still present"
+             exit 1
+         fi
+         echo "All ClusterDeployments deleted"'; then
+        log_success "Managed cluster cleanup complete"
+    else
+        confirm_orphan_risk "Could not confirm deletion of all ClusterDeployments (SSH failed or deletion timed out)"
+    fi
+}
+
+# Clean up CCM-provisioned LoadBalancers before destroying infrastructure.
+# The AWS CCM creates ELBs at runtime (not managed by Terraform). If we
+# destroy the EC2 instance first, the CCM pod dies and the ELB is orphaned.
+# The fix: SSH in and delete the Gateway/Services so CCM cleans up the ELB.
+cleanup_load_balancers() {
+    local engineer_id="$1"
+    local bucket="$2"
+
+    log_info "Cleaning up CCM-provisioned LoadBalancers..."
+
+    # Get connection details from Terraform state
+    local bastion_ip mgmt_ip
+    bastion_ip=$(get_state_output "$bucket" "bastion_public_ip")
+    mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
+
+    if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
+        confirm_orphan_risk "Could not get IPs from state -- CCM LoadBalancers cannot be cleaned up"
+        return 0
+    fi
+
+    # Get SSH keys
+    local mgmt_key="$CONFIG_DIR/keys/${engineer_id}-k0rdent.pem"
+    local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
+
+    if ! ensure_ssh_keys "$engineer_id" "$bucket"; then
+        confirm_orphan_risk "SSH keys not available -- CCM LoadBalancers cannot be cleaned up"
         return 0
     fi
 
@@ -143,7 +241,8 @@ cleanup_load_balancers() {
              fi
              echo -n "."
              sleep 5
-         done' 2>/dev/null || log_warn "Could not SSH to clean up LBs (instance may already be down)"
+         done' 2>/dev/null \
+        || confirm_orphan_risk "Could not SSH to clean up CCM LoadBalancers (instance may already be down)"
 
     log_success "LoadBalancer cleanup complete"
 }
@@ -159,17 +258,43 @@ destroy_lab() {
     cd "$env_dir"
 
     log_info "Initializing Terraform..."
-    terraform init -reconfigure \
+    if ! terraform init -reconfigure \
         -backend-config="bucket=${bucket}" \
         -backend-config="key=terraform.tfstate" \
-        -backend-config="region=${REGION}" &>/dev/null || true
+        -backend-config="region=${REGION}" > /dev/null; then
+        log_error "terraform init FAILED -- nothing was destroyed; resources may still be billing."
+        log_error "Check the error above (wrong --region? bucket ${bucket} unreachable? expired AWS credentials?) and re-run."
+        exit 1
+    fi
 
-    if ! terraform state list &>/dev/null 2>&1; then
-        log_warn "No state found for $engineer_id."
+    local state_list
+    state_list=$(terraform state list 2>/dev/null || true)
+    if [[ -z "$state_list" ]]; then
+        log_warn "Terraform state for $engineer_id is empty -- nothing for Terraform to destroy."
+        # Sanity check: state and reality can disagree (wrong region/bucket).
+        # Look for live lab instances tagged for this student anyway.
+        # NOTE: filter on Owner+Project -- modules override the provider's
+        # Environment=student-lab default tag with Environment=lab at the
+        # resource level, so Environment is NOT a reliable filter.
+        local stray_instances
+        stray_instances=$(aws ec2 describe-instances --region "$REGION" \
+            --filters "Name=tag:Owner,Values=${engineer_id}" \
+                      "Name=tag:Project,Values=k0rdent-training" \
+                      "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query 'Reservations[].Instances[].InstanceId' --output text 2>/dev/null || true)
+        if [[ -n "$stray_instances" ]]; then
+            log_error "BUT live EC2 instances tagged Owner=${engineer_id} exist in ${REGION}: ${stray_instances}"
+            log_error "State and reality disagree (wrong --region or bucket?). These resources are STILL BILLING."
+            log_error "Re-run with the region/identifier used at provision time, or delete them in the AWS console."
+            exit 1
+        fi
+        log_info "AWS sanity check: no live lab instances found for ${engineer_id} in ${REGION}."
         return 0
     fi
 
-    # Clean up CCM-provisioned LoadBalancers BEFORE destroying infrastructure
+    # Delete managed clusters FIRST (they live in separate, Terraform-unknown
+    # VPCs), then CCM-provisioned LoadBalancers, then the infrastructure.
+    cleanup_managed_clusters "$engineer_id" "$bucket"
     cleanup_load_balancers "$engineer_id" "$bucket"
 
     local destroy_args=""
@@ -260,6 +385,9 @@ if [[ -z "$REGION" ]]; then
     exit 1
 fi
 log_info "Using AWS region: $REGION"
+
+# jq is required to read connection details from the Terraform state
+command -v jq &> /dev/null || { log_error "jq is required but not installed. Install: brew install jq (macOS) or sudo apt-get install -y jq (Ubuntu)"; exit 1; }
 
 # Execute
 destroy_lab "$IDENTIFIER"

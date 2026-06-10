@@ -32,8 +32,8 @@ data "aws_ec2_instance_type_offerings" "gpu" {
 }
 
 locals {
-  azs              = slice(data.aws_availability_zones.available.names, 0, 3)
-  gpu_capable_azs  = sort(tolist(data.aws_ec2_instance_type_offerings.gpu.locations))
+  azs             = slice(data.aws_availability_zones.available.names, 0, 3)
+  gpu_capable_azs = sort(tolist(data.aws_ec2_instance_type_offerings.gpu.locations))
   # Pick the middle GPU-capable AZ as a heuristic — first and last AZs often lack capacity
   gpu_az_index     = length(local.gpu_capable_azs) > 2 ? 1 : 0
   effective_gpu_az = var.gpu_az != "" ? var.gpu_az : (length(local.gpu_capable_azs) > 0 ? local.gpu_capable_azs[local.gpu_az_index] : local.azs[0])

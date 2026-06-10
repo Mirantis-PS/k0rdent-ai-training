@@ -82,6 +82,13 @@ resource "aws_instance" "bastion" {
     ssh_public_keys = var.additional_ssh_keys
   }))
 
+  # Enforce IMDSv2. Plain SSH jump host, no containers: hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-${var.engineer_id}-bastion"
   })

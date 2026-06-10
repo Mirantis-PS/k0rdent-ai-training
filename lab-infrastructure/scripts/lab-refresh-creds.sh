@@ -19,6 +19,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Respect NO_COLOR and non-TTY output (piped logs, CI, screen readers)
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    RED="" GREEN="" YELLOW="" BLUE="" NC=""
+fi
+
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -48,6 +53,9 @@ EOF
 # Parse args
 [[ $# -eq 0 ]] && usage
 IDENTIFIER="$1"
+
+# jq is required to read connection details from the Terraform state
+command -v jq &> /dev/null || { log_error "jq is required but not installed. Install: brew install jq (macOS) or sudo apt-get install -y jq (Ubuntu)"; exit 1; }
 
 # Validate credentials are set
 if [[ -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
@@ -143,14 +151,25 @@ if ! ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGM
 fi
 log_success "SSH connection OK"
 
-# Update credentials
+# Update credentials.
+# The secret manifest is piped over SSH stdin so the credentials never appear
+# as command-line arguments (visible in `ps`) on either machine.
 log_info "Updating aws-cluster-identity-secret..."
+# shellcheck disable=SC2087  # client-side expansion is intentional: the local creds are embedded into the stdin-piped manifest
 ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
     "kubectl delete secret aws-cluster-identity-secret -n kcm-system 2>/dev/null; \
-     kubectl create secret generic aws-cluster-identity-secret -n kcm-system \
-       --from-literal=AccessKeyID='${AWS_ACCESS_KEY_ID}' \
-       --from-literal=SecretAccessKey='${AWS_SECRET_ACCESS_KEY}' \
-       --from-literal=SessionToken='${AWS_SESSION_TOKEN:-}'"
+     kubectl create -f -" <<SECRETEOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-cluster-identity-secret
+  namespace: kcm-system
+type: Opaque
+stringData:
+  AccessKeyID: "${AWS_ACCESS_KEY_ID}"
+  SecretAccessKey: "${AWS_SECRET_ACCESS_KEY}"
+  SessionToken: "${AWS_SESSION_TOKEN:-}"
+SECRETEOF
 
 log_success "Secret updated"
 
