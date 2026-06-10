@@ -56,7 +56,7 @@ In this lab, you will:
 ## Prerequisites
 
 - Completed Labs 1.1-1.7
-- Management cluster running with k0rdent Enterprise v1.2.2
+- Management cluster running with k0rdent Enterprise v1.3.1
 - (Optional) Managed cluster from Lab 1.5 still running
 
 ## Resuming This Lab
@@ -102,7 +102,7 @@ k0rdent has **three independent upgrade layers**. Each uses a different mechanis
 ```bash
 # Check the current Release
 kubectl get releases.k0rdent.mirantis.com
-# Expected: k0rdent-enterprise-1-2-2 (for Enterprise v1.2.2)
+# Expected: k0rdent-enterprise-1-3-1 (for Enterprise v1.3.1)
 # Note: use the fully qualified resource name to avoid short-name ambiguity
 
 # Check the Management object's release reference
@@ -192,10 +192,10 @@ The process has three steps:
 ```bash
 # See what release is currently active
 kubectl get releases.k0rdent.mirantis.com
-# Expected: k0rdent-enterprise-1-2-2 with READY=true
+# Expected: k0rdent-enterprise-1-3-1 with READY=true
 
 # Inspect what it pins
-kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-2 \
+kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-3-1 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 ```
 
@@ -203,14 +203,14 @@ The Release pins versions for every component:
 
 ```yaml
 spec:
-  version: 1.2.2                              # k0rdent version
+  version: 1.3.1                              # k0rdent version
   kcm:
-    template: kcm-1-2-2                        # KCM controller template
+    template: kcm-1-3-1                        # KCM controller template
   capi:
-    template: cluster-api-1-0-7                # CAPI core template
+    template: cluster-api-1-0-x                # CAPI core template (check your Release for the exact version)
   providers:
     - name: cluster-api-provider-aws
-      template: cluster-api-provider-aws-1-0-9 # CAPA template
+      template: cluster-api-provider-aws-1-0-x # CAPA template
     - name: cluster-api-provider-k0sproject-k0smotron
       template: ...                            # k0smotron template
     # ... all other providers
@@ -222,7 +222,7 @@ Each Enterprise version publishes a `release.yaml` at `get.mirantis.com`. This f
 
 ```bash
 # Set the target version
-TARGET_VERSION="1.2.3"
+TARGET_VERSION="1.3.2"
 
 # Download and apply the new Release object
 kubectl create -f "https://get.mirantis.com/k0rdent-enterprise/${TARGET_VERSION}/release.yaml"
@@ -232,8 +232,8 @@ kubectl create -f "https://get.mirantis.com/k0rdent-enterprise/${TARGET_VERSION}
 # Verify it was created
 kubectl get releases.k0rdent.mirantis.com
 # You should see BOTH releases:
-#   k0rdent-enterprise-1-2-2   true    (current)
-#   k0rdent-enterprise-1-2-3   false   (new, not yet active)
+#   k0rdent-enterprise-1-3-1   true    (current)
+#   k0rdent-enterprise-1-3-2   false   (new, not yet active)
 ```
 
 > **What just happened:** A new Release object exists in your cluster, but it's not active yet. The Management object still points to the old release. Nothing has changed in the running system.
@@ -260,12 +260,12 @@ Before activating, review what will change:
 
 ```bash
 echo "=== Current providers ==="
-kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-2 \
+kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-3-1 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 
 echo ""
 echo "=== New providers ==="
-kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-3 \
+kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-3-2 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 ```
 
@@ -274,7 +274,7 @@ kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-3 \
 Patch the Management object to point to the new Release:
 
 ```bash
-RELEASE_NAME="k0rdent-enterprise-1-2-3"
+RELEASE_NAME="k0rdent-enterprise-1-3-2"
 
 kubectl patch managements.k0rdent.mirantis.com kcm \
   --patch "{\"spec\":{\"release\":\"${RELEASE_NAME}\"}}" \
@@ -335,7 +335,7 @@ kubectl get clusterdeployments -A -o wide
 
 Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` CRD controls which upgrade paths are allowed.
 
-> **Heads up — nothing to upgrade on this path:** The 1.2.2 → 1.2.3 upgrade you just performed is a **patch release**. It ships no new `aws-standalone-cp` ClusterTemplate version, so there is genuinely no managed-cluster upgrade to perform in this environment. That's the realistic outcome of a patch upgrade. Steps 1-2 below are **real discovery steps** — run them and confirm there's no upgrade target. Steps 3-4 are a **pattern walkthrough** of exactly what you'd do when a new template version IS available (typically after a minor release like 1.2.x → 1.3.x).
+> **Heads up — nothing to upgrade on this path:** The 1.3.1 → 1.3.2 upgrade you just performed is a **patch release**. It ships no new `aws-standalone-cp` ClusterTemplate version, so there is genuinely no managed-cluster upgrade to perform in this environment. That's the realistic outcome of a patch upgrade. Steps 1-2 below are **real discovery steps** — run them and confirm there's no upgrade target. Steps 3-4 are a **pattern walkthrough** of exactly what you'd do when a new template version IS available (typically after a minor release like 1.3.x → 1.4.x).
 
 ### Step 1: Check for New Templates
 
@@ -350,7 +350,7 @@ kubectl get clusterdeployment -n kcm-system \
   -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.template}{"\n"}{end}'
 ```
 
-> **Expected result here:** a single `aws-standalone-cp` version — the same one your cluster already uses. **Patch releases (e.g., 1.2.2 → 1.2.3)** don't ship new templates; **minor releases (e.g., 1.2.x → 1.3.x)** typically do. Seeing only one version is the correct outcome for this lab, not an error.
+> **Expected result here:** a single `aws-standalone-cp` version — the same one your cluster already uses. **Patch releases (e.g., 1.3.1 → 1.3.2)** don't ship new templates; **minor releases (e.g., 1.3.x → 1.4.x)** typically do. Seeing only one version is the correct outcome for this lab, not an error.
 
 ### Step 2: Check Upgrade Paths
 
@@ -451,7 +451,7 @@ To upgrade a service, update the template in the MultiClusterService or ClusterD
 # In MultiClusterService or ClusterDeployment serviceSpec
 serviceSpec:
   services:
-    - template: kyverno-3-2-7          # New version
+    - template: kyverno-3-8-2          # New version
       templateChain: kyverno-chain      # Validates the upgrade path
       name: kyverno
       namespace: kyverno
@@ -467,10 +467,10 @@ metadata:
   namespace: kcm-system
 spec:
   supportedTemplates:
-    - name: kyverno-3-2-6
+    - name: kyverno-3-8-1
       availableUpgrades:
-        - name: kyverno-3-2-7
-    - name: kyverno-3-2-7
+        - name: kyverno-3-8-2
+    - name: kyverno-3-8-2
 ```
 
 > **Note:** Service upgrades and template chains are covered in detail in Week 2.

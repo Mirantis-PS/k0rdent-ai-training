@@ -15,7 +15,7 @@ By the end of this week, you will be able to:
 - [ ] Configure credential management and RBAC
 - [ ] Understand cluster templates and management clusters
 - [ ] Deploy fleet services with the Service Catalog and MultiClusterService (Labs 1.2, 1.7)
-- [ ] Upgrade k0rdent Enterprise (management plane 1.2.2 → 1.2.3, Lab 1.8)
+- [ ] Upgrade k0rdent Enterprise (management plane 1.3.1 → 1.3.2, Lab 1.8)
 
 ## Schedule
 
@@ -62,15 +62,15 @@ These labs are validated against the repo-pinned versions and installation behav
 
 | Component | Version | Used In |
 |-----------|---------|---------|
-| k0rdent Enterprise | 1.2.2 | Lab 1.1 (auto-installed); upgrade to 1.2.3 in Lab 1.8 |
-| k0s | v1.32.4+k0s.0 | Lab 1.1 (auto-installed) |
+| k0rdent Enterprise | 1.3.1 | Lab 1.1 (auto-installed); upgrade to 1.3.2 in Lab 1.8 |
+| k0s | v1.35.4+k0s.0 | Lab 1.1 (auto-installed) |
 | Flux CLI | Installed by the upstream install script during provisioning (version may vary) | Lab 1.1 (auto-installed) |
 | clusterctl | v1.12.4 | Lab 1.1 (auto-installed) |
 | k0sctl | v0.19.4 | Lab 1.1 (auto-installed) |
-| KOF charts | 1.5.0 | Lab 1.6 |
-| cert-manager ServiceTemplate | 1.16.2 | Lab 1.7 |
-| ingress-nginx ServiceTemplate | 4.11.0 | Labs 1.2, 1.7 |
-| kyverno ServiceTemplate | 3.2.6 | Lab 1.7 |
+| KOF charts | 1.10.0 | Lab 1.6 |
+| cert-manager ServiceTemplate | 1.20.2 | Lab 1.7 |
+| ingress-nginx ServiceTemplate | 4.15.1 | Labs 1.2, 1.7 |
+| kyverno ServiceTemplate | 3.8.1 | Lab 1.7 |
 
 > **Tip:** If a hardcoded version is unavailable, check what's available:
 > ```bash

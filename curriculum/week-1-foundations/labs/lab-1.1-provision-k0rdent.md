@@ -157,8 +157,8 @@ Choose a region with good availability. Common choices:
 |-----------|--------------|
 | Instance Type | t3.xlarge (4 vCPU, 16GB RAM) |
 | OS | Ubuntu 22.04 LTS |
-| Kubernetes | k0s v1.32.4 |
-| k0rdent | Enterprise v1.2.2 |
+| Kubernetes | k0s v1.35.4 |
+| k0rdent | Enterprise v1.3.1 |
 
 ## Part 2: Verify Prerequisites (~2 min)
 
@@ -215,7 +215,7 @@ The script will display progress as it:
 [INFO] Streaming initialization progress (live)...
 
   [1/6] Installing k0s Kubernetes...
-  === Installing k0s v1.32.4+k0s.0 ===
+  === Installing k0s v1.35.4+k0s.0 ===
   [2/6] Installing CLI tools...
   === CLI tools installed ===
   [3/6] Waiting for cluster readiness...
@@ -243,14 +243,14 @@ The script will display progress as it:
 
 **2. Cloud-init on the management node**, in order:
 
-1. Installs **k0s** v1.32.4+k0s.0 as a single-node cluster (`k0s install controller --enable-worker`)
+1. Installs **k0s** v1.35.4+k0s.0 as a single-node cluster (`k0s install controller --enable-worker`)
 2. Installs the **local-path-provisioner** as the default StorageClass
 3. Installs the **AWS Cloud Controller Manager** Helm chart into `kube-system` and patches the node's `providerID` — this is what makes `LoadBalancer` Services work
 4. Installs **k0rdent Enterprise** — the one command customers pay for:
 
 ```bash
 helm install kcm oci://registry.mirantis.com/k0rdent-enterprise/charts/k0rdent-enterprise \
-  --version 1.2.2 \
+  --version 1.3.1 \
   --namespace kcm-system --create-namespace \
   --set k0rdent-ui.enabled=true \
   --set k0rdent-ui.auth.basic.password="$K0RDENT_UI_PASSWORD"
@@ -323,7 +323,7 @@ kubectl get pods -A
 **Expected output:**
 ```
 NAME                   STATUS   ROLES           AGE   VERSION
-ip-10-0-xxx-xxx        Ready    control-plane   10m   v1.32.4+k0s
+ip-10-0-xxx-xxx        Ready    control-plane   10m   v1.35.4+k0s
 ```
 
 ## Part 6: Verify k0rdent Enterprise Installation (~5 min)
