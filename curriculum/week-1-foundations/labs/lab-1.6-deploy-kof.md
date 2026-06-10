@@ -206,7 +206,7 @@ kubectl get storageclass  # Should now show 'local-path'
 # Install KOF operators (Grafana + OpenTelemetry operators)
 helm upgrade -i --reset-values --wait --create-namespace -n kof kof-operators \
   oci://ghcr.io/k0rdent/kof/charts/kof-operators \
-  --version 1.5.0
+  --version 1.10.0
 
 # Verify operators are running
 kubectl get pods -n kof
@@ -231,7 +231,7 @@ EOF
 helm upgrade -i --reset-values --wait -n kof kof-mothership \
   -f /tmp/mothership-values.yaml \
   oci://ghcr.io/k0rdent/kof/charts/kof-mothership \
-  --version 1.5.0 \
+  --version 1.10.0 \
   --timeout 10m
 
 # Verify mothership pods
@@ -267,7 +267,7 @@ EOF
 helm upgrade -i --reset-values --wait -n kof kof-storage \
   -f /tmp/storage-values.yaml \
   oci://ghcr.io/k0rdent/kof/charts/kof-storage \
-  --version 1.5.0 \
+  --version 1.10.0 \
   --timeout 10m
 ```
 
@@ -302,7 +302,7 @@ EOF
 helm upgrade -i --reset-values --wait -n kof kof-collectors \
   -f /tmp/collectors-values.yaml \
   oci://ghcr.io/k0rdent/kof/charts/kof-collectors \
-  --version 1.5.0 \
+  --version 1.10.0 \
   --timeout 10m
 ```
 
@@ -452,7 +452,7 @@ The `kof-child` chart creates MultiClusterService resources that automatically d
 # Install kof-child on management cluster (not on the child cluster!)
 helm upgrade -i --reset-values --wait -n kof kof-child \
   oci://ghcr.io/k0rdent/kof/charts/kof-child \
-  --version 1.5.0
+  --version 1.10.0
 ```
 
 This will automatically deploy:
@@ -606,7 +606,7 @@ KUBECONFIG=/tmp/managed-cluster-01.kubeconfig \
 helm upgrade -i --reset-values --wait --create-namespace -n kof kof-collectors \
   -f /tmp/child-collectors-values.yaml \
   oci://ghcr.io/k0rdent/kof/charts/kof-collectors \
-  --version 1.5.0
+  --version 1.10.0
 ```
 
 > **Note:** Replace `<MANAGEMENT_VMINSERT_ENDPOINT>` with a reachable endpoint. See networking requirements below.

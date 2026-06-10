@@ -369,7 +369,7 @@ else
         "spec": {
           "initContainers": [{
             "name": "velero-plugin-for-aws",
-            "image": "velero/velero-plugin-for-aws:v1.12.1",
+            "image": "velero/velero-plugin-for-aws:v1.13.2",
             "imagePullPolicy": "IfNotPresent",
             "volumeMounts": [{"mountPath": "/target", "name": "plugins"}]
           }]
@@ -398,7 +398,7 @@ You should see `aws-s3` with phase `Available`. If it still shows `Unavailable` 
 >           velero:
 >             initContainers:
 >             - name: velero-plugin-for-aws
->               image: velero/velero-plugin-for-aws:v1.12.1
+>               image: velero/velero-plugin-for-aws:v1.13.2
 >               imagePullPolicy: IfNotPresent
 >               volumeMounts:
 >               - mountPath: /target
