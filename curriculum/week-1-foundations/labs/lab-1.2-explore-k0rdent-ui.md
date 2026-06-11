@@ -803,7 +803,7 @@ Document your management cluster setup:
 - **Engineer ID:** [your-id]
 - **k0rdent Version:** 1.3.1
 - **k0s Version:** v1.35.4
-- **Instance Type:** t3.xlarge
+- **Instance Type:** t3.2xlarge
 - **Region:** [your-region]
 
 ### Installed Components

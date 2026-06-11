@@ -51,7 +51,7 @@ variable "node_count" {
 variable "instance_type" {
   description = "EC2 instance type for management nodes"
   type        = string
-  default     = "t3.xlarge"
+  default     = "t3.2xlarge"
 }
 
 variable "root_volume_size" {
@@ -63,13 +63,13 @@ variable "root_volume_size" {
 variable "k0s_version" {
   description = "k0s version"
   type        = string
-  default     = "v1.32.4+k0s.0"
+  default     = "v1.35.4+k0s.0"
 }
 
 variable "k0rdent_version" {
   description = "k0rdent Enterprise version"
   type        = string
-  default     = "1.2.2"
+  default     = "1.3.1"
 }
 
 variable "ui_password" {
