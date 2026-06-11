@@ -60,7 +60,7 @@ variable "node_count" {
 variable "instance_type" {
   description = "EC2 instance type for management cluster nodes"
   type        = string
-  default     = "t3.xlarge" # 4 vCPU, 16GB RAM
+  default     = "t3.2xlarge" # 8 vCPU, 32GB RAM — k0rdent Enterprise 1.3.x + KOF need >4 vCPU of pod CPU requests, and the Lab 1.8 upgrade needs surge headroom on top
 }
 
 variable "root_volume_size" {
@@ -76,13 +76,13 @@ variable "root_volume_size" {
 variable "k0s_version" {
   description = "k0s version to install"
   type        = string
-  default     = "v1.32.4+k0s.0"
+  default     = "v1.35.4+k0s.0"
 }
 
 variable "k0rdent_version" {
   description = "k0rdent Enterprise version to install"
   type        = string
-  default     = "1.2.2"
+  default     = "1.3.1"
 }
 
 variable "ui_password" {

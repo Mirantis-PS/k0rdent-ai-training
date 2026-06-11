@@ -219,6 +219,33 @@ kubectl get crds | grep k0rdent
 kubectl logs -n kcm-system -l app=kcm-controller-manager
 ```
 
+### Provider Pod CrashLoopBackOff: `too many open files`
+
+A CAPI provider pod (capd, capa, capz, ...) crash-loops and `Management kcm`
+stays `READY: False` with `Components not ready: [cluster-api-provider-...]`.
+The pod log ends with:
+
+```
+"Problem running manager" err="too many open files"
+```
+
+k0rdent Enterprise 1.3.x runs 11+ controller managers on the single
+management node; each consumes inotify instances, exhausting Ubuntu's default
+`fs.inotify.max_user_instances=128`. Nodes provisioned with the current
+cloud-init already set higher limits; on an older node, raise them manually:
+
+```bash
+sudo tee /etc/sysctl.d/99-k0rdent-inotify.conf <<EOF
+fs.inotify.max_user_instances = 8192
+fs.inotify.max_user_watches = 1048576
+EOF
+sudo sysctl --system
+
+# Restart the crashed pod, then wait for Management to become Ready
+kubectl delete pod -n kcm-system <crashing-pod-name>
+kubectl wait management kcm --for=condition=Ready=True --timeout=300s
+```
+
 ## GPU Lab Issues
 
 ### GPU Not Detected

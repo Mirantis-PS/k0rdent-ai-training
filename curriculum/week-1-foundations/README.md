@@ -14,6 +14,8 @@ By the end of this week, you will be able to:
 - [ ] Set up infrastructure providers (AWS, Azure, vSphere)
 - [ ] Configure credential management and RBAC
 - [ ] Understand cluster templates and management clusters
+- [ ] Deploy fleet services with the Service Catalog and MultiClusterService (Labs 1.2, 1.7)
+- [ ] Upgrade k0rdent Enterprise (management plane 1.3.1 → 1.3.2, Lab 1.8)
 
 ## Schedule
 
@@ -55,15 +57,15 @@ These labs are validated against the repo-pinned versions and installation behav
 
 | Component | Version | Used In |
 |-----------|---------|---------|
-| k0rdent Enterprise | 1.2.2 | Lab 1.1 (auto-installed); upgrade to 1.2.3 in Lab 1.8 |
-| k0s | v1.32.4+k0s.0 | Lab 1.1 (auto-installed) |
+| k0rdent Enterprise | 1.3.1 | Lab 1.1 (auto-installed); upgrade to 1.3.2 in Lab 1.8 |
+| k0s | v1.35.4+k0s.0 | Lab 1.1 (auto-installed) |
 | Flux CLI | Installed by the upstream install script during provisioning (version may vary) | Lab 1.1 (auto-installed) |
 | clusterctl | v1.12.4 | Lab 1.1 (auto-installed) |
 | k0sctl | v0.19.4 | Lab 1.1 (auto-installed) |
-| KOF charts | 1.5.0 | Lab 1.6 |
-| cert-manager ServiceTemplate | 1.16.2 | Lab 1.7 |
-| ingress-nginx ServiceTemplate | 4.11.0 | Labs 1.2, 1.7 |
-| kyverno ServiceTemplate | 3.2.6 | Lab 1.7 |
+| KOF charts | 1.6.0 | Lab 1.6 |
+| cert-manager ServiceTemplate | 1.20.2 | Lab 1.7 |
+| ingress-nginx ServiceTemplate | 4.15.1 | Labs 1.2, 1.7 |
+| kyverno ServiceTemplate | 3.8.1 | Lab 1.7 |
 
 > **Tip:** If a hardcoded version is unavailable, check what's available:
 > ```bash
@@ -112,13 +114,15 @@ These labs are validated against the repo-pinned versions and installation behav
 
 | Resource | Hourly Cost | When Active |
 |----------|-------------|-------------|
-| Management cluster (t3.xlarge) | ~$0.17/hr | Labs 1.1-1.7 |
-| NAT Gateway | ~$0.045/hr | Labs 1.1-1.7 |
-| AWS NLB (k0rdent UI via Envoy Gateway) | ~$0.023/hr | Labs 1.1-1.7 |
-| Managed cluster (2x t3.medium) | ~$0.15/hr | Labs 1.5-1.7 |
-| **Total (all running)** | **~$0.39/hr** | |
+| Management cluster (t3.2xlarge) | ~$0.33/hr | Lab 1.1 onward (preserved through the program) |
+| NAT Gateway | ~$0.045/hr | Lab 1.1 onward (preserved through the program) |
+| AWS Classic ELB (k0rdent UI via Envoy Gateway) | ~$0.023/hr | Lab 1.1 onward (preserved through the program) |
+| Managed cluster (2x t3.medium) | ~$0.15/hr | Labs 1.5-1.8 (torn down at end of Lab 1.8) |
+| **Total (all running)** | **~$0.55/hr** | |
 
-> Running 8 hours/day for 5 days: **~$15-25 total**. Remember to destroy environments when not in use -- see cleanup instructions at the end of each lab.
+> **Cost lifecycle:** The management cluster is provisioned once in Lab 1.1 and **preserved through the program** — do not destroy it between labs or weeks. Keep it running during the week; between sessions or weeks, pause it with `aws ec2 stop-instances` (guidance at the end of Lab 1.8). While instances are stopped, the NAT Gateway, Elastic IPs, and EBS volumes still bill ~$2/day. The managed clusters from Labs 1.5-1.7 are torn down at the end of Lab 1.8.
+>
+> **Week 1 estimate:** everything running 24/7 for 5 days ≈ **$66** ($0.55/hr × 120h); stopping instances outside an ~8h/day working window brings it to roughly **$35-40**.
 
 ## Prerequisites
 

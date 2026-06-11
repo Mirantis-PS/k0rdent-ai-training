@@ -179,23 +179,15 @@ spec:
 
 #### Step 2: Configure OIDC Authentication
 
-```yaml
-apiVersion: k0rdent.mirantis.com/v1beta1
-kind: Management
-metadata:
-  name: kcm
-  namespace: kcm-system
-spec:
-  core:
-    kcm:
-      config:
-        k0rdent-ui:
-          enabled: true
-          auth:
-            oidc:
-              issuerUrl: "https://login.microsoftonline.com/<tenant-id>/v2.0"
-              clientId: "<your-client-id>"
-              clientSecret: "<your-client-secret>"
+The training lab uses the built-in `admin` account. Production deployments replace this with **OIDC** against a corporate identity provider (e.g., Microsoft Entra ID, Okta, Keycloak). Conceptually, this means putting an OIDC-capable layer in front of the UI — for example, an Envoy Gateway `SecurityPolicy` or a dedicated OIDC proxy wired to your IdP — on the same Gateway and HTTPRoute resources you examined above.
+
+The exact configuration fields are release-specific, so don't work from memory or copied snippets — follow the official [Mirantis k0rdent Enterprise documentation](https://docs.mirantis.com/k0rdent-enterprise/) for your installed version (1.3.1 in this lab).
+
+One scope detail worth remembering when you configure this: the `Management` resource is **cluster-scoped**, so it takes no namespace flag:
+
+```bash
+# Correct — cluster-scoped, no -n flag
+kubectl get management kcm -o yaml
 ```
 
 #### Production Checklist
@@ -227,7 +219,7 @@ For on-premises or bare-metal environments without a cloud LoadBalancer.
 
 ```bash
 # Install MetalLB
-kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.9/config/manifests/metallb-native.yaml
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.16.0/config/manifests/metallb-native.yaml
 
 # Configure IP pool
 cat <<EOF | kubectl apply -f -
@@ -554,7 +546,7 @@ cat <<EOF | kubectl apply -f -
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ServiceTemplate
 metadata:
-  name: kyverno-3-2-6
+  name: kyverno-3-8-1
   namespace: kcm-system
   annotations:
     helm.sh/resource-policy: keep
@@ -562,7 +554,7 @@ spec:
   helm:
     chartSpec:
       chart: kyverno
-      version: 3.2.6
+      version: 3.8.1
       interval: 10m0s
       sourceRef:
         kind: HelmRepository
@@ -578,7 +570,7 @@ kubectl get servicetemplates -n kcm-system
 You should see:
 ```
 NAME            VALID   AGE
-kyverno-3-2-6   true    30s
+kyverno-3-8-1   true    30s
 ```
 
 > **If VALID shows `false`:** Wait 30 seconds and check again. Flux needs to fetch the chart metadata from the OCI registry to validate the ServiceTemplate.
@@ -590,7 +582,7 @@ kyverno-3-2-6   true    30s
 1. Open the k0rdent UI in your browser
 2. Navigate to **Templates** in the left sidebar
 3. Switch to the **Service Templates** tab
-4. You should see `kyverno-3-2-6` listed with its chart version and validation status
+4. You should see `kyverno-3-8-1` listed with its chart version and validation status
 
 This is the same template that appears when you create a ClusterDeployment and add services to it — the UI reads from the ServiceTemplate CRDs in the cluster.
 
@@ -613,7 +605,7 @@ Both approaches — kubectl and the UI — create the same Kubernetes resources.
 
 ```bash
 # View the full ServiceTemplate
-kubectl get servicetemplate kyverno-3-2-6 -n kcm-system -o yaml
+kubectl get servicetemplate kyverno-3-8-1 -n kcm-system -o yaml
 ```
 
 Key fields:
@@ -630,7 +622,7 @@ Key fields:
 
 ```bash
 # Remove the ServiceTemplate if you want to clean up
-kubectl delete servicetemplate kyverno-3-2-6 -n kcm-system
+kubectl delete servicetemplate kyverno-3-8-1 -n kcm-system
 ```
 
 ### Why External Catalog?
@@ -790,9 +782,9 @@ Document your management cluster setup:
 ## My k0rdent Management Cluster
 
 - **Engineer ID:** [your-id]
-- **k0rdent Version:** 1.2.2
-- **k0s Version:** v1.32.4
-- **Instance Type:** t3.xlarge
+- **k0rdent Version:** 1.3.1
+- **k0s Version:** v1.35.4
+- **Instance Type:** t3.2xlarge
 - **Region:** [your-region]
 
 ### Installed Components

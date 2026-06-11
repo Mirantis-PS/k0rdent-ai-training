@@ -149,7 +149,7 @@ This is the single reference for lab infrastructure costs.
 | Environment | Instance Type | Spot $/hr | On-Demand $/hr | Weekly Use Case |
 |-------------|--------------|-----------|----------------|-----------------|
 | Shared Infra | NAT Gateway | ~$0.05 | ~$0.05 | All weeks |
-| k0rdent Mgmt | t3.xlarge (4 vCPU, 16GB) | ~$0.06 | ~$0.17 | Week 1 |
+| k0rdent Mgmt | t3.2xlarge (8 vCPU, 32GB) | ~$0.13 | ~$0.33 | Week 1 |
 | Metal3 Dev | m5.2xlarge (8 vCPU, 32GB) | ~$0.15 | ~$0.38 | Week 2 |
 | KubeVirt | m5.xlarge + workers | ~$0.25 | ~$0.60 | Week 3 |
 | GPU Lab | p3.8xlarge (4x V100) | ~$4.50 | ~$12.24 | Weeks 4-5 |

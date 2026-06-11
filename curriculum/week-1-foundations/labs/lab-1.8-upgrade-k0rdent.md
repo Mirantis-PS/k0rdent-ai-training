@@ -53,7 +53,7 @@ In this lab, you will:
 ## Prerequisites
 
 - Completed Labs 1.1-1.7
-- Management cluster running with k0rdent Enterprise v1.2.2
+- Management cluster running with k0rdent Enterprise v1.3.1
 - (Optional) Managed cluster from Lab 1.5 still running
 
 ## Resuming This Lab
@@ -94,7 +94,7 @@ k0rdent has **three independent upgrade layers**. Each uses a different mechanis
 ```bash
 # Check the current Release
 kubectl get releases.k0rdent.mirantis.com
-# Expected: k0rdent-enterprise-1-2-2 (for Enterprise v1.2.2)
+# Expected: k0rdent-enterprise-1-3-1 (for Enterprise v1.3.1)
 # Note: use the fully qualified resource name to avoid short-name ambiguity
 
 # Check the Management object's release reference
@@ -111,7 +111,8 @@ kubectl get pods -n kcm-system | grep -v Running
 # Save current state for comparison
 kubectl get crds | grep k0rdent.mirantis.com > /tmp/pre-upgrade-crds.txt
 kubectl get clusterdeployments -A -o wide > /tmp/pre-upgrade-clusters.txt
-kubectl get clustertemplates -n kcm-system > /tmp/pre-upgrade-clustertemplates.txt
+# --no-headers so the count matches the post-upgrade comparison in Part 2 Step 7
+kubectl get clustertemplates -n kcm-system --no-headers > /tmp/pre-upgrade-clustertemplates.txt
 
 # Count resources
 echo "CRDs: $(kubectl get crds | grep k0rdent | wc -l)"
@@ -182,10 +183,10 @@ The process has three steps:
 ```bash
 # See what release is currently active
 kubectl get releases.k0rdent.mirantis.com
-# Expected: k0rdent-enterprise-1-2-2 with READY=true
+# Expected: k0rdent-enterprise-1-3-1 with READY=true
 
 # Inspect what it pins
-kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-2 \
+kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-3-1 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 ```
 
@@ -193,14 +194,14 @@ The Release pins versions for every component:
 
 ```yaml
 spec:
-  version: 1.2.2                              # k0rdent version
+  version: 1.3.1                              # k0rdent version
   kcm:
-    template: kcm-1-2-2                        # KCM controller template
+    template: k0rdent-enterprise-1-3-1         # KCM controller template
   capi:
-    template: cluster-api-1-0-7                # CAPI core template
+    template: cluster-api-1-0-x                # CAPI core template (check your Release for the exact version)
   providers:
     - name: cluster-api-provider-aws
-      template: cluster-api-provider-aws-1-0-9 # CAPA template
+      template: cluster-api-provider-aws-1-0-x # CAPA template
     - name: cluster-api-provider-k0sproject-k0smotron
       template: ...                            # k0smotron template
     # ... all other providers
@@ -212,7 +213,7 @@ Each Enterprise version publishes a `release.yaml` at `get.mirantis.com`. This f
 
 ```bash
 # Set the target version
-TARGET_VERSION="1.2.3"
+TARGET_VERSION="1.3.2"
 
 # Download and apply the new Release object
 kubectl create -f "https://get.mirantis.com/k0rdent-enterprise/${TARGET_VERSION}/release.yaml"
@@ -222,8 +223,8 @@ kubectl create -f "https://get.mirantis.com/k0rdent-enterprise/${TARGET_VERSION}
 # Verify it was created
 kubectl get releases.k0rdent.mirantis.com
 # You should see BOTH releases:
-#   k0rdent-enterprise-1-2-2   true    (current)
-#   k0rdent-enterprise-1-2-3   false   (new, not yet active)
+#   k0rdent-enterprise-1-3-1   true    (current)
+#   k0rdent-enterprise-1-3-2   false   (new, not yet active)
 ```
 
 > **What just happened:** A new Release object exists in your cluster, but it's not active yet. The Management object still points to the old release. Nothing has changed in the running system.
@@ -250,12 +251,12 @@ Before activating, review what will change:
 
 ```bash
 echo "=== Current providers ==="
-kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-2 \
+kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-3-1 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 
 echo ""
 echo "=== New providers ==="
-kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-3 \
+kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-3-2 \
   -o jsonpath='{range .spec.providers[*]}{.name}: {.template}{"\n"}{end}'
 ```
 
@@ -264,7 +265,7 @@ kubectl get releases.k0rdent.mirantis.com k0rdent-enterprise-1-2-3 \
 Patch the Management object to point to the new Release:
 
 ```bash
-RELEASE_NAME="k0rdent-enterprise-1-2-3"
+RELEASE_NAME="k0rdent-enterprise-1-3-2"
 
 kubectl patch managements.k0rdent.mirantis.com kcm \
   --patch "{\"spec\":{\"release\":\"${RELEASE_NAME}\"}}" \
@@ -325,6 +326,8 @@ kubectl get clusterdeployments -A -o wide
 
 Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` CRD controls which upgrade paths are allowed.
 
+> **Heads up — nothing to upgrade on this path:** The 1.3.1 → 1.3.2 upgrade you just performed is a **patch release**. It ships no new `aws-standalone-cp` ClusterTemplate version, so there is genuinely no managed-cluster upgrade to perform in this environment. That's the realistic outcome of a patch upgrade. Steps 1-2 below are **real discovery steps** — run them and confirm there's no upgrade target. Steps 3-4 are a **pattern walkthrough** of exactly what you'd do when a new template version IS available (typically after a minor release like 1.3.x → 1.4.x).
+
 ### Step 1: Check for New Templates
 
 After upgrading the management plane (Part 2), check if new ClusterTemplate versions were shipped:
@@ -338,7 +341,7 @@ kubectl get clusterdeployment -n kcm-system \
   -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.template}{"\n"}{end}'
 ```
 
-> **Patch releases (e.g., 1.2.2 → 1.2.3)** may not ship new templates. **Minor releases (e.g., 1.2.x → 1.3.x)** typically do. If you only see one template version, you need to upgrade the management plane to a minor release first.
+> **Expected result here:** a single `aws-standalone-cp` version — the same one your cluster already uses. **Patch releases (e.g., 1.3.1 → 1.3.2)** don't ship new templates; **minor releases (e.g., 1.3.x → 1.4.x)** typically do. Seeing only one version is the correct outcome for this lab, not an error.
 
 ### Step 2: Check Upgrade Paths
 
@@ -437,7 +440,7 @@ To upgrade a service, update the template in the MultiClusterService or ClusterD
 # In MultiClusterService or ClusterDeployment serviceSpec
 serviceSpec:
   services:
-    - template: kyverno-3-2-7          # New version
+    - template: kyverno-3-8-2          # New version
       templateChain: kyverno-chain      # Validates the upgrade path
       name: kyverno
       namespace: kyverno
@@ -453,10 +456,10 @@ metadata:
   namespace: kcm-system
 spec:
   supportedTemplates:
-    - name: kyverno-3-2-6
+    - name: kyverno-3-8-1
       availableUpgrades:
-        - name: kyverno-3-2-7
-    - name: kyverno-3-2-7
+        - name: kyverno-3-8-2
+    - name: kyverno-3-8-2
 ```
 
 > **Note:** Service upgrades and template chains are covered in detail in Week 2.
@@ -570,6 +573,29 @@ kubectl get management kcm -o jsonpath='{range .status.conditions[*]}{.type}: {.
 kubectl logs -n kcm-system deployment/kcm-k0rdent-enterprise-controller-manager --tail=50
 ```
 
+### Upgrade stalled: `Helm upgrade failed ... context deadline exceeded`
+
+If the `kcm` component reports `Helm upgrade failed for release kcm-system/kcm
+with chart k0rdent-enterprise@1.3.2: context deadline exceeded`, the Flux-driven
+chart upgrade timed out (e.g., the node was briefly overloaded or restarted
+mid-upgrade). After its retries are exhausted, the HelmRelease goes
+`Stalled: RetriesExceeded` and will NOT retry on its own — and a plain
+`flux reconcile` does not clear a stall. Reset it with suspend/resume:
+
+```bash
+# Confirm the stall
+kubectl get helmrelease kcm -n kcm-system
+helm history kcm -n kcm-system | tail -3   # shows the failed upgrade revision
+
+# Clear the stall and force a fresh upgrade attempt
+flux suspend helmrelease kcm -n kcm-system
+flux resume helmrelease kcm -n kcm-system --timeout=15m
+
+# Verify: a new "Upgrade complete" revision appears and Management goes Ready
+helm history kcm -n kcm-system | tail -2
+kubectl wait management kcm --for=condition=Ready=True --timeout=300s
+```
+
 ### Provider controllers not upgrading
 
 ```bash
@@ -633,7 +659,37 @@ In this lab, you:
 
 > **Do NOT run `lab-destroy.sh` after completing Week 1.** Your management cluster is reused in all subsequent weeks. Week 5 GPU labs create GPU clusters via `ClusterDeployment` on this same management cluster. Only destroy the management cluster when you're completely done with the entire curriculum.
 >
-> If you need to pause between weeks, simply disconnect. Use `lab-connect.sh` to reconnect when you're ready to continue.
+> ```bash
+> # From your local machine: find the management node and bastion instance IDs
+> aws ec2 describe-instances \
+>   --filters "Name=tag:Name,Values=k0rdent-training-mgmt-<your-engineer-id>*,k0rdent-training-<your-engineer-id>-bastion" \
+>             "Name=instance-state-name,Values=running" \
+>   --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`Name`].Value|[0]]' --output table
+>
+> # Stop both (state is preserved on their EBS volumes)
+> aws ec2 stop-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>
+> ```
+>
+> Stopping the instances removes the dominant compute cost. The NAT gateway (~$0.045/hr), Classic ELB, Elastic IP, and EBS volumes still bill while stopped — roughly **$2/day idle** instead of ~$6/day running.
+>
+> To resume: `aws ec2 start-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>`, wait a couple of minutes, then reconnect with `./scripts/lab-connect.sh <your-engineer-id>`. The k0s cluster comes back up on its own — the management node keeps its stable private IP and the bastion keeps its Elastic IP, so your kubeconfig and SSH access still work.
+
+> **If you're NOT continuing the program:** once the managed-cluster teardown above is complete and the AWS orphan checks come back empty, run `./scripts/lab-destroy.sh` to remove the management environment.
+
+## Week 1 Complete!
+
+Congratulations on completing Week 1! You have:
+
+1. **Lab 1.1**: Provisioned a k0rdent Enterprise management cluster
+2. **Lab 1.2**: Explored the k0rdent UI and Service Catalog
+3. **Lab 1.3**: Configured AWS infrastructure provider credentials
+4. **Lab 1.4**: Hardened the setup for production use
+5. **Lab 1.5**: Provisioned a managed Kubernetes cluster
+6. **Lab 1.6**: Deployed KOF for observability and FinOps
+7. **Lab 1.7**: Deployed services across clusters with MultiClusterService
+8. **Lab 1.8**: Upgraded the management plane and learned the rollback procedures for every layer
+
+You now have a solid foundation in k0rdent Enterprise for managing multi-cluster Kubernetes infrastructure.
 
 ## Next
 
