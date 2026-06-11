@@ -111,7 +111,8 @@ kubectl get pods -n kcm-system | grep -v Running
 # Save current state for comparison
 kubectl get crds | grep k0rdent.mirantis.com > /tmp/pre-upgrade-crds.txt
 kubectl get clusterdeployments -A -o wide > /tmp/pre-upgrade-clusters.txt
-kubectl get clustertemplates -n kcm-system > /tmp/pre-upgrade-clustertemplates.txt
+# --no-headers so the count matches the post-upgrade comparison in Part 2 Step 7
+kubectl get clustertemplates -n kcm-system --no-headers > /tmp/pre-upgrade-clustertemplates.txt
 
 # Count resources
 echo "CRDs: $(kubectl get crds | grep k0rdent | wc -l)"
@@ -195,7 +196,7 @@ The Release pins versions for every component:
 spec:
   version: 1.3.1                              # k0rdent version
   kcm:
-    template: kcm-1-3-1                        # KCM controller template
+    template: k0rdent-enterprise-1-3-1         # KCM controller template
   capi:
     template: cluster-api-1-0-x                # CAPI core template (check your Release for the exact version)
   providers:
@@ -572,6 +573,29 @@ kubectl get management kcm -o jsonpath='{range .status.conditions[*]}{.type}: {.
 kubectl logs -n kcm-system deployment/kcm-k0rdent-enterprise-controller-manager --tail=50
 ```
 
+### Upgrade stalled: `Helm upgrade failed ... context deadline exceeded`
+
+If the `kcm` component reports `Helm upgrade failed for release kcm-system/kcm
+with chart k0rdent-enterprise@1.3.2: context deadline exceeded`, the Flux-driven
+chart upgrade timed out (e.g., the node was briefly overloaded or restarted
+mid-upgrade). After its retries are exhausted, the HelmRelease goes
+`Stalled: RetriesExceeded` and will NOT retry on its own — and a plain
+`flux reconcile` does not clear a stall. Reset it with suspend/resume:
+
+```bash
+# Confirm the stall
+kubectl get helmrelease kcm -n kcm-system
+helm history kcm -n kcm-system | tail -3   # shows the failed upgrade revision
+
+# Clear the stall and force a fresh upgrade attempt
+flux suspend helmrelease kcm -n kcm-system
+flux resume helmrelease kcm -n kcm-system --timeout=15m
+
+# Verify: a new "Upgrade complete" revision appears and Management goes Ready
+helm history kcm -n kcm-system | tail -2
+kubectl wait management kcm --for=condition=Ready=True --timeout=300s
+```
+
 ### Provider controllers not upgrading
 
 ```bash
@@ -635,7 +659,37 @@ In this lab, you:
 
 > **Do NOT run `lab-destroy.sh` after completing Week 1.** Your management cluster is reused in all subsequent weeks. Week 5 GPU labs create GPU clusters via `ClusterDeployment` on this same management cluster. Only destroy the management cluster when you're completely done with the entire curriculum.
 >
-> If you need to pause between weeks, simply disconnect. Use `lab-connect.sh` to reconnect when you're ready to continue.
+> ```bash
+> # From your local machine: find the management node and bastion instance IDs
+> aws ec2 describe-instances \
+>   --filters "Name=tag:Name,Values=k0rdent-training-mgmt-<your-engineer-id>*,k0rdent-training-<your-engineer-id>-bastion" \
+>             "Name=instance-state-name,Values=running" \
+>   --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`Name`].Value|[0]]' --output table
+>
+> # Stop both (state is preserved on their EBS volumes)
+> aws ec2 stop-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>
+> ```
+>
+> Stopping the instances removes the dominant compute cost. The NAT gateway (~$0.045/hr), Classic ELB, Elastic IP, and EBS volumes still bill while stopped — roughly **$2/day idle** instead of ~$6/day running.
+>
+> To resume: `aws ec2 start-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>`, wait a couple of minutes, then reconnect with `./scripts/lab-connect.sh <your-engineer-id>`. The k0s cluster comes back up on its own — the management node keeps its stable private IP and the bastion keeps its Elastic IP, so your kubeconfig and SSH access still work.
+
+> **If you're NOT continuing the program:** once the managed-cluster teardown above is complete and the AWS orphan checks come back empty, run `./scripts/lab-destroy.sh` to remove the management environment.
+
+## Week 1 Complete!
+
+Congratulations on completing Week 1! You have:
+
+1. **Lab 1.1**: Provisioned a k0rdent Enterprise management cluster
+2. **Lab 1.2**: Explored the k0rdent UI and Service Catalog
+3. **Lab 1.3**: Configured AWS infrastructure provider credentials
+4. **Lab 1.4**: Hardened the setup for production use
+5. **Lab 1.5**: Provisioned a managed Kubernetes cluster
+6. **Lab 1.6**: Deployed KOF for observability and FinOps
+7. **Lab 1.7**: Deployed services across clusters with MultiClusterService
+8. **Lab 1.8**: Upgraded the management plane and learned the rollback procedures for every layer
+
+You now have a solid foundation in k0rdent Enterprise for managing multi-cluster Kubernetes infrastructure.
 
 ## Next
 

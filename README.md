@@ -66,8 +66,8 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| k0s | v1.32.4+k0s.0 | Kubernetes 1.32 |
-| k0rdent Enterprise | v1.2.2 | Management platform (N-1; upgrade to v1.2.3 in Lab 1.8) |
+| k0s | v1.35.4+k0s.0 | Kubernetes 1.35 |
+| k0rdent Enterprise | v1.3.1 | Management platform (N-1; upgrade to v1.3.2 in Lab 1.8) |
 | KubeVirt | v1.6.3 | VM workloads |
 | NVIDIA GPU Operator | v25.10.0 | GPU management |
 | Cluster API | v1.11 | API v1beta2 |
@@ -115,8 +115,8 @@ k0rdent-ai-training/
 
 When you complete Lab 1.1, you'll have:
 
-- **k0s** - Lightweight Kubernetes distribution (v1.32.4)
-- **k0rdent Enterprise** (v1.2.2)
+- **k0s** - Lightweight Kubernetes distribution (v1.35.4)
+- **k0rdent Enterprise** (v1.3.1)
   - **KCM** - Cluster Manager for multi-cluster management
   - **KSM** - State Manager for service installation
   - **KOF** - Observability & FinOps

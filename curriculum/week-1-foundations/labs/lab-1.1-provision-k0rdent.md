@@ -151,7 +151,7 @@ Choose a region with good availability. Common choices:
 
 | Component | Specification |
 |-----------|--------------|
-| Instance Type | t3.xlarge (4 vCPU, 16GB RAM) |
+| Instance Type | t3.2xlarge (8 vCPU, 32GB RAM) |
 | OS | Ubuntu 22.04 LTS |
 | Kubernetes | k0s v1.35.4 |
 | k0rdent | Enterprise v1.3.1 |
@@ -233,7 +233,7 @@ The script will display progress as it:
 
 `lab-provision.sh` is a convenience wrapper — the commands it hides are exactly what you'd run on a real customer engagement. Two layers:
 
-**1. Terraform** (`terraform apply` over four modules): `networking` (VPC, subnets, NAT), `bastion` (Amazon Linux 2023 jump host), `iam` (instance role so the node can call AWS APIs), and `k0rdent-mgmt` (the t3.xlarge management node).
+**1. Terraform** (`terraform apply` over four modules): `networking` (VPC, subnets, NAT), `bastion` (Amazon Linux 2023 jump host), `iam` (instance role so the node can call AWS APIs), and `k0rdent-mgmt` (the t3.2xlarge management node).
 
 **2. Cloud-init on the management node**, in order:
 

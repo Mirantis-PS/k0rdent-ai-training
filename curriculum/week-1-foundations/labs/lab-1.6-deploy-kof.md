@@ -172,6 +172,10 @@ KOF requires **four Helm charts** installed in order:
 | **kof-storage** | Storage: VictoriaLogs cluster, Jaeger, PromxyServerGroup |
 | **kof-collectors** | Metrics collection: OpenTelemetry, kube-state-metrics, node-exporter |
 
+> **Why four charts, and why this order?** Each chart depends on the one before it. `kof-operators` goes first because it installs the CRDs and operators (Grafana, OpenTelemetry) that everything else is built from. `kof-mothership` comes next: its Grafana and VictoriaMetrics components are custom resources that those operators reconcile. `kof-storage` then adds the log/trace storage backends. `kof-collectors` goes last because collectors are agents -- they need a running storage target to ship telemetry to. Installing out of order either fails fast (missing CRDs) or silently drops data (collectors with nowhere to write).
+
+> **Why KOF 1.6.0 and not the latest release?** This lab pins the **newest KOF version that still uses this manual four-chart installation flow**. KOF 1.7 disabled Grafana by default, and KOF 1.8+ replaced this flow with a single `kof` umbrella chart that sequences components (including a separate victoria-metrics-operator release) through FluxCD HelmReleases. Running this lab's commands against KOF >= 1.7 fails -- e.g., `kof-mothership` 1.8+ aborts with `no matches for kind "VMCluster"` because the VictoriaMetrics operator and its CRDs no longer ship inside the mothership chart. Do not bump these pins without reworking the whole lab to the umbrella-chart flow.
+
 ### Step 1: Verify Prerequisites
 
 ```bash
@@ -195,7 +199,7 @@ kubectl get storageclass  # Should now show 'local-path'
 # Install KOF operators (Grafana + OpenTelemetry operators)
 helm upgrade -i --reset-values --wait --create-namespace -n kof kof-operators \
   oci://ghcr.io/k0rdent/kof/charts/kof-operators \
-  --version 1.10.0
+  --version 1.6.0
 
 # Verify operators are running
 kubectl get pods -n kof
@@ -220,7 +224,7 @@ EOF
 helm upgrade -i --reset-values --wait -n kof kof-mothership \
   -f /tmp/mothership-values.yaml \
   oci://ghcr.io/k0rdent/kof/charts/kof-mothership \
-  --version 1.10.0 \
+  --version 1.6.0 \
   --timeout 10m
 
 # Verify mothership pods
@@ -256,7 +260,7 @@ EOF
 helm upgrade -i --reset-values --wait -n kof kof-storage \
   -f /tmp/storage-values.yaml \
   oci://ghcr.io/k0rdent/kof/charts/kof-storage \
-  --version 1.10.0 \
+  --version 1.6.0 \
   --timeout 10m
 ```
 
@@ -264,11 +268,29 @@ helm upgrade -i --reset-values --wait -n kof kof-storage \
 
 ```bash
 # Create collectors configuration
+# The "collectors:" resource overrides right-size the OpenTelemetry collectors
+# for this single-node training cluster: k0rdent Enterprise 1.3.x's provider
+# fleet already allocates ~98% of the t3.xlarge's CPU requests, and at the
+# default 100m-per-collector sizing the daemon collectors stay Pending with
+# "Insufficient cpu".
 cat << 'EOF' > /tmp/collectors-values.yaml
 kcm:
   monitoring: true
 opentelemetry-kube-stack:
   clusterName: mothership
+  collectors:
+    cluster:
+      resources:
+        requests:
+          cpu: 50m
+    target-allocator:
+      resources:
+        requests:
+          cpu: 50m
+    daemon:
+      resources:
+        requests:
+          cpu: 50m
   defaultCRConfig:
     config:
       processors:
@@ -285,13 +307,23 @@ opentelemetry-kube-stack:
           external_labels:
             cluster: mothership
             clusterNamespace: kcm-system
+opencost:
+  opencost:
+    exporter:
+      # OpenCost serves /healthz only after its initial AWS pricing-index
+      # download and parse, which takes 3+ minutes on this fully-loaded
+      # single node. The chart's default startup probe budget (~160s) kills
+      # the container first, leaving it in an endless restart loop. Give it
+      # a larger budget (100 x 5s ~= 8 min).
+      startupProbe:
+        failureThreshold: 100
 EOF
 
 # Install collectors (OpenTelemetry, kube-state-metrics, node-exporter, OpenCost)
 helm upgrade -i --reset-values --wait -n kof kof-collectors \
   -f /tmp/collectors-values.yaml \
   oci://ghcr.io/k0rdent/kof/charts/kof-collectors \
-  --version 1.10.0 \
+  --version 1.6.0 \
   --timeout 10m
 ```
 
@@ -437,7 +469,7 @@ The `kof-child` chart creates MultiClusterService resources that automatically d
 # Install kof-child on management cluster (not on the child cluster!)
 helm upgrade -i --reset-values --wait -n kof kof-child \
   oci://ghcr.io/k0rdent/kof/charts/kof-child \
-  --version 1.10.0
+  --version 1.6.0
 ```
 
 This will automatically deploy:
@@ -590,7 +622,7 @@ KUBECONFIG=/tmp/managed-cluster-01.kubeconfig \
 helm upgrade -i --reset-values --wait --create-namespace -n kof kof-collectors \
   -f /tmp/child-collectors-values.yaml \
   oci://ghcr.io/k0rdent/kof/charts/kof-collectors \
-  --version 1.10.0
+  --version 1.6.0
 ```
 
 > **Note:** Replace `<MANAGEMENT_VMINSERT_ENDPOINT>` with a reachable endpoint. See networking requirements below.
