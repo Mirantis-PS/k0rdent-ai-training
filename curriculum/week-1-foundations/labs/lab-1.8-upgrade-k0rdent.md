@@ -119,7 +119,8 @@ kubectl get pods -n kcm-system | grep -v Running
 # Save current state for comparison
 kubectl get crds | grep k0rdent.mirantis.com > /tmp/pre-upgrade-crds.txt
 kubectl get clusterdeployments -A -o wide > /tmp/pre-upgrade-clusters.txt
-kubectl get clustertemplates -n kcm-system > /tmp/pre-upgrade-clustertemplates.txt
+# --no-headers so the count matches the post-upgrade comparison in Part 2 Step 7
+kubectl get clustertemplates -n kcm-system --no-headers > /tmp/pre-upgrade-clustertemplates.txt
 
 # Count resources
 echo "CRDs: $(kubectl get crds | grep k0rdent | wc -l)"
@@ -205,7 +206,7 @@ The Release pins versions for every component:
 spec:
   version: 1.3.1                              # k0rdent version
   kcm:
-    template: kcm-1-3-1                        # KCM controller template
+    template: k0rdent-enterprise-1-3-1         # KCM controller template
   capi:
     template: cluster-api-1-0-x                # CAPI core template (check your Release for the exact version)
   providers:
@@ -585,6 +586,29 @@ kubectl get management kcm -o jsonpath='{range .status.conditions[*]}{.type}: {.
 kubectl logs -n kcm-system deployment/kcm-k0rdent-enterprise-controller-manager --tail=50
 ```
 
+### Upgrade stalled: `Helm upgrade failed ... context deadline exceeded`
+
+If the `kcm` component reports `Helm upgrade failed for release kcm-system/kcm
+with chart k0rdent-enterprise@1.3.2: context deadline exceeded`, the Flux-driven
+chart upgrade timed out (e.g., the node was briefly overloaded or restarted
+mid-upgrade). After its retries are exhausted, the HelmRelease goes
+`Stalled: RetriesExceeded` and will NOT retry on its own — and a plain
+`flux reconcile` does not clear a stall. Reset it with suspend/resume:
+
+```bash
+# Confirm the stall
+kubectl get helmrelease kcm -n kcm-system
+helm history kcm -n kcm-system | tail -3   # shows the failed upgrade revision
+
+# Clear the stall and force a fresh upgrade attempt
+flux suspend helmrelease kcm -n kcm-system
+flux resume helmrelease kcm -n kcm-system --timeout=15m
+
+# Verify: a new "Upgrade complete" revision appears and Management goes Ready
+helm history kcm -n kcm-system | tail -2
+kubectl wait management kcm --for=condition=Ready=True --timeout=300s
+```
+
 ### Provider controllers not upgrading
 
 ```bash
@@ -719,7 +743,7 @@ The **management cluster stays** — it is reused later in the program (Week 5 G
 > ```bash
 > # From your local machine: find the management node and bastion instance IDs
 > aws ec2 describe-instances \
->   --filters "Name=tag:Name,Values=k0rdent-training-mgmt-<your-engineer-id>,k0rdent-training-<your-engineer-id>-bastion" \
+>   --filters "Name=tag:Name,Values=k0rdent-training-mgmt-<your-engineer-id>*,k0rdent-training-<your-engineer-id>-bastion" \
 >             "Name=instance-state-name,Values=running" \
 >   --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`Name`].Value|[0]]' --output table
 >

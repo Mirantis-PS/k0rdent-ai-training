@@ -67,7 +67,7 @@ These labs are validated against the repo-pinned versions and installation behav
 | Flux CLI | Installed by the upstream install script during provisioning (version may vary) | Lab 1.1 (auto-installed) |
 | clusterctl | v1.12.4 | Lab 1.1 (auto-installed) |
 | k0sctl | v0.19.4 | Lab 1.1 (auto-installed) |
-| KOF charts | 1.10.0 | Lab 1.6 |
+| KOF charts | 1.6.0 | Lab 1.6 |
 | cert-manager ServiceTemplate | 1.20.2 | Lab 1.7 |
 | ingress-nginx ServiceTemplate | 4.15.1 | Labs 1.2, 1.7 |
 | kyverno ServiceTemplate | 3.8.1 | Lab 1.7 |
@@ -121,15 +121,15 @@ These labs are validated against the repo-pinned versions and installation behav
 
 | Resource | Hourly Cost | When Active |
 |----------|-------------|-------------|
-| Management cluster (t3.xlarge) | ~$0.17/hr | Lab 1.1 onward (preserved through the program) |
+| Management cluster (t3.2xlarge) | ~$0.33/hr | Lab 1.1 onward (preserved through the program) |
 | NAT Gateway | ~$0.045/hr | Lab 1.1 onward (preserved through the program) |
 | AWS Classic ELB (k0rdent UI via Envoy Gateway) | ~$0.023/hr | Lab 1.1 onward (preserved through the program) |
 | Managed cluster (2x t3.medium) | ~$0.15/hr | Labs 1.5-1.8 (torn down at end of Lab 1.8) |
-| **Total (all running)** | **~$0.39/hr** | |
+| **Total (all running)** | **~$0.55/hr** | |
 
 > **Cost lifecycle:** The management cluster is provisioned once in Lab 1.1 and **preserved through the program** — do not destroy it between labs or weeks. Keep it running during the week; between sessions or weeks, pause it with `aws ec2 stop-instances` (guidance at the end of Lab 1.8). While instances are stopped, the NAT Gateway, Elastic IPs, and EBS volumes still bill ~$2/day. The managed clusters from Labs 1.5-1.7 are torn down at the end of Lab 1.8.
 >
-> **Week 1 estimate:** everything running 24/7 for 5 days ≈ **$47** ($0.39/hr × 120h); stopping instances outside an ~8h/day working window brings it to roughly **$25-30**.
+> **Week 1 estimate:** everything running 24/7 for 5 days ≈ **$66** ($0.55/hr × 120h); stopping instances outside an ~8h/day working window brings it to roughly **$35-40**.
 
 ## Prerequisites
 

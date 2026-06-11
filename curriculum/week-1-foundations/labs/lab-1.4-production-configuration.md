@@ -355,7 +355,7 @@ EOF
 
 ### Step 2: Ensure the Velero AWS Plugin is Loaded
 
-Velero needs the AWS plugin to interact with S3. kcm 1.2.x bundles Velero 1.16.x, which pairs with `velero-plugin-for-aws` v1.12.x. Check if the plugin is already installed, and add it if not:
+Velero needs the AWS plugin to interact with S3. k0rdent Enterprise 1.3.x bundles Velero 1.17.x, which pairs with `velero-plugin-for-aws` v1.13.x. Check if the plugin is already installed, and add it if not:
 
 ```bash
 # Check if the AWS plugin is already configured
