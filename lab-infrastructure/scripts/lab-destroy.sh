@@ -247,6 +247,96 @@ cleanup_load_balancers() {
     log_success "LoadBalancer cleanup complete"
 }
 
+# Sweep for orphan AWS resources that K8s didn't clean up (e.g. Classic ELBs
+# from broken hosted-CP service.type=LoadBalancer, their auto-created
+# k8s-elb-* security groups). Filtered strictly to the lab VPC.
+cleanup_orphan_aws_resources() {
+    local bucket="$1"
+
+    local vpc_id
+    vpc_id=$(get_state_output "$bucket" "vpc_id")
+    if [[ -z "$vpc_id" ]]; then
+        log_warn "No vpc_id in state. Skipping orphan AWS resource sweep."
+        return 0
+    fi
+
+    log_info "Scanning $vpc_id for orphan Classic ELBs and k8s-elb security groups..."
+
+    # Classic ELBs (ELBv1) — k0smotron's hosted-CP creates these via
+    # service.type=LoadBalancer, and they orphan if the CP crashes before
+    # the Service is reconciled-deleted.
+    local orphan_lbs
+    orphan_lbs=$(aws elb describe-load-balancers --region "$REGION" \
+        --query "LoadBalancerDescriptions[?VPCId=='${vpc_id}'].LoadBalancerName" \
+        --output text 2>/dev/null || true)
+
+    local found_any=0
+    if [[ -n "$orphan_lbs" && "$orphan_lbs" != "None" ]]; then
+        found_any=1
+        for lb in $orphan_lbs; do
+            log_info "  Deleting orphan Classic ELB: $lb"
+            aws elb delete-load-balancer --region "$REGION" --load-balancer-name "$lb" 2>&1 || true
+        done
+        # Brief wait for ENIs to release before subnet delete
+        sleep 15
+    fi
+
+    # k8s-elb-* SGs left behind by deleted ELBs (AWS creates them automatically;
+    # their orphan status blocks subnet deletion via DependencyViolation).
+    local orphan_sgs
+    orphan_sgs=$(aws ec2 describe-security-groups --region "$REGION" \
+        --filters "Name=vpc-id,Values=${vpc_id}" "Name=group-name,Values=k8s-elb-*" \
+        --query 'SecurityGroups[].GroupId' --output text 2>/dev/null || true)
+
+    if [[ -n "$orphan_sgs" && "$orphan_sgs" != "None" ]]; then
+        found_any=1
+        for sg in $orphan_sgs; do
+            log_info "  Deleting orphan k8s-elb SG: $sg"
+            aws ec2 delete-security-group --region "$REGION" --group-id "$sg" 2>&1 || true
+        done
+    fi
+
+    if [[ $found_any -eq 0 ]]; then
+        log_info "  (no orphans found)"
+    fi
+}
+
+# Delete a versioned S3 bucket. `aws s3 rb --force` does NOT handle object
+# versions or delete markers; on a versioned bucket it leaves the bucket
+# behind silently. This function explicitly clears versions + delete markers
+# before removing the bucket itself.
+delete_versioned_bucket() {
+    local bucket="$1"
+
+    log_info "Deleting student bucket: $bucket"
+
+    # Remove current-version objects (best-effort)
+    aws s3 rm "s3://${bucket}" --recursive --quiet 2>&1 || true
+
+    # Versions + delete markers (no-op for non-versioned buckets)
+    local versions_json count
+    versions_json=$(aws s3api list-object-versions --bucket "$bucket" --output json 2>/dev/null || echo "{}")
+    count=$(echo "$versions_json" | jq '((.Versions // []) + (.DeleteMarkers // [])) | length' 2>/dev/null || echo 0)
+
+    if [[ "$count" -gt 0 ]]; then
+        log_info "  Removing $count object versions / delete markers..."
+        local payload="/tmp/lab-destroy-bucket-$$-versions.json"
+        echo "$versions_json" \
+            | jq '{Objects: ((.Versions // []) + (.DeleteMarkers // [])) | map({Key: .Key, VersionId: .VersionId})}' \
+            > "$payload"
+        # Note: delete-objects has a 1000-item limit; lab buckets stay well
+        # below that. If a bucket exceeds 1000 versions, paginate here.
+        aws s3api delete-objects --bucket "$bucket" --delete "file://${payload}" >/dev/null 2>&1 || true
+        rm -f "$payload"
+    fi
+
+    if aws s3 rb "s3://${bucket}" 2>&1; then
+        log_success "Bucket deleted"
+    else
+        log_warn "Bucket still has dependencies — may need manual cleanup"
+    fi
+}
+
 destroy_lab() {
     local engineer_id="$1"
     local bucket
@@ -293,9 +383,13 @@ destroy_lab() {
     fi
 
     # Delete managed clusters FIRST (they live in separate, Terraform-unknown
-    # VPCs), then CCM-provisioned LoadBalancers, then the infrastructure.
+    # VPCs), then CCM-provisioned LoadBalancers, then sweep any orphan AWS
+    # resources (Classic ELBs / k8s-elb SGs) that broken hosted-CP services
+    # leave behind and that would otherwise block VPC teardown, then the
+    # infrastructure.
     cleanup_managed_clusters "$engineer_id" "$bucket"
     cleanup_load_balancers "$engineer_id" "$bucket"
+    cleanup_orphan_aws_resources "$bucket"
 
     local destroy_args=""
     [[ "$AUTO_APPROVE" == "true" ]] && destroy_args="-auto-approve"
@@ -310,10 +404,9 @@ destroy_lab() {
     rm -f "$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
     rm -f "$CONFIG_DIR/kubeconfig/${engineer_id}.kubeconfig"
 
-    # Optionally delete the S3 bucket
+    # Optionally delete the S3 bucket (handles versioned buckets + delete markers)
     if [[ "$DELETE_BUCKET" == "true" ]]; then
-        log_info "Deleting student bucket: $bucket"
-        aws s3 rb "s3://${bucket}" --force 2>/dev/null || true
+        delete_versioned_bucket "$bucket"
     fi
 
     log_success "All resources for $engineer_id destroyed!"
