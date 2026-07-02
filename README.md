@@ -116,6 +116,17 @@ k0rdent-ai-training/
 | [Troubleshooting Guide](lab-infrastructure/docs/troubleshooting.md) | Common issues and solutions |
 | [Program Overview](curriculum/overview/training-program-overview.md) | Complete syllabus |
 
+## Curriculum by Week
+
+| Week | README | Committed content |
+|------|--------|-------------------|
+| 1 — Foundations | [README](curriculum/week-1-foundations/README.md) | 3 theory + 9 labs (stable) |
+| 2 — BMaaS | [README](curriculum/week-2-bmaas/README.md) | 5 labs |
+| 3 — VMaaS | [README](curriculum/week-3-vmaas/README.md) | 1 lab |
+| 4 — KaaS | _in development_ | 2 labs, no README yet — Week 5 assumes its concepts |
+| 5 — AI Workloads | [README](curriculum/week-5-ai-workloads/README.md) | 5 theory + 18 labs (stable) |
+| 6 — Multi-Tenancy | _no README yet_ | 4 labs (incl. capstone) |
+
 ## What Gets Installed (Week 1)
 
 When you complete Lab 1.1, you'll have:

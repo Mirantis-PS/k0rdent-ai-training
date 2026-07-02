@@ -125,6 +125,12 @@ resource "aws_iam_role_policy" "lab_instance" {
           "ec2:DescribeSubnets",
           "ec2:DescribeVolumes",
           "ec2:DescribeVpcs",
+          # CAPA (cluster-api-provider-aws) reads the VPC's DHCP option set to
+          # derive node DNS names during AWSMachine reconcile. Without this,
+          # GetDHCPOptionSetDomainName gets AccessDenied and CAPA v2.10.0
+          # nil-panics, wedging worker registration when this instance profile
+          # backs an AWSClusterControllerIdentity. (Found live, Lab 4.1, 2026-06-30.)
+          "ec2:DescribeDhcpOptions",
           "ec2:DescribeAvailabilityZones",
           "ec2:DescribeNetworkInterfaces",
           "ec2:CreateSecurityGroup",
