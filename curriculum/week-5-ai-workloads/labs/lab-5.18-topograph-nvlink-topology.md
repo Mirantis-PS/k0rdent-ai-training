@@ -128,11 +128,25 @@ Together they let the scheduler answer: *"give me 144 GPUs that share an NVLink 
 
 ## Part 2: Deploy topograph against your cluster
 
-NVIDIA's [`topograph`](https://github.com/NVIDIA/topograph) implements the discovery side. On Kubernetes it installs as a **single Helm release** — an API server plus a Node Observer that watches `Node` changes — **not** a per-node DaemonSet. For a cloud provider it reads topology from the provider's API (on AWS, `ec2:DescribeInstanceTopology`) and writes the result back as **node labels**; there is no local scanner running on each node.
+NVIDIA's [`topograph`](https://github.com/NVIDIA/topograph) implements the discovery side. On
+Kubernetes (chart v0.5.0) a single Helm release installs **three** workloads (verified live):
+an **API server** (`Deployment/topograph`), a **Node Observer** (`Deployment/topograph-node-observer`)
+that watches `Node` changes, and a **per-node `node-data-broker` DaemonSet**
+(`DaemonSet/topograph-node-data-broker`). The broker runs on every node to read instance metadata
+(via IMDS) and annotate the node with `topograph.nvidia.com/instance`; the API server then reads
+the provider topology (on AWS, `ec2:DescribeInstanceTopology`) and writes the result back as
+**node labels**. So there *is* a per-node component in v0.5.0 — the broker must become Ready before
+any topology can be generated (see Troubleshooting).
+
+The chart is published to a **classic Helm repository on GitHub Pages**, not an OCI registry
+(`oci://ghcr.io/nvidia/topograph/...` returns `403 denied` — only the container *image* lives on
+ghcr). Add the repo, then install:
 
 ```bash
-# Install the pinned chart (v0.5.0). provider = aws, engine = k8s.
-helm install topograph oci://ghcr.io/nvidia/topograph/topograph \
+# Add the classic Helm repo and install the pinned chart (v0.5.0). provider = aws, engine = k8s.
+helm repo add topograph https://NVIDIA.github.io/topograph
+helm repo update topograph
+helm install topograph topograph/topograph \
   --version 0.5.0 \
   --namespace topograph --create-namespace \
   --set global.provider.name=aws \
@@ -140,7 +154,7 @@ helm install topograph oci://ghcr.io/nvidia/topograph/topograph \
 ```
 
 > **Note:** topograph moves fast (v0.5.0 is the pin validated for this lab). Confirm the current
-> chart with `helm show chart oci://ghcr.io/nvidia/topograph/topograph`, and pick the provider
+> chart with `helm search repo topograph/topograph --versions`, and pick the provider
 > that matches your cluster — valid values include `aws`, `gcp`, `oci`, `nebius`, `nscale`, `cw`,
 > `netq`, `infiniband-k8s`, `dra`. The AWS provider needs `ec2:DescribeInstanceTopology`
 > (the `AmazonEC2ReadOnlyAccess` managed policy covers it). On the g5 lab cluster there is no
@@ -154,6 +168,12 @@ kubectl -n topograph logs -l app.kubernetes.io/instance=topograph --tail=50
 ```
 
 The API server listens on port `49021` (endpoints `/v1/generate`, `/v1/topology`, `/healthz`, `/metrics`). When a node's status changes, the Node Observer asks the API server to regenerate the topology and re-label nodes.
+
+> **`/v1/topology` is asynchronous in v0.5.0.** A bare `GET /v1/topology` returns
+> `400 must specify request uid` — it is *not* a one-shot dump. The flow is: `POST /v1/generate`
+> (body `{"provider":{"name":"aws"},"engine":{"name":"k8s"}}`) returns a request **uid**; then
+> `GET /v1/topology?uid=<uid>` returns `202` (`request ID ... has been created`) while the job runs
+> and the topology once complete. `/healthz` returns `200 OK`.
 
 ---
 
@@ -193,10 +213,15 @@ kubectl get nodes -L \
 **Option B — the REST API (off-cluster consumers).** The API server exposes the generated topology on port 49021. Port-forward and query it, then reshape to the schema above:
 
 ```bash
-# Service name follows the <release>-topograph pattern; confirm with `kubectl -n topograph get svc`
-kubectl -n topograph port-forward svc/topograph-topograph 49021:49021 &
-curl -s http://localhost:49021/healthz
-curl -s http://localhost:49021/v1/topology > switch-fabric-topology.json
+# The Service is named after the release: `topograph` (NOT topograph-topograph); confirm with
+# `kubectl -n topograph get svc`.
+kubectl -n topograph port-forward svc/topograph 49021:49021 &
+curl -s http://localhost:49021/healthz    # -> OK
+# Async flow: request generation, capture the uid, then fetch by uid
+UID=$(curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"provider":{"name":"aws"},"engine":{"name":"k8s"}}' \
+  http://localhost:49021/v1/generate)
+curl -s "http://localhost:49021/v1/topology?uid=$UID" > switch-fabric-topology.json
 ```
 
 For production, front the REST endpoint with a proper service that adds:
@@ -223,6 +248,18 @@ kubectl get nodes -L network.topology.nvidia.com/accelerator
 ```
 
 For non-NVLink hardware (e.g. the g5 / A10G lab cluster) the accelerator label is simply absent; consumers must tolerate its absence.
+
+> **Validated-live caveat (k0rdent/CAPA nodes).** On the standalone-cp lab cluster *none* of the
+> topology labels appear — not even `leaf`/`spine` — and the cause is upstream of provider
+> topology: the `node-data-broker` DaemonSet cannot reach the instance-metadata service
+> (`Put http://169.254.169.254/latest/api/token ... connection reset by peer`), so it never
+> annotates nodes with `topograph.nvidia.com/instance`. The API server then logs
+> `Extracted topology for 0 instances` and the Node Observer sits on
+> `Waiting for node-data-broker pods to become ready`. Root cause: CAPA launches nodes with the
+> IMDSv2 **hop limit = 1**, which blocks IMDS from pod-network pods. Fix in the AWSMachineTemplate
+> (`spec.template.spec.instanceMetadataOptions.httpPutResponseHopLimit: 2`) or run the broker with
+> `hostNetwork: true`. The API-server's AWS credentials themselves are fine — this is *not* an
+> `ec2:DescribeInstanceTopology` IAM failure.
 
 ---
 
@@ -319,6 +356,7 @@ On synthetic / non-NVLink hardware, you won't see the perf uplift but you can st
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | topograph pod errors talking to the cloud API | Wrong `global.provider.name` or missing IAM permission | Match the provider to your cluster and grant `ec2:DescribeInstanceTopology` (`AmazonEC2ReadOnlyAccess`) |
+| No labels applied; Node Observer logs `Waiting for node-data-broker pods to become ready`; API logs `Extracted topology for 0 instances` | `node-data-broker` DaemonSet stuck `0/1` — it can't reach IMDS (`169.254.169.254 ... connection reset`) because CAPA nodes launch with IMDSv2 hop limit = 1 | Set `httpPutResponseHopLimit: 2` in the AWSMachineTemplate's `instanceMetadataOptions`, or run the broker `hostNetwork: true`. (Distinct from an IAM failure — the API server's AWS creds work.) |
 | `network.topology.nvidia.com/accelerator` label empty | Instances not in a capacity block, or provider returned no `CapacityBlockId` | Confirm the nodes launched in a capacity block / NVLink domain the provider can see |
 | Pod stuck Pending despite a domain having free GPUs | Other workloads spread across domains, blocking spread constraint | Either drop `maxSkew: 0` or evict the spreader |
 | Naive job outperforms topology-aware (suspicious) | The naive job got lucky and landed in-domain | Re-run with more replicas to wash out noise |

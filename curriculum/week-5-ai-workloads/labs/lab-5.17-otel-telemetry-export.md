@@ -102,7 +102,7 @@ By completing this lab, you will be able to:
 
 | Choice | Option A | Option B | Recommendation |
 |--------|----------|----------|----------------|
-| Where to add the external exporter | Edit the `OpenTelemetryCollector` CR KOF created directly | Patch the `kof-collectors` Helm values via the `MultiClusterService` that KSM uses to install KOF | **Helm values via `MultiClusterService`** — survives KOF upgrades, propagates to all child clusters consistently, and is the Mirantis-supported path |
+| Where to add the external exporter | Edit the `OpenTelemetryCollector` CR KOF created directly | Feed values into KOF's `kof-child-cluster` MCS via the `k0rdent.mirantis.com/kof-collectors-values` annotation on the CAPI `Cluster` | **Annotation on the CAPI `Cluster`** — KOF `mergeOverwrite`s it over stock config, survives KOF upgrades, propagates to all child clusters, and is the Mirantis-supported path (the MCS itself is Helm-owned; don't edit it) |
 | OTLP transport to the external receiver | gRPC (`otlp/external`) | HTTP (`otlphttp/external`) | **gRPC** — lower overhead at fleet scale; HTTP is the test fallback. Both are valid OTLP transports. |
 | Exporter authentication | API key (`X-API-Key` header) | mTLS | **mTLS** — pairs with east-west + north-south encryption practices and is the production-grade default; API key is the test-only path |
 | Sampling | Always-on full rate | Tail-sampled traces | **Always-on for metrics + logs**; traces only may be tail-sampled — metrics and logs are the contractual signals for downstream consumers, so sampling traces is the only safe place to do it |
@@ -175,18 +175,36 @@ This is the pipeline you will extend — not replace.
 
 ## Part 3: Add an OTLP exporter to KOF for the external receiver
 
-The Mirantis-supported pattern is to patch the `kof-collectors` Helm values, which KSM then reconciles to every child cluster via its `MultiClusterService`.
+The Mirantis-supported pattern is to feed extra collector values into KOF's existing
+`MultiClusterService`, which KSM then reconciles to every child cluster.
 
-Find the `MultiClusterService` KSM uses for kof-collectors:
-
-```bash
-kubectl -n kcm-system get multiclusterservice -l k0rdent.mirantis.com/component=kof-collectors -o yaml
-```
-
-Locate the `spec.serviceSpec.services[].values` block. Add a values override that introduces a new exporter and wires it into the metrics + logs + traces pipelines. Pattern (adjust to the chart version you have):
+> **How the `kof-collectors` values actually reach the child (KOF 1.6, validated live).**
+> On this release there is **one** KOF child `MultiClusterService` — `kof-child-cluster`
+> in `kcm-system` (Helm-managed by the `kof-child` release) — and it bundles three
+> services: `cert-manager`, `kof-operators`, and `kof-collectors`. You do **not** edit
+> that MCS directly (it is Helm-owned and its `kof-collectors` values are a Go template).
+> Instead, the template reads a per-cluster override from an annotation and deep-merges it
+> over KOF's stock config with Helm's `mergeOverwrite`:
+>
+> ```
+> mergeOverwrite (dict) $globalValuesFromHelm $collectorsValuesHere $collectorsValuesFromHelm $collectorsValuesFromAnnotation
+> ```
+>
+> The last argument (highest precedence) is `index .Cluster.metadata.annotations "k0rdent.mirantis.com/kof-collectors-values"`.
+> Two consequences you must get right:
+> - **Annotate the CAPI `Cluster` object, not the `ClusterDeployment`.** The template's
+>   `.Cluster` is the CAPI `Cluster` (`kubectl get cluster <name> -n kcm-system`). A
+>   `ClusterDeployment` annotation does **not** propagate and has no effect (verified: the
+>   exporter never appeared until the annotation was moved onto the `Cluster`).
+> - Because it is `mergeOverwrite`, your override **extends** KOF's config — stock
+>   exporters (`otlphttp/logs`, `otlphttp/traces`, `prometheusremotewrite`) and pipelines
+>   survive alongside anything you add. This is the "extend, don't replace" guarantee, and
+>   it is a deep merge of maps (new *keys* add; a key you also set is overwritten).
+>
+> Set the override (the YAML below is the annotation value):
 
 ```yaml
-# values-patch for the kof-collectors MultiClusterService.
+# Value of the k0rdent.mirantis.com/kof-collectors-values annotation on the CAPI Cluster.
 # kof-collectors wraps the opentelemetry-kube-stack subchart, so per-collector
 # config is set under opentelemetry-kube-stack.collectors.<name>.config — here the
 # per-node `daemon` collector (renders as the kof-collectors-daemon CR).
@@ -230,18 +248,26 @@ opentelemetry-kube-stack:
               exporters:  [otlphttp/external]
 ```
 
-> **Note on naming:** KOF's actual receiver and pipeline names are set by the `opentelemetry-kube-stack` subchart. Inspect `kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o yaml` for the canonical names on your version before copy-pasting. `filelog/fabric-manager` and `filelog/subnet-manager` are receivers you add in Part 5 — they are not present in a default KOF install.
+> **Note on naming:** KOF's actual receiver and pipeline names are set by the `opentelemetry-kube-stack` subchart. Inspect `kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o yaml` for the canonical names on your version before copy-pasting. `filelog/fabric-manager` and `filelog/subnet-manager` are receivers you add in Part 5 — they are not present in a default KOF install. The `daemon` collector already ships stock `metrics`, `logs`, and `traces` pipelines (verified: `traces` = `[otlp] → [otlphttp/traces]`); adding new `*/external` pipeline keys as above leaves those stock pipelines untouched.
 
-Apply the patched `MultiClusterService` and verify KSM reconciles to the child cluster:
+> **Transport adaptation (test receiver).** The `tls:` block above is the production mTLS
+> path. For a plain-HTTP in-cluster receiver (e.g. a throwaway Jaeger all-in-one), drop the
+> `cert_file`/`key_file`/`ca_file` stanza and use `tls: {insecure: true}` with an `http://`
+> endpoint — that is what was validated live against `http://jaeger.ext-otlp.svc.cluster.local:4318`.
+
+Apply the override by annotating the **CAPI `Cluster`** object (not the `ClusterDeployment` —
+see the box above), then verify KSM reconciles the merged config to the child cluster:
 
 ```bash
-kubectl apply -f mcs-kof-collectors-with-external.yaml
-kubectl -n kcm-system describe multiclusterservice kof-collectors | grep -A 5 'Status'
+# collectors-values.yaml holds the opentelemetry-kube-stack:... block from above
+kubectl annotate cluster <child-cluster> -n kcm-system \
+  "k0rdent.mirantis.com/kof-collectors-values=$(cat collectors-values.yaml)" --overwrite
 
-# On the child cluster
-kubectl --context child-1 -n kof get opentelemetrycollector kof-collectors-daemon -o yaml \
+# On the child cluster (reconciles in ~30-60 s)
+kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o yaml \
   | yq '.spec.config.exporters | keys'
-# Expected: includes 'otlphttp/external'
+# Expected: KOF's stock exporters (otlphttp/logs, otlphttp/traces, prometheusremotewrite,
+# debug, nop) AND 'otlphttp/external' — proof the values MERGE, not replace.
 ```
 
 ---
@@ -365,7 +391,8 @@ Record all three results in a latency-evidence log.
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Latency > 120 s in steady state | `batch` processor `timeout` too high in the new pipeline | Set `batch/external.timeout: 5s` |
-| Patch reverts after a KOF upgrade | Edited the Collector CR directly instead of the `MultiClusterService` values | Move the change into the kof-collectors values patch; let KSM reconcile |
+| Patch reverts after a KOF upgrade | Edited the Collector CR directly instead of using the annotation | Move the change into the `k0rdent.mirantis.com/kof-collectors-values` annotation on the CAPI `Cluster`; let KSM reconcile |
+| Override annotation has no effect | Annotated the `ClusterDeployment` instead of the CAPI `Cluster` | The MCS template reads `.Cluster.metadata.annotations`; annotate `kubectl get cluster <name> -n kcm-system`, not the ClusterDeployment |
 | Metrics missing the `net.domain` label | `transform/external` selector didn't match metric name | Inspect raw metric name on the receiver, adjust the `IsMatch(...)` regex |
 | OTLP retries failing with `permission denied` | mTLS cert SAN doesn't match the external endpoint hostname | Re-issue cert with the correct SAN |
 | Switch syslogs missing | Switch not configured for TLS, falling back to UDP/514 | Accept UDP only with an explicit transport-encryption exception, or fix switch TLS config |

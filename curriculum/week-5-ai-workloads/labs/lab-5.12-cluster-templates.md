@@ -273,7 +273,7 @@ After the k0rdent controller validates a ClusterTemplate, it populates `status.c
        "rootVolumeSize": 8
      },
      "controlPlaneNumber": 3,
-     "k0s": { "version": "v1.31.1+k0s.1" },
+     "k0s": { "version": "v1.35.1+k0s.1" },
      "publicIP": false,
      "region": "",
      "sshKeyName": "",
@@ -348,10 +348,12 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
        publicIP: true
        controlPlaneNumber: 1
        controlPlane:
+         amiID: ami-0e1601cee784a69a2  # Ubuntu 22.04 in us-west-2 (REQUIRED - see note)
          instanceType: t3.large
          rootVolumeSize: 50
        workersNumber: 1
        worker:
+         amiID: ami-0e1601cee784a69a2  # Ubuntu 22.04 in us-west-2 (REQUIRED - see note)
          instanceType: g5.xlarge    # 1x NVIDIA A10G, 24GB VRAM
          rootVolumeSize: 100        # Space for container images and models
        clusterLabels:
@@ -365,8 +367,30 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
          - template: gpu-operator-25-10-0
            name: gpu-operator
            namespace: gpu-operator
+           values: |
+             # Values MUST be nested under `gpu-operator:` — see note below.
+             gpu-operator:
+               toolkit:
+                 env:
+                   - name: CONTAINERD_CONFIG
+                     value: /etc/k0s/containerd.d/nvidia.toml
+                   - name: CONTAINERD_SOCKET
+                     value: /run/k0s/containerd.sock
+                   - name: CONTAINERD_RUNTIME_CLASS
+                     value: nvidia
        priority: 100
    ```
+
+   > **⚠️ Ubuntu 22.04 AMI is REQUIRED.** The `aws-standalone-cp` template defaults to an Amazon Linux 2 AMI, but the NVIDIA GPU Operator publishes **no driver container image for Amazon Linux 2** — the driver DaemonSet fails with `nvcr.io/nvidia/driver:<ver>-amzn2: not found` (ImagePullBackOff), which blocks the toolkit, device-plugin, DCGM, and validator (all wait on driver-validation) and the GPU never becomes allocatable. You must pin an Ubuntu 22.04 `amiID` on **both** control plane and worker. AMI IDs are **region-specific**: the value above is for `us-west-2` — look up the current Canonical Ubuntu 22.04 AMI in your region with:
+   > ```bash
+   > aws ec2 describe-images --region us-west-2 --owners 099720109477 \
+   >   --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+   >   --query 'reverse(sort_by(Images,&CreationDate))[0].ImageId' --output text
+   > ```
+
+   > **⚠️ Why the `gpu-operator:` nesting?** The catalog's `gpu-operator-25-10-0` ServiceTemplate is an **umbrella chart** that pulls the upstream NVIDIA `gpu-operator` chart as a subchart named `gpu-operator`. Helm passes values to a subchart only when they are nested under the subchart's name, so every value you want the GPU Operator to see must sit under a top-level `gpu-operator:` key. If you write `toolkit.env` at the top level (as you would for a direct `helm install` of the upstream chart), k0rdent applies it to the wrapper, which has no such value, and it is **silently dropped** — the toolkit then falls back to the default `/run/containerd` path and crash-loops with `containerd.sock: no such file or directory`. This nesting applies to **every** value you pass to this ServiceTemplate (here and in Tasks 4-5).
+
+   > **Why `toolkit.env` at all?** k0s stores its containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, not the standard `/etc/containerd/` and `/run/containerd/containerd.sock`. The GPU Operator toolkit must be told these paths or it crashes. This is the same override used in [Lab 5.1](lab-5.1-gpu-cluster-setup.md) — but note Lab 5.1 installs the upstream chart directly with `helm --set toolkit.env[...]`, so there the keys are top-level; here they must be nested under `gpu-operator:`.
 
    > **Note:** `sshKeyName` is optional. If omitted, CAPA creates instances without SSH keys -- k0rdent manages nodes via CAPI. Include it only if you need direct SSH access to GPU worker nodes for debugging. If included, the key must exist in the target region (see [Lab 1.3, Part 6](../../week-1-foundations/labs/lab-1.3-configure-aws-provider.md)).
 
@@ -408,12 +432,14 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
      -o custom-columns='NAME:.metadata.name,INSTANCE:.metadata.labels.node\.kubernetes\.io/instance-type,GPU:.status.allocatable.nvidia\.com/gpu'
    ```
 
-   Expected output:
+   Expected output (CAPA names the control-plane machine `<cluster>-cp-<hash>` and worker machines `<cluster>-md-<hash>-<hash>` — the `-cp-0`/`-worker-0` ordinals are not used; empirical 2026-07-06):
    ```
-   NAME                          INSTANCE     GPU
-   ml-dev-cp-0                   t3.large     <none>
-   ml-dev-worker-0               g5.xlarge    1
+   NAME                    INSTANCE     GPU
+   ml-dev-cp-qg9lm         t3.large     <none>
+   ml-dev-md-kc9zq-qmd7l   g5.xlarge    1
    ```
+
+   > **The GPU takes ~15-20 minutes to appear**, not the ~10-15 min for cluster Ready. After the ClusterDeployment reports `Ready`, the GPU Operator still has to: pull and run the driver DaemonSet (compiles the kernel module, ~3 min), reconfigure k0s containerd via the toolkit, then bring up the device plugin. `nvidia.com/gpu: 1` only appears at the end of that cascade. If it is still `<none>` after 20 minutes, jump to [Troubleshooting](#gpu-nodes-not-reporting-gpus).
 
 6. **Verify GPU Operator is running**
 
@@ -444,10 +470,12 @@ Deploy a multi-GPU cluster for distributed training workloads.
        publicIP: true
        controlPlaneNumber: 3                  # HA control plane for long-running jobs
        controlPlane:
+         amiID: ami-0e1601cee784a69a2          # Ubuntu 22.04 in us-west-2 (REQUIRED - AL2 has no GPU driver image)
          instanceType: m5.xlarge              # Larger CP for training clusters
          rootVolumeSize: 100
        workersNumber: 2                       # 2x multi-GPU nodes
        worker:
+         amiID: ami-0e1601cee784a69a2          # Ubuntu 22.04 in us-west-2 (REQUIRED)
          instanceType: p4d.24xlarge           # 8x A100 per node, NVLink/NVSwitch
          rootVolumeSize: 500                  # Space for datasets and checkpoints
        clusterLabels:
@@ -462,9 +490,19 @@ Deploy a multi-GPU cluster for distributed training workloads.
            name: gpu-operator
            namespace: gpu-operator
            values: |
-             driver:
-               rdma:
-                 enabled: true                # Enable nvidia-peermem for GPUDirect RDMA
+             # All values nest under `gpu-operator:` (umbrella subchart — see Task 3 note).
+             gpu-operator:
+               driver:
+                 rdma:
+                   enabled: true              # Enable nvidia-peermem for GPUDirect RDMA
+               toolkit:
+                 env:                         # k0s containerd paths (REQUIRED - see Task 3)
+                   - name: CONTAINERD_CONFIG
+                     value: /etc/k0s/containerd.d/nvidia.toml
+                   - name: CONTAINERD_SOCKET
+                     value: /run/k0s/containerd.sock
+                   - name: CONTAINERD_RUNTIME_CLASS
+                     value: nvidia
        priority: 100
    ```
 
@@ -492,14 +530,14 @@ Deploy a multi-GPU cluster for distributed training workloads.
      -o custom-columns='NAME:.metadata.name,INSTANCE:.metadata.labels.node\.kubernetes\.io/instance-type,GPU:.status.allocatable.nvidia\.com/gpu'
    ```
 
-   Expected output:
+   Expected output (CAPA machine names use `<cluster>-cp-<hash>` for control-plane and `<cluster>-md-<hash>-<hash>` for workers — not ordinals):
    ```
-   NAME                             INSTANCE         GPU
-   ml-training-cp-0                 m5.xlarge        <none>
-   ml-training-cp-1                 m5.xlarge        <none>
-   ml-training-cp-2                 m5.xlarge        <none>
-   ml-training-worker-0             p4d.24xlarge     8
-   ml-training-worker-1             p4d.24xlarge     8
+   NAME                          INSTANCE         GPU
+   ml-training-cp-4xk2p          m5.xlarge        <none>
+   ml-training-cp-9jm7t          m5.xlarge        <none>
+   ml-training-cp-vb8rq          m5.xlarge        <none>
+   ml-training-md-h3n6w-2gq4x    p4d.24xlarge     8
+   ml-training-md-h3n6w-p7kzd    p4d.24xlarge     8
    ```
 
    Total GPUs: 16x A100 (2 nodes x 8 GPUs).
@@ -527,10 +565,12 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
        publicIP: true
        controlPlaneNumber: 3
        controlPlane:
+         amiID: ami-0e1601cee784a69a2          # Ubuntu 22.04 in us-west-2 (REQUIRED)
          instanceType: m5.xlarge
          rootVolumeSize: 100
        workersNumber: 2
        worker:
+         amiID: ami-0e1601cee784a69a2          # Ubuntu 22.04 in us-west-2 (REQUIRED)
          instanceType: p4d.24xlarge
          rootVolumeSize: 500
        clusterLabels:
@@ -545,9 +585,18 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
            name: gpu-operator
            namespace: gpu-operator
            values: |
-             driver:
-               rdma:
-                 enabled: true
+             gpu-operator:
+               driver:
+                 rdma:
+                   enabled: true
+               toolkit:
+                 env:
+                   - name: CONTAINERD_CONFIG
+                     value: /etc/k0s/containerd.d/nvidia.toml
+                   - name: CONTAINERD_SOCKET
+                     value: /run/k0s/containerd.sock
+                   - name: CONTAINERD_RUNTIME_CLASS
+                     value: nvidia
          - template: ingress-nginx-4-11-3
            name: ingress-nginx
            namespace: ingress-nginx
@@ -581,11 +630,23 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
          - template: gpu-operator-25-10-0
            name: gpu-operator
            namespace: gpu-operator
+           values: |
+             gpu-operator:                    # nest under subchart (see Task 3 note)
+               toolkit:
+                 env:                         # k0s containerd paths (REQUIRED)
+                   - name: CONTAINERD_CONFIG
+                     value: /etc/k0s/containerd.d/nvidia.toml
+                   - name: CONTAINERD_SOCKET
+                     value: /run/k0s/containerd.sock
+                   - name: CONTAINERD_RUNTIME_CLASS
+                     value: nvidia
          - template: ingress-nginx-4-11-3
            name: ingress-nginx
            namespace: ingress-nginx
        priority: 100
    ```
+
+   > **Note:** Because both `ml-dev` and `ml-training` already receive `gpu-operator` from their own `serviceSpec`, this MCS overlaps for them. k0rdent treats a service with the same `name`/`namespace` as the same release, so keep the values identical (the nested `toolkit.env`) to avoid the MCS re-rendering the GPU Operator with default containerd paths and breaking the toolkit. In practice you would deploy the GPU Operator **either** per-cluster **or** via MCS, not both.
 
    ```bash
    kubectl apply -f ai-common-services.yaml
@@ -848,6 +909,30 @@ KUBECONFIG=<cluster>.kubeconfig kubectl logs -n gpu-operator -l app=nvidia-drive
 
 # Verify node labels
 KUBECONFIG=<cluster>.kubeconfig kubectl get nodes -l nvidia.com/gpu.present=true
+```
+
+The two most common causes on k0rdent/k0s clusters, in the order they bite:
+
+**1. Driver DaemonSet in `ImagePullBackOff` (`...driver:<ver>-amzn2: not found`).** The cluster came up on the template's default Amazon Linux 2 AMI, for which NVIDIA ships no driver image. Every other GPU pod stays `Init:0/1` waiting on driver-validation.
+
+```bash
+KUBECONFIG=<cluster>.kubeconfig kubectl -n gpu-operator get pod -l app=nvidia-driver-daemonset \
+  -o jsonpath='{.items[0].spec.containers[0].image}{"\n"}'   # ends in -amzn2 == wrong AMI
+KUBECONFIG=<cluster>.kubeconfig kubectl get nodes -o wide     # OS-IMAGE should read Ubuntu 22.04
+```
+Fix: redeploy with an Ubuntu 22.04 `amiID` on both control plane and worker (see Task 3).
+
+**2. Toolkit pod `CrashLoopBackOff` with `containerd.sock: no such file or directory`, or device-plugin `no runtime for "nvidia" is configured`.** The `toolkit.env` k0s paths did not reach the GPU Operator. Almost always because the `values` were not nested under `gpu-operator:` (the catalog ServiceTemplate is an umbrella subchart — see Task 3). Confirm what actually landed:
+
+```bash
+# Should print /run/k0s/containerd.sock. Empty == values were dropped (check the nesting).
+KUBECONFIG=<cluster>.kubeconfig kubectl get clusterpolicy cluster-policy \
+  -o jsonpath='{.spec.toolkit.env[?(@.name=="CONTAINERD_SOCKET")].value}{"\n"}'
+```
+After correcting the values, delete the stuck device-plugin/validator/dcgm/gfd pods so they land fresh sandboxes on the now-registered `nvidia` runtime:
+```bash
+KUBECONFIG=<cluster>.kubeconfig kubectl delete pod -n gpu-operator \
+  -l 'app in (nvidia-device-plugin-daemonset,nvidia-operator-validator,nvidia-dcgm-exporter,gpu-feature-discovery)'
 ```
 
 ### Service Deployment Failures
