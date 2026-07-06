@@ -30,7 +30,7 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 | **MaaS** | 5 | Models as a Service (Endpoints, API Keys, Per-token pricing) |
 | **AI Tools** | 5-6 | Vector DBs, Notebooks, Gateways, Routers |
 
-> **Note:** Week 4 (Kubernetes as a Service) is under development — only two advanced labs (4.9, 4.10) exist so far, with no README or schedule yet; Week 5 currently assumes its concepts. Week 1 Labs 1.5 and 1.8 already cover much of the CAPI cluster lifecycle in the meantime.
+> **Note:** Week 4 (Kubernetes as a Service) is under development — Labs 4.1 (hosted control plane), 4.4 (Cilium + Multus), 4.9, and 4.10 are committed, with no README or schedule yet. Week 1 Labs 1.5 and 1.8 already cover much of the CAPI cluster lifecycle; Week 5's only hard Week 4 dependency is Lab 4.4 (required by Lab 5.18).
 
 ## Target Audience
 
@@ -46,8 +46,8 @@ This curriculum is validated against the following component versions. Each week
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| k0rdent Enterprise | 1.2.2 | Installed in Lab 1.1; upgraded to 1.2.3 in Lab 1.8 |
-| k0s | v1.32.4+k0s.0 | Kubernetes 1.32 |
+| k0rdent Enterprise | 1.3.1 | Installed in Lab 1.1; upgraded to 1.3.2 in Lab 1.8 |
+| k0s | v1.35.4+k0s.0 | Kubernetes 1.35 |
 | KubeVirt | v1.6.3 | Aligns with K8s 1.32 |
 | NVIDIA GPU Operator | v25.10.0 | Calendar versioning (YY.MM.PP) |
 | Cluster API (clusterctl) | v1.12.4 | Auto-installed in Lab 1.1 |
@@ -84,7 +84,7 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 | 5 | AI Workloads | ~15-21h guided path (~50h if all elective tracks are attempted) | GPU schedulers, model serving, service catalog, ML platforms | [week-5-ai-workloads](../week-5-ai-workloads/README.md) |
 | 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project | (no README yet) |
 
-> Week 4 is under development — two advanced labs exist, but no README or schedule yet (see note above). Scheduled totals: ~83-91 hours across the available weeks; ~98-106 once Week 4 ships.
+> Week 4 is under development — four labs exist (4.1, 4.4, 4.9, 4.10), but no README or schedule yet (see note above). Scheduled totals: ~83-91 hours across the available weeks; ~98-106 once Week 4 ships.
 
 ## Week 1 Learning Objectives
 
