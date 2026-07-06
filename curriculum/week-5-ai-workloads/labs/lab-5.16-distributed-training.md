@@ -469,6 +469,8 @@ Before training, verify NCCL communication across nodes.
 
    > **Why the drop across nodes?** Single-node bandwidth is limited by NVLink (600 GB/s theoretical for A100 NVLink 3.0, 900 GB/s for H100 NVLink 4.0). Multi-node bandwidth is limited by the network interconnect (InfiniBand NDR 400 Gbps = ~50 GB/s per port, with multi-rail configurations aggregating bandwidth).
 
+   > **EFA needs the `aws-ofi-nccl` plugin, which is not bundled in this image.** The stock `nvcr.io/nvidia/pytorch:24.12-py3` image ships NCCL with `rdma-core` and HPC-X, so native InfiniBand works out of the box — but it does **not** include the `aws-ofi-nccl` libfabric plugin. On AWS EFA instances (p4d/p5) you will only see the `NET/AWS-EFA` line above after installing `aws-ofi-nccl` (or using an image that bundles it, e.g. AWS Deep Learning Containers). Without it, NCCL silently falls back to the TCP socket transport over the VPC and inter-node bandwidth collapses.
+
 ### Task 4: Deploy Megatron-LM Training Job (60 min)
 
 Megatron-LM is NVIDIA's framework for training large transformer models with 3D parallelism.

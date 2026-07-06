@@ -60,17 +60,17 @@ Deploy and optimize LLM inference using NVIDIA TensorRT-LLM on a k0rdent-managed
 
 ## Prerequisites
 
-- Completed Lab 5.2 (vLLM Inference Service)
+- Completed Lab 5.5 (vLLM Inference Service)
 - k0rdent Enterprise management cluster operational
 - At least one k0rdent-managed GPU cluster (A100 40GB+ minimum)
 - NVIDIA GPU Operator v25.10.0 installed
-- Basic understanding of model quantization from Lab 5.2
+- Basic understanding of model quantization from Lab 5.5
 
 ## k0rdent Context
 
 ### TensorRT-LLM in the k0rdent Ecosystem
 
-The k0rdent catalog does **not** include a TensorRT-LLM or Triton ServiceTemplate. TensorRT-LLM is deployed manually on k0rdent-managed workload clusters. For production LLM serving with k0rdent catalog integration, the recommended path is KServe + vLLM (see Lab 5.2).
+The k0rdent catalog does **not** include a TensorRT-LLM or Triton ServiceTemplate. TensorRT-LLM is deployed manually on k0rdent-managed workload clusters. For production LLM serving with k0rdent catalog integration, the recommended path is KServe + vLLM (see Lab 5.5).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -286,8 +286,12 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
    ```bash
    cd /workspace
 
-   # Clone TensorRT-LLM examples for quantization scripts
-   git clone https://github.com/NVIDIA/TensorRT-LLM.git
+   # Clone TensorRT-LLM examples for quantization scripts.
+   # Pin to v0.20.0 to match the TensorRT-LLM runtime bundled in the
+   # tritonserver 25.06 container (Triton 25.06 = TensorRT-LLM release/0.20.0).
+   # Cloning the default branch pulls example/template code that may not match
+   # the installed runtime or the engine format.
+   git clone --branch v0.20.0 https://github.com/NVIDIA/TensorRT-LLM.git
    cd TensorRT-LLM/examples
 
    # Download Llama-2-7B (use Llama-2-7b-chat-hf for a chat model)
@@ -466,14 +470,14 @@ For production, deploy Triton with the ensemble model architecture. This provide
 
    ```bash
    # Inside the builder pod
-   cd /workspace
-
-   # Clone the TensorRT-LLM backend repository with template configs
-   git clone https://github.com/triton-inference-server/tensorrtllm_backend.git
-   cd tensorrtllm_backend
+   # The Triton ensemble templates ship inside the TensorRT-LLM repo already
+   # cloned in Task 3. As of v0.20.0 the standalone tensorrtllm_backend repo is
+   # a thin wrapper whose tensorrt_llm/ is a git submodule; all_models/ and
+   # tools/ now live under TensorRT-LLM/triton_backend/.
+   cd /workspace/TensorRT-LLM
 
    # Copy the template model repository
-   cp -r all_models/inflight_batcher_llm /workspace/triton-models
+   cp -r triton_backend/all_models/inflight_batcher_llm /workspace/triton-models
 
    # Copy engine files into the model repository
    cp /workspace/engines/llama-2-7b-int4-awq/1-gpu/* \
@@ -486,19 +490,19 @@ For production, deploy Triton with the ensemble model architecture. This provide
 
    ```bash
    # Fill preprocessing config
-   python3 tools/fill_template.py -i /workspace/triton-models/preprocessing/config.pbtxt \
+   python3 triton_backend/tools/fill_template.py -i /workspace/triton-models/preprocessing/config.pbtxt \
      "tokenizer_dir:/workspace/models/llama-2-7b-chat-hf,triton_max_batch_size:8,preprocessing_instance_count:1"
 
    # Fill tensorrt_llm config
-   python3 tools/fill_template.py -i /workspace/triton-models/tensorrt_llm/config.pbtxt \
-     "triton_backend:tensorrtllm,triton_max_batch_size:8,decoupled_mode:True,engine_dir:/workspace/triton-models/tensorrt_llm/1,batching_strategy:inflight_fused_batching,batch_scheduler_policy:max_utilization,kv_cache_free_gpu_mem_fraction:0.9,max_num_sequences:8"
+   python3 triton_backend/tools/fill_template.py -i /workspace/triton-models/tensorrt_llm/config.pbtxt \
+     "triton_backend:tensorrtllm,triton_max_batch_size:8,decoupled_mode:True,engine_dir:/workspace/triton-models/tensorrt_llm/1,batching_strategy:inflight_fused_batching,batch_scheduler_policy:max_utilization,kv_cache_free_gpu_mem_fraction:0.9"
 
    # Fill postprocessing config
-   python3 tools/fill_template.py -i /workspace/triton-models/postprocessing/config.pbtxt \
+   python3 triton_backend/tools/fill_template.py -i /workspace/triton-models/postprocessing/config.pbtxt \
      "tokenizer_dir:/workspace/models/llama-2-7b-chat-hf,triton_max_batch_size:8,postprocessing_instance_count:1"
 
    # Fill ensemble config
-   python3 tools/fill_template.py -i /workspace/triton-models/ensemble/config.pbtxt \
+   python3 triton_backend/tools/fill_template.py -i /workspace/triton-models/ensemble/config.pbtxt \
      "triton_max_batch_size:8"
    ```
 
@@ -764,9 +768,9 @@ For production, deploy Triton with the ensemble model architecture. This provide
    python benchmark_trtllm.py
    ```
 
-2. **Compare with your Lab 5.2 vLLM results**
+2. **Compare with your Lab 5.5 vLLM results**
 
-   Run the same prompts against your vLLM deployment from Lab 5.2 and fill in:
+   Run the same prompts against your vLLM deployment from Lab 5.5 and fill in:
 
    | Metric | vLLM (FP16) | TRT-LLM (INT4 AWQ) | Notes |
    |--------|-------------|--------------------|----|
@@ -812,7 +816,7 @@ kubectl delete namespace trt-llm
 - [ ] **Quick test** passed via `trtllm-serve` with OpenAI-compatible API
 - [ ] **Triton ensemble deployment** running with preprocessing/postprocessing pipeline
 - [ ] **Inference test** producing correct outputs via Triton client
-- [ ] **Performance benchmark** table comparing TRT-LLM vs vLLM from Lab 5.2
+- [ ] **Performance benchmark** table comparing TRT-LLM vs vLLM from Lab 5.5
 
 ## Verification Checklist
 
@@ -907,4 +911,4 @@ nvidia-smi --query-gpu=compute_cap --format=csv,noheader
 
 ## Next Lab
 
-Proceed to [Lab 5.14 - Multi-Cloud RDMA Deep Dive](lab-5.15-rdma-multi-cloud.md)
+Proceed to [Lab 5.14 - Slurm on Kubernetes](lab-5.14-slurm-operator-hpc.md)

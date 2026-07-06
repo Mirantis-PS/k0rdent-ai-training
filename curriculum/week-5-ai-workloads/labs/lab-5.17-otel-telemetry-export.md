@@ -54,7 +54,7 @@ FOUNDATION ➔ … ➔ 5.15 RDMA ➔ 5.16 Dist Train
 
 ## Why this lab exists
 
-Real-time observability at fleet scale requires push-based, low-latency telemetry — pull-based Prometheus scrapes at 5-minute intervals can't meet sub-2-minute requirements that any modern AI-cloud consumer (DR site, multi-region aggregator, downstream SaaS APM) expects. Mirantis k0rdent Enterprise already meets the *collection* side: **KOF is a unified OpenTelemetry-based architecture** (see the [KOF Architecture docs](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/kof/kof-architecture/)). Its collection layer is the OpenTelemetry Collector (managed by `opentelemetry-operator`), with `opentelemetry-kube-stack` providing host/OS/Kubernetes metrics and OpenCost providing FinOps signals. Storage is VictoriaMetrics, VictoriaLogs, and VictoriaTraces. Aggregation across clusters is Promxy.
+Real-time observability at fleet scale requires push-based, low-latency telemetry — pull-based Prometheus scrapes at 5-minute intervals can't meet sub-2-minute requirements that any modern AI-cloud consumer (DR site, multi-region aggregator, downstream SaaS APM) expects. Mirantis k0rdent Enterprise already meets the *collection* side: **KOF is a unified OpenTelemetry-based architecture** (see the [KOF Architecture docs](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/kof/kof-architecture/)). Its collection layer is the OpenTelemetry Collector (managed by `opentelemetry-operator`), with `opentelemetry-kube-stack` providing host/OS/Kubernetes metrics and OpenCost providing FinOps signals. Storage is VictoriaMetrics (metrics), VictoriaLogs (logs), and Jaeger (traces). Aggregation across clusters is Promxy.
 
 What this lab does is **extend KOF's existing OTel pipeline to forward telemetry to an external OTLP-compatible endpoint**, with an end-to-end latency budget you can defend. The pattern works for any external consumer.
 
@@ -88,7 +88,7 @@ By completing this lab, you will be able to:
 ## Prerequisites
 
 - **Lab 1.6 — KOF deployed** (required). The collection layer must already exist on every cluster that has the `k0rdent.mirantis.com/kof-cluster-role: child` label.
-- **Lab 4.3 — GPU Operator installed** (required). DCGM metrics flow through KOF.
+- **[Lab 5.1 — GPU Cluster Setup](lab-5.1-gpu-cluster-setup.md)** (required). Installs the NVIDIA GPU Operator with `dcgm`/`dcgmExporter` enabled; DCGM metrics then flow through KOF.
 - An external OTLP receiver. Acceptable test targets:
   - Local Jaeger (`jaegertracing/all-in-one`, OTLP receiver enabled)
   - Honeycomb free tier (OTLP endpoint + API key)
@@ -155,15 +155,19 @@ KOF deploys collectors via `MultiClusterServices` driven by KSM. On a child clus
 kubectl get cluster <child-cluster> -o jsonpath='{.metadata.labels.k0rdent\.mirantis\.com/kof-cluster-role}'
 # Expected: "child"
 
-# Find the OpenTelemetryCollector CR KOF created
+# Find the OpenTelemetryCollector CRs KOF created (kof-collectors is a Helm
+# release wrapping the opentelemetry-kube-stack subchart — it renders several
+# collector CRs, not one)
 kubectl get opentelemetrycollectors.opentelemetry.io -A
-# Expected: at least one CR in the kof namespace, e.g., kof-collectors
+# Expected (namespace kof): kof-collectors-daemon (per-node daemonset — hostmetrics,
+# filelog, journald), kof-collectors-cluster-stats (cluster-scoped), plus
+# kof-collectors-controller-k0s-daemon and kof-collectors-ta-daemon (target allocator)
 
-# Inspect the existing pipeline
-kubectl -n kof get opentelemetrycollector kof-collectors -o yaml | yq '.spec.config'
+# Inspect the per-node collector pipeline you will extend
+kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o yaml | yq '.spec.config'
 ```
 
-You should see KOF's existing receivers (`hostmetrics`, `prometheus`, `filelog`, etc.), processors (`batch`, `memory_limiter`, `resourcedetection`), and exporters pointing at the regional `kof-storage` cluster's `vmauth` proxy (for metrics → VictoriaMetrics) plus VictoriaLogs and VictoriaTraces endpoints.
+You should see KOF's existing receivers (`prometheus`, `kubeletstats`, `filelog/syslog`, `journald`, `otlp`, etc.), processors (`batch`, `resourcedetection`, and the `transform/*` set), and exporters pointing at the regional `kof-storage` cluster's `vmauth` proxy (for metrics → VictoriaMetrics) plus the VictoriaLogs and Jaeger (traces) endpoints.
 
 This is the pipeline you will extend — not replace.
 
@@ -182,46 +186,51 @@ kubectl -n kcm-system get multiclusterservice -l k0rdent.mirantis.com/component=
 Locate the `spec.serviceSpec.services[].values` block. Add a values override that introduces a new exporter and wires it into the metrics + logs + traces pipelines. Pattern (adjust to the chart version you have):
 
 ```yaml
-# values-patch for kof-collectors MultiClusterService
-opentelemetry-collector:
-  config:
-    exporters:
-      otlphttp/external:
-        endpoint: ${env:EXTERNAL_OTLP_ENDPOINT}
-        tls:
-          cert_file: /etc/otel/tls/tls.crt
-          key_file:  /etc/otel/tls/tls.key
-          ca_file:   /etc/otel/tls/ca.crt
-        sending_queue:
-          enabled: true
-          num_consumers: 4
-          queue_size: 5000
-        retry_on_failure:
-          enabled: true
-          initial_interval: 1s
-          max_interval: 30s
-          max_elapsed_time: 3600s   # 1-hour buffer
-    processors:
-      batch/external:
-        timeout: 5s
-        send_batch_size: 16384
-    service:
-      pipelines:
-        metrics/external:
-          receivers:  [hostmetrics, prometheus, prometheus/dcgm]   # adjust to KOF's receiver names on your version
-          processors: [memory_limiter, transform/external, batch/external]
-          exporters:  [otlphttp/external]
-        logs/external:
-          receivers:  [filelog/syslog, filelog/kernel, filelog/fabric-manager, filelog/subnet-manager, syslog]
-          processors: [memory_limiter, transform/external, batch/external]
-          exporters:  [otlphttp/external]
-        traces/external:
-          receivers:  [otlp]
-          processors: [memory_limiter, batch/external]
-          exporters:  [otlphttp/external]
+# values-patch for the kof-collectors MultiClusterService.
+# kof-collectors wraps the opentelemetry-kube-stack subchart, so per-collector
+# config is set under opentelemetry-kube-stack.collectors.<name>.config — here the
+# per-node `daemon` collector (renders as the kof-collectors-daemon CR).
+opentelemetry-kube-stack:
+  collectors:
+    daemon:
+      config:
+        exporters:
+          otlphttp/external:
+            endpoint: ${env:EXTERNAL_OTLP_ENDPOINT}
+            tls:
+              cert_file: /etc/otel/tls/tls.crt
+              key_file:  /etc/otel/tls/tls.key
+              ca_file:   /etc/otel/tls/ca.crt
+            sending_queue:
+              enabled: true
+              num_consumers: 4
+              queue_size: 5000
+            retry_on_failure:
+              enabled: true
+              initial_interval: 1s
+              max_interval: 30s
+              max_elapsed_time: 3600s   # 1-hour buffer
+        processors:
+          batch/external:
+            timeout: 5s
+            send_batch_size: 16384
+        service:
+          pipelines:
+            metrics/external:
+              receivers:  [prometheus, kubeletstats]   # adjust to KOF's receiver names on your version
+              processors: [transform/external, batch/external]
+              exporters:  [otlphttp/external]
+            logs/external:
+              receivers:  [filelog/syslog, filelog/fabric-manager, filelog/subnet-manager, journald, syslog]
+              processors: [transform/external, batch/external]
+              exporters:  [otlphttp/external]
+            traces/external:
+              receivers:  [otlp]
+              processors: [batch/external]
+              exporters:  [otlphttp/external]
 ```
 
-> **Note on naming:** KOF's actual receiver and pipeline names are set by the `kof-collectors` chart. Inspect `kubectl -n kof get opentelemetrycollector kof-collectors -o yaml` for the canonical names on your version before copy-pasting.
+> **Note on naming:** KOF's actual receiver and pipeline names are set by the `opentelemetry-kube-stack` subchart. Inspect `kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o yaml` for the canonical names on your version before copy-pasting. `filelog/fabric-manager` and `filelog/subnet-manager` are receivers you add in Part 5 — they are not present in a default KOF install.
 
 Apply the patched `MultiClusterService` and verify KSM reconciles to the child cluster:
 
@@ -230,7 +239,7 @@ kubectl apply -f mcs-kof-collectors-with-external.yaml
 kubectl -n kcm-system describe multiclusterservice kof-collectors | grep -A 5 'Status'
 
 # On the child cluster
-kubectl --context child-1 -n kof get opentelemetrycollector kof-collectors -o yaml \
+kubectl --context child-1 -n kof get opentelemetrycollector kof-collectors-daemon -o yaml \
   | yq '.spec.config.exporters | keys'
 # Expected: includes 'otlphttp/external'
 ```
@@ -247,7 +256,7 @@ The canonical telemetry surface for AI infrastructure spans **five** network dom
 | **East-West (Back-end)** | `node_exporter` InfiniBand counters; DCGM PCIe/NVLink counters; UFM REST polling | `net.domain=east-west` |
 | **Management** | KOF's apiserver/kcm metrics (already in collection) | `net.domain=mgmt` |
 | **NVSwitch Fabric** (GB200+) | `nvidia-fabric-manager` exposed metrics + Subnet Manager logs | `net.domain=nvswitch` |
-| **Host Network** | `hostmetrics` receiver (already in kof-collectors) | `net.domain=host` |
+| **Host Network** | `prometheus`/`kubeletstats` host metrics (already in kof-collectors-daemon) | `net.domain=host` |
 
 Use a `transform` processor in the kof-collectors values patch to stamp the right label by source. Example for east-west:
 
@@ -285,17 +294,19 @@ The standard scope for AI infrastructure observability includes the following lo
 Sample syslog receiver patch (added to kof-collectors values):
 
 ```yaml
-opentelemetry-collector:
-  config:
-    receivers:
-      syslog:
-        tcp:
-          listen_address: 0.0.0.0:6514
-          tls:
-            cert_file: /etc/otel/syslog-tls/tls.crt
-            key_file:  /etc/otel/syslog-tls/tls.key
-        protocol: rfc5424
-        location: UTC
+opentelemetry-kube-stack:
+  collectors:
+    daemon:
+      config:
+        receivers:
+          syslog:
+            tcp:
+              listen_address: 0.0.0.0:6514
+              tls:
+                cert_file: /etc/otel/syslog-tls/tls.crt
+                key_file:  /etc/otel/syslog-tls/tls.key
+            protocol: rfc5424
+            location: UTC
 ```
 
 Configure each switch to forward syslog over TLS to the Collector's syslog endpoint — production-grade transport encryption.

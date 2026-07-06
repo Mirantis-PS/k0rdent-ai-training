@@ -168,7 +168,7 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
    kubectl get clustertemplates -n kcm-system
    ```
 
-   Expected output on k0rdent Enterprise 1.2.x (template names include version suffixes — empirical 2026-04-17):
+   Expected output on k0rdent Enterprise 1.2.x–1.3.x (the 1.0.x template family is unchanged across these releases — the 1.3.1→1.3.2 patch shipped no new `aws-standalone-cp`, see Lab 1.8; template names include version suffixes — empirical 2026-04-17):
    ```
    NAMESPACE    NAME                              VALID
    kcm-system   adopted-cluster-1-0-1             true
@@ -306,7 +306,7 @@ After the k0rdent controller validates a ClusterTemplate, it populates `status.c
 
 Deploy a lightweight GPU cluster for ML development and experimentation.
 
-> **💰 Cost warning:** Tasks 3-6 each provision a **real** CAPA workload cluster on AWS. `ml-dev` runs a g5.xlarge (~$1.00/h), `ml-training` targets p4d.24xlarge (~$32/h, check quota first), `ml-inference` uses g5.2xlarge (~$1.20/h). Spin them down at the end of each task via `kubectl delete clusterdeployment` or the sequence in Task 6. A full Tasks 3-6 run with default shapes costs roughly $5-10 of EC2.
+> **💰 Cost warning:** Tasks 3-6 each provision a **real** CAPA workload cluster on AWS. Task 3 (`ml-dev`) runs a single g5.xlarge (~$1.00/h). Task 4 (`ml-training`) runs **2x p4d.24xlarge** at ~$32.77/h **each** — ~$65/h for the pair, rising to ~$131/h once Task 6 scales it to 4 workers (check your P-instance vCPU quota first). The p4d training cluster dominates the bill: a full Tasks 3-6 run is on the order of **$60-150 of EC2**, depending on how long the training cluster stays up. Spin every cluster down as soon as you finish a task via `kubectl delete clusterdeployment` or the sequence in Task 6.
 
 > **Prerequisite — install the `gpu-operator-25-10-0` ServiceTemplate first** (not shipped by default in a fresh k0rdent install; you must pull it from the catalog once, then it is reusable for all Tasks 3-6):
 >

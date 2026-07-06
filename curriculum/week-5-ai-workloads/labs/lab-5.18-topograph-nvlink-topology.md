@@ -74,7 +74,7 @@ By completing this lab, you will be able to:
 - [ ] Explain the difference between a Backend Switch Fabric API and an NVLink Domain API
 - [ ] Deploy NVIDIA's `topograph` reference implementation against a k0rdent-managed cluster
 - [ ] Query the topology API and validate the response shape
-- [ ] Annotate K8s nodes with `network.nvidia.com/topology-layer-{leaf,spine,core}` and `nvlink-domain-id`
+- [ ] Read the K8s node labels topograph applies: `network.topology.nvidia.com/{leaf,spine,core}` for switch tiers and `network.topology.nvidia.com/accelerator` for the NVLink domain
 - [ ] Author a scheduler plugin or PodTopologySpread constraint that prefers in-domain placement
 - [ ] Measure throughput uplift vs naive placement on a multi-node NCCL all-reduce
 
@@ -94,7 +94,7 @@ By completing this lab, you will be able to:
 
 | Choice | Option A | Option B | Recommendation |
 |--------|----------|----------|----------------|
-| Topology discovery source | Static config (Terraform / IaC) | Dynamic discovery (LLDP, IB SM query, NVLink CLI) | **Dynamic discovery** — IaC drifts; topograph already implements LLDP + IB queries |
+| Topology discovery source | Static config (Terraform / IaC) | Dynamic discovery (cloud provider topology API, IB SM / NetQ query) | **Dynamic discovery** — IaC drifts; topograph already implements CSP-API + InfiniBand discovery |
 | API surface | Native CRD on k0rdent | REST / gRPC service | **CRD + projection to REST** — CRD for K8s consumers, REST proxy for off-cluster consumers |
 | Node labeling strategy | k0rdent ClusterDeployment template | Operator that watches `Node` resources | **Operator** — handles add/remove/repair without redeploying |
 | Update cadence | On every node change | Periodic full re-scan + on-demand | **Both** — event-driven for fast convergence + 1 h full re-scan for self-heal |
@@ -128,37 +128,38 @@ Together they let the scheduler answer: *"give me 144 GPUs that share an NVLink 
 
 ## Part 2: Deploy topograph against your cluster
 
-NVIDIA's [`topograph`](https://github.com/NVIDIA/topograph) implements the discovery side. Deploy it as a DaemonSet that scans on each node and a controller that aggregates.
+NVIDIA's [`topograph`](https://github.com/NVIDIA/topograph) implements the discovery side. On Kubernetes it installs as a **single Helm release** — an API server plus a Node Observer that watches `Node` changes — **not** a per-node DaemonSet. For a cloud provider it reads topology from the provider's API (on AWS, `ec2:DescribeInstanceTopology`) and writes the result back as **node labels**; there is no local scanner running on each node.
 
 ```bash
-# Clone the latest stable tag
-git clone --depth 1 https://github.com/NVIDIA/topograph.git
-cd topograph
-
-# Inspect the reference deploy manifests
-ls deploy/kubernetes/
-
-# Apply (adjust namespace as needed)
-kubectl create namespace topograph-system
-kubectl apply -n topograph-system -f deploy/kubernetes/
+# Install the pinned chart (v0.5.0). provider = aws, engine = k8s.
+helm install topograph oci://ghcr.io/nvidia/topograph/topograph \
+  --version 0.5.0 \
+  --namespace topograph --create-namespace \
+  --set global.provider.name=aws \
+  --set global.engine.name=k8s
 ```
 
-> **Note:** topograph evolves. Check the latest release notes; the manifest paths may differ. If the upstream repo lacks Kubernetes manifests at your time of reading, use the binary in a `DaemonSet` of your own with the discovery flags appropriate for your fabric (IB / RoCE / synthetic).
+> **Note:** topograph moves fast (v0.5.0 is the pin validated for this lab). Confirm the current
+> chart with `helm show chart oci://ghcr.io/nvidia/topograph/topograph`, and pick the provider
+> that matches your cluster — valid values include `aws`, `gcp`, `oci`, `nebius`, `nscale`, `cw`,
+> `netq`, `infiniband-k8s`, `dra`. The AWS provider needs `ec2:DescribeInstanceTopology`
+> (the `AmazonEC2ReadOnlyAccess` managed policy covers it). On the g5 lab cluster there is no
+> real switch fabric to discover, so drive the labeling path with a static/simulated config.
 
-Validate the DaemonSet is healthy:
+Validate the release is healthy:
 
 ```bash
-kubectl -n topograph-system get pods -o wide
-kubectl -n topograph-system logs -l app=topograph-agent --tail=50
+kubectl -n topograph get pods -o wide
+kubectl -n topograph logs -l app.kubernetes.io/instance=topograph --tail=50
 ```
 
-You should see per-node discovery output: detected NICs, IB GIDs, switch IDs (from LLDP or IB SM), and NVLink domain probes.
+The API server listens on port `49021` (endpoints `/v1/generate`, `/v1/topology`, `/healthz`, `/metrics`). When a node's status changes, the Node Observer asks the API server to regenerate the topology and re-label nodes.
 
 ---
 
 ## Part 3: Expose the Backend Switch Fabric API
 
-topograph emits a JSON document like:
+The *target* downstream schema (from Part 1) looks like this — it is the shape you want, not a verbatim topograph dump:
 
 ```json
 {
@@ -177,24 +178,28 @@ topograph emits a JSON document like:
 }
 ```
 
-Two ways to expose this:
+topograph does **not** publish a CRD. It surfaces the fabric two ways:
 
-**Option A — via CRD (in-cluster consumers).** topograph publishes a `TopologyView` CR. Inspect:
-
-```bash
-kubectl get topologyviews.topology.nvidia.com -o yaml
-```
-
-**Option B — via REST (off-cluster consumers).** Stand up a tiny REST proxy that translates the CR into the JSON shape downstream consumers expect:
+**Option A — node labels (in-cluster consumers).** topograph writes the switch path onto each node as labels; read them directly:
 
 ```bash
-# Example: a 30-line Go service or even a kubectl-proxy + jq pipeline for first-pass validation
-kubectl get topologyviews.topology.nvidia.com -o json \
-  | jq '{ nodes: [ .items[].spec.nodes[] | { name, switches, nvlink_domain_id } ] }' \
-  > switch-fabric-topology.json
+kubectl get nodes -L \
+  network.topology.nvidia.com/leaf \
+  network.topology.nvidia.com/spine \
+  network.topology.nvidia.com/core \
+  network.topology.nvidia.com/accelerator
 ```
 
-For production, build a proper REST service with:
+**Option B — the REST API (off-cluster consumers).** The API server exposes the generated topology on port 49021. Port-forward and query it, then reshape to the schema above:
+
+```bash
+# Service name follows the <release>-topograph pattern; confirm with `kubectl -n topograph get svc`
+kubectl -n topograph port-forward svc/topograph-topograph 49021:49021 &
+curl -s http://localhost:49021/healthz
+curl -s http://localhost:49021/v1/topology > switch-fabric-topology.json
+```
+
+For production, front the REST endpoint with a proper service that adds:
 
 - TLS (mTLS for off-cluster consumers)
 - Pagination (`?page=2&limit=100`)
@@ -205,26 +210,19 @@ For production, build a proper REST service with:
 
 ## Part 4: Expose the NVLink Domain API
 
-If your hardware is GB200+, the NVLink Domain ID comes from `nvidia-fabric-manager` on each node:
+topograph exposes the NVLink / accelerated domain as the `network.topology.nvidia.com/accelerator` label. On AWS it derives this from the `CapacityBlockId` returned by `ec2:DescribeInstanceTopology` — you do **not** query `nvidia-fabric-manager` yourself; the provider does the work. (On a node you can still cross-check the NVLink wiring with `nvidia-smi topo -m` or `nvidia-smi nvlink -s`, but that is not topograph's source of truth.)
+
+Nodes in the same NVLink domain share the label value:
 
 ```bash
-# Per node, NVLink domain ID is derivable from FM topology dump
-nvidia-smi nvlink --status
-sudo nvidia-fabric-manager-cli -d -t
-```
-
-topograph normalizes this into the `nvlink_domain_id` field. For non-NVLink hardware, omit the field; consumers must tolerate its absence.
-
-Project an NVLink-domain-aware Node label so the K8s scheduler can use it:
-
-```bash
-# Driven by the topograph controller — example of the final state:
-kubectl get nodes -L network.nvidia.com/nvlink-domain
-# NAME           STATUS   ROLES    NVLINK-DOMAIN
+kubectl get nodes -L network.topology.nvidia.com/accelerator
+# NAME           STATUS   ROLES    ACCELERATOR
 # gpu-node-01    Ready    worker   nvl72-rack-A
 # gpu-node-02    Ready    worker   nvl72-rack-A
 # gpu-node-09    Ready    worker   nvl72-rack-B
 ```
+
+For non-NVLink hardware (e.g. the g5 / A10G lab cluster) the accelerator label is simply absent; consumers must tolerate its absence.
 
 ---
 
@@ -245,10 +243,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              - { key: network.nvidia.com/nvlink-domain, operator: Exists }
+              - { key: network.topology.nvidia.com/accelerator, operator: Exists }
       topologySpreadConstraints:
       - maxSkew: 0
-        topologyKey: network.nvidia.com/nvlink-domain
+        topologyKey: network.topology.nvidia.com/accelerator
         whenUnsatisfiable: DoNotSchedule
         labelSelector:
           matchLabels: { app: nccl-allreduce-16gpu }
@@ -306,10 +304,10 @@ On synthetic / non-NVLink hardware, you won't see the perf uplift but you can st
 
 ## Verification Checklist
 
-- [ ] topograph DaemonSet healthy on every node
-- [ ] `TopologyView` CR populated with non-empty `nodes` list
-- [ ] Every node carries `network.nvidia.com/topology-layer-leaf` (and spine/core where applicable)
-- [ ] NVLink-capable nodes carry `network.nvidia.com/nvlink-domain`
+- [ ] topograph release healthy (API server + Node Observer pods `Running`)
+- [ ] `GET /v1/topology` (via port-forward) returns a non-empty topology
+- [ ] Every node carries `network.topology.nvidia.com/leaf` (and spine/core where applicable)
+- [ ] NVLink-capable nodes carry `network.topology.nvidia.com/accelerator`
 - [ ] REST projection returns the documented Backend Switch Fabric API shape
 - [ ] PodTopologySpread + nodeAffinity successfully pins a job to one NVLink domain
 - [ ] Perf evidence captured (where hardware allows)
@@ -320,8 +318,8 @@ On synthetic / non-NVLink hardware, you won't see the perf uplift but you can st
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| topograph agent crashes on non-IB nodes | Discovery method not auto-detected | Set discovery flags explicitly (e.g., `--discovery=ethernet-lldp`) |
-| NVLink domain ID empty on GB200 | `nvidia-fabric-manager` not running or not exposing FM API | Check FM systemd unit + ensure topograph has socket access |
+| topograph pod errors talking to the cloud API | Wrong `global.provider.name` or missing IAM permission | Match the provider to your cluster and grant `ec2:DescribeInstanceTopology` (`AmazonEC2ReadOnlyAccess`) |
+| `network.topology.nvidia.com/accelerator` label empty | Instances not in a capacity block, or provider returned no `CapacityBlockId` | Confirm the nodes launched in a capacity block / NVLink domain the provider can see |
 | Pod stuck Pending despite a domain having free GPUs | Other workloads spread across domains, blocking spread constraint | Either drop `maxSkew: 0` or evict the spreader |
 | Naive job outperforms topology-aware (suspicious) | The naive job got lucky and landed in-domain | Re-run with more replicas to wash out noise |
 | Switch IDs all collapse to one value | LLDP not configured on switches | Enable LLDP on every switch port; verify with `lldpctl` from a host |

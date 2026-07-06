@@ -170,7 +170,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        cloud-provider: aws
        rdma-type: efa
    spec:
-     template: aws-standalone-cp-0-1-0
+     template: aws-standalone-cp-1-0-20
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -213,7 +213,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        cloud-provider: azure
        rdma-type: infiniband
    spec:
-     template: azure-standalone-cp-0-1-0
+     template: azure-standalone-cp-1-0-19
      credential: azure-cluster-identity-cred
      config:
        location: westus2
@@ -432,13 +432,27 @@ The EFA device plugin exposes EFA interfaces as Kubernetes resources.
    kubectl wait --for=condition=Ready pod/nccl-test-efa --timeout=300s
    ```
 
+   > **Note — EFA transport needs extra bits the stock image lacks:** The single-node
+   > all-reduce below runs over NVLink/NVSwitch and works in the stock
+   > `nvcr.io/nvidia/pytorch` image. **Cross-node EFA transport does not** — NCCL only
+   > uses EFA through the [`aws-ofi-nccl`](https://github.com/aws/aws-ofi-nccl) plugin
+   > plus the EFA libfabric libraries (`/opt/amazon/efa/lib`, installed on the host by
+   > the EFA installer). The NGC PyTorch image ships neither, so `FI_PROVIDER=efa` and
+   > the `LD_LIBRARY_PATH` entry above have no effect until you use an EFA-enabled image
+   > (AWS Deep Learning Container) or bake `aws-ofi-nccl` + EFA libfabric into a custom
+   > image. Without them, multi-node NCCL silently falls back to TCP sockets.
+
 2. **Run NCCL All-Reduce Test**
    ```bash
    kubectl exec -it nccl-test-efa -- bash
 
+   # The NGC PyTorch container ships the NCCL library but NOT the nccl-tests
+   # binaries — build them from source (one-time, ~1 min):
+   cd /tmp && git clone https://github.com/NVIDIA/nccl-tests.git
+   cd nccl-tests && make MPI=0 CUDA_HOME=/usr/local/cuda NCCL_HOME=/usr/lib/x86_64-linux-gnu
+
    # Single-node 8-GPU all-reduce benchmark
-   cd /opt/nccl-tests/build
-   ./all_reduce_perf -b 1M -e 1G -f 2 -g 8
+   ./build/all_reduce_perf -b 1M -e 1G -f 2 -g 8
 
    # Expected output columns:
    #   size    count   type  redop   time   algbw  busbw  error
@@ -601,7 +615,7 @@ For Azure InfiniBand, the Network Operator needs RDMA device plugin configuratio
    helm repo update
 
    helm install network-operator nvidia/network-operator \
-     --version v25.10.0 \
+     --version 25.10.0 \
      --namespace nvidia-network-operator \
      --create-namespace \
      -f network-operator-azure-values.yaml
@@ -691,10 +705,12 @@ For Azure InfiniBand, the Network Operator needs RDMA device plugin configuratio
 
 3. **Run NCCL All-Reduce Test**
    ```bash
-   cd /opt/nccl-tests/build
+   # Build nccl-tests from source first (not shipped in the NGC image — see Task 5):
+   cd /tmp && git clone https://github.com/NVIDIA/nccl-tests.git
+   cd nccl-tests && make MPI=0 CUDA_HOME=/usr/local/cuda NCCL_HOME=/usr/lib/x86_64-linux-gnu
 
    # Single-node 8-GPU test
-   ./all_reduce_perf -b 1M -e 1G -f 2 -g 8
+   ./build/all_reduce_perf -b 1M -e 1G -f 2 -g 8
 
    # For 8x A100 (ND A100 v4): expect ~200-230 GB/s busbw
    # For 8x H100 (ND H100 v5): expect ~400-470 GB/s busbw
@@ -729,9 +745,10 @@ Create identical benchmarks on both platforms to compare performance.
    echo ""
 
    # NCCL All-Reduce (varying message sizes)
+   # Assumes nccl-tests was built from source under /tmp/nccl-tests (see Task 5).
    echo "=== NCCL All-Reduce Benchmark ==="
-   cd /opt/nccl-tests/build
-   ./all_reduce_perf -b 1M -e 4G -f 2 -g 8 -n 100 -w 10
+   cd /tmp/nccl-tests
+   ./build/all_reduce_perf -b 1M -e 4G -f 2 -g 8 -n 100 -w 10
    ```
 
 2. **Expected Results**
@@ -833,7 +850,7 @@ This task demonstrates k0rdent's ability to deploy the same application workload
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.7.3
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                - meta-llama/Llama-2-70b-chat-hf
@@ -1084,4 +1101,4 @@ This lab demonstrates k0rdent's core value for GPU infrastructure:
 
 ## Next Lab
 
-Proceed to [Lab 5.15 - Multi-Node Distributed Training](lab-5.16-distributed-training.md)
+Proceed to [Lab 5.16 - Multi-Node Distributed Training](lab-5.16-distributed-training.md)
