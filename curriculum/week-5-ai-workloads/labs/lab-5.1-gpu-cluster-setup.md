@@ -173,7 +173,7 @@ kubectl get management kcm -o jsonpath='{.status.components.cluster-api-provider
 # Check available templates
 kubectl get clustertemplates -n kcm-system | grep aws-standalone
 
-# Template to use: aws-standalone-cp-1-0-20
+# Template to use: aws-standalone-cp-1-0-26
 ```
 
 Create the ClusterDeployment:
@@ -189,7 +189,7 @@ metadata:
     environment: training
     gpu-enabled: "true"
 spec:
-  template: aws-standalone-cp-1-0-20
+  template: aws-standalone-cp-1-0-26
   credential: aws-cluster-identity-cred
   dryRun: false
   cleanupOnDeletion: true
@@ -1162,7 +1162,7 @@ Node.Ready: container runtime network not ready: NetworkReady=false
 reason:NetworkPluginNotReady message:Network plugin returns error
 ```
 
-Appears for ~30-60 seconds while the CNI (Calico, in the `aws-standalone-cp-1-0-20` template) initializes on a freshly booted control plane VM. Clears automatically once `calico-node` pods become Ready.
+Appears for ~30-60 seconds while the CNI (Calico, in the `aws-standalone-cp-1-0-26` template) initializes on a freshly booted control plane VM. Clears automatically once `calico-node` pods become Ready.
 
 **`ServiceSetEnsureProfileFailed` warning event right after `kubectl apply -f gpu-cluster-deployment.yaml`:**
 

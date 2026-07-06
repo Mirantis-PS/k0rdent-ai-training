@@ -168,25 +168,27 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
    kubectl get clustertemplates -n kcm-system
    ```
 
-   Expected output on k0rdent Enterprise 1.2.x–1.3.x (the 1.0.x template family is unchanged across these releases — the 1.3.1→1.3.2 patch shipped no new `aws-standalone-cp`, see Lab 1.8; template names include version suffixes — empirical 2026-04-17):
+   Expected output on k0rdent Enterprise 1.3.2 (each release ships its own template set — the 1.3.2 release replaced the 1.3.1-era `aws-standalone-cp-1-0-20` with `1-0-26`, the exact upgrade path Lab 1.8 walks through; template names include version suffixes — empirical 2026-07-06):
    ```
-   NAMESPACE    NAME                              VALID
-   kcm-system   adopted-cluster-1-0-1             true
-   kcm-system   aws-eks-1-0-4                     true
-   kcm-system   aws-hosted-cp-1-0-21              true
-   kcm-system   aws-standalone-cp-1-0-20          true
-   kcm-system   azure-aks-1-0-1                   true
-   kcm-system   azure-hosted-cp-1-0-22            true
-   kcm-system   azure-standalone-cp-1-0-19        true
-   kcm-system   docker-hosted-cp-1-0-4            true
-   kcm-system   gcp-gke-1-0-6                     true
-   kcm-system   gcp-hosted-cp-1-0-19              true
-   kcm-system   gcp-standalone-cp-1-0-17          true
-   kcm-system   openstack-hosted-cp-1-0-12        true
-   kcm-system   openstack-standalone-cp-1-0-21    true
-   kcm-system   remote-cluster-1-0-18             true
-   kcm-system   vsphere-hosted-cp-1-0-18          true
-   kcm-system   vsphere-standalone-cp-1-0-17      true
+   NAME                             VALID
+   adopted-cluster-1-0-1            true
+   aws-eks-1-0-6                    true
+   aws-hosted-cp-1-0-29             true
+   aws-standalone-cp-1-0-26         true
+   azure-aks-1-0-5                  true
+   azure-hosted-cp-1-0-31           true
+   azure-standalone-cp-1-0-26       true
+   docker-hosted-cp-1-0-6           true
+   gcp-gke-1-0-10                   true
+   gcp-hosted-cp-1-0-28             true
+   gcp-standalone-cp-1-0-24         true
+   kubevirt-hosted-cp-1-0-6         true
+   kubevirt-standalone-cp-1-0-6     true
+   openstack-hosted-cp-1-0-24       true
+   openstack-standalone-cp-1-0-28   true
+   remote-cluster-1-0-24            true
+   vsphere-hosted-cp-1-0-27         true
+   vsphere-standalone-cp-1-0-24     true
    ```
 
    > **Note:** Version suffixes (e.g., `-1-0-20`) correspond to the chart version with dots replaced by dashes. Your environment may show different versions depending on the k0rdent release installed — always `kubectl get clustertemplate -n kcm-system` first and substitute the actual name your mgmt cluster carries into the rest of the lab. The 0.x template family from earlier k0rdent releases has been superseded by the 1.x family in k0rdent Enterprise 1.2.
@@ -194,7 +196,7 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
 2. **Examine the AWS standalone template**
 
    ```bash
-   kubectl get clustertemplate aws-standalone-cp-1-0-20 -n kcm-system -o yaml
+   kubectl get clustertemplate aws-standalone-cp-1-0-26 -n kcm-system -o yaml
    ```
 
 3. **Understand the real ClusterTemplate structure**
@@ -205,7 +207,7 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
    apiVersion: k0rdent.mirantis.com/v1beta1
    kind: ClusterTemplate
    metadata:
-     name: aws-standalone-cp-1-0-20
+     name: aws-standalone-cp-1-0-26
      namespace: kcm-system
    spec:
      # Helm chart that generates CAPI resources
@@ -241,7 +243,7 @@ After the k0rdent controller validates a ClusterTemplate, it populates `status.c
 1. **View the available parameters**
 
    ```bash
-   kubectl get clustertemplate aws-standalone-cp-1-0-20 -n kcm-system \
+   kubectl get clustertemplate aws-standalone-cp-1-0-26 -n kcm-system \
      -o jsonpath='{.status.config}' | python3 -m json.tool
    ```
 
@@ -339,7 +341,7 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
      name: ml-dev
      namespace: kcm-system
    spec:
-     template: aws-standalone-cp-1-0-20
+     template: aws-standalone-cp-1-0-26
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -435,7 +437,7 @@ Deploy a multi-GPU cluster for distributed training workloads.
      name: ml-training
      namespace: kcm-system
    spec:
-     template: aws-standalone-cp-1-0-20
+     template: aws-standalone-cp-1-0-26
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -518,7 +520,7 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
      name: ml-training
      namespace: kcm-system
    spec:
-     template: aws-standalone-cp-1-0-20
+     template: aws-standalone-cp-1-0-26
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -630,8 +632,8 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
    Expected output:
    ```
    NAME           TEMPLATE                    WORKERS   INSTANCE
-   ml-dev         aws-standalone-cp-1-0-20     1         g5.xlarge
-   ml-training    aws-standalone-cp-1-0-20     4         p4d.24xlarge
+   ml-dev         aws-standalone-cp-1-0-26     1         g5.xlarge
+   ml-training    aws-standalone-cp-1-0-26     4         p4d.24xlarge
    ```
 
    Both clusters use the **same template** but with different configurations - this is k0rdent's approach to supporting diverse AI workloads without template proliferation.

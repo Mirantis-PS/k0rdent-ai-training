@@ -170,7 +170,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        cloud-provider: aws
        rdma-type: efa
    spec:
-     template: aws-standalone-cp-1-0-20
+     template: aws-standalone-cp-1-0-26
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -213,7 +213,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        cloud-provider: azure
        rdma-type: infiniband
    spec:
-     template: azure-standalone-cp-1-0-19
+     template: azure-standalone-cp-1-0-26
      credential: azure-cluster-identity-cred
      config:
        location: westus2

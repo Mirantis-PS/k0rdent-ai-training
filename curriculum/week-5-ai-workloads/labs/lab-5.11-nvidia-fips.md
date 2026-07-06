@@ -246,7 +246,7 @@ Deploy the GPU Operator through k0rdent's ServiceTemplate after the platform and
      name: gpu-fips
      namespace: kcm-system
    spec:
-     template: aws-standalone-cp-1-0-20
+     template: aws-standalone-cp-1-0-26
      credential: aws-cluster-identity-cred
      config:
        region: us-east-1

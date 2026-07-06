@@ -14,13 +14,13 @@
 ## Infrastructure Notes
 
 GPU clusters for Week 5 labs are deployed via **ClusterDeployment** using the
-`aws-standalone-cp-1-0-20` template -- the same pattern used in Week 1.
+`aws-standalone-cp-1-0-26` template -- the same pattern used in Week 1.
 
 | Parameter | Value |
 |-----------|-------|
 | Instance type | **g5.12xlarge** (4x NVIDIA A10G GPUs, 22 GiB each on AWS) |
 | OS | **Ubuntu 22.04** (required; Amazon Linux 2 is not supported) |
-| Deployment pattern | ClusterDeployment (aws-standalone-cp-1-0-20) |
+| Deployment pattern | ClusterDeployment (aws-standalone-cp-1-0-26) |
 
 > **Note:** AWS still lists `p3.8xlarge` as a previous-generation instance type,
 > but Week 5 defaults to `g5.12xlarge` for better current availability and to

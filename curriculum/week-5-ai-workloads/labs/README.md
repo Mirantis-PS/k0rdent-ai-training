@@ -28,7 +28,7 @@ YOUR MACHINE
 +--------+---------+
          |
          | ClusterDeployment
-         | (aws-standalone-cp-1-0-20)
+         | (aws-standalone-cp-1-0-26)
          v
 +--------------------+     +--------------------+
 | GPU Cluster CP     |     | GPU Worker Node    |
@@ -91,7 +91,7 @@ metadata:
   name: gpu-cluster
   namespace: kcm-system
 spec:
-  template: aws-standalone-cp-1-0-20
+  template: aws-standalone-cp-1-0-26
   credential: aws-cluster-identity-cred
   config:
     clusterLabels: {}
