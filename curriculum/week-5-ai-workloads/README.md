@@ -14,13 +14,13 @@
 ## Infrastructure Notes
 
 GPU clusters for Week 5 labs are deployed via **ClusterDeployment** using the
-`aws-standalone-cp-1-0-20` template -- the same pattern used in Week 1.
+`aws-standalone-cp-1-0-26` template -- the same pattern used in Week 1.
 
 | Parameter | Value |
 |-----------|-------|
 | Instance type | **g5.12xlarge** (4x NVIDIA A10G GPUs, 22 GiB each on AWS) |
 | OS | **Ubuntu 22.04** (required; Amazon Linux 2 is not supported) |
-| Deployment pattern | ClusterDeployment (aws-standalone-cp-1-0-20) |
+| Deployment pattern | ClusterDeployment (aws-standalone-cp-1-0-26) |
 
 > **Note:** AWS still lists `p3.8xlarge` as a previous-generation instance type,
 > but Week 5 defaults to `g5.12xlarge` for better current availability and to
@@ -130,13 +130,18 @@ All lab files are in the [labs/](labs/) directory.
 |-----------|---------------|-------|
 | vLLM | Validated example pin: `v0.14.0` | Lab examples use a pinned image; verify newer upstream releases before production rollout |
 | KAI Scheduler | `oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler` (`v0.14.0`) | OCI Helm chart |
-| NVIDIA GPU Operator | Validated example pin: `v25.10.0` | Installed via Helm with k0s containerd env vars |
+| NVIDIA GPU Operator | Validated pin: `v25.3.0` | Live-validated 2026-07-07 on k0s v1.35 clusters. Do **not** bump to ≥25.10 without reading the known issue in Lab 5.1: the 25.10 toolkit ignores the k0s `CONTAINERD_CONFIG` path and its containerd config drops the `runc` runtime, taking the node NotReady. Lab 5.13 is the one exception (needs driver ≥575) and documents its own path. |
 | Kubeflow | Mixed component pins in Lab 5.9 | Pipelines, Training Operator, Katib, and Notebooks are installed separately |
 | MLflow | k0rdent template `mlflow-1-8-1` | Current catalog example is chart `1.8.1`, app version `3.7.0` |
+| NVIDIA Topograph | `0.5.0` | Classic Helm repo `https://NVIDIA.github.io/topograph` (chart is **not** served from the ghcr OCI path); Lab 5.18 |
 
 > **GPU Operator on k0s:** The GPU Operator must be installed via Helm with
 > k0s-specific containerd socket and runtime class environment variables.
-> See Lab 5.1 for the exact Helm values.
+> See Lab 5.1 for the exact Helm values. When deploying via k0rdent
+> serviceSpec/MultiClusterService instead, those values must additionally be
+> nested under a top-level `gpu-operator:` key (the catalog ServiceTemplate is
+> an umbrella chart), and the worker nodes must run Ubuntu 22.04 (`amiID`
+> pinned on both node pools) — see Lab 5.12.
 
 ---
 
@@ -175,7 +180,7 @@ All lab files are in the [labs/](labs/) directory.
 ## Full Curriculum
 
 This file covers Week 5 only. The complete 6-week curriculum document is at
-[`curriculum/k0rdent-ai-infrastructure-training-curriculum.md`](../k0rdent-ai-infrastructure-training-curriculum.md)
+[`curriculum/overview/training-program-overview.md`](../overview/training-program-overview.md)
 (referenced from the top-level README).
 
 > **TODO:** The full curriculum file does not yet exist at that path. The content
