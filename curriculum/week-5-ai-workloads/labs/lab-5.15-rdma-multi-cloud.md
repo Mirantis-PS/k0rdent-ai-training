@@ -58,7 +58,7 @@ Understand and configure Remote Direct Memory Access (RDMA) for GPU-accelerated 
 - Access to either:
   - AWS: p4d.24xlarge instances with EFA enabled
   - Azure: ND A100 v4 or ND H100 v5 VMSS with InfiniBand
-- NVIDIA GPU Operator deployed (via k0rdent catalog `gpu-operator-25-10-0`)
+- NVIDIA GPU Operator deployed (via k0rdent catalog `gpu-operator-25-3-0`)
 - Basic understanding of Kubernetes networking
 
 ---
@@ -183,7 +183,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        # Configured via the ClusterTemplate Helm chart values
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
@@ -226,7 +226,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        # InfiniBand requires single_placement_group = true in VMSS
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |

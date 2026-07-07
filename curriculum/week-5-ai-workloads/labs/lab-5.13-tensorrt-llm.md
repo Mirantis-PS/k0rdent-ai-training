@@ -63,7 +63,7 @@ Deploy and optimize LLM inference using NVIDIA TensorRT-LLM on a k0rdent-managed
 - Completed Lab 5.5 (vLLM Inference Service)
 - k0rdent Enterprise management cluster operational
 - At least one k0rdent-managed GPU cluster (A100 40GB+ minimum)
-- NVIDIA GPU Operator v25.10.0 installed
+- NVIDIA GPU Operator **v25.10.0** installed — deliberately newer than the week's default v25.3.0 pin: the Triton `25.06-trtllm` container requires NVIDIA driver **≥575**, and v25.3.0 installs 570.124 while v25.10.0 installs 580.95 (validated on A10G). On k0s clusters v25.10.0 needs the containerd `runc` fix from the Lab 5.1 known-issue box (see also Troubleshooting below) before GPUs become allocatable. Alternatively, stay on v25.3.0 and override `driver.version` to a ≥575 driver image (untested)
 - Basic understanding of model quantization from Lab 5.5
 
 ## k0rdent Context
@@ -149,11 +149,11 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
 ## Lab Environment
 
 **Cluster Requirements:**
-- 1+ GPU nodes with NVIDIA A100 (40GB minimum) or H100
-- StorageClass `ebs-gp3` available (AWS EBS)
-- 200GB+ storage for model checkpoints and engines
+- 1+ GPU nodes with NVIDIA A100 (40GB) or H100 for the full lab; a single 24GB Ampere GPU (e.g. AWS **g5.4xlarge**, 1× A10G) is sufficient for the 7B INT4-AWQ path validated here
+- A default StorageClass for dynamic EBS provisioning. On k0rdent AWS clusters (`aws-standalone-cp`) this is **`ebs-csi-default-sc`** (the AWS EBS CSI driver's default), **not** `ebs-gp3`. Confirm with `kubectl get storageclass` and substitute the real name in the PVC below
+- 200GB+ worker root volume for the ~21GB Triton image plus checkpoints and engines
 - NVIDIA GPU Operator installed via k0rdent catalog
-- Network access to NVIDIA NGC and HuggingFace
+- Network access to NVIDIA NGC and HuggingFace. Both the `nvcr.io/nvidia/tritonserver` image and the `NousResearch/Llama-2-7b-chat-hf` model used here are **public** — no NGC login and no HuggingFace token are required
 
 **Key Insight:** TensorRT-LLM engines are GPU-architecture specific. An engine built for A100 will NOT work on H100 and vice versa. Always build on the same GPU type you intend to serve on.
 
@@ -205,22 +205,26 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
    spec:
      accessModes:
        - ReadWriteOnce
-     storageClassName: ebs-gp3
+     storageClassName: ebs-csi-default-sc  # k0rdent AWS default; run `kubectl get storageclass` to confirm
      resources:
        requests:
-         storage: 500Gi
+         storage: 200Gi  # ample for a single 7B model + INT4 checkpoint + engine (a single 7B needs well under 100Gi; raise for larger models)
    ```
+
+   > **StorageClass name:** k0rdent's `aws-standalone-cp` clusters ship the AWS EBS CSI driver with a default StorageClass named `ebs-csi-default-sc`, not `ebs-gp3`. Using a non-existent class leaves the PVC `Pending` forever. `kubectl get storageclass` shows the real name; the default is marked `(default)`.
 
    ```bash
    kubectl apply -f trt-llm-storage.yaml
    ```
 
-2. **Create HuggingFace token Secret**
+2. **Create HuggingFace token Secret** (optional for this lab)
    ```bash
    kubectl create secret generic hf-token \
      --from-literal=token=<your-hf-token> \
      -n trt-llm
    ```
+
+   > **Token not required for the model used here.** `NousResearch/Llama-2-7b-chat-hf` is an ungated public mirror, so the download in Task 3 works with no token. The `builder` pod still references this Secret via `secretKeyRef`, so create it with any placeholder value (e.g. `--from-literal=token=none`) to satisfy the pod spec, and omit `--token` from the `huggingface-cli download` call. A real token is only needed if you swap in a gated model (e.g. `meta-llama/*`).
 
 3. **Deploy TensorRT-LLM builder pod**
 
@@ -294,20 +298,23 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
    git clone --branch v0.20.0 https://github.com/NVIDIA/TensorRT-LLM.git
    cd TensorRT-LLM/examples
 
-   # Download Llama-2-7B (use Llama-2-7b-chat-hf for a chat model)
+   # Download Llama-2-7B (use Llama-2-7b-chat-hf for a chat model).
+   # NousResearch/Llama-2-7b-chat-hf is ungated, so no --token is needed.
+   # (Add `--token $HF_TOKEN` only when pulling a gated repo.)
    huggingface-cli download NousResearch/Llama-2-7b-chat-hf \
-     --local-dir /workspace/models/llama-2-7b-chat-hf \
-     --token $HF_TOKEN
+     --local-dir /workspace/models/llama-2-7b-chat-hf
 
    echo "Model downloaded: $(du -sh /workspace/models/llama-2-7b-chat-hf)"
    ```
+
+   > **`python` vs `python3`:** the `tritonserver:25.06-trtllm-python-py3` image ships `python3` but has **no `python` symlink**. Use `python3` for every script below (`quantize.py`, `fill_template.py`, the client scripts) — a bare `python` fails with `No such file or directory`.
 
 3. **Quantize with INT4 AWQ**
 
    INT4 AWQ provides ~4x memory reduction with minimal quality loss. AWQ requires a small calibration dataset (lightweight, no backpropagation).
 
    ```bash
-   python quantization/quantize.py \
+   python3 quantization/quantize.py \
      --model_dir /workspace/models/llama-2-7b-chat-hf \
      --output_dir /workspace/checkpoints/llama-2-7b-int4-awq \
      --dtype float16 \
@@ -315,6 +322,8 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
      --awq_block_size 128 \
      --calib_size 32
    ```
+
+   > On a 24GB A10G this produces `rank0.safetensors` (~4GB, down from ~13.5GB FP16) in a few minutes; peak VRAM stays well under 24GB. **Note:** `quantize.py` sometimes does not exit its process cleanly after the checkpoint is written (a ModelOpt quirk) — once `config.json` and `rank0.safetensors` exist in the output dir, the checkpoint is complete and you can `Ctrl-C` / proceed.
 
    **Understanding the parameters:**
    - `--qformat int4_awq`: 4-bit AWQ quantization
@@ -327,7 +336,7 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
 
    ```bash
    # ONLY run this on H100/H200 nodes
-   python quantization/quantize.py \
+   python3 quantization/quantize.py \
      --model_dir /workspace/models/llama-2-7b-chat-hf \
      --output_dir /workspace/checkpoints/llama-2-7b-fp8 \
      --dtype float16 \
@@ -342,7 +351,7 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
    INT8 SmoothQuant works on both A100 and H100, providing ~2x memory reduction with broad compatibility.
 
    ```bash
-   python quantization/quantize.py \
+   python3 quantization/quantize.py \
      --model_dir /workspace/models/llama-2-7b-chat-hf \
      --output_dir /workspace/checkpoints/llama-2-7b-int8-sq \
      --dtype float16 \
@@ -412,13 +421,16 @@ The `trtllm-serve` CLI provides the fastest way to test your engine. It wraps Tr
    # Wait for: "Application startup complete"
    ```
 
+   > **Model name = engine directory basename.** `trtllm-serve` registers the served model under the **last path component of the engine directory** — here `1-gpu` (from `.../1-gpu`), *not* `llama-2-7b-chat-hf`. Passing the wrong name returns HTTP 404. Confirm the exact id with `curl -s http://localhost:8000/v1/models`.
+
 2. **Test with curl** (from another terminal)
    ```bash
+   # The model id is "1-gpu" — the engine directory's basename (see note above).
    kubectl exec -it trt-llm-builder -n trt-llm -- \
      curl -s http://localhost:8000/v1/completions \
        -H "Content-Type: application/json" \
        -d '{
-         "model": "llama-2-7b-chat-hf",
+         "model": "1-gpu",
          "prompt": "What is Kubernetes? Explain in simple terms.",
          "max_tokens": 100,
          "temperature": 0.7
@@ -431,7 +443,7 @@ The `trtllm-serve` CLI provides the fastest way to test your engine. It wraps Tr
    from openai import OpenAI
    client = OpenAI(api_key='unused', base_url='http://localhost:8000/v1')
    response = client.completions.create(
-       model='llama-2-7b-chat-hf',
+       model='1-gpu',  # engine directory basename, not the HF model name
        prompt='What is Kubernetes?',
        max_tokens=100
    )
@@ -479,6 +491,12 @@ For production, deploy Triton with the ensemble model architecture. This provide
    # Copy the template model repository
    cp -r triton_backend/all_models/inflight_batcher_llm /workspace/triton-models
 
+   # The template ships a 5th model, tensorrt_llm_bls (an alternative BLS
+   # orchestrator). This lab uses the *ensemble* path, so remove bls — otherwise
+   # its own unfilled ${logits_datatype} placeholder makes Triton (which defaults
+   # to --exit-on-error=true) refuse to start the whole server.
+   rm -rf /workspace/triton-models/tensorrt_llm_bls
+
    # Copy engine files into the model repository
    cp /workspace/engines/llama-2-7b-int4-awq/1-gpu/* \
      /workspace/triton-models/tensorrt_llm/1/
@@ -493,23 +511,34 @@ For production, deploy Triton with the ensemble model architecture. This provide
    python3 triton_backend/tools/fill_template.py -i /workspace/triton-models/preprocessing/config.pbtxt \
      "tokenizer_dir:/workspace/models/llama-2-7b-chat-hf,triton_max_batch_size:8,preprocessing_instance_count:1"
 
-   # Fill tensorrt_llm config
+   # Fill tensorrt_llm config.
+   # engine_dir is /models/tensorrt_llm/1 to match the Triton Deployment mount in
+   # step 4 (the model repository is mounted at /models there). logits_datatype and
+   # encoder_input_features_data_type are REQUIRED — they are proto data_type enums,
+   # not tolerated string params, so an unfilled ${...} makes Triton's config parse fail.
+   # decoupled_mode is False: Tasks 7-8 use the synchronous HTTP infer endpoint, which
+   # returns HTTP 501 for decoupled models. Set it to True only if you switch the client
+   # to gRPC streaming.
    python3 triton_backend/tools/fill_template.py -i /workspace/triton-models/tensorrt_llm/config.pbtxt \
-     "triton_backend:tensorrtllm,triton_max_batch_size:8,decoupled_mode:True,engine_dir:/workspace/triton-models/tensorrt_llm/1,batching_strategy:inflight_fused_batching,batch_scheduler_policy:max_utilization,kv_cache_free_gpu_mem_fraction:0.9"
+     "triton_backend:tensorrtllm,triton_max_batch_size:8,decoupled_mode:False,engine_dir:/models/tensorrt_llm/1,batching_strategy:inflight_fused_batching,batch_scheduler_policy:max_utilization,kv_cache_free_gpu_mem_fraction:0.9,logits_datatype:TYPE_FP32,encoder_input_features_data_type:TYPE_FP16"
 
    # Fill postprocessing config
    python3 triton_backend/tools/fill_template.py -i /workspace/triton-models/postprocessing/config.pbtxt \
      "tokenizer_dir:/workspace/models/llama-2-7b-chat-hf,triton_max_batch_size:8,postprocessing_instance_count:1"
 
-   # Fill ensemble config
+   # Fill ensemble config (logits_datatype required here too)
    python3 triton_backend/tools/fill_template.py -i /workspace/triton-models/ensemble/config.pbtxt \
-     "triton_max_batch_size:8"
+     "triton_max_batch_size:8,logits_datatype:TYPE_FP32"
+
+   # Sanity check: no proto data_type placeholders may remain, or Triton won't load.
+   grep -rn 'data_type: ${' /workspace/triton-models/*/config.pbtxt && echo "FIX UNFILLED PLACEHOLDERS ABOVE" || echo "OK: no unfilled data_type placeholders"
    ```
 
    **Key configuration parameters:**
    - `batch_scheduler_policy`: `max_utilization` (greedy packing) or `guaranteed_no_evict` (default, no request pauses)
-   - `kv_cache_free_gpu_mem_fraction`: Fraction of free GPU memory for KV cache (0.9 = 90%)
-   - `decoupled_mode`: Enable streaming responses
+   - `kv_cache_free_gpu_mem_fraction`: Fraction of free GPU memory for KV cache (0.9 = 90%). On a 24GB A10G this makes Triton reserve ~20GB of VRAM up front — expected, not a leak.
+   - `decoupled_mode`: streaming responses. Keep `False` for the synchronous client in Tasks 7-8 (decoupled models reject the HTTP `infer` endpoint with HTTP 501).
+   - `logits_datatype` / `encoder_input_features_data_type`: proto tensor `data_type` enums the template leaves as `${...}`; they must be filled or Triton fails to parse the config.
 
 3. **Exit the builder pod**
    ```bash
@@ -781,6 +810,16 @@ For production, deploy Triton with the ensemble model architecture. This provide
 
    > **Note:** Actual performance depends on GPU type, model, batch size, and sequence length. Do not compare numbers across different hardware.
 
+   **Reference results — this lab validated on 1× NVIDIA A10G (24GB, g5.4xlarge), Llama-2-7B INT4-AWQ, single-stream via the Triton ensemble:**
+
+   | max_tokens | avg latency | throughput |
+   |-----------|-------------|-----------|
+   | 50  | 0.43s | ~115 tok/s |
+   | 100 | 0.87s | ~115 tok/s |
+   | 200 | 1.74s | ~115 tok/s |
+
+   INT4-AWQ checkpoint ~4GB (from ~13.5GB FP16). Engine build ~2 min. GPU memory in use ~20.8GB/23GB — dominated by the `kv_cache_free_gpu_mem_fraction:0.9` reservation, not the ~3.9GB engine. `trtllm-serve` gave the same ~114 tok/s, confirming the engine, not the serving layer, sets the ceiling. (These are A10G numbers; an A100/H100 will differ — do not compare across hardware.)
+
 3. **Check Triton metrics**
    ```bash
    # Triton exposes Prometheus-compatible metrics
@@ -830,6 +869,14 @@ kubectl delete namespace trt-llm
 - [ ] Credentials stored in Kubernetes Secrets
 
 ## Troubleshooting
+
+### GPU never becomes allocatable / GPU worker node goes `NotReady` after GPU Operator install
+
+On k0s-based k0rdent clusters (k0s bundles containerd 1.7.x), the NVIDIA GPU Operator's container-toolkit can leave the node's containerd unable to serve CRI, so `nvidia.com/gpu` never appears and the node flips to `NotReady` with `container runtime is down, PLEG is not healthy`. Symptom in the containerd log: `failed to load plugin io.containerd.grpc.v1.cri ... no corresponding runtime configured in containerd.runtimes for default_runtime_name = "runc"`.
+
+Cause: the toolkit writes the nvidia runtimes to `/etc/containerd/conf.d/99-nvidia.toml` and bridges it into k0s via a nested import; containerd merges that file **last**, and its `runtimes` map (nvidia only) drops k0s's `runc` entry while `default_runtime_name` stays `runc`. A plain `k0sworker`/containerd restart does **not** fix it — the merged config itself is wrong.
+
+Fix (on the GPU worker node): add a `runc` runtime back to `/etc/containerd/conf.d/99-nvidia.toml` so the merged `runtimes` map keeps both `runc` and the nvidia runtimes, then `systemctl restart k0sworker`. Verify the merge with `containerd --config /etc/k0s/containerd.toml config dump | grep -A2 runtimes.runc`. This is a **cluster-setup** concern (see [Lab 5.1](lab-5.1-gpu-cluster-setup.md) / [Lab 5.12](lab-5.12-cluster-templates.md)); confirm `kubectl get nodes -l nvidia.com/gpu.present=true` shows `nvidia.com/gpu` allocatable **before** starting this lab.
 
 ### Quantization Fails
 

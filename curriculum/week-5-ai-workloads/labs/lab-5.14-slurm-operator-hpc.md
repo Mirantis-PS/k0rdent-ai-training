@@ -346,6 +346,18 @@ The Slinky `slurm` Helm chart deploys a complete Slurm cluster using the operato
    # Save as slurm-cluster-values.yaml
    clusterName: k8s-hpc
 
+   # GPU GRES — REQUIRED, else slurmd advertises Gres=(null) and every
+   # `--gres=gpu:1` job is rejected. The chart does NOT wire GPUs into Slurm
+   # for you. Three pieces are needed and all three were validated live on
+   # chart 1.1.0: gres.conf AutoDetect (mounted on the controller), GresTypes
+   # in slurm.conf, and a Gres line on the NodeSet (below).
+   configFiles:
+     gres.conf: |
+       AutoDetect=nvidia
+   controller:
+     extraConfMap:
+       GresTypes: gpu
+
    # LoginSet (sbatch/srun entrypoint) is off by default — this lab needs it.
    loginsets:
      slinky:
@@ -356,7 +368,11 @@ The Slinky `slurm` Helm chart deploys a complete Slurm cluster using the operato
    accounting:
      enabled: true
 
-   # Compute NodeSet — request a GPU on each slurmd pod.
+   # Compute NodeSet — request a GPU on each slurmd pod AND advertise it as GRES.
+   # NOTE: the operator injects a *required* pod anti-affinity (one slurmd per
+   # Kubernetes node), so `replicas: N` needs N GPU nodes. On a single
+   # multi-GPU node (e.g. one g5.12xlarge) only one slurmd will schedule —
+   # set `replicas: 1` there; the extra pods stay Pending on anti-affinity.
    nodesets:
      slinky:
        enabled: true
@@ -365,6 +381,8 @@ The Slinky `slurm` Helm chart deploys a complete Slurm cluster using the operato
          resources:
            limits:
              nvidia.com/gpu: "1"
+       extraConfMap:
+         Gres: gpu:1
    ```
 
    ```bash
@@ -389,13 +407,16 @@ The Slinky `slurm` Helm chart deploys a complete Slurm cluster using the operato
    # Check all pods in the slurm namespace
    kubectl get pods -n slurm
 
-   # Expected pods (names will vary):
-   #   slurm-controller-*          (Controller CR — slurmctld scheduler)
-   #   slurm-accounting-*          (Accounting CR — slurmdbd daemon)
-   #   mariadb-*                   (separate Deployment from Step 3)
-   #   slurm-compute-*             (NodeSet — compute nodes)
-   #   slurm-login-*               (LoginSet — login/submit nodes)
-   #   slurm-restapi-*             (RestApi CR — slurmrestd)
+   # Expected pods (real names from chart 1.1.0 — the NodeSet/LoginSet key
+   # "slinky" is baked into the names):
+   #   slurm-controller-0            (Controller CR — slurmctld, 3 containers)
+   #   slurm-accounting-0            (Accounting CR — slurmdbd daemon)
+   #   mariadb-*                     (separate Deployment from Step 3)
+   #   slurm-worker-slinky-*         (NodeSet — compute/slurmd nodes)
+   #   slurm-login-slinky-*          (LoginSet — login/submit nodes)
+   #   slurm-restapi-*               (RestApi CR — slurmrestd)
+   # The operator also runs slurm-operator + slurm-operator-webhook in the
+   # `slinky` namespace (installed in Task 1).
 
    # Check the Slinky CRD resources
    kubectl get nodesets -n slurm
@@ -407,14 +428,15 @@ The Slinky `slurm` Helm chart deploys a complete Slurm cluster using the operato
 
    ```bash
    # Exec into a login node to run Slurm commands
-   LOGIN_POD=$(kubectl get pods -n slurm -l slinky.slurm.net/set-type=login -o jsonpath='{.items[0].metadata.name}')
+   LOGIN_POD=$(kubectl get pods -n slurm -l app.kubernetes.io/name=login -o jsonpath='{.items[0].metadata.name}')
 
    # Check cluster info
    kubectl exec -n slurm ${LOGIN_POD} -- sinfo
 
-   # Expected output (the chart's default partition is named "all"):
+   # Expected output (the chart's default partition is named "all"; Slurm
+   # node names are the NodeSet pod hostnames, e.g. slinky-0, slinky-1):
    # PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
-   # all*      up     infinite      N   idle  slurm-compute-[0-N]
+   # all*      up     infinite      N   idle  slinky-[0-N]
 
    # Detailed node status
    kubectl exec -n slurm ${LOGIN_POD} -- scontrol show nodes
@@ -430,7 +452,7 @@ Access the Slurm login node to submit jobs using standard HPC commands.
 1. **Get an Interactive Shell on the Login Node**
 
    ```bash
-   LOGIN_POD=$(kubectl get pods -n slurm -l slinky.slurm.net/set-type=login -o jsonpath='{.items[0].metadata.name}')
+   LOGIN_POD=$(kubectl get pods -n slurm -l app.kubernetes.io/name=login -o jsonpath='{.items[0].metadata.name}')
 
    kubectl exec -it -n slurm ${LOGIN_POD} -- bash
    ```
@@ -544,13 +566,20 @@ Access the Slurm login node to submit jobs using standard HPC commands.
 6. **Check Job Results**
 
    ```bash
-   # View completed jobs
-   sacct --format=JobID,JobName,Partition,State,Elapsed,AllocGRES,ExitCode
-
-   # View output of a specific job
-   cat /tmp/hello-*.txt
-   cat /tmp/gpu-*.txt
+   # View completed jobs. Use AllocTRES (AllocTRES was removed in modern Slurm);
+   # a GPU job shows gres/gpu=1 in the TRES column.
+   sacct --format=JobID,JobName,Partition,State,Elapsed,AllocTRES%30,ExitCode
    ```
+
+   > **Job output files are NOT on the login node.** `#SBATCH --output=/tmp/...`
+   > writes to the **compute** pod's local `/tmp`, and this chart deploys no
+   > shared filesystem (the `slurm-shared` RWX PVC in Task 2 is illustrative —
+   > it is never mounted into the pods, and it will not even bind on a stock AWS
+   > cluster whose only StorageClass is EBS/`ReadWriteOnce`). So `cat /tmp/*.txt`
+   > from the login pod finds nothing. To see output, either read it from the
+   > compute pod (`kubectl exec -n slurm slurm-worker-slinky-0 -c slurmd -- cat
+   > /tmp/gpu-*.txt`), or provision real ReadWriteMany storage (EFS CSI on AWS)
+   > and mount it into the login and nodeset pods via their `volumeMounts`.
 
 7. **Exit the Login Pod**
 
@@ -610,11 +639,11 @@ Slurm accounting tracks resource usage per user, account, and QOS (Quality of Se
    ```bash
    # Show recent job history
    sacct --starttime=now-1hour \
-     --format=JobID,JobName,User,Account,Partition,State,Elapsed,AllocGRES,MaxRSS
+     --format=JobID,JobName,User,Account,Partition,State,Elapsed,AllocTRES,MaxRSS
 
    # GPU usage report
    sacct --starttime=now-1hour \
-     --format=JobID,JobName,AllocGRES,Elapsed,State
+     --format=JobID,JobName,AllocTRES,Elapsed,State
 
    # Usage summary by account
    sreport cluster AccountUtilizationByUser start=now-1day
@@ -637,7 +666,7 @@ Slurm includes a built-in REST API component (`slurmrestd`) that provides progra
 
    ```bash
    kubectl get restapis -n slurm
-   kubectl get pods -n slurm -l slinky.slurm.net/set-type=restapi
+   kubectl get pods -n slurm -l app.kubernetes.io/instance=slurm-restapi
    ```
 
 2. **Port-Forward to the REST API**
@@ -650,24 +679,37 @@ Slurm includes a built-in REST API component (`slurmrestd`) that provides progra
    kubectl port-forward -n slurm svc/slurm-restapi 6820:6820 &
    ```
 
+   `slurmrestd` requires JWT authentication — every request needs an
+   `X-SLURM-USER-NAME` and `X-SLURM-USER-TOKEN` header, or it returns HTTP 401.
+   Mint a short-lived token with `scontrol token` inside the login pod:
+
+   ```bash
+   export SLURM_USER=root
+   export SLURM_JWT=$(kubectl exec -n slurm ${LOGIN_POD} -- scontrol token \
+     | sed 's/SLURM_JWT=//')
+   ```
+
 3. **Query Cluster Status via REST API**
 
    ```bash
+   # Reusable auth headers (see token step above)
+   AUTH=(-H "X-SLURM-USER-NAME: ${SLURM_USER}" -H "X-SLURM-USER-TOKEN: ${SLURM_JWT}")
+
    # Get cluster info (Slurm 25.11 ships data_parser v0.0.43 and v0.0.44;
    # v0.0.40 was removed after 25.05)
-   curl -s http://localhost:6820/slurm/v0.0.43/nodes | jq '.nodes[] | {name, state}'
+   curl -s "${AUTH[@]}" http://localhost:6820/slurm/v0.0.43/nodes | jq '.nodes[] | {name, state}'
 
    # Get partition info
-   curl -s http://localhost:6820/slurm/v0.0.43/partitions | jq '.partitions[] | {name, state}'
+   curl -s "${AUTH[@]}" http://localhost:6820/slurm/v0.0.43/partitions | jq '.partitions[] | {name, state}'
 
    # List jobs
-   curl -s http://localhost:6820/slurm/v0.0.43/jobs | jq '.jobs[] | {job_id, name, job_state}'
+   curl -s "${AUTH[@]}" http://localhost:6820/slurm/v0.0.43/jobs | jq '.jobs[] | {job_id, name, job_state}'
    ```
 
 4. **Submit a Job via REST API**
 
    ```bash
-   curl -s -X POST http://localhost:6820/slurm/v0.0.43/job/submit \
+   curl -s -X POST "${AUTH[@]}" http://localhost:6820/slurm/v0.0.43/job/submit \
      -H "Content-Type: application/json" \
      -d '{
        "job": {
@@ -713,7 +755,7 @@ The Slinky operator manages compute node scaling through the NodeSet CRD.
      -p '{"spec":{"replicas":4}}'
 
    # Watch new nodes come up
-   kubectl get pods -n slurm -l slinky.slurm.net/set-type=compute -w
+   kubectl get pods -n slurm -l app.kubernetes.io/name=slurmd -w
    ```
 
 3. **Verify Slurm Sees the New Nodes**
@@ -734,7 +776,7 @@ The Slinky operator manages compute node scaling through the NodeSet CRD.
      -p '{"spec":{"replicas":2}}'
 
    # The operator will drain jobs from removed nodes before termination
-   kubectl get pods -n slurm -l slinky.slurm.net/set-type=compute -w
+   kubectl get pods -n slurm -l app.kubernetes.io/name=slurmd -w
    ```
 
 ### Task 7: Compare with Kueue (15 min)
@@ -804,6 +846,15 @@ The k0rdent catalog includes the **Nebius Soperator** — an alternative Slurm o
      -n kcm-system
    ```
 
+   > Both `kgst` installs succeed and create ServiceTemplates. Verified live:
+   > `helm-soperator-1-22-1` reports `VALID=true`, but `helm-slurm-cluster-1-22-1`
+   > reports `VALID=false` until the Soperator CRDs it references are actually
+   > installed on the management cluster — expected, since the slurm-cluster chart
+   > templates `SlurmCluster` CRs. It becomes valid once the Soperator (from the
+   > first template, deployed to a child) has registered its CRDs. This section is
+   > an integration reference; you do not need to deploy the MultiClusterService
+   > below to complete the lab.
+
 3. **Deploy via MultiClusterService**
 
    ```yaml
@@ -819,7 +870,7 @@ The k0rdent catalog includes the **Nebius Soperator** — an alternative Slurm o
          workload-type: hpc
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
          - template: helm-soperator-1-22-1
@@ -879,12 +930,12 @@ kubectl logs -n slinky -l app.kubernetes.io/name=slurm-operator --tail=50
 **Check NodeSet status:**
 ```bash
 kubectl get nodesets -n slurm -o yaml
-kubectl get pods -n slurm -l slinky.slurm.net/set-type=compute
+kubectl get pods -n slurm -l app.kubernetes.io/name=slurmd
 ```
 
 **Check slurmd logs on a compute pod:**
 ```bash
-COMPUTE_POD=$(kubectl get pods -n slurm -l slinky.slurm.net/set-type=compute -o jsonpath='{.items[0].metadata.name}')
+COMPUTE_POD=$(kubectl get pods -n slurm -l app.kubernetes.io/name=slurmd -o jsonpath='{.items[0].metadata.name}')
 kubectl logs -n slurm ${COMPUTE_POD} --tail=50
 ```
 

@@ -72,7 +72,7 @@ Understand and validate prerequisites for NVIDIA Government Ready / FIPS-oriente
 
 ## k0rdent Context
 
-The k0rdent catalog includes the `gpu-operator-25-10-0` ServiceTemplate for deploying the NVIDIA GPU Operator. In Government Ready / FIPS-oriented environments, use that template only after you have the required NVIDIA AI Enterprise entitlement, access to NVIDIA-documented Government Ready artifacts, and a validated platform. The examples in this lab show how k0rdent can distribute those settings; they are not, by themselves, proof of compliance.
+The k0rdent catalog includes the `gpu-operator-25-3-0` ServiceTemplate for deploying the NVIDIA GPU Operator. In Government Ready / FIPS-oriented environments, use that template only after you have the required NVIDIA AI Enterprise entitlement, access to NVIDIA-documented Government Ready artifacts, and a validated platform. The examples in this lab show how k0rdent can distribute those settings; they are not, by themselves, proof of compliance.
 
 > **Key concept:** The GPU Operator itself does not have a "FIPS mode" toggle. Government Ready / FIPS-oriented deployments require a layered approach:
 >
@@ -275,7 +275,7 @@ Deploy the GPU Operator through k0rdent's ServiceTemplate after the platform and
          k0rdent.mirantis.com/workload-type: ai
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
@@ -319,7 +319,7 @@ Deploy the GPU Operator through k0rdent's ServiceTemplate after the platform and
          k0rdent.mirantis.com/compliance: fips
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |

@@ -310,16 +310,18 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
 
 > **💰 Cost warning:** Tasks 3-6 each provision a **real** CAPA workload cluster on AWS. Task 3 (`ml-dev`) runs a single g5.xlarge (~$1.00/h). Task 4 (`ml-training`) runs **2x p4d.24xlarge** at ~$32.77/h **each** — ~$65/h for the pair, rising to ~$131/h once Task 6 scales it to 4 workers (check your P-instance vCPU quota first). The p4d training cluster dominates the bill: a full Tasks 3-6 run is on the order of **$60-150 of EC2**, depending on how long the training cluster stays up. Spin every cluster down as soon as you finish a task via `kubectl delete clusterdeployment` or the sequence in Task 6.
 
-> **Prerequisite — install the `gpu-operator-25-10-0` ServiceTemplate first** (not shipped by default in a fresh k0rdent install; you must pull it from the catalog once, then it is reusable for all Tasks 3-6):
+> **Prerequisite — install the `gpu-operator-25-3-0` ServiceTemplate first** (not shipped by default in a fresh k0rdent install; you must pull it from the catalog once, then it is reusable for all Tasks 3-6):
 >
 > ```bash
 > helm upgrade --install gpu-operator-template \
 >   oci://ghcr.io/k0rdent/catalog/charts/kgst \
->   --set chart=gpu-operator:25.10.0 \
+>   --set chart=gpu-operator:25.3.0 \
 >   -n kcm-system --wait --timeout 5m
-> kubectl wait servicetemplate gpu-operator-25-10-0 -n kcm-system \
+> kubectl wait servicetemplate gpu-operator-25-3-0 -n kcm-system \
 >   --for=jsonpath='{.status.valid}'=true --timeout=120s
 > ```
+>
+> **Why 25.3.0 and not the latest 25.10.x?** On k0s ≥ 1.35 (containerd 1.7.30 — what `aws-standalone-cp-1-0-26` provisions), the 25.10 toolkit has a regression that breaks the child node's container runtime (see Troubleshooting item 3). 25.3.0 (driver 570.124) deploys cleanly on k0s with no host workaround, so this week pins it. If you deliberately use ≥ 25.10, budget for the documented runc workaround.
 >
 > Same pattern applies to `ingress-nginx-4-11-3` and `kyverno-3-2-6` referenced in Task 5 — install via `kgst` on first use, then reference from any subsequent ClusterDeployment `serviceSpec` or MCS.
 
@@ -364,7 +366,7 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
      # GPU Operator deployed automatically via serviceSpec
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
@@ -388,13 +390,13 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
    >   --query 'reverse(sort_by(Images,&CreationDate))[0].ImageId' --output text
    > ```
 
-   > **⚠️ Why the `gpu-operator:` nesting?** The catalog's `gpu-operator-25-10-0` ServiceTemplate is an **umbrella chart** that pulls the upstream NVIDIA `gpu-operator` chart as a subchart named `gpu-operator`. Helm passes values to a subchart only when they are nested under the subchart's name, so every value you want the GPU Operator to see must sit under a top-level `gpu-operator:` key. If you write `toolkit.env` at the top level (as you would for a direct `helm install` of the upstream chart), k0rdent applies it to the wrapper, which has no such value, and it is **silently dropped** — the toolkit then falls back to the default `/run/containerd` path and crash-loops with `containerd.sock: no such file or directory`. This nesting applies to **every** value you pass to this ServiceTemplate (here and in Tasks 4-5).
+   > **⚠️ Why the `gpu-operator:` nesting?** The catalog's `gpu-operator-25-3-0` ServiceTemplate is an **umbrella chart** that pulls the upstream NVIDIA `gpu-operator` chart as a subchart named `gpu-operator`. Helm passes values to a subchart only when they are nested under the subchart's name, so every value you want the GPU Operator to see must sit under a top-level `gpu-operator:` key. If you write `toolkit.env` at the top level (as you would for a direct `helm install` of the upstream chart), k0rdent applies it to the wrapper, which has no such value, and it is **silently dropped** — the toolkit then falls back to the default `/run/containerd` path and crash-loops with `containerd.sock: no such file or directory`. This nesting applies to **every** value you pass to this ServiceTemplate (here and in Tasks 4-5).
 
    > **Why `toolkit.env` at all?** k0s stores its containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, not the standard `/etc/containerd/` and `/run/containerd/containerd.sock`. The GPU Operator toolkit must be told these paths or it crashes. This is the same override used in [Lab 5.1](lab-5.1-gpu-cluster-setup.md) — but note Lab 5.1 installs the upstream chart directly with `helm --set toolkit.env[...]`, so there the keys are top-level; here they must be nested under `gpu-operator:`.
 
    > **Note:** `sshKeyName` is optional. If omitted, CAPA creates instances without SSH keys -- k0rdent manages nodes via CAPI. Include it only if you need direct SSH access to GPU worker nodes for debugging. If included, the key must exist in the target region (see [Lab 1.3, Part 6](../../week-1-foundations/labs/lab-1.3-configure-aws-provider.md)).
 
-   > **k0rdent context:** The `serviceSpec` section deploys services to the workload cluster after provisioning. The GPU Operator ServiceTemplate (`gpu-operator-25-10-0`) is installed from the [k0rdent catalog](https://catalog.k0rdent.io/). This follows the same pattern as deploying ingress-nginx or kyverno from [Lab 1.7](../../week-1-foundations/labs/lab-1.7-multicluster-services.md).
+   > **k0rdent context:** The `serviceSpec` section deploys services to the workload cluster after provisioning. The GPU Operator ServiceTemplate (`gpu-operator-25-3-0`) is installed from the [k0rdent catalog](https://catalog.k0rdent.io/). This follows the same pattern as deploying ingress-nginx or kyverno from [Lab 1.7](../../week-1-foundations/labs/lab-1.7-multicluster-services.md).
 
 3. **Apply the ClusterDeployment**
 
@@ -486,7 +488,7 @@ Deploy a multi-GPU cluster for distributed training workloads.
        sshKeyName: k0rdent-clusters
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
@@ -581,7 +583,7 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
        sshKeyName: k0rdent-clusters
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
@@ -627,7 +629,7 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
          k0rdent.mirantis.com/workload-type: ai
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
@@ -827,7 +829,7 @@ The shipped `aws-standalone-cp` template supports a single worker pool. For adva
          gpu-tier: h100
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
        priority: 100
@@ -934,6 +936,29 @@ After correcting the values, delete the stuck device-plugin/validator/dcgm/gfd p
 KUBECONFIG=<cluster>.kubeconfig kubectl delete pod -n gpu-operator \
   -l 'app in (nvidia-device-plugin-daemonset,nvidia-operator-validator,nvidia-dcgm-exporter,gpu-feature-discovery)'
 ```
+
+**3. KNOWN ISSUE — GPU Operator ≥ 25.10 only. Worker goes `NotReady` (`container runtime is down, PLEG is not healthy`) minutes after the GPU Operator installs, GPU pods stuck `Init` with `no runtime for "nvidia" is configured`, and the toolkit flaps every few minutes.** This week pins `gpu-operator-25-3-0` precisely to avoid this: 25.3.0's toolkit honours `CONTAINERD_CONFIG=/etc/k0s/containerd.d/nvidia.toml`, k0s merge-patches the drop-in cleanly, `runc` survives, and the cluster comes up with **no host edit**. The failure here is a **toolkit regression in gpu-operator ≥ 25.10** on **k0s ≥ 1.35** (containerd 1.7.30): even with the correct `toolkit.env` values above, its toolkit ignores that path and writes its runtimes (`nvidia`/`nvidia-cdi`/`nvidia-legacy`) into `/etc/containerd/conf.d/99-nvidia.toml`. k0s merges that drop-in **last** into `/run/k0s/containerd-cri.toml`, and its runtimes map **replaces** k0s's — so the merged config keeps `default_runtime_name = "runc"` but no longer defines a `runc` runtime, the CRI plugin fails to load entirely, and the node drops to `NotReady`. A reboot or `k0sworker` restart alone does **not** fix it; the merged config is wrong. If you must stay on ≥ 25.10 (e.g. an existing cluster), apply the workaround below; otherwise use `gpu-operator-25-3-0` and skip it.
+
+Fix: add a `runc` runtime back into the toolkit's drop-in, then restart `k0sworker`. Pods cannot schedule while CRI is down, so reach the host with **AWS SSM** (CAPA worker instances register with SSM out of the box — no SSH key needed):
+
+```bash
+# aws ssm start-session --target <worker-instance-id>   (region of the child cluster)
+sudo tee -a /etc/containerd/conf.d/99-nvidia.toml >/dev/null <<'EOF'
+
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+
+  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+    SystemdCgroup = false
+EOF
+sudo systemctl restart k0sworker
+
+# verify runc + nvidia both present and default is runc:
+sudo /var/lib/k0s/bin/containerd --config /etc/k0s/containerd.toml config dump \
+  | grep -E 'default_runtime_name|runtimes.runc|runtimes.nvidia'
+```
+
+The node returns to `Ready` and `nvidia.com/gpu` becomes allocatable ~2 minutes later. CDI is enabled in the toolkit drop-in, so workload pods do **not** need `runtimeClassName: nvidia`. Do **not** hand-edit `/etc/k0s/containerd.toml` or remove its `# k0s_managed=true` marker — that disables k0s's drop-in merge entirely.
 
 ### Service Deployment Failures
 

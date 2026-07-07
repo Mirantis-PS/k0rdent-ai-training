@@ -130,13 +130,18 @@ All lab files are in the [labs/](labs/) directory.
 |-----------|---------------|-------|
 | vLLM | Validated example pin: `v0.14.0` | Lab examples use a pinned image; verify newer upstream releases before production rollout |
 | KAI Scheduler | `oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler` (`v0.14.0`) | OCI Helm chart |
-| NVIDIA GPU Operator | Validated example pin: `v25.10.0` | Installed via Helm with k0s containerd env vars |
+| NVIDIA GPU Operator | Validated pin: `v25.3.0` | Live-validated 2026-07-07 on k0s v1.35 clusters. Do **not** bump to ≥25.10 without reading the known issue in Lab 5.1: the 25.10 toolkit ignores the k0s `CONTAINERD_CONFIG` path and its containerd config drops the `runc` runtime, taking the node NotReady. Lab 5.13 is the one exception (needs driver ≥575) and documents its own path. |
 | Kubeflow | Mixed component pins in Lab 5.9 | Pipelines, Training Operator, Katib, and Notebooks are installed separately |
 | MLflow | k0rdent template `mlflow-1-8-1` | Current catalog example is chart `1.8.1`, app version `3.7.0` |
+| NVIDIA Topograph | `0.5.0` | Classic Helm repo `https://NVIDIA.github.io/topograph` (chart is **not** served from the ghcr OCI path); Lab 5.18 |
 
 > **GPU Operator on k0s:** The GPU Operator must be installed via Helm with
 > k0s-specific containerd socket and runtime class environment variables.
-> See Lab 5.1 for the exact Helm values.
+> See Lab 5.1 for the exact Helm values. When deploying via k0rdent
+> serviceSpec/MultiClusterService instead, those values must additionally be
+> nested under a top-level `gpu-operator:` key (the catalog ServiceTemplate is
+> an umbrella chart), and the worker nodes must run Ubuntu 22.04 (`amiID`
+> pinned on both node pools) — see Lab 5.12.
 
 ---
 
