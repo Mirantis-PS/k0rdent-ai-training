@@ -747,8 +747,8 @@ Deployed once, used by all engineer environments.
 │  ├── Single subnet: 10.0.0.0/20 (4,094 IPs)                    │
 │  └── Internet Gateway + NAT (for private instances)             │
 │                                                                 │
-│  S3 Buckets (per-student, per-region):                           │
-│  └── k0rdent-lab-<id>-<account>-<region> # State/artifacts      │
+│  S3 Buckets (per-student):                                      │
+│  └── k0rdent-lab-<id>-<account>    # Per-student state/artifacts│
 │                                                                 │
 │  IAM:                                                           │
 │  ├── k0rdent-lab-provisioner       # For Terraform             │

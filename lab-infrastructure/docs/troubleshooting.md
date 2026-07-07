@@ -66,7 +66,7 @@ terraform force-unlock LOCK_ID
 
 **Solution:**
 ```bash
-# Check if your student bucket exists (bucket name: k0rdent-lab-<your-name>-<account-id>-<region>)
+# Check if your student bucket exists (bucket name: k0rdent-lab-<your-name>-<account-id>)
 aws s3 ls | grep k0rdent-lab-your-name
 
 # If missing, the provisioning script will create it automatically
@@ -333,7 +333,7 @@ aws ec2 describe-instances --filters "Name=tag:Project,Values=k0rdent-training"
 aws ec2 terminate-instances --instance-ids i-xxx
 
 # Delete orphaned S3 state bucket
-aws s3 rb s3://k0rdent-lab-your-name-<account-id>-<region> --force
+aws s3 rb s3://k0rdent-lab-your-name-<account-id> --force
 ```
 
 ## Getting Help

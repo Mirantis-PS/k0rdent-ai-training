@@ -16,9 +16,27 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+# Find AZs that support g5.12xlarge (GPU instances)
+data "aws_ec2_instance_type_offerings" "gpu" {
+  filter {
+    name   = "instance-type"
+    values = ["g5.12xlarge"]
+  }
+
+  filter {
+    name   = "location"
+    values = data.aws_availability_zones.available.names
+  }
+
+  location_type = "availability-zone"
+}
+
 locals {
-  azs              = slice(data.aws_availability_zones.available.names, 0, 3)
-  effective_gpu_az = var.gpu_az != "" ? var.gpu_az : local.azs[0]
+  azs             = slice(data.aws_availability_zones.available.names, 0, 3)
+  gpu_capable_azs = sort(tolist(data.aws_ec2_instance_type_offerings.gpu.locations))
+  # Pick the middle GPU-capable AZ as a heuristic — first and last AZs often lack capacity
+  gpu_az_index     = length(local.gpu_capable_azs) > 2 ? 1 : 0
+  effective_gpu_az = var.gpu_az != "" ? var.gpu_az : (length(local.gpu_capable_azs) > 0 ? local.gpu_capable_azs[local.gpu_az_index] : local.azs[0])
   name_prefix      = "${var.project_name}-${var.engineer_id}"
 
   common_tags = merge(var.tags, {

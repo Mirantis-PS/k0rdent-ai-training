@@ -94,6 +94,14 @@ resource "aws_instance" "controller" {
     worker_count     = var.worker_count
   }))
 
+  # Enforce IMDSv2. k0s pods here have no legitimate IMDS use (no CCM/CSI),
+  # so hop_limit 1 keeps the pod network away from instance credentials.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   tags = merge(local.common_tags, {
     Name       = "${var.project_name}-kubevirt-controller-${var.engineer_id}"
     Role       = "controller"
@@ -142,6 +150,13 @@ resource "aws_instance" "worker" {
     worker_index  = count.index
     region        = var.region
   }))
+
+  # Enforce IMDSv2. k0s worker pods have no legitimate IMDS use: hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   tags = merge(local.common_tags, {
     Name       = "${var.project_name}-kubevirt-worker-${var.engineer_id}-${count.index}"
@@ -193,6 +208,13 @@ resource "aws_spot_instance_request" "controller_spot" {
     worker_count     = var.worker_count
   }))
 
+  # Enforce IMDSv2 (same posture as the on-demand controller): hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   tags = merge(local.common_tags, {
     Name       = "${var.project_name}-kubevirt-controller-spot-${var.engineer_id}"
     Role       = "controller"
@@ -237,6 +259,13 @@ resource "aws_spot_instance_request" "worker_spot" {
     worker_index  = count.index
     region        = var.region
   }))
+
+  # Enforce IMDSv2 (same posture as the on-demand workers): hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   tags = merge(local.common_tags, {
     Name       = "${var.project_name}-kubevirt-worker-spot-${var.engineer_id}-${count.index}"

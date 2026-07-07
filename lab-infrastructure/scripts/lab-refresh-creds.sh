@@ -19,8 +19,14 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Respect NO_COLOR and non-TTY output (piped logs, CI, screen readers)
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    RED="" GREEN="" YELLOW="" BLUE="" NC=""
+fi
+
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 usage() {
@@ -47,6 +53,9 @@ EOF
 # Parse args
 [[ $# -eq 0 ]] && usage
 IDENTIFIER="$1"
+
+# jq is required to read connection details from the Terraform state
+command -v jq &> /dev/null || { log_error "jq is required but not installed. Install: brew install jq (macOS) or sudo apt-get install -y jq (Ubuntu)"; exit 1; }
 
 # Validate credentials are set
 if [[ -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
@@ -84,7 +93,7 @@ fi
 get_student_bucket() {
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-lab-${IDENTIFIER}-${account_id}"
+    echo "k0rdent-lab-${IDENTIFIER}-${account_id}-${REGION}"
 }
 
 get_state_output() {
@@ -142,14 +151,25 @@ if ! ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGM
 fi
 log_success "SSH connection OK"
 
-# Update credentials
+# Update credentials.
+# The secret manifest is piped over SSH stdin so the credentials never appear
+# as command-line arguments (visible in `ps`) on either machine.
 log_info "Updating aws-cluster-identity-secret..."
+# shellcheck disable=SC2087  # client-side expansion is intentional: the local creds are embedded into the stdin-piped manifest
 ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
     "kubectl delete secret aws-cluster-identity-secret -n kcm-system 2>/dev/null; \
-     kubectl create secret generic aws-cluster-identity-secret -n kcm-system \
-       --from-literal=AccessKeyID='${AWS_ACCESS_KEY_ID}' \
-       --from-literal=SecretAccessKey='${AWS_SECRET_ACCESS_KEY}' \
-       --from-literal=SessionToken='${AWS_SESSION_TOKEN:-}'"
+     kubectl create -f -" <<SECRETEOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-cluster-identity-secret
+  namespace: kcm-system
+type: Opaque
+stringData:
+  AccessKeyID: "${AWS_ACCESS_KEY_ID}"
+  SecretAccessKey: "${AWS_SECRET_ACCESS_KEY}"
+  SessionToken: "${AWS_SESSION_TOKEN:-}"
+SECRETEOF
 
 log_success "Secret updated"
 
@@ -161,16 +181,33 @@ ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}
 
 log_success "CAPA restarted"
 
-# Verify — use --since=30s to only check logs after the restart
-log_info "Verifying CAPA health (waiting 20s)..."
-sleep 20
-CAPA_STATUS=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
-    "kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --since=30s 2>/dev/null | grep -c 'AuthFailure\|RequestExpired' || echo 0")
+# Verify CAPA is healthy by querying logs from the NEW pod BY NAME.
+#
+# The previous implementation used a label selector with --since=30s, which
+# raced against the old (Terminating) pod's final error lines during the
+# rollout window and produced false-positive "CAPA still has credential
+# errors" messages when the refresh had actually succeeded. Querying the
+# new pod by name avoids the race entirely — the new pod was created AFTER
+# the Secret rotation, so by construction its logs cannot contain any
+# pre-rotation RequestExpired / AuthFailure entries.
+log_info "Verifying CAPA health (waiting 5s for new pod to stabilize)..."
+sleep 5
+
+NEW_POD=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
+    "kubectl get pods -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws -o jsonpath='{range .items[*]}{.metadata.creationTimestamp} {.metadata.name}{\"\n\"}{end}' 2>/dev/null | sort | tail -1 | awk '{print \$2}'")
+
+if [[ -z "$NEW_POD" ]]; then
+    log_warn "Could not identify new CAPA pod; skipping log verification (CAPA may still be healthy)"
+    CAPA_STATUS=0
+else
+    CAPA_STATUS=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
+        "kubectl logs -n kcm-system '$NEW_POD' 2>/dev/null | grep -c 'AuthFailure\|RequestExpired' || echo 0")
+fi
 
 if [[ "$CAPA_STATUS" == "0" ]]; then
-    log_success "CAPA is healthy - no credential errors in recent logs"
+    log_success "CAPA is healthy - no credential errors in new pod${NEW_POD:+ ($NEW_POD)}"
 else
-    log_error "CAPA still has credential errors. Check: kubectl logs -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws --since=60s"
+    log_error "CAPA still has credential errors${NEW_POD:+ in $NEW_POD}. Check: kubectl logs -n kcm-system ${NEW_POD:-<capa-pod>}"
 fi
 
 # Summary

@@ -15,6 +15,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Respect NO_COLOR and non-TTY output (piped logs, CI, screen readers)
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    RED="" GREEN="" YELLOW="" BLUE="" NC=""
+fi
+
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -48,7 +53,7 @@ get_student_bucket() {
     local engineer_id="$1"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-lab-${engineer_id}-${account_id}"
+    echo "k0rdent-lab-${engineer_id}-${account_id}-${REGION}"
 }
 
 confirm_destroy() {
@@ -76,27 +81,39 @@ get_state_output() {
         | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
 }
 
-# Clean up CCM-provisioned LoadBalancers before destroying infrastructure.
-# The AWS CCM creates ELBs at runtime (not managed by Terraform). If we
-# destroy the EC2 instance first, the CCM pod dies and the ELB is orphaned.
-# The fix: SSH in and delete the Gateway/Services so CCM cleans up the ELB.
-cleanup_load_balancers() {
+# Loud warning + explicit confirmation when pre-destroy cleanup cannot be
+# performed or confirmed. Resources created OUTSIDE Terraform (managed-cluster
+# VPCs from CAPA, CCM-created load balancers) would be orphaned and keep
+# billing -- never skip silently.
+confirm_orphan_risk() {
+    local reason="$1"
+
+    echo ""
+    echo -e "${RED}============================================================${NC}"
+    echo -e "${RED}WARNING: ${reason}.${NC}"
+    echo -e "${RED}${NC}"
+    echo -e "${RED}Managed clusters (ClusterDeployments) live in SEPARATE VPCs${NC}"
+    echo -e "${RED}that Terraform does NOT manage. If any still exist, their${NC}"
+    echo -e "${RED}EC2 instances, NAT gateways, and load balancers will be${NC}"
+    echo -e "${RED}ORPHANED by this destroy and KEEP BILLING until you delete${NC}"
+    echo -e "${RED}them manually in the AWS console.${NC}"
+    echo -e "${RED}============================================================${NC}"
+    echo ""
+
+    local reply=""
+    read -r -p "Proceed with destroy anyway? (y/N): " reply || reply=""
+    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
+        log_warn "Destruction cancelled. Fix the issue above and re-run."
+        exit 1
+    fi
+    log_warn "Proceeding at your own risk -- check the AWS console for orphans afterwards"
+}
+
+# Ensure the SSH keys for the management node exist locally, retrieving them
+# from the Terraform state if needed. Returns 1 if they cannot be obtained.
+ensure_ssh_keys() {
     local engineer_id="$1"
     local bucket="$2"
-
-    log_info "Cleaning up CCM-provisioned LoadBalancers..."
-
-    # Get connection details from Terraform state
-    local bastion_ip mgmt_ip
-    bastion_ip=$(get_state_output "$bucket" "bastion_public_ip")
-    mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
-
-    if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
-        log_warn "Could not get IPs from state. Skipping LB cleanup."
-        return 0
-    fi
-
-    # Get SSH keys
     local mgmt_key="$CONFIG_DIR/keys/${engineer_id}-k0rdent.pem"
     local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
 
@@ -118,8 +135,89 @@ cleanup_load_balancers() {
         fi
     fi
 
-    if [[ ! -f "$mgmt_key" || ! -f "$bastion_key" ]]; then
-        log_warn "SSH keys not available. Skipping LB cleanup."
+    [[ -f "$mgmt_key" && -f "$bastion_key" ]]
+}
+
+# Delete managed clusters (ClusterDeployments) BEFORE destroying the
+# management cluster. CAPA provisions each managed cluster into its own VPC
+# that Terraform knows nothing about -- if the management node dies first,
+# those VPCs (EC2, NAT, ELB, EBS) are orphaned and keep billing.
+cleanup_managed_clusters() {
+    local engineer_id="$1"
+    local bucket="$2"
+
+    log_info "Deleting managed clusters (MultiClusterServices + ClusterDeployments)..."
+
+    local bastion_ip mgmt_ip
+    bastion_ip=$(get_state_output "$bucket" "bastion_public_ip")
+    mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
+
+    if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
+        confirm_orphan_risk "Could not get bastion/management IPs from state -- managed clusters cannot be cleaned up"
+        return 0
+    fi
+
+    if ! ensure_ssh_keys "$engineer_id" "$bucket"; then
+        confirm_orphan_risk "SSH keys not available -- managed clusters cannot be cleaned up"
+        return 0
+    fi
+
+    local mgmt_key="$CONFIG_DIR/keys/${engineer_id}-k0rdent.pem"
+    local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10"
+    local proxy_cmd="ssh ${ssh_opts} -i ${bastion_key} -W %h:%p ec2-user@${bastion_ip}"
+
+    log_info "This can take up to 15 minutes per managed cluster..."
+    if ssh ${ssh_opts} -i "$mgmt_key" -o "ProxyCommand=${proxy_cmd}" ubuntu@"${mgmt_ip}" \
+        'export KUBECONFIG=/home/ubuntu/.kube/config
+         # MultiClusterServices first so KSM stops reconciling services
+         if kubectl api-resources --api-group=k0rdent.mirantis.com 2>/dev/null | grep -q multiclusterservice; then
+             kubectl delete multiclusterservice --all --timeout=120s 2>/dev/null || true
+         fi
+         # No ClusterDeployment CRD => nothing to clean up
+         if ! kubectl api-resources --api-group=k0rdent.mirantis.com 2>/dev/null | grep -q clusterdeployment; then
+             echo "No ClusterDeployment CRD found -- nothing to clean up"
+             exit 0
+         fi
+         kubectl delete clusterdeployment --all -n kcm-system --wait=true --timeout=15m || true
+         REMAINING=$(kubectl get clusterdeployment -n kcm-system --no-headers 2>/dev/null | wc -l)
+         if [ "$REMAINING" -ne 0 ]; then
+             echo "ERROR: $REMAINING ClusterDeployment(s) still present"
+             exit 1
+         fi
+         echo "All ClusterDeployments deleted"'; then
+        log_success "Managed cluster cleanup complete"
+    else
+        confirm_orphan_risk "Could not confirm deletion of all ClusterDeployments (SSH failed or deletion timed out)"
+    fi
+}
+
+# Clean up CCM-provisioned LoadBalancers before destroying infrastructure.
+# The AWS CCM creates ELBs at runtime (not managed by Terraform). If we
+# destroy the EC2 instance first, the CCM pod dies and the ELB is orphaned.
+# The fix: SSH in and delete the Gateway/Services so CCM cleans up the ELB.
+cleanup_load_balancers() {
+    local engineer_id="$1"
+    local bucket="$2"
+
+    log_info "Cleaning up CCM-provisioned LoadBalancers..."
+
+    # Get connection details from Terraform state
+    local bastion_ip mgmt_ip
+    bastion_ip=$(get_state_output "$bucket" "bastion_public_ip")
+    mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
+
+    if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
+        confirm_orphan_risk "Could not get IPs from state -- CCM LoadBalancers cannot be cleaned up"
+        return 0
+    fi
+
+    # Get SSH keys
+    local mgmt_key="$CONFIG_DIR/keys/${engineer_id}-k0rdent.pem"
+    local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
+
+    if ! ensure_ssh_keys "$engineer_id" "$bucket"; then
+        confirm_orphan_risk "SSH keys not available -- CCM LoadBalancers cannot be cleaned up"
         return 0
     fi
 
@@ -143,9 +241,100 @@ cleanup_load_balancers() {
              fi
              echo -n "."
              sleep 5
-         done' 2>/dev/null || log_warn "Could not SSH to clean up LBs (instance may already be down)"
+         done' 2>/dev/null \
+        || confirm_orphan_risk "Could not SSH to clean up CCM LoadBalancers (instance may already be down)"
 
     log_success "LoadBalancer cleanup complete"
+}
+
+# Sweep for orphan AWS resources that K8s didn't clean up (e.g. Classic ELBs
+# from broken hosted-CP service.type=LoadBalancer, their auto-created
+# k8s-elb-* security groups). Filtered strictly to the lab VPC.
+cleanup_orphan_aws_resources() {
+    local bucket="$1"
+
+    local vpc_id
+    vpc_id=$(get_state_output "$bucket" "vpc_id")
+    if [[ -z "$vpc_id" ]]; then
+        log_warn "No vpc_id in state. Skipping orphan AWS resource sweep."
+        return 0
+    fi
+
+    log_info "Scanning $vpc_id for orphan Classic ELBs and k8s-elb security groups..."
+
+    # Classic ELBs (ELBv1) — k0smotron's hosted-CP creates these via
+    # service.type=LoadBalancer, and they orphan if the CP crashes before
+    # the Service is reconciled-deleted.
+    local orphan_lbs
+    orphan_lbs=$(aws elb describe-load-balancers --region "$REGION" \
+        --query "LoadBalancerDescriptions[?VPCId=='${vpc_id}'].LoadBalancerName" \
+        --output text 2>/dev/null || true)
+
+    local found_any=0
+    if [[ -n "$orphan_lbs" && "$orphan_lbs" != "None" ]]; then
+        found_any=1
+        for lb in $orphan_lbs; do
+            log_info "  Deleting orphan Classic ELB: $lb"
+            aws elb delete-load-balancer --region "$REGION" --load-balancer-name "$lb" 2>&1 || true
+        done
+        # Brief wait for ENIs to release before subnet delete
+        sleep 15
+    fi
+
+    # k8s-elb-* SGs left behind by deleted ELBs (AWS creates them automatically;
+    # their orphan status blocks subnet deletion via DependencyViolation).
+    local orphan_sgs
+    orphan_sgs=$(aws ec2 describe-security-groups --region "$REGION" \
+        --filters "Name=vpc-id,Values=${vpc_id}" "Name=group-name,Values=k8s-elb-*" \
+        --query 'SecurityGroups[].GroupId' --output text 2>/dev/null || true)
+
+    if [[ -n "$orphan_sgs" && "$orphan_sgs" != "None" ]]; then
+        found_any=1
+        for sg in $orphan_sgs; do
+            log_info "  Deleting orphan k8s-elb SG: $sg"
+            aws ec2 delete-security-group --region "$REGION" --group-id "$sg" 2>&1 || true
+        done
+    fi
+
+    if [[ $found_any -eq 0 ]]; then
+        log_info "  (no orphans found)"
+    fi
+}
+
+# Delete a versioned S3 bucket. `aws s3 rb --force` does NOT handle object
+# versions or delete markers; on a versioned bucket it leaves the bucket
+# behind silently. This function explicitly clears versions + delete markers
+# before removing the bucket itself.
+delete_versioned_bucket() {
+    local bucket="$1"
+
+    log_info "Deleting student bucket: $bucket"
+
+    # Remove current-version objects (best-effort)
+    aws s3 rm "s3://${bucket}" --recursive --quiet 2>&1 || true
+
+    # Versions + delete markers (no-op for non-versioned buckets)
+    local versions_json count
+    versions_json=$(aws s3api list-object-versions --bucket "$bucket" --output json 2>/dev/null || echo "{}")
+    count=$(echo "$versions_json" | jq '((.Versions // []) + (.DeleteMarkers // [])) | length' 2>/dev/null || echo 0)
+
+    if [[ "$count" -gt 0 ]]; then
+        log_info "  Removing $count object versions / delete markers..."
+        local payload="/tmp/lab-destroy-bucket-$$-versions.json"
+        echo "$versions_json" \
+            | jq '{Objects: ((.Versions // []) + (.DeleteMarkers // [])) | map({Key: .Key, VersionId: .VersionId})}' \
+            > "$payload"
+        # Note: delete-objects has a 1000-item limit; lab buckets stay well
+        # below that. If a bucket exceeds 1000 versions, paginate here.
+        aws s3api delete-objects --bucket "$bucket" --delete "file://${payload}" >/dev/null 2>&1 || true
+        rm -f "$payload"
+    fi
+
+    if aws s3 rb "s3://${bucket}" 2>&1; then
+        log_success "Bucket deleted"
+    else
+        log_warn "Bucket still has dependencies — may need manual cleanup"
+    fi
 }
 
 destroy_lab() {
@@ -159,18 +348,48 @@ destroy_lab() {
     cd "$env_dir"
 
     log_info "Initializing Terraform..."
-    terraform init -reconfigure \
+    if ! terraform init -reconfigure \
         -backend-config="bucket=${bucket}" \
         -backend-config="key=terraform.tfstate" \
-        -backend-config="region=${REGION}" &>/dev/null || true
+        -backend-config="region=${REGION}" > /dev/null; then
+        log_error "terraform init FAILED -- nothing was destroyed; resources may still be billing."
+        log_error "Check the error above (wrong --region? bucket ${bucket} unreachable? expired AWS credentials?) and re-run."
+        exit 1
+    fi
 
-    if ! terraform state list &>/dev/null 2>&1; then
-        log_warn "No state found for $engineer_id."
+    local state_list
+    state_list=$(terraform state list 2>/dev/null || true)
+    if [[ -z "$state_list" ]]; then
+        log_warn "Terraform state for $engineer_id is empty -- nothing for Terraform to destroy."
+        # Sanity check: state and reality can disagree (wrong region/bucket).
+        # Look for live lab instances tagged for this student anyway.
+        # NOTE: filter on Owner+Project -- modules override the provider's
+        # Environment=student-lab default tag with Environment=lab at the
+        # resource level, so Environment is NOT a reliable filter.
+        local stray_instances
+        stray_instances=$(aws ec2 describe-instances --region "$REGION" \
+            --filters "Name=tag:Owner,Values=${engineer_id}" \
+                      "Name=tag:Project,Values=k0rdent-training" \
+                      "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query 'Reservations[].Instances[].InstanceId' --output text 2>/dev/null || true)
+        if [[ -n "$stray_instances" ]]; then
+            log_error "BUT live EC2 instances tagged Owner=${engineer_id} exist in ${REGION}: ${stray_instances}"
+            log_error "State and reality disagree (wrong --region or bucket?). These resources are STILL BILLING."
+            log_error "Re-run with the region/identifier used at provision time, or delete them in the AWS console."
+            exit 1
+        fi
+        log_info "AWS sanity check: no live lab instances found for ${engineer_id} in ${REGION}."
         return 0
     fi
 
-    # Clean up CCM-provisioned LoadBalancers BEFORE destroying infrastructure
+    # Delete managed clusters FIRST (they live in separate, Terraform-unknown
+    # VPCs), then CCM-provisioned LoadBalancers, then sweep any orphan AWS
+    # resources (Classic ELBs / k8s-elb SGs) that broken hosted-CP services
+    # leave behind and that would otherwise block VPC teardown, then the
+    # infrastructure.
+    cleanup_managed_clusters "$engineer_id" "$bucket"
     cleanup_load_balancers "$engineer_id" "$bucket"
+    cleanup_orphan_aws_resources "$bucket"
 
     local destroy_args=""
     [[ "$AUTO_APPROVE" == "true" ]] && destroy_args="-auto-approve"
@@ -185,10 +404,9 @@ destroy_lab() {
     rm -f "$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
     rm -f "$CONFIG_DIR/kubeconfig/${engineer_id}.kubeconfig"
 
-    # Optionally delete the S3 bucket
+    # Optionally delete the S3 bucket (handles versioned buckets + delete markers)
     if [[ "$DELETE_BUCKET" == "true" ]]; then
-        log_info "Deleting student bucket: $bucket"
-        aws s3 rb "s3://${bucket}" --force 2>/dev/null || true
+        delete_versioned_bucket "$bucket"
     fi
 
     log_success "All resources for $engineer_id destroyed!"
@@ -260,6 +478,9 @@ if [[ -z "$REGION" ]]; then
     exit 1
 fi
 log_info "Using AWS region: $REGION"
+
+# jq is required to read connection details from the Terraform state
+command -v jq &> /dev/null || { log_error "jq is required but not installed. Install: brew install jq (macOS) or sudo apt-get install -y jq (Ubuntu)"; exit 1; }
 
 # Execute
 destroy_lab "$IDENTIFIER"

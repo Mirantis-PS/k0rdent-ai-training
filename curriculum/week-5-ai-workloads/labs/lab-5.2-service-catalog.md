@@ -107,7 +107,7 @@ The k0rdent service catalog is **external to the k0rdent deployment** — it is 
 
 | Category | ServiceTemplate | Purpose |
 |----------|----------------|---------|
-| GPU Infrastructure | `gpu-operator-25-10-0` | NVIDIA GPU lifecycle management |
+| GPU Infrastructure | `gpu-operator-25-3-0` | NVIDIA GPU lifecycle management |
 | Model Serving | `kserve-v0-15-0`, `kserve-crd-v0-15-0` | Serverless inference |
 | Distributed Compute | `kuberay-operator-1-5-1` | Ray operator (manages RayCluster CRDs) |
 | Multi-host Inference | `lws-0-7-0` | LeaderWorkerSet for vLLM multi-node |
@@ -140,7 +140,7 @@ The k0rdent service catalog is **external to the k0rdent deployment** — it is 
    kubectl get servicetemplates -n kcm-system
 
    # View details of a specific template
-   kubectl get servicetemplate gpu-operator-25-10-0 -n kcm-system -o yaml
+   kubectl get servicetemplate gpu-operator-25-3-0 -n kcm-system -o yaml
    ```
 
 3. **Understand the ServiceTemplate Structure**
@@ -195,7 +195,7 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    # Install NVIDIA GPU Operator (no `v` prefix on this chart's tag)
    helm upgrade --install gpu-operator \
      oci://ghcr.io/k0rdent/catalog/charts/kgst \
-     --set "chart=gpu-operator:25.10.0" \
+     --set "chart=gpu-operator:25.3.0" \
      -n kcm-system
 
    # Install KServe CRDs (required before KServe itself)
@@ -223,7 +223,7 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
      -n kcm-system
    ```
 
-   > **Why the mix of `v` and no-`v` version tags?** The `kgst` meta-chart passes the version string straight through to the OCI registry, and each catalog chart mirrors the upstream project's release convention. KServe tags releases `v0.15.0`; NVIDIA GPU Operator, MLflow, and KubeRay tag them `25.10.0`, `1.8.1`, `1.5.1`. Using the wrong prefix (e.g. `gpu-operator:v25.10.0`) causes the kgst pre-install `verify-job` to fail with `not found` because the OCI tag does not exist.
+   > **Why the mix of `v` and no-`v` version tags?** The `kgst` meta-chart passes the version string straight through to the OCI registry, and each catalog chart mirrors the upstream project's release convention. KServe tags releases `v0.15.0`; NVIDIA GPU Operator, MLflow, and KubeRay tag them `25.3.0`, `1.8.1`, `1.5.1`. Using the wrong prefix (e.g. `gpu-operator:v25.3.0`) causes the kgst pre-install `verify-job` to fail with `not found` because the OCI tag does not exist.
 
 2. **Verify the ServiceTemplates Were Created**
    ```bash
@@ -231,7 +231,7 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
 
    # Expected output includes:
    # cert-manager-1-17-2
-   # gpu-operator-25-10-0
+   # gpu-operator-25-3-0
    # kserve-crd-v0-15-0
    # kserve-v0-15-0
    # mlflow-1-8-1
@@ -309,7 +309,7 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
        priority: 100
    ```
 
-   > **Why isn't `gpu-operator-25-10-0` in this MCS?** Lab 5.1's Pre-Lab Step 4 already installed GPU Operator directly on `gpu-cluster` via `helm install`, and it depends on k0s-specific `toolkit.env` values (`CONTAINERD_CONFIG=/etc/k0s/containerd.d/nvidia.toml`, `CONTAINERD_SOCKET=/run/k0s/containerd.sock`, `CONTAINERD_RUNTIME_CLASS=nvidia`). Adding `gpu-operator-25-10-0` to this MCS would cause Sveltos to adopt the existing Helm release and upgrade it using the ServiceTemplate's default chart values — which do **not** contain the k0s-specific overrides — silently re-registering the `nvidia` runtime class incorrectly and leaving the NVIDIA container toolkit daemonset flapping with `FailedCreatePodSandBox: no runtime for "nvidia" is configured`. The ServiceTemplate is still installed in Task 2 so Lab 5.6 and Lab 5.11 can reference it, but the actual deployment on `gpu-cluster` stays with the manual install from Lab 5.1. When you need to deploy GPU Operator via MCS on a new cluster, pass the k0s values explicitly in the `values: |` field (the pattern demonstrated for MLflow in Task 4).
+   > **Why isn't `gpu-operator-25-3-0` in this MCS?** Lab 5.1's Pre-Lab Step 4 already installed GPU Operator directly on `gpu-cluster` via `helm install`, and it depends on k0s-specific `toolkit.env` values (`CONTAINERD_CONFIG=/etc/k0s/containerd.d/nvidia.toml`, `CONTAINERD_SOCKET=/run/k0s/containerd.sock`, `CONTAINERD_RUNTIME_CLASS=nvidia`). Adding `gpu-operator-25-3-0` to this MCS would cause Sveltos to adopt the existing Helm release and upgrade it using the ServiceTemplate's default chart values — which do **not** contain the k0s-specific overrides — silently re-registering the `nvidia` runtime class incorrectly and leaving the NVIDIA container toolkit daemonset flapping with `FailedCreatePodSandBox: no runtime for "nvidia" is configured`. The ServiceTemplate is still installed in Task 2 so Lab 5.6 and Lab 5.11 can reference it, but the actual deployment on `gpu-cluster` stays with the manual install from Lab 5.1. When you need to deploy GPU Operator via MCS on a new cluster, pass the k0s values explicitly in the `values: |` field (the pattern demonstrated for MLflow in Task 4).
 
    ```bash
    kubectl apply -f ml-platform-mcs.yaml
@@ -523,7 +523,7 @@ For deploying services to a **specific cluster** (rather than all clusters match
        "serviceSpec": {
          "services": [
            {
-             "template": "gpu-operator-25-10-0",
+             "template": "gpu-operator-25-3-0",
              "name": "gpu-operator",
              "namespace": "gpu-operator"
            },

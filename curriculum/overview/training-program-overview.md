@@ -6,17 +6,19 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 
 > **Scope:** This training covers **k0rdent Enterprise** exclusively (Mirantis commercial distribution). Open-source k0rdent documentation (`docs.k0rdent.io`) may differ in features and CRD versions. **k0rdent AI** is introduced in Week 5.
 
+> **Reference:** See [`mirantis-k0rdent-enterprise-reference.md`](../mirantis-k0rdent-enterprise-reference.md) for the canonical fact sheet (CRDs, KCM/KSM/KOF components, version pins, voice patterns) used throughout this curriculum.
+
 ## Program Structure
 
 | Attribute | Value |
 |-----------|-------|
 | **Target Audience** | Engineers proficient in Kubernetes |
 | **Format** | Self-paced online with cloud-based labs |
-| **Duration** | 6 weeks (~15-25 hours/week, ~96+ total hours) |
+| **Duration** | 6 weeks (~15-25 scheduled hours/week; ~83-91 hours across the currently available weeks, ~98-106 once Week 4 ships — see each week's README for active vs scheduled breakdown) |
 | **Lab Ratio** | 70% hands-on / 30% theory |
 | **Cohort Size** | 5-15 engineers |
 | **Primary Outcome** | Implement k0rdent for customer deployments |
-| **Lab Environment** | On-demand cloud instances (central budget) |
+| **Lab Environment** | Self-provisioned AWS instances (student's own account, via this repo's Terraform) |
 
 ## Products Covered
 
@@ -24,9 +26,11 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 |---------|---------|-------------|
 | **BMaaS** | 2 | Bare Metal Hardware Rental/Utilization |
 | **VMaaS** | 3 | Virtual Machine Provisioning |
-| **KaaS** | 4 | Bare Metal & Instance-based Kubernetes Clusters |
+| **KaaS** | 4 *(in development)* | Bare Metal & Instance-based Kubernetes Clusters |
 | **MaaS** | 5 | Models as a Service (Endpoints, API Keys, Per-token pricing) |
 | **AI Tools** | 5-6 | Vector DBs, Notebooks, Gateways, Routers |
+
+> **Note:** Week 4 (Kubernetes as a Service) is under development — Labs 4.1 (hosted control plane), 4.4 (Cilium + Multus), 4.9, and 4.10 are committed with a lab-index README; the full schedule is pending. Week 1 Labs 1.5 and 1.8 already cover much of the CAPI cluster lifecycle; Week 5 has no hard Week 4 dependency (Lab 4.4 pairs naturally with Lab 5.18 but is not required).
 
 ## Target Audience
 
@@ -38,18 +42,19 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 
 ## Software Versions
 
-This curriculum is validated against the following component versions:
+This curriculum is validated against the following component versions. Each week's README carries the authoritative version table for its labs — if a pin here disagrees with a week's table, the week's table wins.
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| k0s | v1.32.4+k0s.0 | Kubernetes 1.32 |
+| k0rdent Enterprise | 1.3.1 | Installed in Lab 1.1; upgraded to 1.3.2 in Lab 1.8 |
+| k0s | v1.35.4+k0s.0 | Kubernetes 1.35 |
 | KubeVirt | v1.6.3 | Aligns with K8s 1.32 |
-| NVIDIA GPU Operator | v25.10.0 | Calendar versioning (YY.MM.PP) |
-| Cluster API | v1.11 | API v1beta2 |
+| NVIDIA GPU Operator | v25.3.0 | Week-5 validated pin — ≥25.10 has a container-toolkit regression on k0s (see Lab 5.1 known issue) |
+| Cluster API (clusterctl) | v1.12.4 | Auto-installed in Lab 1.1 |
 | Metal3 CAPM3 | v1.8.0 | CNCF Incubating (Aug 2025) |
 | Metal3 BMO | v0.8.0 | Baremetal Operator |
 | Cilium | v1.18.4 | CNI |
-| vLLM | v0.11.2 | LLM inference |
+| vLLM | v0.14.0 | Validated example pin (Week 5) |
 | Terraform | >= 1.8.0 | IaC |
 
 ## Learning Path
@@ -70,14 +75,16 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 ## Weekly Schedule
 
-| Week | Topic | Duration | Focus Areas |
-|------|-------|----------|-------------|
-| 1 | Foundations | 24.5h | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services |
-| 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration |
-| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV |
-| 4 | KaaS | 15h | Cluster API, GPU Operator, hosted control planes |
-| 5 | AI Workloads | 21h | GPU schedulers, model serving, service catalog, ML platforms |
-| 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project |
+| Week | Topic | Duration | Focus Areas | README |
+|------|-------|----------|-------------|--------|
+| 1 | Foundations | ~15-17h active + 5.5h theory (~23-25h scheduled incl. waits) | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services | [week-1-foundations](../week-1-foundations/README.md) |
+| 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration | [week-2-bmaas](../week-2-bmaas/README.md) |
+| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV | [week-3-vmaas](../week-3-vmaas/README.md) |
+| 4 | KaaS *(in development)* | ~15h (planned) | Cluster API, GPU Operator, hosted control planes (k0smotron), CNI/CSI for AI, autoscaling, day-2 ops | (no README yet) |
+| 5 | AI Workloads | ~15-21h guided path (~50h if all elective tracks are attempted) | GPU schedulers, model serving, service catalog, ML platforms | [week-5-ai-workloads](../week-5-ai-workloads/README.md) |
+| 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project | (no README yet) |
+
+> Week 4 is under development — four labs exist (4.1, 4.4, 4.9, 4.10) with a lab-index README; schedule pending (see note above). Scheduled totals: ~83-91 hours across the available weeks; ~98-106 once Week 4 ships.
 
 ## Week 1 Learning Objectives
 
@@ -109,9 +116,9 @@ Upon completion, engineers will be able to:
 ### Weekly Assessments
 
 Each week includes:
-- **Quiz:** 15-20 multiple choice/short answer questions
-- **Duration:** 30 minutes
-- **Passing Score:** 80%
+- **Quiz:** 15-20 multiple choice/short answer questions (self-assessment; answer key included)
+- **Duration:** 30-60 minutes (see each week's quiz header)
+- **Target Score:** 80%
 - **Retakes:** Unlimited
 
 ### Progress Tracking
@@ -127,16 +134,18 @@ Each week includes:
 
 ### Completion Requirements
 
-- All weekly quizzes passed (80%+)
+Quizzes ship with answer keys and are self-scored (see each week's quiz for its target).
+
+- All weekly self-assessment quizzes at 80%+
 - All labs completed with deliverables
 - Capstone project passed (80%+)
-- **Minimum 85% overall score for certification**
+- **Suggested completion bar: 85% overall (self-tracked)**
 
 ## Getting Started
 
 1. Review [Prerequisites](prerequisites.md)
-2. Start [Lab 1.1: Provision k0rdent](../week-1-foundations/labs/lab-1.1-provision-k0rdent.md)
-3. Continue [Week 1: Foundations](../week-1-foundations/README.md)
+2. Follow the [Week 1: Foundations](../week-1-foundations/README.md) day-by-day schedule
+3. Your first hands-on stop is [Lab 1.1: Provision k0rdent](../week-1-foundations/labs/lab-1.1-provision-k0rdent.md) (Day 1, after Theory 1.1)
 
 ## Resources
 

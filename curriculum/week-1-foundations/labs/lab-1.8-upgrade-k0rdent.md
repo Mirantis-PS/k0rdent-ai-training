@@ -1,6 +1,6 @@
 # Lab 1.8: Upgrade k0rdent Enterprise
 
-**Duration:** 1.5 hours (active: ~45min, waiting for rollout: ~45min)
+**Duration:** 1.5 hours (active: ~45min, waiting on upgrade rollout + end-of-week teardown: ~45min)
 **Type:** Hands-on Lab
 
 ## Table of Contents
@@ -22,11 +22,11 @@
   - [Step 5: Activate the Upgrade](#step-5-activate-the-upgrade)
   - [Step 6: Monitor the Upgrade](#step-6-monitor-the-upgrade)
   - [Step 7: Verify Upgrade Success](#step-7-verify-upgrade-success)
-- [Part 3: Upgrade a Managed Cluster (~10 min active, ~15 min waiting)](#part-3-upgrade-a-managed-cluster-10-min-active-15-min-waiting)
+- [Part 3: Managed Cluster Upgrades (~15 min)](#part-3-managed-cluster-upgrades-15-min)
   - [Step 1: Check for New Templates](#step-1-check-for-new-templates)
   - [Step 2: Check Upgrade Paths](#step-2-check-upgrade-paths)
-  - [Step 3: Perform the Upgrade](#step-3-perform-the-upgrade)
-  - [Step 4: Monitor the Rolling Update](#step-4-monitor-the-rolling-update)
+  - [Step 3: The Upgrade Pattern (Walkthrough)](#step-3-the-upgrade-pattern-walkthrough)
+  - [Step 4: What the Rolling Update Looks Like](#step-4-what-the-rolling-update-looks-like)
   - [Step 5: Upgrade Services on a Managed Cluster](#step-5-upgrade-services-on-a-managed-cluster)
 - [Part 4: Rollback Procedures (~5 min)](#part-4-rollback-procedures-5-min)
   - [Layer 1: Management Plane Rollback](#layer-1-management-plane-rollback)
@@ -38,6 +38,9 @@
   - [Managed cluster upgrade stuck](#managed-cluster-upgrade-stuck)
 - [Knowledge Check](#knowledge-check)
 - [Summary](#summary)
+- [End of Week 1: Tear Down Managed Clusters](#end-of-week-1-tear-down-managed-clusters)
+- [Preserving Your Environment](#preserving-your-environment)
+- [Week 1 Complete!](#week-1-complete)
 - [Next](#next)
 
 ## Objectives
@@ -46,8 +49,8 @@ In this lab, you will:
 - Understand the three upgrade layers in k0rdent (management plane, managed clusters, services)
 - Perform a pre-upgrade backup using ManagementBackup
 - Upgrade k0rdent Enterprise via the Release CRD
-- Upgrade a managed cluster's Kubernetes version via ClusterTemplateChain
-- Verify all upgrades completed successfully
+- Understand the managed-cluster upgrade flow and verify available upgrade paths via ClusterTemplateChain
+- Verify the management plane upgrade completed successfully
 - Document rollback procedures for each layer
 
 ## Prerequisites
@@ -63,8 +66,13 @@ If your SSH session dropped or you're returning the next day:
 ```bash
 cd lab-infrastructure
 ./scripts/lab-connect.sh <your-engineer-id>
+
+# On the management node: re-export the lab environment variables
+source /opt/k0rdent-lab/config/lab-info.env
 kubectl get nodes && kubectl get pods -n kcm-system
 ```
+
+> **If you use AWS SSO:** Session credentials expire daily — refresh them before reconnecting. On your **local machine**, run `aws sso login --profile <your-profile>`, then `./scripts/lab-refresh-creds.sh <your-engineer-id>` (from `lab-infrastructure/`). The teardown section at the end of this lab makes AWS calls — if you see `ExpiredTokenException`, re-run these refresh steps.
 
 ---
 
@@ -138,9 +146,11 @@ kubectl get backup -n kcm-system --watch
 # Wait until phase shows "Completed", then Ctrl+C
 ```
 
-> **If Velero isn't configured (skipped Lab 1.4 backup):** Stop here and configure backup storage first. In this single-node training lab, you may also take a manual etcd snapshot as an extra platform safeguard, but that is outside the standard k0rdent management-backup workflow:
+> **If Velero isn't configured (skipped Lab 1.4 backup):** Stop here and configure backup storage first. In this single-node training lab, you may also take a manual k0s backup (which captures etcd state and k0s configuration) as an extra platform safeguard, but that is outside the standard k0rdent management-backup workflow:
 > ```bash
-> sudo k0s etcd snapshot save /tmp/etcd-pre-upgrade.db
+> sudo k0s backup --save-path=/tmp
+> # Produces /tmp/k0s_backup_<timestamp>.tar.gz — note the exact filename,
+> # you'll need it for the Part 4 rollback procedure
 > ```
 
 ### Step 4: Review Release Notes
@@ -322,7 +332,7 @@ kubectl get clusterdeployments -A -o wide
 
 ---
 
-## Part 3: Upgrade a Managed Cluster (~10 min active, ~15 min waiting)
+## Part 3: Managed Cluster Upgrades (~15 min)
 
 Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` CRD controls which upgrade paths are allowed.
 
@@ -371,7 +381,9 @@ spec:
 
 > **If no chains exist:** You can still upgrade by patching the template directly. Chains are guardrails, not requirements. Without a chain, k0rdent won't validate the upgrade path — you're responsible for ensuring compatibility.
 
-### Step 3: Perform the Upgrade
+### Step 3: The Upgrade Pattern (Walkthrough)
+
+> **Pattern walkthrough — do not run this against your cluster.** There is no new template version in this environment (see the note at the top of Part 3), so the patch below has no valid value to substitute. When a new template version IS available — after a minor-release management plane upgrade — this is the exact procedure you'd follow:
 
 ```bash
 # Check current template
@@ -383,16 +395,16 @@ echo "Current template: $CURRENT"
 # List available templates to find the upgrade target
 kubectl get clustertemplates -n kcm-system | grep aws-standalone
 
-# Upgrade to the new template (adjust the template name to match your environment)
-NEW_TEMPLATE="<new-template-name>"  # e.g., aws-standalone-cp-1-0-26
+# Upgrade to the new template — the entire upgrade is this one patch
+NEW_TEMPLATE="<new-template-name>"  # e.g., aws-standalone-cp-1-0-26 after a minor release
 kubectl patch clusterdeployment $CLUSTER_NAME -n kcm-system \
   --patch "{\"spec\":{\"template\":\"$NEW_TEMPLATE\"}}" \
   --type=merge
 ```
 
-### Step 4: Monitor the Rolling Update
+### Step 4: What the Rolling Update Looks Like
 
-CAPI performs a **rolling update** — new nodes are created with the updated template, workloads are drained and migrated, old nodes are removed.
+After that patch, CAPI performs a **rolling update** — new nodes are created with the updated template, workloads are drained and migrated, old nodes are removed. These are the commands you'd use to monitor it:
 
 ```bash
 # Watch the rolling update progress
@@ -405,7 +417,7 @@ kubectl get machines -n kcm-system -w
 kubectl get clusterdeployment $CLUSTER_NAME -n kcm-system
 ```
 
-**Expected duration:** 10-20 minutes depending on cluster size. You'll see:
+**Expected duration:** 10-20 minutes depending on cluster size. You'd see:
 1. New control plane machine created alongside the old one
 2. New worker machine(s) created
 3. Workloads drained from old nodes
@@ -416,7 +428,7 @@ kubectl get clusterdeployment $CLUSTER_NAME -n kcm-system
 kubectl get secret ${CLUSTER_NAME}-kubeconfig -n kcm-system \
   -o jsonpath='{.data.value}' | base64 -d > /tmp/managed.kubeconfig
 kubectl --kubeconfig=/tmp/managed.kubeconfig get nodes
-# Nodes should show the new Kubernetes version
+# Nodes would show the new Kubernetes version
 
 # Return to management cluster
 export KUBECONFIG=/home/ubuntu/.kube/config
@@ -523,15 +535,16 @@ kubectl -n kcm-system wait restores.velero.io restore-pre-upgrade \
   --for=jsonpath='{.status.phase}'='Completed' --timeout=10m
 ```
 
-**Option C: etcd Restore** (single-node lab / platform-level last resort)
+**Option C: k0s Restore** (single-node lab / platform-level last resort)
 
 ```bash
 sudo k0s stop
-sudo k0s etcd restore /tmp/etcd-pre-upgrade.db
+# Use the actual filename produced by `k0s backup` in Part 1 Step 3
+sudo k0s restore /tmp/k0s_backup_<timestamp>.tar.gz
 sudo k0s start
 ```
 
-> **Warning:** etcd restore reverts ALL cluster state, not just k0rdent, and is not the primary rollback workflow described in the k0rdent docs.
+> **Warning:** A k0s restore reverts ALL cluster state (etcd included), not just k0rdent, takes the single-node management plane offline while it runs, and is not the primary rollback workflow described in the k0rdent docs.
 
 ### Layer 2: Managed Cluster Rollback
 
@@ -636,7 +649,7 @@ clusterctl describe cluster <name> -n <namespace>
 2. The `Release` CRD defines the target k0rdent version and all provider template versions. For Enterprise, you download the Release YAML from `get.mirantis.com` and apply it with `kubectl create`. Then you patch the Management object's `.spec.release` to point to the new Release. The KCM controller reconciles the difference -- upgrading controllers, CAPI providers, and templates to match the new Release spec.
 3. `ClusterTemplateChain` defines allowed upgrade paths between ClusterTemplate versions (e.g., `1-0-20` can upgrade to `1-0-21` but not to `1-0-25`). This prevents invalid version jumps and ensures managed clusters follow validated upgrade paths. If you try to set a template not in the chain's `availableUpgrades`, the change is rejected.
 4. ManagementBackup (via Velero) captures all k0rdent CRDs, CAPI resources, and secrets to S3. If the upgrade corrupts the management plane, you can restore to the exact pre-upgrade state and reconnect to managed clusters that kept running independently.
-5. (a) Revert the `Management` object to the previous Release — fastest, just changes the desired state; (b) Velero restore — restores CRDs and resources from the S3 backup; (c) etcd restore — last resort, reverts ALL cluster state.
+5. (a) Revert the `Management` object to the previous Release — fastest, just changes the desired state; (b) Velero restore — restores CRDs and resources from the S3 backup; (c) k0s restore from a `k0s backup` archive — last resort, reverts ALL cluster state.
 
 </details>
 
@@ -649,15 +662,83 @@ In this lab, you:
 - Understood the three upgrade layers: management plane, managed clusters, services
 - Created a pre-upgrade ManagementBackup
 - Learned how to upgrade k0rdent Enterprise via the `Release` CRD (from `get.mirantis.com`) and `Management` patch
-- Understood managed cluster upgrades via `ClusterTemplateChain` and template changes
+- Verified available managed-cluster upgrade paths and walked through the upgrade pattern (`ClusterTemplateChain` + template change) — confirming that a patch release ships no new template version to upgrade to
 - Learned rollback procedures for each layer
 - Reviewed production upgrade best practices
 
 ---
 
+## End of Week 1: Tear Down Managed Clusters
+
+Week 1 is done with the managed clusters — delete them now, **before** disconnecting.
+
+> **Why this matters:** Every managed cluster runs in its **own VPC** that CAPA created — EC2 instances, a NAT gateway, a load balancer, and EBS volumes. `lab-destroy.sh` only knows about the Terraform-managed management VPC; it **cannot see or delete** managed-cluster resources. A forgotten managed cluster bills indefinitely and can cost more than the entire quoted week.
+
+### Step 0: Delete the Lab 1.7 MultiClusterServices First
+
+The ingress-nginx LoadBalancer service from Lab 1.7 created a Classic ELB on the managed cluster via the cloud controller manager. Delete the services first so CCM removes its load balancer — deleting the ClusterDeployment alone can orphan it:
+
+```bash
+# Make sure you're on the management cluster
+export KUBECONFIG=/home/ubuntu/.kube/config
+
+# Delete the MultiClusterServices from Lab 1.7
+# (your baseline-services may be the kyverno-only variant from Lab 1.7 Part 8 — delete it either way)
+kubectl delete multiclusterservice ingress-services baseline-services
+
+# Wait ~2 minutes for CCM to remove the ingress load balancer before proceeding
+```
+
+### Step 1: Delete the ClusterDeployments
+
+```bash
+# Delete all managed clusters (managed-cluster-01 and the optional Azure cluster, if created)
+kubectl delete clusterdeployment --all -n kcm-system
+
+# Watch until the list is empty — CAPA deprovisions the cloud resources first,
+# so deletion takes 10-15 minutes. Do NOT interrupt it.
+kubectl get clusterdeployments -A --watch
+# When no ClusterDeployments remain, press Ctrl+C
+```
+
+> **Stuck deletion?** If a ClusterDeployment hangs in `Deleting` for more than ~20 minutes (commonly expired AWS SSO credentials — CAPA can't deprovision without valid credentials), refresh credentials as described in [Resuming This Lab](#resuming-this-lab) and the deletion will resume.
+
+### Step 2: Verify Nothing Was Orphaned in AWS
+
+CAPA and the cloud controller manager tag everything they create with per-cluster tags. Confirm AWS shows no leftovers — **every command below should print nothing**:
+
+```bash
+# EC2 instances — should be empty
+aws ec2 describe-instances --region "$AWS_REGION" \
+  --filters "Name=tag-key,Values=sigs.k8s.io/cluster-api-provider-aws/cluster/managed-cluster-01" \
+            "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+  --query 'Reservations[].Instances[].InstanceId' --output text
+
+# NAT gateways — should be empty
+aws ec2 describe-nat-gateways --region "$AWS_REGION" \
+  --filter "Name=tag-key,Values=sigs.k8s.io/cluster-api-provider-aws/cluster/managed-cluster-01" \
+           "Name=state,Values=pending,available" \
+  --query 'NatGateways[].NatGatewayId' --output text
+
+# Classic ELBs — checks tags, not names, because the CCM-created ingress ELB
+# has a random hex name. Should print nothing.
+for lb in $(aws elb describe-load-balancers --region "$AWS_REGION" \
+    --query 'LoadBalancerDescriptions[].LoadBalancerName' --output text); do
+  aws elb describe-tags --region "$AWS_REGION" --load-balancer-names "$lb" \
+    --query 'TagDescriptions[?Tags[?contains(Key, `cluster/managed-cluster-01`)]].LoadBalancerName' \
+    --output text
+done
+```
+
+If any command returns IDs, deletion is still in progress — wait a few minutes and re-run. If IDs persist after the ClusterDeployment is gone, those resources are orphaned and billing: delete them manually in the AWS console before moving on.
+
+If you created the optional Azure cluster in Lab 1.5, verify its resource group is gone too: `az group list --query "[?contains(name, 'azure-cluster')].name" -o tsv` should print nothing.
+
 ## Preserving Your Environment
 
-> **Do NOT run `lab-destroy.sh` after completing Week 1.** Your management cluster is reused in all subsequent weeks. Week 5 GPU labs create GPU clusters via `ClusterDeployment` on this same management cluster. Only destroy the management cluster when you're completely done with the entire curriculum.
+The **management cluster stays** — it is reused later in the program (Week 5 GPU labs create GPU clusters via `ClusterDeployment` on this same management cluster).
+
+> **If you're continuing the program: do NOT run `lab-destroy.sh`.** Pause the environment instead by stopping its EC2 instances — this is the supported way to pause between weeks:
 >
 > ```bash
 > # From your local machine: find the management node and bastion instance IDs
@@ -694,3 +775,5 @@ You now have a solid foundation in k0rdent Enterprise for managing multi-cluster
 ## Next
 
 Complete the [Week 1 Quiz](../week-1-quiz.md) to finish Week 1.
+
+Then proceed to [Week 2: Bare Metal as a Service](../../week-2-bmaas/README.md) to learn how to manage bare metal infrastructure with k0rdent.

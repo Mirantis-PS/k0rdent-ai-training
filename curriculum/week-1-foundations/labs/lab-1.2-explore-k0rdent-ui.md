@@ -1,6 +1,6 @@
 # Lab 1.2: Explore k0rdent UI and Configuration
 
-**Duration:** 2.5 hours
+**Duration:** 2.5 hours (almost all active work — the only wait is ~30 seconds for Flux chart validation in Part 5)
 **Type:** Hands-on Lab
 
 ## Table of Contents
@@ -15,7 +15,8 @@
   - [Production Upgrade Path](#production-upgrade-path)
   - [Alternative Deployment Patterns](#alternative-deployment-patterns)
   - [TLS Configuration Patterns](#tls-configuration-patterns)
-- [Part 3: Dashboard Overview (~5 min)](#part-3-dashboard-overview-5-min)
+- [Part 3: Dashboard Overview (~10 min)](#part-3-dashboard-overview-10-min)
+  - [What You Should See](#what-you-should-see)
   - [Key Dashboard Elements](#key-dashboard-elements)
   - [Exercise: Dashboard Exploration](#exercise-dashboard-exploration)
 - [Part 4: Explore Cluster Templates (~10 min)](#part-4-explore-cluster-templates-10-min)
@@ -111,7 +112,7 @@ k0rdent Enterprise exposes its UI through the **Kubernetes Gateway API** using *
 Student Browser (HTTP)
     │
     ▼
-AWS NLB (auto-provisioned by AWS Cloud Controller Manager)
+AWS Classic ELB (auto-provisioned by AWS Cloud Controller Manager)
     │ port 80
     ▼
 Envoy Gateway (envoy-gateway-system namespace)
@@ -177,7 +178,7 @@ spec:
             name: k0rdent-ui-tls
 ```
 
-#### Step 2: Configure OIDC Authentication
+#### Step 2: Add OIDC Authentication
 
 The training lab uses the built-in `admin` account. Production deployments replace this with **OIDC** against a corporate identity provider (e.g., Microsoft Entra ID, Okta, Keycloak). Conceptually, this means putting an OIDC-capable layer in front of the UI — for example, an Envoy Gateway `SecurityPolicy` or a dedicated OIDC proxy wired to your IdP — on the same Gateway and HTTPRoute resources you examined above.
 
@@ -194,7 +195,7 @@ kubectl get management kcm -o yaml
 
 - [ ] TLS certificates provisioned (see TLS patterns below)
 - [ ] Gateway listener updated to HTTPS (port 443)
-- [ ] OIDC configured in the Management object
+- [ ] OIDC authentication configured per the official k0rdent Enterprise docs
 - [ ] DNS record pointing to the LoadBalancer address
 - [ ] Network policies restricting UI access to corporate networks
 - [ ] HTTP → HTTPS redirect configured (optional HTTPRoute)
@@ -205,11 +206,11 @@ Different customer environments require different approaches to LoadBalancer pro
 
 #### Envoy Gateway + AWS CCM (Training Default)
 
-Used in the training lab. AWS Cloud Controller Manager auto-provisions a Network Load Balancer when the Gateway creates a `type: LoadBalancer` service.
+Used in the training lab. AWS Cloud Controller Manager auto-provisions a Classic ELB (the unannotated in-tree CCM default) when the Gateway creates a `type: LoadBalancer` service.
 
 **When to use:** AWS cloud environments with CCM configured.
 
-**How it works:** Install Envoy Gateway → create Gateway → CCM provisions NLB automatically.
+**How it works:** Install Envoy Gateway → create Gateway → CCM provisions a Classic ELB automatically.
 
 #### Envoy Gateway + MetalLB
 
@@ -240,7 +241,7 @@ metadata:
 EOF
 ```
 
-The Gateway and HTTPRoute resources remain identical — MetalLB assigns an IP from the pool instead of a cloud NLB hostname.
+The Gateway and HTTPRoute resources remain identical — MetalLB assigns an IP from the pool instead of a cloud load-balancer hostname.
 
 #### Envoy Gateway + NodePort + External Load Balancer
 
@@ -339,6 +340,8 @@ spec:
 
 AWS-native approach — no in-cluster cert management. TLS terminates at the NLB.
 
+Unlike the training default (an unannotated `type: LoadBalancer` service, which the in-tree CCM provisions as a Classic ELB), this pattern adds the `service.beta.kubernetes.io/aws-load-balancer-type: nlb` annotation alongside the ACM annotations below — that annotation is what makes the load balancer an NLB.
+
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -346,6 +349,7 @@ metadata:
   name: k0rdent-gateway
   namespace: kcm-system
   annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
     service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456:certificate/abc-123"
     service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
 spec:
@@ -373,9 +377,18 @@ Then reference `k0rdent-ui-tls` in the Gateway's TLS listener configuration (sam
 
 ---
 
-## Part 3: Dashboard Overview (~5 min)
+## Part 3: Dashboard Overview (~10 min)
 
 The k0rdent dashboard provides a high-level view of your managed infrastructure.
+
+### What You Should See
+
+After logging in, the UI lands on the dashboard:
+
+- **Left navigation sidebar** — entries for the main resource areas, including **Templates** (cluster and service templates, explored in Part 4) and **Addons** (catalog services, explored in Part 5). Cluster and credential views are reachable from the same sidebar.
+- **Main dashboard area** — summary panels covering the cluster summary (count and health), recent activity, and quick actions (detailed below).
+
+At this point in the course you have no managed clusters yet, so a cluster count of **0** is expected and correct.
 
 ### Key Dashboard Elements
 
@@ -396,10 +409,16 @@ The k0rdent dashboard provides a high-level view of your managed infrastructure.
 
 ### Exercise: Dashboard Exploration
 
-Take 10 minutes to explore the dashboard:
+Take 10 minutes to explore the dashboard. Each item also has a CLI equivalent, so the exercise can be completed entirely from your SSH session:
+
 - [ ] Identify the cluster count
+  - CLI equivalent: `kubectl get clusterdeployments -A --no-headers 2>/dev/null | wc -l` (expect `0` before Lab 1.5)
 - [ ] Note any alerts or warnings
+  - CLI equivalent: `kubectl get events -A --field-selector type=Warning`
 - [ ] Find the resource utilization section
+  - CLI equivalent: `kubectl top nodes` (management cluster CPU/memory usage)
+
+For the sidebar areas you'll visit later in this lab, the CLI equivalents are: templates → `kubectl get clustertemplates -n kcm-system` (Part 4), credentials → `kubectl get credentials -A` (Part 7).
 
 ## Part 4: Explore Cluster Templates (~10 min)
 
@@ -471,7 +490,7 @@ k0rdent Enterprise uses an **external Service Catalog** model for deploying appl
 
 Open your browser to: **https://catalog.k0rdent.io/**
 
-The catalog provides **100+ validated services** across categories:
+The catalog provides **over 90 validated integrations** (as of late 2025) across categories:
 
 | Category | Example Services |
 |----------|-----------------|
@@ -630,7 +649,7 @@ kubectl delete servicetemplate kyverno-3-8-1 -n kcm-system
 | Aspect | Bundled Templates (Old) | External Catalog (Current) |
 |--------|------------------------|---------------------------|
 | **Updates** | Tied to k0rdent releases | Updated independently |
-| **Selection** | Limited set | 100+ services |
+| **Selection** | Limited set | Over 90 validated integrations (as of late 2025) |
 | **Customization** | Difficult | Easy version selection |
 | **Enterprise** | Mixed | Clear Enterprise-only marking |
 

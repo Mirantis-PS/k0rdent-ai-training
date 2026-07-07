@@ -15,6 +15,11 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# Respect NO_COLOR and non-TTY output (piped logs, CI, screen readers)
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    RED="" GREEN="" YELLOW="" BLUE="" CYAN="" NC=""
+fi
+
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -46,7 +51,7 @@ get_student_bucket() {
     local engineer_id="$1"
     local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text)
-    echo "k0rdent-lab-${engineer_id}-${account_id}"
+    echo "k0rdent-lab-${engineer_id}-${account_id}-${REGION}"
 }
 
 get_state_output() {
@@ -134,11 +139,9 @@ show_status() {
 
         echo -e "  ${CYAN}Primary IP:${NC} $primary_ip"
 
-        local ui_url
-        ui_url=$(echo "$state_content" | jq -r '.outputs.ui_url.value // empty')
-        if [[ -n "$ui_url" ]]; then
-            echo -e "  ${CYAN}UI URL:${NC} $ui_url"
-        fi
+        # The UI URL is assigned at runtime by the Envoy Gateway LB, not
+        # stored in Terraform state -- point at the script that retrieves it.
+        echo -e "  ${CYAN}UI URL:${NC} run ./lab-connect.sh $engineer_id --ui-url"
     fi
 
     echo ""
@@ -184,7 +187,6 @@ show_status_json() {
         bastion_ip: (.outputs.bastion_public_ip.value // null),
         vpc_id: (.outputs.vpc_id.value // null),
         primary_node_ip: (.outputs.primary_node_private_ip.value // null),
-        ui_url: (.outputs.ui_url.value // null),
         mgmt_node_ids: (.outputs.mgmt_node_ids.value // []),
         gpu_ip: (.outputs.shared_gpu_private_ip.value // null),
         metal3_ip: (.outputs.metal3_controller_ip.value // null),
@@ -252,6 +254,9 @@ if [[ -z "$REGION" ]]; then
     log_error "No AWS region specified. Use --region or set AWS_REGION"
     exit 1
 fi
+
+# jq is required to parse the Terraform state
+command -v jq &> /dev/null || { log_error "jq is required but not installed. Install: brew install jq (macOS) or sudo apt-get install -y jq (Ubuntu)"; exit 1; }
 
 # Execute
 if [[ "$JSON_OUTPUT" == "true" ]]; then

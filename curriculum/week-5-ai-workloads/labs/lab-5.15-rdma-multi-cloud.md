@@ -58,7 +58,7 @@ Understand and configure Remote Direct Memory Access (RDMA) for GPU-accelerated 
 - Access to either:
   - AWS: p4d.24xlarge instances with EFA enabled
   - Azure: ND A100 v4 or ND H100 v5 VMSS with InfiniBand
-- NVIDIA GPU Operator deployed (via k0rdent catalog `gpu-operator-25-10-0`)
+- NVIDIA GPU Operator deployed (via k0rdent catalog `gpu-operator-25-3-0`)
 - Basic understanding of Kubernetes networking
 
 ---
@@ -170,7 +170,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        cloud-provider: aws
        rdma-type: efa
    spec:
-     template: aws-standalone-cp-0-1-0
+     template: aws-standalone-cp-1-0-26
      credential: aws-cluster-identity-cred
      config:
        region: us-west-2
@@ -178,12 +178,18 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
          instanceType: m5.xlarge
        worker:
          instanceType: p4d.24xlarge
+         # Pin an Ubuntu 22.04 AMI on BOTH node pools — the AL2 default breaks the GPU driver.
+         amiID: ami-xxxxxxxx   # resolve per-region: aws ssm get-parameter \
+           # --name /aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id
+         rootVolumeSize: 250
        workersNumber: 2
-       # EFA requires a placement group for lowest latency
-       # Configured via the ClusterTemplate Helm chart values
+       # NOTE (verified live): EFA wants a cluster placement group for lowest latency, but the
+       # aws-standalone-cp-1-0-26 worker schema exposes NO placement-group or EFA-interface field.
+       # A stock deployment therefore gets neither EFA nor a placement group (see the Part 3
+       # callout). Achieving them requires a customized ClusterTemplate / AWSMachineTemplate.
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
@@ -213,7 +219,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        cloud-provider: azure
        rdma-type: infiniband
    spec:
-     template: azure-standalone-cp-0-1-0
+     template: azure-standalone-cp-1-0-26
      credential: azure-cluster-identity-cred
      config:
        location: westus2
@@ -226,7 +232,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        # InfiniBand requires single_placement_group = true in VMSS
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
@@ -284,6 +290,25 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
 ---
 
 ## Part 3: AWS EFA Configuration
+
+> **Validated on k0rdent Enterprise 1.3.2 (2026-07, us-west-2, 1× p4d.24xlarge) — EFA is NOT
+> present with the stock ClusterTemplate.** The `aws-standalone-cp-1-0-26` template (and the CAPA
+> controller behind it) launches the p4d with a **single standard ENA interface**
+> (`aws ec2 describe-instances … NetworkInterfaces[].InterfaceType` returns `interface`, never
+> `efa`). Consequences, all observed live:
+> - `fi_info -p efa` on the host returns `fi_getinfo: -61 (No data available)` — no EFA provider.
+> - `vpc.amazonaws.com/efa` node allocatable is **empty**; the EFA device plugin (Task 4) would
+>   advertise `0`, so a pod requesting `vpc.amazonaws.com/efa: 4` never schedules.
+> - Single-node NCCL still works at full speed because it uses **NVLink/NVSwitch P2P** (see Task 5),
+>   not the network fabric. Cross-node NCCL logs show `NET/IB : No device found` → `NET/Socket`
+>   (TCP fallback), matching the aws-ofi-nccl caveat in Task 5.
+>
+> **To actually get EFA** you must attach EFA-enabled network interfaces at launch — an EFA launch
+> template (interface type `efa`) plus a cluster placement group and a security group that allows
+> all traffic from itself. The `aws-standalone-cp-1-0-26` worker schema exposes **no field** for
+> either (no placement-group and no network-interface knobs), so this requires a customized
+> ClusterTemplate / AWSMachineTemplate, not just values. Tasks 3–5 below therefore describe the
+> **target** EFA-enabled state; on a stock deployment they document the negative (TCP-fallback) case.
 
 ### Task 3: Verify EFA Prerequisites (20 min)
 
@@ -432,20 +457,38 @@ The EFA device plugin exposes EFA interfaces as Kubernetes resources.
    kubectl wait --for=condition=Ready pod/nccl-test-efa --timeout=300s
    ```
 
+   > **Note — EFA transport needs extra bits the stock image lacks:** The single-node
+   > all-reduce below runs over NVLink/NVSwitch and works in the stock
+   > `nvcr.io/nvidia/pytorch` image. **Cross-node EFA transport does not** — NCCL only
+   > uses EFA through the [`aws-ofi-nccl`](https://github.com/aws/aws-ofi-nccl) plugin
+   > plus the EFA libfabric libraries (`/opt/amazon/efa/lib`, installed on the host by
+   > the EFA installer). The NGC PyTorch image ships neither, so `FI_PROVIDER=efa` and
+   > the `LD_LIBRARY_PATH` entry above have no effect until you use an EFA-enabled image
+   > (AWS Deep Learning Container) or bake `aws-ofi-nccl` + EFA libfabric into a custom
+   > image. Without them, multi-node NCCL silently falls back to TCP sockets.
+
 2. **Run NCCL All-Reduce Test**
    ```bash
    kubectl exec -it nccl-test-efa -- bash
 
-   # Single-node 8-GPU all-reduce benchmark
-   cd /opt/nccl-tests/build
-   ./all_reduce_perf -b 1M -e 1G -f 2 -g 8
+   # nvcr.io/nvidia/pytorch:24.12-py3 already SHIPS the nccl-tests binaries at
+   # /usr/local/bin (verified live: /usr/local/bin/all_reduce_perf, dated Dec 2024).
+   # Use them directly — no build step needed on this image:
+   all_reduce_perf -b 1M -e 1G -f 2 -g 8
+
+   # If your image does NOT ship the binaries (older tags / a slim base), build
+   # from source instead (one-time, ~1 min):
+   #   cd /tmp && git clone https://github.com/NVIDIA/nccl-tests.git
+   #   cd nccl-tests && make MPI=0 CUDA_HOME=/usr/local/cuda NCCL_HOME=/usr/lib/x86_64-linux-gnu
+   #   ./build/all_reduce_perf -b 1M -e 1G -f 2 -g 8
 
    # Expected output columns:
    #   size    count   type  redop   time   algbw  busbw  error
    #
-   # For 8x A100 with NVSwitch, expect:
-   #   ~200-230 GB/s busbw for large messages (≥256MB)
-   #   This is the realistic NVSwitch all-reduce bandwidth.
+   # Measured live on p4d.24xlarge (8x A100-SXM4-40GB, NVSwitch, NCCL 2.23.4):
+   #   256MB  ~189 GB/s   512MB  ~204 GB/s   1GB  ~228 GB/s busbw (peak 227.6)
+   #   busbw scales with message size; it clears 200 GB/s at >=512MB and tops out
+   #   near 227 GB/s at 1GB — the realistic NVSwitch all-reduce bandwidth for A100.
    ```
 
 3. **Interpret NCCL Output**
@@ -457,9 +500,11 @@ The EFA device plugin exposes EFA interfaces as Kubernetes resources.
    | algbw | Algorithm bandwidth (GB/s) — data_size / time |
    | busbw | Bus bandwidth (GB/s) — accounts for the ring/tree algorithm factor |
 
-   **Expected Performance (8x A100 with NVSwitch):**
-   - Bus bandwidth: ~200-230 GB/s for large messages (≥256MB)
-   - This confirms NVLink is being used within the node
+   **Expected Performance (8x A100 with NVSwitch) — measured live:**
+   - Bus bandwidth: ~189 GB/s at 256MB, ~204 GB/s at 512MB, ~228 GB/s at 1GB (peak 227.6)
+   - busbw grows with message size and clears 200 GB/s at ≥512MB
+   - This confirms NVLink/NVSwitch is being used within the node (the transport is intra-node
+     P2P, not the network fabric — so EFA absence does not affect this number)
 
    > **Note:** The A100 NVLink spec is 600 GB/s bidirectional per GPU. The all-reduce busbw reflects the effective unidirectional throughput after accounting for the collective algorithm overhead, which is why ~200-230 GB/s is the expected realistic value.
 
@@ -601,7 +646,7 @@ For Azure InfiniBand, the Network Operator needs RDMA device plugin configuratio
    helm repo update
 
    helm install network-operator nvidia/network-operator \
-     --version v25.10.0 \
+     --version 25.10.0 \
      --namespace nvidia-network-operator \
      --create-namespace \
      -f network-operator-azure-values.yaml
@@ -691,10 +736,12 @@ For Azure InfiniBand, the Network Operator needs RDMA device plugin configuratio
 
 3. **Run NCCL All-Reduce Test**
    ```bash
-   cd /opt/nccl-tests/build
+   # Build nccl-tests from source first (not shipped in the NGC image — see Task 5):
+   cd /tmp && git clone https://github.com/NVIDIA/nccl-tests.git
+   cd nccl-tests && make MPI=0 CUDA_HOME=/usr/local/cuda NCCL_HOME=/usr/lib/x86_64-linux-gnu
 
    # Single-node 8-GPU test
-   ./all_reduce_perf -b 1M -e 1G -f 2 -g 8
+   ./build/all_reduce_perf -b 1M -e 1G -f 2 -g 8
 
    # For 8x A100 (ND A100 v4): expect ~200-230 GB/s busbw
    # For 8x H100 (ND H100 v5): expect ~400-470 GB/s busbw
@@ -729,9 +776,10 @@ Create identical benchmarks on both platforms to compare performance.
    echo ""
 
    # NCCL All-Reduce (varying message sizes)
+   # Assumes nccl-tests was built from source under /tmp/nccl-tests (see Task 5).
    echo "=== NCCL All-Reduce Benchmark ==="
-   cd /opt/nccl-tests/build
-   ./all_reduce_perf -b 1M -e 4G -f 2 -g 8 -n 100 -w 10
+   cd /tmp/nccl-tests
+   ./build/all_reduce_perf -b 1M -e 4G -f 2 -g 8 -n 100 -w 10
    ```
 
 2. **Expected Results**
@@ -833,7 +881,7 @@ This task demonstrates k0rdent's ability to deploy the same application workload
        spec:
          containers:
            - name: vllm
-             image: vllm/vllm-openai:v0.7.3
+             image: vllm/vllm-openai:v0.14.0
              args:
                - --model
                - meta-llama/Llama-2-70b-chat-hf
@@ -1007,10 +1055,15 @@ export NCCL_IB_HCA=mlx5
 ### GPUDirect RDMA Not Working
 
 ```bash
-# Verify nvidia-peermem module (loaded by GPU Operator when driver.rdma.enabled=true)
-lsmod | grep nvidia_peermem
+# Verify nvidia-peermem module. NOTE (verified live on p4d.24xlarge, k0rdent 1.3.2):
+# nvidia_peermem is NOT loaded just because driver.rdma.enabled=true — it only loads when an
+# RDMA NIC (EFA/InfiniBand) is present and its kernel stack is up. On a stock CAPA p4d with no
+# EFA interface, /proc/modules shows nvidia/nvidia_uvm/nvidia_modeset/ib_core but NO
+# nvidia_peermem, and that is expected (GPUDirect RDMA has no fabric to bind to). peermem
+# becoming load-bearing requires the EFA-enabled infrastructure described at the top of Part 3.
+lsmod | grep nvidia_peermem   # (container images may lack lsmod; use: grep peermem /proc/modules)
 
-# If missing — check GPU Operator logs:
+# If missing on a genuinely EFA/IB-equipped node — check GPU Operator logs:
 kubectl logs -n gpu-operator -l app=nvidia-driver-daemonset --tail=50
 
 # Verify GPUDirect is used in NCCL output:
@@ -1084,4 +1137,4 @@ This lab demonstrates k0rdent's core value for GPU infrastructure:
 
 ## Next Lab
 
-Proceed to [Lab 5.15 - Multi-Node Distributed Training](lab-5.16-distributed-training.md)
+Proceed to [Lab 5.16 - Multi-Node Distributed Training](lab-5.16-distributed-training.md)

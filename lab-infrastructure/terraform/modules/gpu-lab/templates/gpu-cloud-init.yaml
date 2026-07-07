@@ -64,7 +64,7 @@ write_files:
       if [ "$USE_NVIDIA_AMI" == "true" ]; then
         echo "Using NVIDIA Deep Learning AMI - drivers pre-installed"
         nvidia-smi
-        return 0
+        exit 0
       fi
 
       # Install NVIDIA drivers manually
@@ -144,6 +144,23 @@ write_files:
                     enabled: true
                   mig:
                     strategy: single
+                  node-feature-discovery:
+                    master:
+                      tolerations:
+                        - key: "node-role.kubernetes.io/master"
+                          operator: "Exists"
+                          effect: "NoSchedule"
+                        - key: "node-role.kubernetes.io/control-plane"
+                          operator: "Exists"
+                          effect: "NoSchedule"
+                    gc:
+                      tolerations:
+                        - key: "node-role.kubernetes.io/master"
+                          operator: "Exists"
+                          effect: "NoSchedule"
+                        - key: "node-role.kubernetes.io/control-plane"
+                          operator: "Exists"
+                          effect: "NoSchedule"
       EOF
 
       # Install k0s as single node (controller + worker)

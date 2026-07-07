@@ -116,6 +116,14 @@ resource "aws_instance" "controller" {
 
   user_data_base64 = local.controller_user_data
 
+  # Enforce IMDSv2. k0s + Ironic/Metal3 pods have no legitimate IMDS use
+  # (no CCM/CSI; S3 log upload runs as a root host script): hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   tags = merge(local.common_tags, {
     Name       = "${var.project_name}-metal3-controller-${var.engineer_id}"
     Role       = "controller"
@@ -165,6 +173,13 @@ resource "aws_instance" "worker_host" {
     worker_host_index = count.index
   }))
 
+  # Enforce IMDSv2. Plain libvirt/QEMU host (no Kubernetes pods): hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   tags = merge(local.common_tags, {
     Name       = "${var.project_name}-metal3-worker-host-${var.engineer_id}-${count.index}"
     Role       = "worker-host"
@@ -212,6 +227,13 @@ resource "aws_spot_instance_request" "controller_spot" {
   }
 
   user_data_base64 = local.controller_user_data
+
+  # Enforce IMDSv2 (same posture as the on-demand controller): hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   # Tags for the spot request itself
   tags = merge(local.common_tags, {

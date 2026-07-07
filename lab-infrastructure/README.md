@@ -2,12 +2,15 @@
 
 Terraform-based infrastructure provisioning for k0rdent AI training labs.
 
-## Quick Start
+## Script Reference
+
+> **Taking the training?** Don't start here — start at [Week 1: Foundations](../curriculum/week-1-foundations/README.md). Lab 1.1 walks you through provisioning step by step using these scripts, including credential setup and verification. This page is a technical reference.
 
 ### Prerequisites
 
 - AWS CLI configured with appropriate credentials
-- Terraform >= 1.5.0
+- Terraform >= 1.8.0 (install via `brew install hashicorp/tap/terraform` on macOS — see Lab 1.1 Troubleshooting if you hit a Homebrew collision)
+- `jq`
 - bash shell
 
 ### Provision Your Lab
@@ -15,13 +18,14 @@ Terraform-based infrastructure provisioning for k0rdent AI training labs.
 Each student gets a fully isolated environment (VPC, bastion, k0rdent cluster):
 
 ```bash
-# Provision your student lab environment
-./scripts/lab-provision.sh <your-name> --region <your-region> --auto-approve
+# Provision your student lab environment (interactive plan review)
+./scripts/lab-provision.sh <your-name> --region <your-region>
 
 # Examples:
-./scripts/lab-provision.sh john-doe --region us-east-1 --auto-approve
+./scripts/lab-provision.sh john-doe --region us-east-1
 ./scripts/lab-provision.sh john-doe --gpu                   # Add GPU support
 ./scripts/lab-provision.sh john-doe --metal3 --kubevirt     # Add Metal3 + KubeVirt
+# Add --auto-approve to skip the interactive plan confirmation (CI / re-runs)
 ```
 
 ## Lab Types

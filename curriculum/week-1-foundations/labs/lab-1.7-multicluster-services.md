@@ -1,6 +1,6 @@
 # Lab 1.7: Multi-Cluster Service Deployment
 
-**Duration:** 2-3 hours
+**Duration:** 2 hours (up to 3 with the optional exercises)
 **Type:** Hands-on Lab
 
 ## Table of Contents
@@ -53,8 +53,7 @@
 - [Validation Checklist](#validation-checklist)
 - [Summary](#summary)
 - [Key Concepts](#key-concepts)
-- [Week 1 Complete!](#week-1-complete)
-- [Next Week](#next-week)
+- [Next Lab](#next-lab)
 
 ## Objectives
 
@@ -70,7 +69,7 @@ In this lab, you will:
 - Completed Labs 1.1-1.6
 - Understanding of Helm and Kubernetes services
 
-> **Keep your managed cluster running!** This lab requires the managed cluster from Lab 1.5 to be active. This is the final lab of Week 1 -- you can run cleanup after completing it.
+> **Keep your managed cluster running!** This lab requires the managed cluster from Lab 1.5 to be active. Lab 1.8 (Upgrade k0rdent Enterprise) and the Week 1 quiz still follow this lab, and Lab 1.8 also needs the managed cluster -- defer final cleanup until the end of Lab 1.8.
 
 ## Resuming This Lab
 
@@ -81,12 +80,17 @@ cd lab-infrastructure
 ./scripts/lab-connect.sh <your-engineer-id>
 kubectl get nodes && kubectl get pods -n kcm-system
 
+# Re-export the lab environment variables
+source /opt/k0rdent-lab/config/lab-info.env
+
 # Verify managed cluster is still running
 kubectl get clusterdeployment -n kcm-system
 
 # Check if ServiceTemplates are already installed
 kubectl get servicetemplates -n kcm-system
 ```
+
+> **AWS SSO users:** If your SSO session expired since your last work session, refresh your credentials (`aws sso login --profile <your-profile>` on your local machine) and update the credential secret on the management cluster (see Lab 1.3 SSO section) before continuing.
 
 ---
 
@@ -129,7 +133,7 @@ Open your browser to: **https://catalog.k0rdent.io/**
 
 ### Explore Categories
 
-The catalog organizes 100+ services into categories:
+The catalog organizes over 90 validated integrations (as of late 2025) into categories:
 
 | Category | Description | Example Services |
 |----------|-------------|-----------------|
@@ -308,7 +312,8 @@ kubectl label clusterdeployment managed-cluster-01 -n kcm-system \
   environment=training \
   ingress=true
 
-# Cluster-02 gets only environment label (no ingress)
+# Hypothetical: if you had a second cluster, you would give it only the
+# environment label (no ingress) to keep it out of the ingress rollout:
 # kubectl label clusterdeployment managed-cluster-02 -n kcm-system \
 #   environment=training
 ```
@@ -321,7 +326,6 @@ kubectl get clusterdeployments -n kcm-system --show-labels
 
 # Expected:
 # managed-cluster-01 should show: environment=training,ingress=true,...
-# managed-cluster-02 should show: environment=training,...
 ```
 
 > **Important:** Use `kubectl label` to set metadata labels on ClusterDeployments. MultiClusterService `clusterSelector` matches against these **metadata labels**, not `spec.config.clusterLabels`. The `spec.config.clusterLabels` field propagates labels to the underlying CAPI Cluster object but is not used by MCS for targeting.
@@ -359,7 +363,7 @@ We'll create two MCS resources to demonstrate both patterns:
 
 | MCS | Selector | Targets | Deploys |
 |-----|----------|---------|---------|
-| `baseline-services` | `environment: training` | **All** training clusters | cert-manager, kyverno |
+| `baseline-services` | `environment: training` | **All** training clusters | cert-manager, kyverno (or kyverno only — see the Lab 1.6 branch below) |
 | `ingress-services` | `ingress: "true"` | **Only** clusters that opted in | ingress-nginx |
 
 This shows how you can deploy mandatory services to every cluster while keeping optional services targeted to specific clusters.
@@ -444,9 +448,9 @@ spec:
 EOF
 ```
 
-This deploys cert-manager and kyverno to **every cluster** with `environment: training` — both managed-cluster-01 and managed-cluster-02.
+This deploys the baseline services to **every cluster** labeled `environment: training` — in this lab that's just managed-cluster-01, but if you had a second cluster carrying the same label, it would receive them automatically too.
 
-> **Why `cert-manager.crds.enabled: true`?** cert-manager v1.15+ stopped installing CRDs by default. Without this value, the wrapper chart silently installs cert-manager without CRDs, the `cert-manager-startupapicheck` job loops forever waiting for `CertificateRequest` CRD, Helm install times out, and Sveltos reports `context deadline exceeded`. Because services in a MultiClusterService deploy **sequentially**, a failing cert-manager also blocks kyverno in the same MCS.
+> **Why `cert-manager.crds.enabled: true`?** (Option B only) cert-manager v1.15+ stopped installing CRDs by default. Without this value, the wrapper chart silently installs cert-manager without CRDs, the `cert-manager-startupapicheck` job loops forever waiting for `CertificateRequest` CRD, Helm install times out, and Sveltos reports `context deadline exceeded`. Because services in a MultiClusterService deploy **sequentially**, a failing cert-manager also blocks kyverno in the same MCS.
 
 ### Create the Ingress MCS (Selective Targeting)
 
@@ -475,12 +479,12 @@ spec:
 EOF
 ```
 
-This deploys ingress-nginx **only** to managed-cluster-01 (which has `ingress: "true"`). Managed-cluster-02 doesn't get it.
+This deploys ingress-nginx **only** to clusters labeled `ingress: "true"` — here, managed-cluster-01. If you had a second cluster labeled only `environment: training`, it would receive the baseline services but **not** ingress-nginx — that's the selective-targeting pattern.
 
 ### Verify Both MultiClusterServices
 
 ```bash
-# Check MCS status — baseline should match 2 clusters, ingress should match 1
+# Check MCS status — each should match 1 cluster (managed-cluster-01)
 kubectl get multiclusterservice
 
 # View cluster matching
@@ -489,8 +493,10 @@ kubectl describe multiclusterservice ingress-services | grep -A 5 "Matching Clus
 ```
 
 Expected:
-- `baseline-services` → `2/2` clusters (both have `environment: training`)
-- `ingress-services` → `1/1` cluster (only managed-cluster-01 has `ingress: "true"`)
+- `baseline-services` → `1/1` clusters (managed-cluster-01 has `environment: training`)
+- `ingress-services` → `1/1` cluster (managed-cluster-01 has `ingress: "true"`)
+
+If you had a second cluster labeled `environment: training` (without `ingress: "true"`), `baseline-services` would show `2/2` while `ingress-services` stayed at `1/1` — the same two manifests, different blast radius.
 
 ## Part 5: Monitor Service Deployment
 
@@ -515,8 +521,13 @@ First, verify from the **management cluster** that services are being reconciled
 # Check ClusterDeployment service status
 kubectl get clusterdeployments -n kcm-system
 
-# managed-cluster-01 should show SERVICES 3/3 (cert-manager + kyverno + ingress-nginx)
-# managed-cluster-02 should show SERVICES 2/2 (cert-manager + kyverno only)
+# managed-cluster-01's SERVICES count covers everything deployed via
+# MultiClusterService — including what Lab 1.6's kof-child MCS installed
+# (cert-manager, kof-operators, kof-collectors). Rather than expecting one
+# absolute number, confirm THIS lab's services are among them:
+#   - kyverno + ingress-nginx (Option A — Lab 1.6 Part 3 completed)
+#   - cert-manager + kyverno + ingress-nginx (Option B — Lab 1.6 Part 3 skipped)
+# The total depends on whether you completed Lab 1.6 Part 3.
 ```
 
 > **Fallback:** If your managed cluster is unreachable (e.g., provisioning issues from Lab 1.5), the management-side checks above still validate that k0rdent accepted your MultiClusterService and created the expected `ServiceSet` and ProjectSveltos reconciliation objects. The key learning -- how MultiClusterService translates into provider-specific fleet reconciliation -- is visible from the management cluster alone.
@@ -531,8 +542,9 @@ kubectl get secret managed-cluster-01-kubeconfig -n kcm-system \
 # Export for convenience
 export KUBECONFIG=/tmp/managed-cluster-01.kubeconfig
 
-# Check cert-manager
+# Check cert-manager (Option A: it lives in the "kof" namespace, installed by Lab 1.6's kof-child)
 kubectl get pods -n cert-manager
+kubectl get pods -n kof 2>/dev/null | grep cert-manager
 kubectl get certificates -A
 
 # Check ingress-nginx
@@ -601,7 +613,7 @@ metadata:
   namespace: kcm-system
 spec:
   dependsOn:
-  - training-baseline-services  # Wait for baseline (cert-manager, ingress, kyverno)
+  - baseline-services  # Wait for baseline (cert-manager, kyverno — or kyverno only if you used Option A)
   clusterSelector:
     matchLabels:
       environment: training
@@ -628,10 +640,12 @@ Let's verify each service is working correctly on the managed cluster.
 
 ### Test cert-manager
 
+> **Option A note:** If you used the kyverno-only baseline variant, cert-manager was installed by Lab 1.6's kof-child chart and runs in the `kof` namespace — check it with `kubectl get pods -n kof | grep cert-manager` instead. The Certificate/ClusterIssuer test below works the same either way, since cert-manager watches the whole cluster.
+
 ```bash
 export KUBECONFIG=/tmp/managed-cluster-01.kubeconfig
 
-# Check cert-manager is ready
+# Check cert-manager is ready (Option B; for Option A see the note above)
 kubectl get pods -n cert-manager
 
 # Create a test certificate
@@ -767,8 +781,8 @@ Learn how to update and remove services via MultiClusterService.
 ### Update Service Values
 
 ```bash
-# Edit the MultiClusterService to change values
-kubectl edit multiclusterservice training-baseline-services -n kcm-system
+# Verify the MCS exists first (a NotFound here means a typo — catch it early)
+kubectl get multiclusterservice baseline-services
 
 # Edit the MultiClusterService to change values (recommended for targeted changes)
 kubectl edit multiclusterservice baseline-services
@@ -818,6 +832,8 @@ spec:
 
 If you're done with the lab and want to clean up:
 
+> **Keep the managed cluster!** Only the MultiClusterServices and ServiceTemplates are removed here. Do **not** delete the ClusterDeployment or run the Lab 1.5 cleanup — Lab 1.8 still needs the managed cluster. Final teardown happens at the end of Lab 1.8.
+
 ### Remove MultiClusterService
 
 ```bash
@@ -858,10 +874,10 @@ Before completing this lab, verify:
 ## Summary
 
 In this lab, you:
-- Explored the k0rdent Service Catalog (100+ services)
+- Explored the k0rdent Service Catalog (over 90 validated integrations, as of late 2025)
 - Installed ServiceTemplates from the catalog
 - Created a MultiClusterService to deploy services at scale
-- Deployed cert-manager, ingress-nginx, and kyverno
+- Deployed kyverno and ingress-nginx (plus cert-manager, if it wasn't already on the cluster from Lab 1.6)
 - Learned about service dependencies and ordering
 - Validated services on managed clusters
 
@@ -876,20 +892,8 @@ In this lab, you:
 | **dependsOn** | Service ordering and dependencies |
 | **ServiceTemplateChain** | Version management and upgrade paths |
 
-## Week 1 Complete!
+## Next Lab
 
-Congratulations on completing Week 1! You have:
+You've now deployed services fleet-wide with MultiClusterService — the payoff of the catalog, templates, and labeling work from earlier labs. One lab remains in Week 1: upgrading k0rdent Enterprise itself (followed by the Week 1 quiz).
 
-1. **Lab 1.1**: Provisioned a k0rdent Enterprise management cluster
-2. **Lab 1.2**: Explored the k0rdent UI and Service Catalog
-3. **Lab 1.3**: Configured AWS infrastructure provider credentials
-4. **Lab 1.4**: Hardened the setup for production use
-5. **Lab 1.5**: Provisioned a managed Kubernetes cluster
-6. **Lab 1.6**: Deployed KOF for observability and FinOps
-7. **Lab 1.7**: Deployed services across clusters with MultiClusterService
-
-You now have a solid foundation in k0rdent Enterprise for managing multi-cluster Kubernetes infrastructure.
-
-## Next Week
-
-Proceed to [Week 2: Bare Metal as a Service](../../week-2-bmaas/README.md) to learn how to manage bare metal infrastructure with k0rdent.
+Continue to [Lab 1.8: Upgrade k0rdent Enterprise](lab-1.8-upgrade-k0rdent.md)

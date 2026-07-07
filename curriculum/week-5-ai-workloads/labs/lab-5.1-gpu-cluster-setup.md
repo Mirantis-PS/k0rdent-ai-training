@@ -173,7 +173,7 @@ kubectl get management kcm -o jsonpath='{.status.components.cluster-api-provider
 # Check available templates
 kubectl get clustertemplates -n kcm-system | grep aws-standalone
 
-# Template to use: aws-standalone-cp-1-0-20
+# Template to use: aws-standalone-cp-1-0-26
 ```
 
 Create the ClusterDeployment:
@@ -189,7 +189,7 @@ metadata:
     environment: training
     gpu-enabled: "true"
 spec:
-  template: aws-standalone-cp-1-0-20
+  template: aws-standalone-cp-1-0-26
   credential: aws-cluster-identity-cred
   dryRun: false
   cleanupOnDeletion: true
@@ -277,6 +277,20 @@ helm install gpu-operator nvidia/gpu-operator \
 ```
 
 > **k0s-specific:** k0s stores containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, NOT the standard paths (`/etc/containerd/` and `/run/containerd/containerd.sock`). Without these toolkit env vars, the toolkit crashes with `containerd.sock: no such file or directory`.
+
+> **⚠️ Pin the version — `--version v25.3.0`, do NOT bump to 25.10.x.** On k0s ≥ 1.35 (containerd 1.7.30) the **25.10 toolkit has a regression**: it ignores `CONTAINERD_CONFIG=/etc/k0s/containerd.d/nvidia.toml` and writes its runtimes to `/etc/containerd/conf.d/99-nvidia.toml` instead. k0s merge-patches that drop-in **last** into `/run/k0s/containerd-cri.toml`, and its runtimes map **replaces** k0s's — dropping `runc` while `default_runtime_name = "runc"` survives, so the CRI plugin fails to load and the worker goes `NotReady` (`container runtime is down`). A reboot / `k0sworker` restart alone does not fix it. 25.3.0 (driver 570.124) honours the k0s path and comes up cleanly with no host edit. If you are forced onto ≥ 25.10, the workaround is to re-add a `runc` runtime to `/etc/containerd/conf.d/99-nvidia.toml` and `systemctl restart k0sworker` (reach the host via `aws ssm start-session --target <worker-instance-id>` — pods can't schedule while CRI is down):
+>
+> ```bash
+> sudo tee -a /etc/containerd/conf.d/99-nvidia.toml >/dev/null <<'EOF'
+>
+> [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+>   runtime_type = "io.containerd.runc.v2"
+>
+>   [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+>     SystemdCgroup = false
+> EOF
+> sudo systemctl restart k0sworker
+> ```
 
 > **`helm install --wait` returns fast — but GPUs are NOT ready yet:** Helm considers the release "deployed" once its top-level resources (Deployments, DaemonSets) are *present*, which typically happens within ~60 seconds. But GPU Operator has a cascade: `nvidia-container-toolkit`, `nvidia-device-plugin`, `nvidia-dcgm`, and `nvidia-operator-validator` all have `initContainers` that **wait for `nvidia-driver-daemonset` to become Ready first**, and the driver daemonset compiles the NVIDIA kernel module against the running kernel (~2 minutes on A10G / Ubuntu 22.04). So `helm install` exits before GPUs are actually allocatable. **The real completion signal is `nvidia.com/gpu: 4` appearing on the worker** via the `kubectl get nodes` command in the next step — poll that, not helm exit status.
 
@@ -1162,7 +1176,7 @@ Node.Ready: container runtime network not ready: NetworkReady=false
 reason:NetworkPluginNotReady message:Network plugin returns error
 ```
 
-Appears for ~30-60 seconds while the CNI (Calico, in the `aws-standalone-cp-1-0-20` template) initializes on a freshly booted control plane VM. Clears automatically once `calico-node` pods become Ready.
+Appears for ~30-60 seconds while the CNI (Calico, in the `aws-standalone-cp-1-0-26` template) initializes on a freshly booted control plane VM. Clears automatically once `calico-node` pods become Ready.
 
 **`ServiceSetEnsureProfileFailed` warning event right after `kubectl apply -f gpu-cluster-deployment.yaml`:**
 

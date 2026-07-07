@@ -1,22 +1,22 @@
 # k0rdent AI Infrastructure Training
 
-A comprehensive 6-week training program (~90 hours) for engineers to master k0rdent Enterprise, enabling them to build AI infrastructure products: **BMaaS**, **VMaaS**, **KaaS**, and **MaaS**.
+A comprehensive 6-week training program (~83-91 scheduled hours across the currently available weeks) for engineers to master k0rdent Enterprise, enabling them to build AI infrastructure products: **BMaaS**, **VMaaS**, **KaaS**, and **MaaS**.
 
 ## Quick Start (3 Steps)
 
 ```bash
-# 1. Clone and enter the repository
-git clone git@github.com:mgueye01/k0rdent-ai-training.git
+# 1. Fork this repository (or click "Use this template"), then clone YOUR copy
+git clone git@github.com:<your-github-user>/k0rdent-ai-training.git
 cd k0rdent-ai-training
 
-# 2. Configure AWS credentials
-aws configure
+# 2. Check the prerequisites (AWS account & quotas, AWS CLI v2, Terraform >= 1.8.0, jq)
+# Full list: curriculum/overview/prerequisites.md
 
-# 3. Start Lab 1.1
-# Follow: curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md
+# 3. Start Week 1
+# Follow: curriculum/week-1-foundations/README.md
 ```
 
-**That's it.** Lab 1.1 walks you through everything: provisioning, connecting, and verifying your k0rdent management cluster.
+**That's it.** The Week 1 README walks you through the week day by day — theory first, then Lab 1.1, which provisions, connects, and verifies your k0rdent management cluster.
 
 ## Program Overview
 
@@ -24,7 +24,7 @@ aws configure
 |-----------|-------|
 | **Target Audience** | Engineers proficient in Kubernetes |
 | **Format** | Self-paced online with cloud-based labs |
-| **Duration** | 6 weeks (~15 hours/week, ~90 total hours) |
+| **Duration** | 6 weeks (~15-25 scheduled hours/week; ~83-91 hours across the currently available weeks — see each week's README for active vs scheduled breakdown) |
 | **Lab Ratio** | 70% hands-on / 30% theory |
 | **Primary Outcome** | Implement k0rdent for customer deployments |
 
@@ -32,11 +32,13 @@ aws configure
 
 | Product | Week(s) | Description |
 |---------|---------|-------------|
-| **BMaaS** | 1-2 | Bare Metal Hardware Rental/Utilization |
+| **BMaaS** | 2 | Bare Metal Hardware Rental/Utilization |
 | **VMaaS** | 3 | Virtual Machine Provisioning |
-| **KaaS** | 4 | Bare Metal & Instance-based Kubernetes Clusters |
+| **KaaS** | 4 *(in development)* | Bare Metal & Instance-based Kubernetes Clusters |
 | **MaaS** | 5 | Models as a Service (Endpoints, API Keys) |
 | **AI Tools** | 5-6 | Vector DBs, Notebooks, Gateways, Routers |
+
+> **Note:** Week 4 (Kubernetes-as-a-Service) is under development — Labs 4.1, 4.4, 4.9, and 4.10 are committed, the rest are pending. Week 1 Labs 1.5 and 1.8 already cover much of the CAPI cluster lifecycle in the meantime; Week 5 has no hard Week 4 dependency (Lab 4.4 pairs naturally with Lab 5.18 but is not required).
 
 ## Learning Path
 
@@ -62,7 +64,9 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 - Basic understanding of virtualization concepts
 - Experience with Infrastructure as Code (Terraform, Helm)
 
-**Software Versions:**
+See [Prerequisites](curriculum/overview/prerequisites.md) for the full account, budget, quota, and workstation requirements (AWS account with admin-level IAM, macOS/Linux or WSL2, ~$25-50 Week 1 budget).
+
+**Software Versions** (each week's README carries the authoritative version table for its labs):
 
 | Component | Version | Notes |
 |-----------|---------|-------|
@@ -70,10 +74,10 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 | k0rdent Enterprise | v1.3.1 | Management platform (N-1; upgrade to v1.3.2 in Lab 1.8) |
 | KubeVirt | v1.6.3 | VM workloads |
 | NVIDIA GPU Operator | v25.10.0 | GPU management |
-| Cluster API | v1.11 | API v1beta2 |
+| Cluster API (clusterctl) | v1.12.4 | Auto-installed in Lab 1.1 |
 | Metal3 CAPM3 | v1.8.0 | Bare metal provider |
 | Cilium | v1.18.4 | CNI |
-| vLLM | v0.11.2 | LLM inference |
+| vLLM | v0.14.0 | Validated example pin (Week 5) |
 | Terraform | >= 1.8.0 | IaC |
 
 **Tools to Install:**
@@ -89,10 +93,10 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 ```
 k0rdent-ai-training/
 ├── curriculum/                  # Training content
-│   ├── week-1-foundations/     # START HERE → labs/lab-1.1-provision-k0rdent.md
+│   ├── week-1-foundations/     # START HERE → README.md (day-by-day schedule)
 │   ├── week-2-bmaas/           # Metal3, Ironic, bare metal provisioning
 │   ├── week-3-vmaas/           # KubeVirt, GPU passthrough
-│   ├── week-4-kaas/            # Cluster API, GPU operator
+│   ├── week-4-kaas/            # Cluster API, hosted CP, Cilium/Multus (in development)
 │   ├── week-5-ai-workloads/    # vLLM, Run:AI, service catalog
 │   └── week-6-multitenancy/    # RBAC, tenancy, capstone project
 └── lab-infrastructure/          # Terraform + scripts
@@ -105,11 +109,23 @@ k0rdent-ai-training/
 
 | Document | Purpose |
 |----------|---------|
-| [Lab 1.1: Provision k0rdent](curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md) | **Start here** - First lab |
+| [Week 1: Foundations](curriculum/week-1-foundations/README.md) | **Start here** - day-by-day schedule (theory + labs) |
+| [Lab 1.1: Provision k0rdent](curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md) | First hands-on lab (Day 1, after Theory 1.1) |
 | [Week 1 Theory](curriculum/week-1-foundations/theory/) | Architecture, components, providers |
-| [Lab Infrastructure Reference](lab-infrastructure/README.md) | Scripts, costs, technical details |
+| [Lab Infrastructure Reference](lab-infrastructure/README.md) | Script & cost reference (used by Lab 1.1 — not a starting point) |
 | [Troubleshooting Guide](lab-infrastructure/docs/troubleshooting.md) | Common issues and solutions |
-| [Full Curriculum](curriculum/k0rdent-ai-infrastructure-training-curriculum.md) | Complete syllabus |
+| [Program Overview](curriculum/overview/training-program-overview.md) | Complete syllabus |
+
+## Curriculum by Week
+
+| Week | README | Committed content |
+|------|--------|-------------------|
+| 1 — Foundations | [README](curriculum/week-1-foundations/README.md) | 3 theory + 9 labs (stable) |
+| 2 — BMaaS | [README](curriculum/week-2-bmaas/README.md) | 5 labs |
+| 3 — VMaaS | [README](curriculum/week-3-vmaas/README.md) | 1 lab |
+| 4 — KaaS | [README](curriculum/week-4-kaas/README.md) | 4 labs (4.1, 4.4, 4.9, 4.10) — in development; no hard Week 5 dependency |
+| 5 — AI Workloads | [README](curriculum/week-5-ai-workloads/README.md) | 5 theory + 18 labs (stable, live-validated) |
+| 6 — Multi-Tenancy | [README](curriculum/week-6-multitenancy/README.md) | 4 labs (incl. capstone) |
 
 ## What Gets Installed (Week 1)
 
@@ -118,17 +134,18 @@ When you complete Lab 1.1, you'll have:
 - **k0s** - Lightweight Kubernetes distribution (v1.35.4)
 - **k0rdent Enterprise** (v1.3.1)
   - **KCM** - Cluster Manager for multi-cluster management
-  - **KSM** - State Manager for service installation
-  - **KOF** - Observability & FinOps
+  - **KSM** - State Management for service installation
 - **Cluster API** - Kubernetes cluster provisioning
 - **k0rdent UI** - Web interface for management
 
+**KOF** (Observability & FinOps) is deployed later, in Lab 1.6.
+
 ## Assessment
 
-- Weekly quizzes (80% passing required)
-- Lab completion with verification
+- Weekly self-assessment quizzes (target 80%; answer keys included — self-scored)
+- Lab completion with verification checklists
 - Week 6 capstone project
-- Overall 85% score required for certification
+- Suggested completion bar: 85% overall (self-tracked)
 
 ## Support
 
@@ -138,4 +155,4 @@ When you complete Lab 1.1, you'll have:
 
 ---
 
-**Version:** 2.2 | **Last Updated:** January 2026
+**Version:** 2.3 | **Last Updated:** June 2026

@@ -52,7 +52,7 @@ data "aws_ami" "nvidia_dl" {
 
   filter {
     name   = "name"
-    values = ["*Deep Learning AMI GPU PyTorch*Ubuntu 22.04*"]
+    values = ["Deep Learning*AMI GPU PyTorch*Ubuntu 22.04*"]
   }
 
   filter {
@@ -123,6 +123,15 @@ resource "aws_instance" "gpu_shared" {
     engineer_slots        = var.engineer_slots
   }))
 
+  # Enforce IMDSv2. Single-node k0s GPU stack (GPU operator / inference pods)
+  # has no legitimate IMDS use — no CCM/CSI, S3 log upload is a root host
+  # script: hop_limit 1 keeps pod-network workloads away from instance creds.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   tags = merge(local.common_tags, {
     Name         = "${var.project_name}-gpu-shared-${var.lab_session_id}"
     Role         = "gpu-shared"
@@ -180,6 +189,13 @@ resource "aws_instance" "gpu_advanced" {
     instance_type         = var.advanced_gpu_instance_type
     use_nvidia_ami        = var.use_nvidia_ami
   }))
+
+  # Enforce IMDSv2. Same single-node k0s GPU stack as gpu_shared: hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   tags = merge(local.common_tags, {
     Name         = "${var.project_name}-gpu-advanced-${var.lab_session_id}"
@@ -241,6 +257,13 @@ resource "aws_spot_instance_request" "gpu_shared_spot" {
     use_nvidia_ami        = var.use_nvidia_ami
     engineer_slots        = var.engineer_slots
   }))
+
+  # Enforce IMDSv2 (same posture as the on-demand GPU instance): hop_limit 1.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   tags = merge(local.common_tags, {
     Name         = "${var.project_name}-gpu-shared-spot-${var.lab_session_id}"

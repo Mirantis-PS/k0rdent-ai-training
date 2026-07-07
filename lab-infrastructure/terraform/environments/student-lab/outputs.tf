@@ -18,6 +18,31 @@ output "vpc_id" {
   value       = module.networking.vpc_id
 }
 
+output "vpc_cidr" {
+  description = "VPC CIDR block (used by Week 4 hosted-cp ClusterDeployments and Week 4 storage labs)"
+  value       = module.networking.vpc_cidr
+}
+
+output "availability_zones" {
+  description = "Availability zones in use by this VPC (Week 4+ multi-AZ labs reference this)"
+  value       = module.networking.availability_zones
+}
+
+output "public_subnet_ids" {
+  description = "Public subnet IDs (used by Week 4 aws-hosted-cp ClusterDeployments)"
+  value       = module.networking.public_subnet_ids
+}
+
+output "private_subnet_ids" {
+  description = "Private subnet IDs (used by Week 4 aws-hosted-cp ClusterDeployments)"
+  value       = module.networking.private_subnet_ids
+}
+
+output "k8s_cluster_security_group_id" {
+  description = "Security group ID for managed-cluster workers (used by Week 4 aws-hosted-cp ClusterDeployments)"
+  value       = module.networking.k8s_cluster_security_group_id
+}
+
 output "nat_gateway_ip" {
   description = "NAT Gateway public IP"
   value       = module.networking.nat_gateway_ip
