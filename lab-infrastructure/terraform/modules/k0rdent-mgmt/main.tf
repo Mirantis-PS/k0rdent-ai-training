@@ -238,6 +238,15 @@ resource "aws_instance" "mgmt_node" {
 
   user_data_base64 = local.node_user_data
 
+  # Enforce IMDSv2: user-data contains the UI admin password and the instance
+  # role is broad (CAPA/CCM). hop_limit 2 because containerized CCM/CAPA pods
+  # on the pod network legitimately reach IMDS through one NAT hop.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
   tags = merge(local.common_tags, {
     Name                                                    = local.node_names[count.index]
     Role                                                    = count.index == 0 ? "controller-primary" : "controller"

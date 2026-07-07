@@ -28,7 +28,7 @@ YOUR MACHINE
 +--------+---------+
          |
          | ClusterDeployment
-         | (aws-standalone-cp-1-0-20)
+         | (aws-standalone-cp-1-0-26)
          v
 +--------------------+     +--------------------+
 | GPU Cluster CP     |     | GPU Worker Node    |
@@ -91,7 +91,7 @@ metadata:
   name: gpu-cluster
   namespace: kcm-system
 spec:
-  template: aws-standalone-cp-1-0-20
+  template: aws-standalone-cp-1-0-26
   credential: aws-cluster-identity-cred
   config:
     clusterLabels: {}
@@ -362,10 +362,10 @@ After completing the foundation track, choose one or more paths:
 
 | Lab | Title | Duration |
 |-----|-------|----------|
-| [5.13](lab-5.13-tensorrt-llm.md) | TensorRT-LLM Optimization | 3h |
+| [5.13](lab-5.13-tensorrt-llm.md) | TensorRT-LLM Optimization | 3.5h |
 | [5.14](lab-5.14-slurm-operator-hpc.md) | Slurm Operator for HPC | 3h |
-| [5.15](lab-5.15-rdma-multi-cloud.md) | RDMA Multi-Cloud | 3h |
-| [5.16](lab-5.16-distributed-training.md) | Distributed Training | 3h |
+| [5.15](lab-5.15-rdma-multi-cloud.md) | RDMA Multi-Cloud | 4h |
+| [5.16](lab-5.16-distributed-training.md) | Distributed Training | 4.5h |
 
 ```
 FOUNDATION (Required)                                    CHOOSE YOUR PATH

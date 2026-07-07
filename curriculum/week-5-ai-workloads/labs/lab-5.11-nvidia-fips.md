@@ -59,9 +59,20 @@ Understand and validate prerequisites for NVIDIA Government Ready / FIPS-oriente
 - k0rdent management cluster with a GPU-enabled workload cluster provisioned via `ClusterDeployment`
 - SSH access to GPU worker nodes
 
+> **⚠️ Read this before you start — what "success" looks like on a stock cluster.** Enabling FIPS is an **OS-level** action that requires a FIPS-capable image: **Ubuntu Pro** with `fips-updates` enabled, or a **RHEL 8/9 / Amazon Linux 2023** image with `fips-mode-setup`. The default GPU cluster in this lab runs **stock Ubuntu 22.04** (the AMI required for the GPU Operator — see Task 3), which is **not** FIPS-enabled. On that stock host the checks in Tasks 2, 4, and 6 are **expected to report the NEGATIVE branches** — this is the correct, passing result for this lab, not a failure:
+>
+> | Check | Stock Ubuntu 22.04 (this lab) | FIPS-enabled host (Ubuntu Pro / RHEL / AL2023) |
+> |-------|-------------------------------|------------------------------------------------|
+> | `cat /proc/sys/crypto/fips_enabled` | `0` | `1` |
+> | `openssl md5` | succeeds (MD5 available) | rejected (`unsupported`) |
+> | OpenSSL FIPS provider (`openssl list -providers`) | not active | `fips … status: active` |
+> | `module_sig_enforce` | typically `0` | `1` |
+>
+> To see the **positive** outputs you must first provision the cluster on a FIPS-capable image (attach an Ubuntu Pro token and `sudo pro enable fips-updates`, or use a RHEL/AL2023 AMI) — this lab does **not** require you to do that. GPU compute (CUDA/NCCL) works identically either way; it is outside the FIPS boundary.
+
 ## k0rdent Context
 
-The k0rdent catalog includes the `gpu-operator-25-10-0` ServiceTemplate for deploying the NVIDIA GPU Operator. In Government Ready / FIPS-oriented environments, use that template only after you have the required NVIDIA AI Enterprise entitlement, access to NVIDIA-documented Government Ready artifacts, and a validated platform. The examples in this lab show how k0rdent can distribute those settings; they are not, by themselves, proof of compliance.
+The k0rdent catalog includes the `gpu-operator-25-3-0` ServiceTemplate for deploying the NVIDIA GPU Operator. In Government Ready / FIPS-oriented environments, use that template only after you have the required NVIDIA AI Enterprise entitlement, access to NVIDIA-documented Government Ready artifacts, and a validated platform. The examples in this lab show how k0rdent can distribute those settings; they are not, by themselves, proof of compliance.
 
 > **Key concept:** The GPU Operator itself does not have a "FIPS mode" toggle. Government Ready / FIPS-oriented deployments require a layered approach:
 >
@@ -246,42 +257,49 @@ Deploy the GPU Operator through k0rdent's ServiceTemplate after the platform and
      name: gpu-fips
      namespace: kcm-system
    spec:
-     template: aws-standalone-cp-0-2-3
+     template: aws-standalone-cp-1-0-26
      credential: aws-cluster-identity-cred
      config:
        region: us-east-1
        publicIP: true
        controlPlaneNumber: 1
        controlPlane:
+         amiID: ami-0d28727121d5d4a3c        # Ubuntu 22.04 in us-east-1 (REQUIRED - see note)
          instanceType: t3.large
        workersNumber: 2
        worker:
+         amiID: ami-0d28727121d5d4a3c        # Ubuntu 22.04 in us-east-1 (REQUIRED - see note)
          instanceType: g5.xlarge
        clusterLabels:
          k0rdent.mirantis.com/compliance: fips
          k0rdent.mirantis.com/workload-type: ai
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
-             operator:
-               defaultRuntime: containerd
-             toolkit:
-               env:
-                 - name: CONTAINERD_CONFIG
-                   value: /etc/k0s/containerd.d/nvidia.toml
-                 - name: CONTAINERD_SOCKET
-                   value: /run/k0s/containerd.sock
-                 - name: CONTAINERD_RUNTIME_CLASS
-                   value: nvidia
-             nfd:
-               enabled: true
-             gfd:
-               enabled: true
+             # Every value MUST nest under `gpu-operator:` — the catalog ServiceTemplate is an
+             # umbrella chart wrapping the upstream gpu-operator as a subchart of that name.
+             # Top-level keys are silently dropped by Helm and the toolkit falls back to the
+             # default /run/containerd path, crash-looping with "containerd.sock: no such file".
+             gpu-operator:
+               toolkit:
+                 env:
+                   - name: CONTAINERD_CONFIG
+                     value: /etc/k0s/containerd.d/nvidia.toml
+                   - name: CONTAINERD_SOCKET
+                     value: /run/k0s/containerd.sock
+                   - name: CONTAINERD_RUNTIME_CLASS
+                     value: nvidia
+               nfd:
+                 enabled: true
+               gfd:
+                 enabled: true
        priority: 100
    ```
+
+   > **⚠️ Ubuntu 22.04 AMI is REQUIRED.** The `aws-standalone-cp` template defaults to an Amazon Linux 2 AMI, for which the NVIDIA GPU Operator publishes **no driver container image** — the driver DaemonSet fails with `nvcr.io/nvidia/driver:<ver>-amzn2: not found` and no GPU ever becomes allocatable. Pin an Ubuntu 22.04 `amiID` on **both** control plane and worker. AMI IDs are region-specific (the value above is for `us-east-1`); look up the current one with `aws ec2 describe-images --owners 099720109477 --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" --query 'reverse(sort_by(Images,&CreationDate))[0].ImageId' --output text`. (Ubuntu also matters for FIPS: `pro enable fips-updates` in Task 2 needs an Ubuntu Pro-attachable Ubuntu host.)
 
    > **Platform note:** If you rely on cloud marketplace images or internal golden images, verify regional availability and compliance status before deployment.
 
@@ -301,25 +319,27 @@ Deploy the GPU Operator through k0rdent's ServiceTemplate after the platform and
          k0rdent.mirantis.com/compliance: fips
      serviceSpec:
        services:
-         - template: gpu-operator-25-10-0
+         - template: gpu-operator-25-3-0
            name: gpu-operator
            namespace: gpu-operator
            values: |
-             operator:
-               defaultRuntime: containerd
-             toolkit:
-               env:
-                 - name: CONTAINERD_CONFIG
-                   value: /etc/k0s/containerd.d/nvidia.toml
-                 - name: CONTAINERD_SOCKET
-                   value: /run/k0s/containerd.sock
-                 - name: CONTAINERD_RUNTIME_CLASS
-                   value: nvidia
-             nfd:
-               enabled: true
-             gfd:
-               enabled: true
+             # Values nest under `gpu-operator:` (umbrella subchart); top-level keys are dropped.
+             gpu-operator:
+               toolkit:
+                 env:
+                   - name: CONTAINERD_CONFIG
+                     value: /etc/k0s/containerd.d/nvidia.toml
+                   - name: CONTAINERD_SOCKET
+                     value: /run/k0s/containerd.sock
+                   - name: CONTAINERD_RUNTIME_CLASS
+                     value: nvidia
+               nfd:
+                 enabled: true
+               gfd:
+                 enabled: true
    ```
+
+   > **Note:** Option B assumes the existing cluster's worker nodes already run Ubuntu 22.04 (or another OS with a published GPU Operator driver image). A cluster provisioned on the template's default Amazon Linux 2 AMI cannot run the GPU Operator driver regardless of these values — see the Ubuntu 22.04 note under Option A.
 
    ```bash
    kubectl apply -f gpu-operator-fips-mcs.yaml

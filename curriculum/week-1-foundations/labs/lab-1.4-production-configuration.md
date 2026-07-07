@@ -1,6 +1,6 @@
 # Lab 1.4: Production Configuration and RBAC
 
-**Duration:** 3 hours
+**Duration:** 3.5 hours
 **Type:** Hands-on Lab
 
 ## Table of Contents
@@ -16,6 +16,7 @@
   - [Create Namespaces for Teams](#create-namespaces-for-teams)
   - [Create Cluster Roles](#create-cluster-roles)
   - [Create Service Accounts and Bindings](#create-service-accounts-and-bindings)
+  - [Verify Access for Each Persona](#verify-access-for-each-persona)
 - [Part 3: Configure Audit Logging (~10 min)](#part-3-configure-audit-logging-10-min)
   - [Enable Kubernetes Audit Logging](#enable-kubernetes-audit-logging)
   - [Configure k0s for Audit Logging](#configure-k0s-for-audit-logging)
@@ -40,10 +41,10 @@
 ## Objectives
 
 In this lab, you will:
-- Configure k0rdent for production readiness
-- Set up RBAC policies for multi-team access
+- Configure k0rdent production settings that are safe to apply in training (RBAC, backups, quotas)
+- Set up RBAC policies for multi-team access and verify them with `kubectl auth can-i`
 - Configure backup and disaster recovery
-- Implement security hardening
+- Review production security hardening (audit logging, network policies, secret encryption) as reference material -- these are deliberately **not** applied in the training environment
 
 ## Prerequisites
 
@@ -185,12 +186,67 @@ kubectl create serviceaccount platform-admin -n team-platform
 kubectl create serviceaccount ml-admin -n team-ml
 kubectl create serviceaccount ml-viewer -n team-ml
 
-# Bind roles
+# Bind roles -- each persona gets the least-privileged role that fits
+
+# platform-admin: project admin within team-platform only
 kubectl create rolebinding platform-admin-binding \
   --role=k0rdent-project-admin \
   --serviceaccount=team-platform:platform-admin \
   -n team-platform
+
+# ml-admin: full k0rdent access, but only within team-ml
+# (a RoleBinding to a ClusterRole scopes the ClusterRole's rules to one namespace)
+kubectl create rolebinding ml-admin-binding \
+  --clusterrole=k0rdent-cluster-admin \
+  --serviceaccount=team-ml:ml-admin \
+  -n team-ml
+
+# ml-viewer: read-only k0rdent access across the whole cluster
+kubectl create clusterrolebinding ml-viewer-binding \
+  --clusterrole=k0rdent-cluster-viewer \
+  --serviceaccount=team-ml:ml-viewer
 ```
+
+### Verify Access for Each Persona
+
+RBAC that is never tested is RBAC you only *think* works. Use `kubectl auth can-i` with service account impersonation to confirm each persona can do what it should -- and nothing more:
+
+```bash
+# platform-admin: can manage clusters in team-platform...
+kubectl auth can-i create clusterdeployments \
+  --as=system:serviceaccount:team-platform:platform-admin -n team-platform
+# Expected: yes
+
+# ...but has no access outside its own namespace
+kubectl auth can-i create clusterdeployments \
+  --as=system:serviceaccount:team-platform:platform-admin -n team-ml
+# Expected: no
+
+# ml-admin: full k0rdent access within team-ml...
+kubectl auth can-i delete clusterdeployments \
+  --as=system:serviceaccount:team-ml:ml-admin -n team-ml
+# Expected: yes
+
+# ...but cannot touch core resources like Secrets
+# (k0rdent-cluster-admin only covers the k0rdent and Cluster API groups)
+kubectl auth can-i create secrets \
+  --as=system:serviceaccount:team-ml:ml-admin -n team-ml
+# Expected: no
+
+# ml-viewer: can read cluster deployments anywhere...
+kubectl auth can-i list clusterdeployments \
+  --as=system:serviceaccount:team-ml:ml-viewer -n team-ml
+# Expected: yes
+
+# ...but cannot create or modify anything
+kubectl auth can-i create clusterdeployments \
+  --as=system:serviceaccount:team-ml:ml-viewer -n team-ml
+# Expected: no
+```
+
+If any answer differs from the expected `yes`/`no`, recheck the role and binding definitions above before moving on.
+
+> **Production note -- `allowedNamespaces`:** Kubernetes RBAC controls *who* can create k0rdent resources, but provider identity CRDs (such as `AWSClusterStaticIdentity`) add a second isolation layer: their `allowedNamespaces` field controls *which namespaces* may reference a cloud credential. In production multi-team setups you restrict this with an explicit list or selector, so Team A cannot deploy clusters using Team B's credentials. The labs in this course set `allowedNamespaces: {}` (allow-all) as a training shortcut -- never leave it open like that in production.
 
 ## Part 3: Configure Audit Logging (~10 min)
 
@@ -569,8 +625,16 @@ check() {
 
 # Core Components
 check "kubectl get pods -n kcm-system | grep -q Running" "KCM pods running"
-# Note: In k0rdent Enterprise, CAPI components run in kcm-system
-check "kubectl get pods -n kcm-system | grep -E 'capi|capa' | grep -q Running" "CAPI pods running"
+
+# Note: In k0rdent Enterprise, CAPI/CAPA components run in kcm-system, but they
+# only appear once a provider is exercised. Informational only -- never a failure.
+if kubectl get pods -n kcm-system 2>/dev/null | grep -E 'capi|capa' | grep -q Running; then
+    echo "[PASS] CAPI/CAPA pods running"
+    PASS=$((PASS + 1))
+else
+    echo "[INFO] CAPA not installed yet -- expected before Lab 1.5"
+fi
+
 check "kubectl get credential -n kcm-system | grep -q aws" "AWS credentials configured"
 
 # RBAC
@@ -581,10 +645,11 @@ check "kubectl get clusterrole k0rdent-cluster-viewer" "Cluster viewer role exis
 check "kubectl get backupstoragelocation aws-s3 -n kcm-system" "Backup storage location configured"
 check "kubectl get managementbackup kcm" "Scheduled backup configured"
 
-# Security (optional for training - network policies can block webhooks)
-# Uncomment for production:
-# check "kubectl get networkpolicy -n kcm-system | grep -q allow" "Network policies configured"
-echo "[SKIP] Network policies (optional for training)"
+# Security controls deferred by design in this training environment.
+# A real production review requires all three before sign-off.
+echo "[DEFERRED - production-only] Audit logging -- requires editing /etc/k0s/k0s.yaml and restarting k0s (Part 3 is reference-only)"
+echo "[DEFERRED - production-only] Network policies -- applying them here breaks Lab 1.5-1.7 webhook traffic (see Part 5 warning)"
+echo "[DEFERRED - production-only] Secret encryption at rest -- not enabled in default k0s; requires k0s.yaml configuration (Part 5)"
 
 echo ""
 echo "=== Results ==="
@@ -593,7 +658,7 @@ echo "Failed: $FAIL"
 echo ""
 
 if [ "$FAIL" -eq 0 ]; then
-    echo "Production readiness: READY"
+    echo "Production readiness: READY for training use -- NOT production-hardened (see DEFERRED items)"
 else
     echo "Production readiness: NOT READY - Address failures above"
 fi
@@ -605,14 +670,15 @@ sudo chmod +x /usr/local/bin/production-readiness.sh
 sudo /usr/local/bin/production-readiness.sh
 ```
 
-> **Note:** If you see `[FAIL]` for any check, review the earlier sections to ensure you completed each step. The "CAPI pods running" check looks for pods with `capi` or `capa` in their name within `kcm-system` -- if none are running yet, this is expected before your first cluster deployment in Lab 1.5.
+> **Note:** If you see `[FAIL]` for any check, review the earlier sections to ensure you completed each step. `[INFO]` and `[DEFERRED]` lines are expected here: CAPA controllers only appear once you deploy your first cluster in Lab 1.5, and the three deferred controls are production tasks this lab covers as reference material only. "READY for training use" means exactly that -- this cluster is **not** production-hardened until the deferred controls are actually implemented.
 
 ## Validation Checklist
 
 Before completing this lab, verify:
 
 - [ ] Created separate team namespaces
-- [ ] Configured RBAC roles and bindings
+- [ ] Configured RBAC roles and bindings for all three personas
+- [ ] Verified persona access with `kubectl auth can-i` (expected yes/no answers match)
 - [ ] Configured Velero with BackupStorageLocation (S3)
 - [ ] Created scheduled ManagementBackup (every 6 hours)
 - [ ] Completed an on-demand backup successfully
@@ -623,10 +689,10 @@ Before completing this lab, verify:
 ## Summary
 
 In this lab, you:
-- Configured multi-team RBAC policies
+- Configured multi-team RBAC policies and verified them with `kubectl auth can-i`
 - Configured Velero-based backup with ManagementBackup CRD
-- Applied security hardening measures
-- Created production readiness assessment
+- Reviewed production security hardening (audit logging, network policies, secret encryption) as reference material -- deferred in the training environment
+- Created a production readiness assessment that distinguishes training-ready from production-hardened
 
 ## Next Lab
 

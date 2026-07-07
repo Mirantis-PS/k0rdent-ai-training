@@ -21,7 +21,10 @@ spec:
             - "${ip}"
 %{ endfor ~}
         network:
-          provider: kuberouter
+          # Must match the live cluster config in mgmt-cloud-init.yaml (calico/vxlan)
+          provider: calico
+          calico:
+            mode: vxlan
           podCIDR: 10.244.0.0/16
           serviceCIDR: 10.96.0.0/12
         telemetry:

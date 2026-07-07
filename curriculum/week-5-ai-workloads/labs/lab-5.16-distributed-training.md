@@ -31,7 +31,7 @@ After this lab:
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) | **Lab 5.16 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multi-tenancy/README.md) |
+| [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) | **Lab 5.16 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multitenancy/labs/lab-6.6-capstone.md) |
 
 ---
 
@@ -78,7 +78,7 @@ Implement and optimize multi-node distributed training using tensor and pipeline
 k0rdent manages the GPU infrastructure and provides catalog-based service deployment. For distributed training, the key integration points are:
 
 **Available in k0rdent Catalog:**
-- `gpu-operator-25-10-0` - GPU Operator (required for all GPU workloads)
+- `gpu-operator-25-3-0` - GPU Operator (required for all GPU workloads)
 - `network-operator-25-10-0` - Network Operator (RDMA/InfiniBand)
 - `kuberay-operator-1-5-1` - KubeRay Operator (Ray-based distributed training)
 - `lws-0-7-0` - LeaderWorkerSet (Kubernetes-native distributed workloads)
@@ -94,7 +94,7 @@ k0rdent manages the GPU infrastructure and provides catalog-based service deploy
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │ ClusterDeployment (GPU Cluster)                            │  │
 │  │  spec.serviceSpec.services:                                │  │
-│  │    - gpu-operator-25-10-0                                  │  │
+│  │    - gpu-operator-25-3-0                                   │  │
 │  │    - network-operator-25-10-0                              │  │
 │  └────────────────────────────────────────────────────────────┘  │
 ├──────────────────────────────────────────────────────────────────┤
@@ -243,7 +243,7 @@ Node 3 ─────────────│  │TP=0 │TP=1 │TP=2 │TP
 
 ### Software Stack
 
-- NVIDIA GPU Operator v25.10.0
+- NVIDIA GPU Operator v25.3.0 (see week pin note — v25.10.0's toolkit breaks k0s 1.35 containerd)
 - NVIDIA Network Operator (RDMA configured)
 - Kubeflow MPI Operator v0.8.0
 - PyTorch 2.x with distributed support (via NVIDIA container)
@@ -304,7 +304,7 @@ The MPI Operator enables distributed training jobs on Kubernetes. There is no MP
 1. **Install Kubeflow MPI Operator v0.8.0**
    ```bash
    # Install MPI Operator v0.8.0
-   kubectl apply -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.8.0/deploy/v2beta1/mpi-operator.yaml
+   kubectl apply --server-side -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.8.0/deploy/v2beta1/mpi-operator.yaml
 
    # Verify installation
    kubectl get crd mpijobs.kubeflow.org
@@ -315,18 +315,115 @@ The MPI Operator enables distributed training jobs on Kubernetes. There is no MP
      -n mpi-operator --timeout=120s
    ```
 
+   > **Use `--server-side`.** The MPIJob CRD embeds a full pod-template schema and is large. A plain client-side `kubectl apply` can fail with `metadata.annotations: Too long: must have at most 262144 bytes` (the last-applied-configuration annotation exceeds the limit). `kubectl apply --server-side` avoids that annotation entirely. This was the install path validated live (MPI Operator v0.8.0: CRD `mpijobs.kubeflow.org` created, controller `mpi-operator` 1/1 Available).
+
 2. **Create Training Namespace**
    ```bash
    kubectl create namespace distributed-training
    ```
 
+### Task 2b: Adapt the NVIDIA PyTorch Image for MPI Operator (required, 15 min)
+
+The stock `nvcr.io/nvidia/pytorch:24.12-py3` image does **not** run under MPI Operator as-is. Three gaps must be closed before any MPIJob in this lab will work. All three fixes below were validated live (single-node, 4× A10G) — see the validation callout at the end of this task.
+
+**Gap 1 — no SSH server.** MPI Operator v2beta1 launches ranks by having the launcher `ssh` into each worker (this is true even for a single worker — the launcher pod is separate from the worker pod). The NVIDIA PyTorch image ships **no** `sshd` (`which sshd` → not found). If the worker runs `command: ["sleep", "infinity"]`, the operator's automatic `sshd` injection is suppressed (it only injects `/usr/sbin/sshd -De` when the worker sets *no* command) — and even if it did inject, the binary is absent. So each worker must install and start `sshd` itself.
+
+**Gap 2 — MPI env vars, not torchrun env vars.** Every training script here reads `LOCAL_RANK` / `RANK` / `WORLD_SIZE` / `MASTER_ADDR` / `MASTER_PORT` (the `torchrun` / `torch.distributed` convention). But `mpirun` sets `OMPI_COMM_WORLD_RANK` / `OMPI_COMM_WORLD_LOCAL_RANK` / `OMPI_COMM_WORLD_SIZE` instead. Without a shim, `int(os.environ["LOCAL_RANK"])` raises `KeyError`, or every rank defaults to `cuda:0` and collides. A tiny wrapper maps OMPI → torch env before exec'ing Python.
+
+**Gap 3 — missing Python packages.** The image has `torch` (2.6.0a0) and Open MPI 4.1.7 but **not** `deepspeed`, `transformers`, `accelerate`, or `mpi4py` (all confirmed absent). Tasks 5 and 6 import them, so they must be `pip install`ed **on the workers** — that is where `mpirun` actually executes Python (see Task 5/6). The image's Python is PEP 668 "externally managed", so `pip install` needs `--break-system-packages`.
+
+1. **Create the shared worker bootstrap + env shim**
+
+   ```yaml
+   # Save as mpi-adapters.yaml
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: mpi-worker-bootstrap
+     namespace: distributed-training
+   data:
+     # Installs + starts sshd on port 22 (the operator's default) reading the
+     # operator-mounted /root/.ssh/authorized_keys. This is the worker's main process.
+     worker-init.sh: |
+       #!/bin/bash
+       set -e
+       export DEBIAN_FRONTEND=noninteractive
+       if ! command -v /usr/sbin/sshd >/dev/null 2>&1; then
+         apt-get update -qq
+         apt-get install -y -qq --no-install-recommends openssh-server >/dev/null
+       fi
+       mkdir -p /var/run/sshd
+       ssh-keygen -A
+       cat > /etc/ssh/sshd_mpi.conf <<EOF
+       Port 22
+       PermitRootLogin prohibit-password
+       PubkeyAuthentication yes
+       StrictModes no
+       AuthorizedKeysFile /root/.ssh/authorized_keys
+       EOF
+       exec /usr/sbin/sshd -D -e -f /etc/ssh/sshd_mpi.conf
+   ---
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: mpi-torch-shim
+     namespace: distributed-training
+   data:
+     # Runs on each rank (mpirun spawns it on the worker) and exec's the real command.
+     # MASTER_ADDR/MASTER_PORT are propagated from the launcher via `mpirun -x`.
+     run.sh: |
+       #!/bin/bash
+       export RANK="${OMPI_COMM_WORLD_RANK}"
+       export LOCAL_RANK="${OMPI_COMM_WORLD_LOCAL_RANK}"
+       export WORLD_SIZE="${OMPI_COMM_WORLD_SIZE}"
+       export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
+       export MASTER_PORT="${MASTER_PORT:-29500}"
+       exec "$@"
+   ```
+
+   ```bash
+   kubectl apply -f mpi-adapters.yaml
+   ```
+
+2. **The worker and launcher pattern used by every MPIJob below**
+
+   Each MPIJob's **Worker** container runs the bootstrap (mount the ConfigMaps and set `command: ["bash", "/bootstrap/worker-init.sh"]`), and its **Launcher** waits for worker `sshd`, disables host-key prompts, and wraps the Python command with the shim. For a **multi-node** (2× p4d) job, derive `MASTER_ADDR` from the first host in the operator-provided hostfile so rank 0's node is the rendezvous:
+
+   ```bash
+   # launcher preamble (bash -c), before mpirun:
+   command -v ssh >/dev/null 2>&1 || { apt-get update -qq && \
+     apt-get install -y -qq --no-install-recommends openssh-client >/dev/null; }
+   SSHOPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
+   for h in $(awk '{print $1}' /etc/mpi/hostfile); do
+     for i in $(seq 1 60); do ssh $SSHOPTS "$h" true 2>/dev/null && break; sleep 5; done
+   done
+   export MASTER_ADDR=$(awk 'NR==1{print $1}' /etc/mpi/hostfile)   # rank-0 host (multi-node)
+   export MASTER_PORT=29500
+   mpirun --allow-run-as-root --mca plm_rsh_args "$SSHOPTS" \
+     -np 16 -npernode 8 -bind-to none -map-by slot \
+     -x MASTER_ADDR -x MASTER_PORT -x NCCL_DEBUG=INFO -x LD_LIBRARY_PATH -x PATH \
+     /scripts/run.sh python /scripts/<your_script>.py <args>
+   ```
+
+   The `-x MASTER_ADDR -x MASTER_PORT` flags propagate those values to every rank; `run.sh` then fills in `RANK`/`LOCAL_RANK`/`WORLD_SIZE` from the per-process OMPI vars. `--mca plm_rsh_args "$SSHOPTS"` makes `mpirun`'s own `ssh` skip host-key verification.
+
+   > **⚠️ Validation status (live run 2026-07-07).** The three adaptations above were validated on a **single-node g5.12xlarge (4× A10G)** child cluster, gpu-operator 25.3.0, k0s v1.35.1:
+   > - MPI Operator v0.8.0 install, worker `sshd` bootstrap, launcher `ssh`-wait, and the OMPI→torch shim were proven end-to-end — a trivial MPIJob spawned 4 ranks (rank 0–3, one per worker), and the **NCCL all-reduce test (Task 3) passed with each rank bound to a distinct GPU** (`rank 0 cudaDev 0`, `rank 1 cudaDev 1`, `rank 2 cudaDev 2`, `rank 3 cudaDev 3`).
+   > - The DeepSpeed (Task 5) and FSDP (Task 6) **full training runs were not completed green** in the live window (the pip-install fix was applied after hitting PEP 668, but the run was cut short by cluster teardown). Treat Tasks 4–6 as **structurally fixed but needs-live-check**.
+   > - Everything **multi-node** (2× p4d: `np=16`, cross-node bandwidth, the hostfile-derived `MASTER_ADDR`, NVLink/EFA numbers) is **doc-verified only** — this smoke ran on one node. On AWS, cross-node NCCL falls back to TCP anyway (see the EFA note in Task 3).
+
+   > **Single-node smoke variant (no p4d, ~$6/h on one g5.12xlarge).** To run this lab's logic without a 2-node p4d cluster, downscale every MPIJob: `Worker.replicas: 1`, `slotsPerWorker: 4`, `mpirun -np 4 -npernode 4`, `resources.limits.nvidia.com/gpu: 4`, **drop** the `rdma/rdma_shared_device_ib` resource, set `MASTER_ADDR=127.0.0.1` (all ranks on one pod), and use a tiny model (e.g. `gpt2` instead of `Llama-2-7b`) so it fits in 22 GiB A10G memory. This validates the distributed-training *logic* (NCCL, ZeRO-3, FSDP, checkpointing, rank→GPU mapping); bandwidth/NVLink/EFA claims require the full 2× p4d shape and stay doc-verified.
+
 ### Task 3: Verify Multi-Node Connectivity (30 min)
 
 Before training, verify NCCL communication across nodes.
 
-> **Important:** The NVIDIA PyTorch container (`nvcr.io/nvidia/pytorch`) includes the NCCL library but does NOT include pre-compiled NCCL test binaries. We use a dedicated NCCL tests container for benchmarking, or build from source.
+> **Important:** The `nvcr.io/nvidia/pytorch:24.12-py3` tag **does** ship prebuilt NCCL test binaries at `/usr/local/bin/` (e.g. `all_reduce_perf`, `all_gather_perf`) — confirmed on a live p4d run. You can invoke `all_reduce_perf` directly instead of building nccl-tests from source. (Older tags and the base CUDA images do not bundle them; there you must build nccl-tests from source or use a dedicated NCCL-tests container.) The PyTorch-based benchmark below needs no extra binaries and is used here so the same job proves the OMPI→torch shim.
 
 1. **Deploy Multi-Node NCCL Test**
+
+   > **Apply the Task 2b adaptations to this manifest.** Change each Worker to `command: ["bash", "/bootstrap/worker-init.sh"]` and mount the `mpi-worker-bootstrap` ConfigMap at `/bootstrap`; wrap the launcher's `python` invocation with the `ssh`-wait preamble and `/scripts/run.sh` shim (mount `mpi-torch-shim` at `/scripts`), and add `-x MASTER_ADDR -x MASTER_PORT`. Without these the launcher cannot reach the workers and `dist.init_process_group()` has no `RANK`/`MASTER_ADDR`. This NCCL job — with the shim — was the step validated live (4 ranks, each on a distinct GPU).
+
    ```yaml
    # Save as nccl-multi-node-test.yaml
    apiVersion: kubeflow.org/v2beta1
@@ -469,6 +566,10 @@ Before training, verify NCCL communication across nodes.
 
    > **Why the drop across nodes?** Single-node bandwidth is limited by NVLink (600 GB/s theoretical for A100 NVLink 3.0, 900 GB/s for H100 NVLink 4.0). Multi-node bandwidth is limited by the network interconnect (InfiniBand NDR 400 Gbps = ~50 GB/s per port, with multi-rail configurations aggregating bandwidth).
 
+   > **EFA needs the `aws-ofi-nccl` plugin, which is not bundled in this image.** The stock `nvcr.io/nvidia/pytorch:24.12-py3` image ships NCCL with `rdma-core` and HPC-X, so native InfiniBand works out of the box — but it does **not** include the `aws-ofi-nccl` libfabric plugin. On AWS EFA instances (p4d/p5) you will only see the `NET/AWS-EFA` line above after installing `aws-ofi-nccl` (or using an image that bundles it, e.g. AWS Deep Learning Containers). Without it, NCCL silently falls back to the TCP socket transport over the VPC and inter-node bandwidth collapses.
+
+> **⚠️ EFA is not available with the `aws-standalone-cp-1-0-26` ClusterTemplate (proven on a live p4d, 2026-07-07).** The template attaches a single standard ENA network interface to each worker — there is no EFA interface type in the machine spec and no placement-group field in the worker schema. On a real p4d.24xlarge deployed this way, `fi_info -p efa` returns no provider and NCCL uses `NET/Socket` (TCP), even with an EFA-capable image and the `aws-ofi-nccl` plugin present. So on k0rdent's current AWS template, **cross-node NCCL always runs over TCP** regardless of image — the `vpc.amazonaws.com/efa` device and the `NET/AWS-EFA` transport require provisioning EFA-enabled ENIs and a cluster placement group outside k0rdent's template (custom CAPA infrastructure). Plan multi-node bandwidth expectations accordingly.
+
 ### Task 4: Deploy Megatron-LM Training Job (60 min)
 
 Megatron-LM is NVIDIA's framework for training large transformer models with 3D parallelism.
@@ -568,6 +669,8 @@ Megatron-LM is NVIDIA's framework for training large transformer models with 3D 
    ```
 
 5. **Deploy Megatron Training Job**
+   > **Apply the Task 2b adaptations.** Worker = `bash /bootstrap/worker-init.sh` (mount `mpi-worker-bootstrap`); wrap `pretrain_gpt.py` with the `ssh`-wait preamble + `/scripts/run.sh` shim and `-x MASTER_ADDR -x MASTER_PORT` — Megatron reads `RANK`/`LOCAL_RANK`/`WORLD_SIZE`/`MASTER_ADDR` from the environment just like the other scripts. The `setup-megatron` init pattern already installs Megatron-LM into the shared `/workspace` volume; keep it. **Status: needs-live-check** — Megatron was not run live (it also needs a tokenizer + preprocessed `--data-path`, or `--mock-data`, which this smoke did not stand up).
+
    ```yaml
    # Save as megatron-training.yaml
    apiVersion: kubeflow.org/v2beta1
@@ -923,6 +1026,17 @@ DeepSpeed ZeRO partitions optimizer states across GPUs, enabling larger models w
 
    > **Critical: DeepSpeed Launcher vs MPI Operator.** DeepSpeed's own launcher (`deepspeed --num_gpus=... train.py`) uses SSH-based process spawning that conflicts with MPI Operator's mpirun orchestration. When using MPIJob, always launch with `mpirun ... python train.py --deepspeed --deepspeed_config=...` so that MPI Operator manages process distribution while DeepSpeed handles the optimization.
 
+   > **Apply the Task 2b adaptations AND install the Python packages on the workers.** `deepspeed`, `transformers`, and `accelerate` are not in the image. Because `mpirun` runs `train.py` on the workers, install there — run a one-shot install pass (`-npernode 1`, so once per node, race-free) in the launcher *before* the training `mpirun`:
+   >
+   > ```bash
+   > mpirun --allow-run-as-root --mca plm_rsh_args "$SSHOPTS" -npernode 1 -bind-to none \
+   >   -x PATH -x LD_LIBRARY_PATH \
+   >   pip install --no-cache-dir --break-system-packages \
+   >     'transformers==4.47.1' 'accelerate==1.2.1' 'deepspeed==0.16.2'
+   > ```
+   >
+   > `--break-system-packages` is required — the image's Python is PEP 668 "externally managed" and plain `pip install` fails with `error: externally-managed-environment` (confirmed live). Then run the training `mpirun` with `/scripts/run.sh python /scripts/train.py --deepspeed --deepspeed_config=...`. Worker = `bash /bootstrap/worker-init.sh` per Task 2b. **Status: needs-live-check** — the DeepSpeed ZeRO-3 run was not completed green in the live window.
+
    ```yaml
    # Save as deepspeed-training.yaml
    apiVersion: kubeflow.org/v2beta1
@@ -1144,6 +1258,16 @@ FSDP is PyTorch's native implementation of ZeRO-style sharding. It provides simi
    ```
 
 3. **Deploy FSDP Training Job**
+   > **Apply the Task 2b adaptations AND install `transformers` on the workers.** FSDP is native to PyTorch, but `fsdp_train.py` imports `transformers` (not in the image). Add the one-shot install pass in the launcher before training:
+   >
+   > ```bash
+   > mpirun --allow-run-as-root --mca plm_rsh_args "$SSHOPTS" -npernode 1 -bind-to none \
+   >   -x PATH -x LD_LIBRARY_PATH \
+   >   pip install --no-cache-dir --break-system-packages 'transformers==4.47.1'
+   > ```
+   >
+   > Then `/scripts/run.sh python /scripts/fsdp_train.py`; worker = `bash /bootstrap/worker-init.sh`. The shim is essential here — `fsdp_train.py` does `int(os.environ["LOCAL_RANK"])`, which `KeyError`s under raw `mpirun`. **Status: needs-live-check** — the FSDP training run was not completed green in the live window.
+
    ```yaml
    # Save as fsdp-training.yaml
    apiVersion: kubeflow.org/v2beta1

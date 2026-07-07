@@ -59,7 +59,14 @@ write_files:
       GATEWAY_API_VERSION=${gateway_api_version}
       ENVOY_GATEWAY_VERSION=${envoy_gateway_version}
       NODE_IP=$(hostname -I | awk '{print $1}')
-    permissions: '0644'
+    # Contains K0RDENT_UI_PASSWORD: restrict to the login user (ubuntu).
+    # Init scripts that source this file run as root via runcmd, so 0600 is fine.
+    # defer: true writes the file in the final stage, after the ubuntu user
+    # exists (users-groups runs after write_files in the init stage) and
+    # before runcmd executes.
+    owner: ubuntu:ubuntu
+    permissions: '0600'
+    defer: true
 
   - path: /opt/k0rdent-lab/scripts/01-install-k0s.sh
     permissions: '0755'
@@ -140,6 +147,9 @@ write_files:
       set -euo pipefail
 
       echo "=== Installing CLI tools ==="
+
+      # Install prerequisites
+      sudo apt-get update -qq && sudo apt-get install -y -qq unzip jq
 
       # Install kubectl
       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -233,6 +243,15 @@ write_files:
       kubectl get nodes -o wide
 
       # =================================================================
+      # Deploy local-path-provisioner (required for k0smotron hosted CP PVCs)
+      # =================================================================
+      echo "Installing local-path-provisioner..."
+      kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.30/deploy/local-path-storage.yaml
+      kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+      kubectl wait --for=condition=Available deployment/local-path-provisioner -n local-path-storage --timeout=120s || true
+      echo "local-path-provisioner installed as default StorageClass"
+
+      # =================================================================
       # Deploy AWS Cloud Controller Manager
       # Required for auto-provisioning LoadBalancer services (Envoy Gateway)
       # Uses the EC2 instance profile for AWS credentials (no secrets needed)
@@ -255,8 +274,10 @@ write_files:
       # Set providerID on the node so CCM can map it to the EC2 instance.
       # CCM's automatic instance discovery via private-dns-name doesn't work
       # reliably with k0s hostnames, so we set this explicitly from IMDS.
-      INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-      AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+      # IMDSv2: instances enforce http_tokens=required, so fetch a session token first
+      IMDS_TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+      INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+      AZ=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone)
       NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
       echo "Setting providerID on node $NODE_NAME: aws:///$AZ/$INSTANCE_ID"
       kubectl patch node "$NODE_NAME" --type=merge \
@@ -475,8 +496,13 @@ write_files:
       #!/bin/bash
       set -euo pipefail
 
+      # NOTE: This script is launched from runcmd below with its stdout/stderr
+      # already redirected to /var/log/k0rdent-init.log. We intentionally do NOT
+      # `exec > >(tee -a "$LOG_FILE")` here — doing so caused every line to be
+      # written to the log twice (once by tee's file arg, once by tee's stdout
+      # inheriting the runcmd redirect), which made the provisioning stream
+      # appear duplicated to students.
       LOG_FILE="/var/log/k0rdent-init.log"
-      exec > >(tee -a "$LOG_FILE") 2>&1
 
       echo "=============================================="
       echo "  k0rdent Enterprise Lab Initialization"
