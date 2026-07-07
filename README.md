@@ -92,7 +92,7 @@ k0rdent-ai-training/
 │   ├── week-1-foundations/     # START HERE → labs/lab-1.1-provision-k0rdent.md
 │   ├── week-2-bmaas/           # Metal3, Ironic, bare metal provisioning
 │   ├── week-3-vmaas/           # KubeVirt, GPU passthrough
-│   ├── week-4-kaas/            # Cluster API, GPU operator
+│   ├── week-4-kaas/            # Cluster API, hosted CP, Cilium/Multus
 │   ├── week-5-ai-workloads/    # vLLM, Run:AI, service catalog
 │   └── week-6-multitenancy/    # RBAC, tenancy, capstone project
 └── lab-infrastructure/          # Terraform + scripts
