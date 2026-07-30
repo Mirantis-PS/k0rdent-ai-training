@@ -1,0 +1,14 @@
+{
+  "name": "k0rdent-ai-training-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Maintenance scripts for the k0rdent AI training curriculum",
+  "scripts": {
+    "check-mermaid": "node check-mermaid.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1",
+    "mermaid": "^11.16.0"
+  }
+}
