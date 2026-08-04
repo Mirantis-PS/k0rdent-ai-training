@@ -286,7 +286,11 @@ human_report() {
             *)        echo -e "  ${CYAN}idle${NC}      ${owner}  (${region})" ;;
         esac
         echo "      instances:    ${inst_summary}"
-        echo "      nat gateways: ${nat_count} (oldest ${age} days) ~\$${monthly}/month"
+        if [[ "$nat_count" == "0" ]]; then
+            echo "      nat gateways: none  ~\$${monthly}/month"
+        else
+            echo "      nat gateways: ${nat_count} (oldest ${age} days) ~\$${monthly}/month"
+        fi
         echo "      eips: $(jq -r '.eips | length' <<< "$row")   vpcs: $(jq -r '.vpcs | length' <<< "$row")   volumes: $(jq -r '.volumes | length' <<< "$row")"
         case "$status" in
             orphaned)
@@ -472,8 +476,10 @@ fi
 if [[ "$OUTPUT_JSON" == "true" ]]; then
     jq -n --arg now "$NOW" --argjson envs "$ALL_ENVS" \
         '{scanned_at: $now,
-          orphaned_count: ([$envs[] | select(.flagged)] | length),
-          estimated_monthly_waste_usd:
+          flagged_count: ([$envs[] | select(.flagged)] | length),
+          orphaned_count: ([$envs[] | select(.orphaned)] | length),
+          stale_count: ([$envs[] | select(.stale)] | length),
+          estimated_monthly_flagged_usd:
               ([$envs[] | select(.flagged) | .monthly_usd] | add // 0),
           environments: $envs}'
 else
