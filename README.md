@@ -66,6 +66,8 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 See [Prerequisites](curriculum/overview/prerequisites.md) for the full account, budget, quota, and workstation requirements (AWS account with admin-level IAM, macOS/Linux or WSL2, ~$25-50 Week 1 budget).
 
+> **Cohorts: one dedicated AWS account per student.** A shared account accumulates abandoned infrastructure that nobody owns — NAT gateways bill whether or not any instance is running, so stopping instances does not stop the charge. See [Prerequisites](curriculum/overview/prerequisites.md#aws-account) for the mitigations if sharing is unavoidable.
+
 **Software Versions** (each week's README carries the authoritative version table for its labs):
 
 | Component | Version | Notes |
