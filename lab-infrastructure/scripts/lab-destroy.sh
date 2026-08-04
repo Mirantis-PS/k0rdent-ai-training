@@ -135,6 +135,87 @@ confirm_orphan_risk() {
     log_warn "Proceeding at your own risk -- check the AWS console for orphans afterwards"
 }
 
+# CAPA tags every resource it creates for a managed cluster with
+#   sigs.k8s.io/cluster-api-provider-aws/cluster/<cluster-name>
+# The management cluster instead carries kubernetes.io/cluster/k0rdent-mgmt-<id>,
+# so the two are distinguishable purely by tag-key prefix. Lab 1.8's
+# orphan-check section documents these same filters.
+CAPA_CLUSTER_TAG_PREFIX="sigs.k8s.io/cluster-api-provider-aws/cluster/"
+
+# List managed-cluster (CAPA) resources in $REGION, one "<type> <id>" per line.
+# No output at all means no managed clusters exist.
+#
+# Tag keys are matched CLIENT-SIDE rather than via a `tag-key` filter wildcard,
+# because prefix wildcards on tag-key are not dependable across every EC2
+# describe API. Listing and filtering in jq is unambiguous.
+detect_managed_cluster_resources() {
+    {
+        aws ec2 describe-vpcs --region "$REGION" \
+            --query 'Vpcs[].[VpcId,Tags[].Key]' --output json 2>/dev/null \
+            | jq -r --arg p "$CAPA_CLUSTER_TAG_PREFIX" \
+                '.[]? | select((.[1] // []) | any(startswith($p))) | "vpc          \(.[0])"'
+
+        aws ec2 describe-nat-gateways --region "$REGION" \
+            --filter "Name=state,Values=pending,available" \
+            --query 'NatGateways[].[NatGatewayId,Tags[].Key]' --output json 2>/dev/null \
+            | jq -r --arg p "$CAPA_CLUSTER_TAG_PREFIX" \
+                '.[]? | select((.[1] // []) | any(startswith($p))) | "nat-gateway  \(.[0])"'
+
+        aws ec2 describe-instances --region "$REGION" \
+            --filters "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query 'Reservations[].Instances[].[InstanceId,Tags[].Key]' --output json 2>/dev/null \
+            | jq -r --arg p "$CAPA_CLUSTER_TAG_PREFIX" \
+                '.[]? | select((.[1] // []) | any(startswith($p))) | "instance     \(.[0])"'
+    } | sort -u
+}
+
+# Called when SSH-based managed-cluster cleanup could not run. Falls back to the
+# AWS API to tell two very different situations apart:
+#
+#   - Nothing to clean up (the overwhelmingly common case: a student who never
+#     reached Lab 1.5 has no ClusterDeployments at all). Proceed silently --
+#     previously this raised a scary orphan warning and, non-interactively,
+#     aborted the whole destroy.
+#   - Managed-cluster resources really do exist. Warn with the actual resource
+#     IDs so the message is actionable, then fall through to the usual gate.
+handle_unreachable_managed_clusters() {
+    local reason="$1"
+
+    local found
+    found=$(detect_managed_cluster_resources)
+
+    if [[ -z "$found" ]]; then
+        log_info "${reason}."
+        log_success "AWS API confirms no managed-cluster (CAPA) resources in ${REGION} -- nothing to orphan."
+        return 0
+    fi
+
+    log_error "Managed-cluster (CAPA) resources still present in ${REGION}:"
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && log_error "    $line"
+    done <<< "$found"
+    log_error "These live in VPCs Terraform does not manage and must be removed via the"
+    log_error "management cluster (or by hand) or they will keep billing."
+    confirm_orphan_risk "$reason"
+}
+
+# SSH-based CCM LoadBalancer cleanup is the graceful path: deleting the Gateway
+# lets the CCM deregister and remove the ELB itself. When SSH is unavailable it
+# is NOT fatal -- cleanup_orphan_aws_resources() runs straight after and sweeps
+# orphan Classic ELBs plus their k8s-elb-* security groups, scoped to the lab
+# VPC. So downgrade this from a hard gate to a warning.
+#
+# Caveat: that sweep covers Classic ELBs (elb v1) only, which is what the
+# unannotated in-tree CCM creates by default and therefore what this lab
+# produces. An NLB (elbv2), which needs an explicit annotation, would not be
+# swept and would have to be removed by hand.
+note_lb_cleanup_deferred() {
+    local reason="$1"
+    log_warn "${reason}."
+    log_warn "  Deferring to the VPC-scoped orphan sweep below (Classic ELBs + k8s-elb SGs)."
+    log_warn "  If you configured an NLB instead, check for it in the AWS console afterwards."
+}
+
 # Ensure the SSH keys for the management node exist locally, retrieving them
 # from the Terraform state if needed. Returns 1 if they cannot be obtained.
 ensure_ssh_keys() {
@@ -179,12 +260,12 @@ cleanup_managed_clusters() {
     mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
 
     if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
-        confirm_orphan_risk "Could not get bastion/management IPs from state -- managed clusters cannot be cleaned up"
+        handle_unreachable_managed_clusters "Could not get bastion/management IPs from state -- managed clusters cannot be cleaned up over SSH"
         return 0
     fi
 
     if ! ensure_ssh_keys "$engineer_id" "$bucket"; then
-        confirm_orphan_risk "SSH keys not available -- managed clusters cannot be cleaned up"
+        handle_unreachable_managed_clusters "SSH keys not available -- managed clusters cannot be cleaned up over SSH"
         return 0
     fi
 
@@ -214,7 +295,7 @@ cleanup_managed_clusters() {
          echo "All ClusterDeployments deleted"'; then
         log_success "Managed cluster cleanup complete"
     else
-        confirm_orphan_risk "Could not confirm deletion of all ClusterDeployments (SSH failed or deletion timed out)"
+        handle_unreachable_managed_clusters "Could not confirm deletion of all ClusterDeployments (SSH failed or deletion timed out)"
     fi
 }
 
@@ -234,7 +315,7 @@ cleanup_load_balancers() {
     mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
 
     if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
-        confirm_orphan_risk "Could not get IPs from state -- CCM LoadBalancers cannot be cleaned up"
+        note_lb_cleanup_deferred "Could not get IPs from state -- CCM LoadBalancers cannot be cleaned up over SSH"
         return 0
     fi
 
@@ -243,7 +324,7 @@ cleanup_load_balancers() {
     local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
 
     if ! ensure_ssh_keys "$engineer_id" "$bucket"; then
-        confirm_orphan_risk "SSH keys not available -- CCM LoadBalancers cannot be cleaned up"
+        note_lb_cleanup_deferred "SSH keys not available -- CCM LoadBalancers cannot be cleaned up over SSH"
         return 0
     fi
 
@@ -268,7 +349,7 @@ cleanup_load_balancers() {
              echo -n "."
              sleep 5
          done' 2>/dev/null \
-        || confirm_orphan_risk "Could not SSH to clean up CCM LoadBalancers (instance may already be down)"
+        || note_lb_cleanup_deferred "Could not SSH to clean up CCM LoadBalancers (instance may already be down)"
 
     log_success "LoadBalancer cleanup complete"
 }
