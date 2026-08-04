@@ -641,7 +641,18 @@ When finished with the lab, you can destroy the environment:
 
 > **Important:** Only destroy if you're done with **all labs in the curriculum**. The management cluster is reused in every subsequent week — Week 5 GPU labs create GPU clusters via ClusterDeployment on this same management cluster. If you need to stop for the day, leave the management cluster running and use `lab-connect.sh` to reconnect later.
 
-> **Cost reality check:** The management instance carries a `TTLHours` tag (default 8), but it is **informational only** — there is no reaper, and nothing auto-terminates the instance. You are billed continuously until you stop or destroy the environment yourself. Pause and final teardown guidance lives at the end of [Lab 1.8](lab-1.8-upgrade-k0rdent.md) (pausing = `aws ec2 stop-instances`; note the NAT gateway, EIP, and EBS volumes still bill while instances are stopped).
+> **Cost reality check:** The management instance carries a `TTLHours` tag (default 8), but it is **informational only** — there is no reaper, and nothing auto-terminates the instance. You are billed continuously until you stop or destroy the environment yourself. Pause and final teardown guidance lives at the end of [Lab 1.8](lab-1.8-upgrade-k0rdent.md).
+>
+> Two things that catch people out:
+>
+> - **Stopping the instances does not stop the bill.** The NAT gateway, Elastic IP, and EBS volumes keep charging — around **$2/day** for an environment nobody is using.
+> - **Teardown needs a running node.** `lab-destroy.sh` connects over SSH to clean up managed clusters before Terraform runs, so start a stopped environment back up before destroying it (or pass `--force` to skip the SSH-dependent checks).
+>
+> To check at any time whether you have environments still billing — in this region or any other:
+>
+> ```bash
+> ./scripts/lab-reap.sh --owner <your-engineer-id>
+> ```
 
 ## Summary
 
