@@ -29,6 +29,7 @@
   - [Explore Other Namespaces](#explore-other-namespaces)
 - [Validation Checklist](#validation-checklist)
 - [Troubleshooting](#troubleshooting)
+  - [Bastion SSH stops working after it previously worked](#bastion-ssh-stops-working-after-it-previously-worked)
   - [k0rdent Installation Issues](#k0rdent-installation-issues)
 - [Clean Up](#clean-up)
 - [Summary](#summary)
@@ -602,6 +603,55 @@ eval "$(aws configure export-credentials --format env --profile your-profile-nam
 ```
 
 > **Note:** The exported credentials are temporary session tokens. If your session expires, run the `aws sso login` and `eval` commands again.
+
+### Bastion SSH stops working after it previously worked
+
+**Symptoms** — SSH hangs then fails, and the bastion's port 22 is unreachable:
+
+```
+Connection timed out during banner exchange
+```
+
+```bash
+# From your local machine — confirm port 22 is genuinely blocked
+nc -z -G 10 <bastion-public-ip> 22 || echo "port 22 unreachable"
+```
+
+**Cause.** The bastion security group only permits the public IP detected when
+you provisioned. Home and mobile ISPs reassign addresses routinely — daily on
+much residential DSL — and switching to a VPN, a hotspot, or another office does
+the same. Your lab is fine; you are simply no longer coming from the allowed
+address.
+
+**Diagnosis** — compare your current address against the recorded allow-list:
+
+```bash
+curl -s https://checkip.amazonaws.com                     # where you are now
+grep SSH_CIDRS lab-infrastructure/config/lab-config.env   # what the bastion allows
+```
+
+**Fix** — re-run provisioning so the allow-list picks up your current address.
+Nothing is rebuilt; only the security group rule changes:
+
+```bash
+./scripts/lab-provision.sh <your-engineer-id> --region <your-region> --auto-approve
+```
+
+Your current IP is detected and added to the allow-list. To replace the list with
+only your current address, add `--ssh-cidr auto`. To set it explicitly — useful
+behind a VPN whose egress IP you know:
+
+```bash
+./scripts/lab-provision.sh <your-engineer-id> --region <your-region> \
+  --ssh-cidr <your-ip>/32 --auto-approve
+```
+
+> **Do this before attempting teardown.** `lab-destroy.sh` connects over SSH to
+> clean up managed clusters before Terraform runs. While SSH is broken it cannot
+> complete, so an environment locked out this way is also one you cannot easily
+> destroy — and its NAT gateway keeps billing. Restore access first, then tear
+> down. (`lab-destroy.sh --force` skips the SSH-dependent checks if you cannot
+> restore access at all.)
 
 ### k0rdent Installation Issues
 
