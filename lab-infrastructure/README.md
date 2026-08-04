@@ -115,6 +115,26 @@ Destroy lab environments.
 ./scripts/lab-destroy.sh <your-name> --auto-approve --delete-bucket
 ```
 
+### lab-reap.sh
+Find training environments that are still billing after being abandoned. The
+`TTLHours` tag is informational only — nothing terminates anything — so the usual
+leak is a NAT Gateway left behind by a partial teardown, billing ~$32/month
+whether or not any instance is running.
+
+Report-only by default; `--delete` is opt-in.
+
+```bash
+./scripts/lab-reap.sh                          # scan all regions, report only
+./scripts/lab-reap.sh --region eu-central-1    # scan one region
+./scripts/lab-reap.sh --owner <your-name>      # just your environments
+./scripts/lab-reap.sh --json                   # machine-readable
+```
+
+Environments are reported as `orphaned` (NAT gateway but no instances at all —
+structurally stranded, since `lab-destroy.sh` needs a reachable node), `stale`
+(instances survive but older than `--max-age-days`, default 7), `active`, or
+`idle`. Exits 2 when anything is flagged, so it can drive a cron or CI alert.
+
 ## Directory Structure
 
 ```
@@ -127,7 +147,8 @@ lab-infrastructure/
 │   ├── lab-provision.sh       # Provision student environment
 │   ├── lab-status.sh          # Check status
 │   ├── lab-connect.sh         # Connect to instances
-│   └── lab-destroy.sh         # Destroy environment
+│   ├── lab-destroy.sh         # Destroy environment
+│   └── lab-reap.sh            # Find environments still billing after abandonment
 ├── terraform/
 │   ├── modules/
 │   │   ├── networking/        # VPC, subnets, NAT, security groups
