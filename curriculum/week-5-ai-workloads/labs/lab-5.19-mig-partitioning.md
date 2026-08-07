@@ -100,6 +100,31 @@ By the end you will be able to:
   direct answer to Lab 5.3's warning that KAI does *not* enforce memory limits.
 - Working k0rdent management cluster (Lab 1.1) and experience with
   `ClusterDeployment` (Lab 1.5).
+- **[Lab 1.3](../../week-1-foundations/labs/lab-1.3-configure-aws-provider.md) —
+  AWS provider credential.** `lab-provision.sh` does **not** create this for you.
+  Without it the `ClusterDeployment` in Task 1 stalls at
+  `InfrastructureReady: Condition not yet reported` with no obvious cause.
+  Verify before you start — this check costs nothing, and finding out later costs
+  p4d minutes:
+
+  ```bash
+  kubectl get credential aws-cluster-identity-cred -n kcm-system
+  # NAME                        READY
+  # aws-cluster-identity-cred   true
+  ```
+
+  If it is missing or `READY` is not `true`, complete Lab 1.3 Steps 1-3 first
+  (secret → `AWSClusterStaticIdentity` → resource-template ConfigMap →
+  `Credential`).
+
+> **⚠️ If you authenticate with AWS SSO, read this before provisioning.** SSO
+> session tokens expire, typically in 1-12 hours, and this lab runs ~3.2 hours on
+> an instance costing $32.77/hour. The token is stored in
+> `aws-cluster-identity-secret` and is what CAPA uses to **delete** your cluster,
+> not just create it. If it expires mid-lab, CAPA logs `AuthFailure` and teardown
+> fails — leaving a p4d running. Refresh with
+> `./scripts/lab-refresh-creds.sh <your-name>` (which also restarts CAPA), and
+> refresh again before you run [Cleanup](#cleanup) if your session is old.
 - **AWS on-demand P-instance vCPU quota ≥ 96** in your region. `p4d.24xlarge` is
   96 vCPUs. Check before you start:
 
@@ -251,6 +276,63 @@ kubectl get clusterdeployment mig-cluster -n kcm-system -w
 
 **The $32.77/hour meter starts when the worker instance launches**, not when the
 cluster becomes Ready. Provisioning takes ~15 minutes.
+
+#### 1.1a Expect a capacity failure — and know how to steer around it
+
+`p4d.24xlarge` is scarce, and capacity is **per Availability Zone**. The
+`aws-standalone-cp-1-0-26` template exposes only `region` — it has **no AZ or
+subnet field** — so CAPA picks an AZ for you, and if that AZ is dry your worker
+never launches. It retries silently and indefinitely: the `ClusterDeployment` sits
+at `WorkersAvailable`, the control plane comes up fine, and nothing tells you the
+GPU node is the problem.
+
+This is the single most likely way this lab stalls. Check for it before waiting:
+
+```bash
+kubectl get machines -n kcm-system
+# A worker stuck in Provisioning with no INSTANCEID for >5 min is the symptom:
+kubectl get awsmachines -n kcm-system
+
+kubectl describe awsmachine -n kcm-system -l cluster.x-k8s.io/deployment-name=mig-cluster-md \
+  | grep -A3 InsufficientInstanceCapacity
+```
+
+A real failure looks like this — note that AWS names the AZs that *do* have
+capacity:
+
+```
+api error InsufficientInstanceCapacity: We currently do not have sufficient
+p4d.24xlarge capacity in the Availability Zone you requested (us-east-1a). Our
+system will be working on provisioning additional capacity. You can currently get
+p4d.24xlarge capacity by not specifying an Availability Zone in your request or
+choosing us-east-1b, us-east-1c, us-east-1d.
+```
+
+**Fix — pin the MachineDeployment to a `failureDomain`.** The cluster's VPC already
+has subnets in three AZs; CAPI just needs to be told which to use:
+
+```bash
+# What AZs are available to this cluster?
+kubectl get cluster mig-cluster -n kcm-system -o jsonpath='{.status.failureDomains}' | jq
+# [{"controlPlane":true,"name":"us-east-1a"},{"name":"us-east-1b"},{"name":"us-east-1c"}]
+
+# Steer the worker to an AZ AWS says has capacity
+kubectl patch machinedeployment mig-cluster-md -n kcm-system --type=merge \
+  -p '{"spec":{"template":{"spec":{"failureDomain":"us-east-1b"}}}}'
+```
+
+CAPI replaces the stuck machine with a new one in the chosen AZ. If that AZ is also
+dry, patch to the next one — the error message always lists current options.
+
+> **Why this is not in the ClusterDeployment manifest:** the template has no field
+> for it. Patching the generated `MachineDeployment` is the supported CAPI-level
+> escape hatch. It survives reconciliation because k0rdent does not manage
+> `failureDomain`.
+
+> **Cost note:** a stuck worker costs you nothing in GPU charges — no instance
+> exists. You are only paying for the `t3.medium` control plane and NAT while you
+> sort it out. Do not tear the cluster down and retry from scratch; patch the
+> `failureDomain` instead.
 
 #### 1.2 Connect to the workload cluster
 
@@ -1097,6 +1179,9 @@ Empty output means you are clear.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
+| Worker `Machine` stuck `Provisioning`, `AWSMachine` has no `INSTANCEID`, control plane fine | **`InsufficientInstanceCapacity`** — the AZ CAPA chose has no p4d capacity. Most common failure in this lab. | `kubectl describe awsmachine` to read which AZs AWS says *do* have capacity, then patch `failureDomain` — see [Task 1.1a](#11a-expect-a-capacity-failure--and-know-how-to-steer-around-it) |
+| Patched `failureDomain`, new machine also fails capacity | p4d capacity moves between AZs minute to minute; an AZ that was dry can free up and vice versa | Patch to another AZ from the list in the error. Only AZs where your cluster VPC has subnets are usable — check `kubectl get cluster mig-cluster -n kcm-system -o jsonpath='{.status.failureDomains}'` |
+| Every AZ in the VPC is dry | Regional p4d shortage | Retry later, or use `p4de.24xlarge` (A100 **80GB**, ~$40.96/hr, different capacity pool — also MIG-capable, but its profiles are the 80GB set: `1g.10gb`×7, `2g.20gb`×3, `3g.40gb`×2) |
 | No node labelled `nvidia.com/mig.capable=true` | Worker is not MIG-capable (A10G, L4, L40S, T4 never are), or GFD has not finished | Confirm `instanceType: p4d.24xlarge`; check `kubectl get pods -n gpu-operator -l app=gpu-feature-discovery` |
 | `nvidia.com/mig.config.state=failed` | Invalid geometry for the SKU, or a CUDA context blocked the GPU reset | Re-check the layout against the [slice arithmetic table](#slice-arithmetic); cordon the node and delete all GPU pods, then re-label |
 | State stuck at `pending` for >10 min | mig-manager cannot drain a GPU | `kubectl logs -n gpu-operator -l app=nvidia-mig-manager`; find and delete the pod holding a GPU |
