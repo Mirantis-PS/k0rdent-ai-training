@@ -105,7 +105,7 @@ Models as a Service. Platform for serving ML models via APIs with per-request bi
 Kubernetes-native bare metal host management project, integrating Ironic with Kubernetes CRDs.
 
 **MIG (Multi-Instance GPU)**
-NVIDIA technology partitioning a single GPU into multiple isolated instances, each with dedicated memory and compute.
+NVIDIA technology partitioning a single GPU into multiple hardware-isolated instances, each with dedicated memory and compute. Available on A30, A100, H100, H200, B200, and GB200-class GPUs only — A10G, L4, L40S, and T4 have no MIG support. Requires **no license**; it is a feature of the GPU and datacenter driver. Not to be confused with **vGPU**, which is licensed. See Lab 5.19.
 
 ## N
 
@@ -170,7 +170,7 @@ Database optimized for storing and querying high-dimensional vectors (embeddings
 Linux kernel framework for secure device passthrough to userspace, enabling VM access to physical devices.
 
 **vGPU**
-Virtual GPU technology allowing multiple VMs to share a single physical GPU through time-slicing.
+Virtual GPU technology allowing multiple VMs to share a single physical GPU through time-slicing. **Requires an NVIDIA vGPU / AI Enterprise license** — unlike MIG, which is license-free. The two are distinct: vGPU partitions for *virtual machines* in software, MIG partitions in *hardware* for containers. They can be combined as MIG-backed vGPU, which still requires the vGPU license.
 
 **vLLM**
 High-performance LLM inference engine with PagedAttention for efficient memory management.

@@ -1,6 +1,6 @@
 # Week 5: AI Workloads & Service Catalog
 
-**Estimated content volume:** ~50 hours total (5.25 hours theory / ~45 hours labs if all tracks are attempted)
+**Estimated content volume:** ~58 hours total (5.25 hours theory / ~53 hours labs if all tracks are attempted)
 **Recommended guided path:** ~15-21 hours depending on which elective track is chosen
 **Focus:** GPU scheduling, model serving, ML platforms, AI tools, service catalog
 **Lab Ratio:** ~90% hands-on if all labs are counted
@@ -53,6 +53,7 @@ By the end of this week, engineers will be able to:
 - [ ] Deploy Kubeflow for ML pipelines and distributed training
 - [ ] Set up MLflow for experiment tracking and model registry
 - [ ] Configure fractional GPU sharing and gang scheduling
+- [ ] Partition GPUs with MIG for hardware-isolated multi-tenancy, and allocate slices through DRA
 - [ ] Deploy Slurm on Kubernetes for HPC workloads
 - [ ] Optimize inference with TensorRT-LLM
 - [ ] Configure RDMA/RoCE for multi-cloud GPU networking
@@ -101,7 +102,7 @@ Topics:
 
 ---
 
-## Lab Exercises (~45 hours across all tracks)
+## Lab Exercises (~53 hours across all tracks)
 
 All lab files are in the [labs/](labs/) directory.
 
@@ -123,6 +124,13 @@ All lab files are in the [labs/](labs/) directory.
 | 5.14 | Slurm Operator for HPC | Advanced | 3h | [lab-5.14-slurm-operator-hpc.md](labs/lab-5.14-slurm-operator-hpc.md) |
 | 5.15 | RDMA Multi-Cloud | Advanced | 4h | [lab-5.15-rdma-multi-cloud.md](labs/lab-5.15-rdma-multi-cloud.md) |
 | 5.16 | Distributed Training | Advanced | 4.5h | [lab-5.16-distributed-training.md](labs/lab-5.16-distributed-training.md) |
+| 5.17 | KOF → External OTel Export | Operations & Telemetry | 2.5h | [lab-5.17-otel-telemetry-export.md](labs/lab-5.17-otel-telemetry-export.md) |
+| 5.18 | topograph / NVLink Topology | Operations & Telemetry | 2h | [lab-5.18-topograph-nvlink-topology.md](labs/lab-5.18-topograph-nvlink-topology.md) |
+| 5.19 | MIG Partitioning | GPU Partitioning | 3.2h | [lab-5.19-mig-partitioning.md](labs/lab-5.19-mig-partitioning.md) |
+
+> **Labs 5.17-5.19 require the advanced GPU environment.** Lab 5.18 needs a
+> multi-node NVLink fabric and Lab 5.19 needs `p4d.24xlarge` (A100) — MIG does not
+> exist on the A10G used by the standard `g5.12xlarge` worker.
 
 ### Key Software References
 
@@ -149,7 +157,7 @@ All lab files are in the [labs/](labs/) directory.
 
 | Theory Section | Primary Labs |
 |---------------|-------------|
-| 5.1 GPU Scheduling | Lab 5.1, Lab 5.3 (KAI), Lab 5.4 (Run:AI), Lab 5.6 |
+| 5.1 GPU Scheduling | Lab 5.1, Lab 5.3 (KAI), Lab 5.4 (Run:AI), Lab 5.6, Lab 5.19 (MIG) |
 | 5.2 LLM Inference Architecture | Lab 5.5 (vLLM), Lab 5.13 (TensorRT-LLM) |
 | 5.3 GPU Communication | Lab 5.15 (RDMA) |
 | 5.4 Distributed Training | Lab 5.16 (Distributed Training) |
@@ -172,6 +180,10 @@ All lab files are in the [labs/](labs/) directory.
 - RDMA/RoCE networking for distributed training
 - TensorRT-LLM optimization techniques
 - Troubleshooting patterns for GPU workloads
+- MIG slice arithmetic: which profiles are valid on a 40GB vs 80GB GPU, and why
+- MIG `single` vs `mixed` device-plugin strategies and their effect on resource names
+- Why MIG reconfiguration is a node-level operation, and what it invalidates
+- Which GPUs support MIG (and which never will), plus MIG vs vGPU licensing
 
 **Passing Score:** 80%
 

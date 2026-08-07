@@ -124,7 +124,7 @@ k0rdent-ai-training/
 | 2 — BMaaS | [README](curriculum/week-2-bmaas/README.md) | 5 labs |
 | 3 — VMaaS | [README](curriculum/week-3-vmaas/README.md) | 1 lab |
 | 4 — KaaS | [README](curriculum/week-4-kaas/README.md) | 4 labs (4.1, 4.4, 4.9, 4.10) — in development; no hard Week 5 dependency |
-| 5 — AI Workloads | [README](curriculum/week-5-ai-workloads/README.md) | 5 theory + 18 labs (stable, live-validated) |
+| 5 — AI Workloads | [README](curriculum/week-5-ai-workloads/README.md) | 5 theory + 19 labs (stable, live-validated; Lab 5.19 pending validation) |
 | 6 — Multi-Tenancy | [README](curriculum/week-6-multitenancy/README.md) | 4 labs (incl. capstone) |
 
 ## What Gets Installed (Week 1)
