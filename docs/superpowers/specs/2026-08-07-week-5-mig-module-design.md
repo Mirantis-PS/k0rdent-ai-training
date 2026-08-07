@@ -165,7 +165,7 @@ is a node-level operation.
 |---|------|------------|
 | R1 | **Task 2 is where docs and reality diverge.** MIG enablement on k0s + GPU Operator 25.3.0 may not cleanly reset GPUs via the daemonset. | Live validation. If it fails, document a manual `nvidia-smi -mig 1` + node-reboot fallback as a first-class path, not a footnote. |
 | R2 | **DRA GPU allocation is not officially supported.** The kubelet plugin is off by default (`gpuResourcesEnabledOverride=true`); NVIDIA officially supports only the ComputeDomain half. | State this plainly in Task 6 with a callout. If validation shows it unstable, demote Task 6 to optional — a one-line change to the required/optional split. |
-| R3 | **Lab 4.9 is stale.** It targets `resource.k8s.io/v1beta1` and instructs enabling the `DynamicResourceAllocation` gate; DRA went GA in k8s 1.34 (`v1`, gate locked) and the driver needs v1.34.2+. | Lab 5.19 uses `resource.k8s.io/v1` and does **not** inherit 4.9's setup steps. File a separate issue to refresh 4.9. |
+| R3 | **Lab 4.9 is stale.** It targets `resource.k8s.io/v1beta1` and instructs enabling the `DynamicResourceAllocation` gate; DRA went GA in k8s 1.34 (`v1`, gate locked) and the driver needs v1.34.2+. | Lab 5.19 uses `resource.k8s.io/v1` and does **not** inherit 4.9's setup steps. Tracked separately as [issue #21](https://github.com/Mirantis-PS/k0rdent-ai-training/issues/21); when that lands, Lab 5.19's "do not follow Lab 4.9" warning can be deleted. |
 | R4 | GPU Operator pin pressure. | Stay on `v25.3.0`. The week's warning against ≥25.10 on k0s (toolkit ignores `CONTAINERD_CONFIG`, drops `runc`, node goes NotReady) still applies. |
 | R5 | Week 5 gains a 5th p4d-gated lab, raising the cost ceiling. | Explicit note in the `labs/README.md` cost table. |
 
@@ -201,7 +201,7 @@ a real capture. The lab does not merge carrying unverified blocks.
 
 ## 9. Out of scope
 
-- Refreshing Lab 4.9 for the DRA v1 API (separate issue).
+- Refreshing Lab 4.9 for the DRA v1 API — tracked as [issue #21](https://github.com/Mirantis-PS/k0rdent-ai-training/issues/21).
 - MIG on `p4de`/`p5`; vGPU; MPS.
 - Any change to the `g5.12xlarge` standard lab path.
 - Moving the 6-week curriculum file (pre-existing TODO in the week README).
