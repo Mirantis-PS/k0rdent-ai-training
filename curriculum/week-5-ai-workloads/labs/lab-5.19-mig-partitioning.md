@@ -151,7 +151,7 @@ By the end you will be able to:
 |-----------|-----|-------|
 | GPU Operator | **`v25.3.0`** | Same validated pin as the rest of Week 5. Do **not** bump to ≥25.10: the 25.10 toolkit ignores the k0s `CONTAINERD_CONFIG` path and its containerd config drops the `runc` runtime, taking the node `NotReady`. See Lab 5.1. |
 | k0s | `v1.35.4+k0s.0` | Kubernetes 1.35 — DRA is GA here (`resource.k8s.io/v1`) |
-| `nvidia-dra-driver-gpu` | Pin the chart version you validate | Required ≥ Kubernetes v1.34.2 |
+| `dra-driver-nvidia-gpu` | `0.4.1`, from `oci://registry.k8s.io/dra-driver-nvidia/charts/` | Needs `resource.k8s.io/v1`, so **Kubernetes 1.34+** (DRA GA). The chart is **not** in the classic `nvidia` Helm repo — see [Task 6.2](#62-install-the-dra-driver-with-gpu-resources-enabled). |
 | Worker AMI | `ami-00de3875b03809ec5` | Ubuntu 22.04 (us-east-1). Amazon Linux 2 is not supported by the GPU Operator. |
 
 ---
@@ -345,10 +345,14 @@ kubectl get nodes -o wide
 
 #### 1.3 Install the GPU Operator with a MIG strategy
 
-This is **not** a copy-paste of Lab 5.1. Lab 5.1 never sets `mig.strategy`, so its
-install leaves MIG dormant — which is why you have never seen this machinery run:
-the standard `g5.12xlarge` worker uses A10G, which GPU Feature Discovery never
-labels `nvidia.com/mig.capable=true`.
+This is **not** a copy-paste of Lab 5.1 — though not for the reason you might
+expect. `migManager.enabled` is already `true` in the chart and `single` is already
+the default strategy; both are passed explicitly below so this lab documents its own
+configuration. What actually keeps MIG dormant in Lab 5.1 is the **hardware**: the
+standard `g5.12xlarge` worker uses A10G, which GPU Feature Discovery never labels
+`nvidia.com/mig.capable=true`.
+
+The value that genuinely changes behaviour here is **`WITH_REBOOT`**.
 
 ```bash
 helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
@@ -369,8 +373,19 @@ helm install gpu-operator nvidia/gpu-operator \
   --set dcgmExporter.enabled=true \
   --set migManager.enabled=true \
   --set mig.strategy=single \
+  --set migManager.env[0].name=WITH_REBOOT \
+  --set-string migManager.env[0].value=true \
   --wait --timeout 20m
 ```
+
+> **`WITH_REBOOT=true` is mandatory on a cloud instance — do not omit it.** The
+> chart ships `migManager.env: []`, and NVIDIA's MIG documentation directs CSP
+> environments to set this explicitly. `p4d.24xlarge` is a CSP instance. Enabling
+> MIG mode on an A100 usually cannot complete without a host reboot, and without
+> this flag the MIG manager has no mandate to perform one: instead of moving to
+> `rebooting`, the node's `nvidia.com/mig.config.state` goes to **`failed`** in
+> [Task 2](#task-2-enable-mig-mode-on-the-gpus-30-min) and the layout never
+> applies. Note the `--set-string` — the value must be the string `"true"`.
 
 > **Why 20m and not 15m:** the driver container compiles the kernel module on the
 > node. On p4d this is slower than on g5.
@@ -424,12 +439,33 @@ generates a per-node one.
 ```bash
 kubectl get configmap -n gpu-operator | grep -i mig
 kubectl get configmap default-mig-parted-config -n gpu-operator \
-  -o jsonpath='{.data.config\.yaml}' | grep -E '^\s{6}[a-z0-9-]+:' | head -30
+  -o jsonpath='{.data.config\.yaml}' | grep -E '^\s{6}[a-z0-9.+-]+:'
 ```
 
-Layout names follow `all-<profile>` plus `all-disabled` and `all-balanced`. Only
-the ones whose geometry fits an A100 40GB will apply — refer back to the slice
-arithmetic table in [Part 1](#slice-arithmetic).
+> **The `.` in the character class matters.** Every interesting layout name
+> contains a dot (`all-1g.5gb`), so a pattern like `[a-z0-9-]+` silently matches
+> only `all-disabled`, `all-enabled` and `all-balanced` and hides the rest.
+
+The ConfigMap ships **~80 layouts covering every MIG-capable SKU** — A30, A100,
+H100, H200, B200, GB200, RTX PRO 6000 — and most will not apply to your hardware.
+Entries are device-filtered by PCI ID, so the same layout name can mean different
+geometries on different GPUs. The ones valid on an A100 40GB are:
+
+| Layout | Geometry per GPU |
+|--------|------------------|
+| `all-disabled` | MIG off — one whole GPU |
+| `all-enabled` | MIG on, no instances created |
+| `all-1g.5gb` | 7x `1g.5gb` |
+| `all-1g.10gb` | 4x `1g.10gb` (the 80GB branch of this same layout gives 7 — see the device filter) |
+| `all-2g.10gb` | 3x `2g.10gb` |
+| `all-3g.20gb` | 2x `3g.20gb` |
+| `all-4g.20gb` | 1x `4g.20gb` |
+| `all-7g.40gb` | 1x `7g.40gb` (whole GPU, MIG-wrapped) |
+| `all-balanced` | 2x `1g.5gb` + 1x `2g.10gb` + 1x `3g.20gb` |
+
+Cross-check any of these against the slice arithmetic in
+[Part 1](#slice-arithmetic) — every one of them fits within 7 compute and 8 memory
+slices.
 
 #### 2.2 Cordon the node first
 
@@ -582,18 +618,26 @@ will now go `Pending` forever.
 
 #### 3.3 Apply a genuinely mixed layout
 
-`mixed` only earns its name with more than one profile. Apply a heterogeneous
-geometry — 2x `2g.10gb` plus 1x `1g.5gb` per GPU (5 compute, 5 memory slices):
+`mixed` only earns its name with more than one profile. NVIDIA ships exactly such a
+layout — `all-balanced` — and on A100 40GB it resolves to **2x `1g.5gb` + 1x
+`2g.10gb` + 1x `3g.20gb`** per GPU:
 
 ```bash
 kubectl cordon "$NODE"
-kubectl label node "$NODE" nvidia.com/mig.config=mixed-inference --overwrite
+kubectl label node "$NODE" nvidia.com/mig.config=all-balanced --overwrite
 ```
 
-> If `mixed-inference` is not present in your `default-mig-parted-config`, create
-> a custom ConfigMap using the A100-40GB layout from
+> **Why this layout is worth studying.** Do the arithmetic:
+> compute = 2(1) + 1(2) + 1(3) = **7 of 7**; memory = 2(1) + 1(2) + 1(4) = **8 of
+> 8**. It saturates both budgets exactly, with nothing stranded. That is the
+> densest heterogeneous geometry an A100 40GB admits, and it is why NVIDIA ships it
+> as the "balanced" default rather than something arbitrary.
+>
+> If you want a different mix, write your own `mig-parted` ConfigMap using the
+> A100-40GB examples in
 > [theory 5.1 §5.4](../theory/5.1-gpu-scheduling.md#mig-configuration) and point
-> `migManager.config.name` at it. The predefined layouts are `all-*` only.
+> `migManager.config.name` at it — but note the predefined layouts are `all-*`
+> only, so a custom name will not resolve against the default ConfigMap.
 
 ```bash
 kubectl wait --for=condition=Ready node/"$NODE" --timeout=15m
@@ -604,14 +648,15 @@ kubectl get node "$NODE" -o jsonpath='{.status.allocatable}' | jq 'with_entries(
 ```
 # UNVERIFIED — expected shape
 {
-  "nvidia.com/mig-1g.5gb": "8",
-  "nvidia.com/mig-2g.10gb": "16"
+  "nvidia.com/mig-1g.5gb": "16",
+  "nvidia.com/mig-2g.10gb": "8",
+  "nvidia.com/mig-3g.20gb": "8"
 }
 ```
 
-Two distinct resource names, each independently schedulable. **This is the
-capability time-slicing cannot provide**: differentiated, isolated sizes on one
-physical GPU.
+Three distinct resource names across 8 GPUs (2 + 1 + 1 instances each), every one
+independently schedulable. **This is the capability time-slicing cannot provide**:
+differentiated, isolated sizes on one physical GPU.
 
 ---
 
@@ -824,11 +869,18 @@ Week 4 [Lab 4.9](../../week-4-kaas/labs/lab-4.9-dynamic-resource-allocation.md)
 motivates DRA with the example *"I need a MIG slice `2g.20gb`"*. This task finally
 exercises that claim.
 
-> **⚠️ Not officially supported.** NVIDIA officially supports the *ComputeDomain*
-> half of `nvidia-dra-driver-gpu` (multi-node NVLink). GPU and MIG allocation is
-> the other half: it works, but it is **disabled by default** and NVIDIA does not
-> yet call it supported. Do not build a production tenancy model on it without
-> reading the current release notes.
+> **⚠️ GPU/MIG allocation is not officially supported — re-check before you rely
+> on it.** The driver has two halves. ComputeDomain (multi-node NVLink) is
+> supported; GPU and MIG allocation is the other, and the project's own README says
+> so plainly: *"While some GPU allocation features can be tried out, they are not
+> yet officially supported. Hence, the GPU kubelet plugin is currently disabled by
+> default in the Helm chart installation."* That default is precisely why
+> `gpuResourcesEnabledOverride=true` is required below.
+>
+> **Sources disagree as of August 2026:** the GPU Operator documentation describes
+> GPU allocation as supported, while the upstream
+> [`k8s-dra-driver-gpu`](https://github.com/NVIDIA/k8s-dra-driver-gpu) README does
+> not. Read both before building a production tenancy model on this.
 
 > **Do not follow Lab 4.9's setup steps here.** Lab 4.9 targets
 > `resource.k8s.io/v1beta1` and instructs you to enable the
@@ -862,19 +914,27 @@ restarted — and calls this out specifically for A100. Installing now avoids it
 Task 8 will make you deal with it deliberately.
 
 ```bash
-kubectl create namespace nvidia-dra-driver
-
-helm install nvidia-dra-driver nvidia/nvidia-dra-driver-gpu \
-  --namespace nvidia-dra-driver \
+helm install nvidia-dra-driver \
+  oci://registry.k8s.io/dra-driver-nvidia/charts/dra-driver-nvidia-gpu \
+  --version 0.4.1 \
+  --create-namespace --namespace nvidia-dra-driver \
   --set gpuResourcesEnabledOverride=true \
   --set nvidiaDriverRoot=/run/nvidia/driver \
   --wait --timeout 10m
 ```
 
-> **Pin the chart version** (`--version`) once you have validated a release. Do
-> not float it on a managed cluster. `nvidiaDriverRoot` must point at the GPU
-> Operator's driver root because the driver is container-installed here, not
-> host-installed.
+> **This chart is not in the `nvidia` Helm repo.** Unlike the GPU Operator, the DRA
+> driver is published to an **OCI registry** — `registry.k8s.io/dra-driver-nvidia`
+> — and the chart is named `dra-driver-nvidia-gpu`, not `nvidia-dra-driver-gpu`.
+> `helm repo add nvidia …` does not make it reachable; a `helm install
+> nvidia/nvidia-dra-driver-gpu` fails with a chart-not-found error. The release
+> name and namespace above are free choices (upstream docs use
+> `dra-driver-nvidia-gpu` for both); the chart URL is not.
+
+> **Pin the version.** `0.4.1` is the version these instructions describe. Do not
+> float it on a managed cluster — the GPU/MIG half of this driver is still moving.
+> `nvidiaDriverRoot` must point at the GPU Operator's driver root because the
+> driver here is container-installed, not host-installed.
 
 ```bash
 kubectl -n nvidia-dra-driver get pods
@@ -1245,7 +1305,8 @@ Empty output means you are clear.
 - [MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/) — profile tables for every supported SKU
 - [`mig-parted`](https://github.com/NVIDIA/mig-parted) — the declarative partitioning tool the MIG manager wraps
 - [DRA Driver for NVIDIA GPUs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/dra-intro-install.html)
-- [`k8s-dra-driver-gpu`](https://github.com/NVIDIA/k8s-dra-driver-gpu)
+- [DRA driver install guide](https://dra-driver-nvidia-gpu.sigs.k8s.io/docs/install/) — authoritative for the chart name, OCI registry and values
+- [`k8s-dra-driver-gpu`](https://github.com/NVIDIA/k8s-dra-driver-gpu) — upstream repo; the support-status statement quoted in Task 6
 - [GPU Operator — k0rdent Partner Validation](https://docs.nvidia.com/datacenter/cloud-native/partner-validated/latest/k0rdent.html)
 
 ### Kubernetes
