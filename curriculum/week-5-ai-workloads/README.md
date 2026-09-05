@@ -1,13 +1,13 @@
 # Week 5: AI Workloads & Service Catalog
 
-**Estimated content volume:** ~50 hours total (5.25 hours theory / ~45 hours labs if all tracks are attempted)
-**Recommended guided path:** ~15-21 hours depending on which elective track is chosen
+**Estimated content volume:** 49.5 hours of labs + 5.25 hours theory + 45-minute assessment (55.5 hours before provisioning/retry time)
+**Recommended guided path:** Labs 5.1, 5.2, 5.3, 5.5 and 5.6 (14 hours), plus theory and assessment: ~20 hours; reserve 2–4 additional hours for setup/retries. Other labs are electives.
 **Focus:** GPU scheduling, model serving, ML platforms, AI tools, service catalog
 **Lab Ratio:** ~90% hands-on if all labs are counted
 
 ## Prerequisites
 
-- Completion of Week 4 (Kubernetes as a Service)
+- Week 1 management/provider setup and service-management foundations; Week 4 is needed only for electives that explicitly use secondary networking
 - Working k0rdent management cluster with GPU provider configured
 - Familiarity with Kubernetes scheduling, Helm, and GPU resource types
 
@@ -101,7 +101,7 @@ Topics:
 
 ---
 
-## Lab Exercises (~45 hours across all tracks)
+## Lab Exercises (49.5 hours across all tracks)
 
 All lab files are in the [labs/](labs/) directory.
 
@@ -110,11 +110,11 @@ All lab files are in the [labs/](labs/) directory.
 | 5.1 | GPU Cluster Setup | Foundation | 3.5h | [lab-5.1-gpu-cluster-setup.md](labs/lab-5.1-gpu-cluster-setup.md) |
 | 5.2 | Service Catalog | Foundation | 2h | [lab-5.2-service-catalog.md](labs/lab-5.2-service-catalog.md) |
 | 5.3 | KAI Scheduler | Foundation | 2.5h | [lab-5.3-kai-scheduler.md](labs/lab-5.3-kai-scheduler.md) |
-| 5.4 | Run:AI Orchestration | Foundation | 3h | [lab-5.4-runai-gpu-orchestration.md](labs/lab-5.4-runai-gpu-orchestration.md) |
+| 5.4 | Run:AI Orchestration | Licensed elective | 3h | [lab-5.4-runai-gpu-orchestration.md](labs/lab-5.4-runai-gpu-orchestration.md) |
 | 5.5 | vLLM Inference | Foundation | 4h | [lab-5.5-vllm-inference.md](labs/lab-5.5-vllm-inference.md) |
 | 5.6 | Troubleshooting GPU | Foundation | 2h | [lab-5.6-troubleshooting-gpu.md](labs/lab-5.6-troubleshooting-gpu.md) |
-| 5.7 | Jupyter Notebooks | Foundation | 1.5h | [lab-5.7-jupyter-notebooks.md](labs/lab-5.7-jupyter-notebooks.md) |
-| 5.8 | Vector Database | Foundation | 2h | [lab-5.8-vector-database.md](labs/lab-5.8-vector-database.md) |
+| 5.7 | Jupyter Notebooks | Tools elective | 1.5h | [lab-5.7-jupyter-notebooks.md](labs/lab-5.7-jupyter-notebooks.md) |
+| 5.8 | Vector Database | Tools elective | 2h | [lab-5.8-vector-database.md](labs/lab-5.8-vector-database.md) |
 | 5.9 | Kubeflow ML Platform | ML Platforms | 3h | [lab-5.9-kubeflow-ml-platform.md](labs/lab-5.9-kubeflow-ml-platform.md) |
 | 5.10 | MLflow Experiment Tracking | ML Platforms | 2.5h | [lab-5.10-mlflow-experiment-tracking.md](labs/lab-5.10-mlflow-experiment-tracking.md) |
 | 5.11 | NVIDIA FIPS Configuration | Compliance | 2h | [lab-5.11-nvidia-fips.md](labs/lab-5.11-nvidia-fips.md) |
@@ -123,6 +123,11 @@ All lab files are in the [labs/](labs/) directory.
 | 5.14 | Slurm Operator for HPC | Advanced | 3h | [lab-5.14-slurm-operator-hpc.md](labs/lab-5.14-slurm-operator-hpc.md) |
 | 5.15 | RDMA Multi-Cloud | Advanced | 4h | [lab-5.15-rdma-multi-cloud.md](labs/lab-5.15-rdma-multi-cloud.md) |
 | 5.16 | Distributed Training | Advanced | 4.5h | [lab-5.16-distributed-training.md](labs/lab-5.16-distributed-training.md) |
+| 5.17 | External Telemetry Export | Operations elective | 2.5h | [lab-5.17-otel-telemetry-export.md](labs/lab-5.17-otel-telemetry-export.md) |
+| 5.18 | Topology and NVLink Domains | Operations elective | 2h | [lab-5.18-topograph-nvlink-topology.md](labs/lab-5.18-topograph-nvlink-topology.md) |
+
+The [lab contract](resources/lab-contract.md) defines environments and validation
+requirements. These are planning estimates, not guaranteed completion times.
 
 ### Key Software References
 
@@ -173,7 +178,7 @@ All lab files are in the [labs/](labs/) directory.
 - TensorRT-LLM optimization techniques
 - Troubleshooting patterns for GPU workloads
 
-**Passing Score:** 80%
+**Passing Score:** 80%. Complete the [Week 5 assessment and practical rubric](week-5-quiz.md).
 
 ---
 
@@ -183,7 +188,4 @@ This file covers Week 5 only. The complete 6-week curriculum document is at
 [`curriculum/overview/training-program-overview.md`](../overview/training-program-overview.md)
 (referenced from the top-level README).
 
-> **TODO:** The full curriculum file does not yet exist at that path. The content
-> that was previously in this README (the entire 1497-line, 6-week curriculum)
-> needs to be moved to `curriculum/k0rdent-ai-infrastructure-training-curriculum.md`.
-> See the top-level [README.md](../../README.md) line 112 which links to it.
+The linked overview exists; this README is the authoritative Week 5 path and duration index.

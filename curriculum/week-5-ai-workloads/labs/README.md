@@ -39,6 +39,9 @@ YOUR MACHINE
                            +--------------------+
 ```
 
+See the [Week 5 lab contract](../resources/lab-contract.md) before choosing hardware.
+A single GPU worker does not satisfy a multi-node, FIPS, RDMA, or real NVLink-domain exercise.
+
 ### Two GPU Lab Options
 
 | Configuration | Instance | GPUs | GPU Memory | Interconnect | Cost/hr (on-demand) | Best For |
@@ -331,11 +334,11 @@ Complete these labs in order:
 
 | Lab | Title | Duration | Key Topics |
 |-----|-------|----------|------------|
-| [5.1](lab-5.1-gpu-cluster-setup.md) | GPU Cluster Setup | 1.5h | GPU cluster provisioning, GPU Operator, k0s containerd paths |
+| [5.1](lab-5.1-gpu-cluster-setup.md) | GPU Cluster Setup | 3.5h | GPU cluster provisioning, GPU Operator, k0s containerd paths |
 | [5.2](lab-5.2-service-catalog.md) | Service Catalog | 2h | k0rdent ServiceTemplates, MultiClusterService, catalog deployment |
 | [5.3](lab-5.3-kai-scheduler.md) | KAI Scheduler | 2.5h | Open-source GPU scheduling, gang scheduling, priority queues |
 | [5.4](lab-5.4-runai-gpu-orchestration.md) | Run:AI Orchestration | 3h | Enterprise GPU management, quotas, fractional GPUs |
-| [5.5](lab-5.5-vllm-inference.md) | vLLM Inference | 2.5h | LLM serving, PagedAttention, GPU utilization |
+| [5.5](lab-5.5-vllm-inference.md) | vLLM Inference | 4h | LLM serving, PagedAttention, GPU utilization |
 | [5.6](lab-5.6-troubleshooting-gpu.md) | Troubleshooting GPU | 2h | Diagnostics, GPU memory, driver issues, OOM errors |
 | [5.7](lab-5.7-jupyter-notebooks.md) | Jupyter Notebooks | 1.5h | JupyterHub, GPU server profiles |
 | [5.8](lab-5.8-vector-database.md) | Vector Database | 2h | Milvus, embeddings, similarity search, RAG |

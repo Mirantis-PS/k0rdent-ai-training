@@ -54,11 +54,11 @@ By the end of this week, you will be able to:
 - [Lab 1.6 - Deploy KOF (Observability & FinOps)](labs/lab-1.6-deploy-kof.md)
 - [Lab 1.7 - Multi-Cluster Services](labs/lab-1.7-multicluster-services.md)
 - [Lab 1.8 - Upgrade k0rdent Enterprise](labs/lab-1.8-upgrade-k0rdent.md)
-- [Lab 1.9 - Kubernetes API Audit Logging](labs/lab-1.9-api-audit-logging.md) *(supplemental — not part of the core Week 1 schedule)*
+- [Lab 1.9 - Kubernetes API Audit Logging](labs/lab-1.9-api-audit-logging.md) *(supplemental — add 1.5 hours; retain clusters after Lab 1.8 until audit evidence is captured)*
 
 ## Version Compatibility
 
-These labs are validated against the repo-pinned versions and installation behavior below. Official Mirantis documentation may show newer releases; follow the versions in this table when working through Week 1 exactly.
+These are the repo-pinned versions. Live evidence is recorded in individual labs; a version pin alone does not certify every exercise. Official Mirantis documentation may show newer releases; follow the versions in this table when working through Week 1 exactly.
 
 | Component | Version | Used In |
 |-----------|---------|---------|
@@ -69,7 +69,7 @@ These labs are validated against the repo-pinned versions and installation behav
 | k0sctl | v0.19.4 | Lab 1.1 (auto-installed) |
 | KOF charts | 1.6.0 | Lab 1.6 |
 | cert-manager ServiceTemplate | 1.20.2 | Lab 1.7 |
-| ingress-nginx ServiceTemplate | 4.15.1 | Labs 1.2, 1.7 |
+| ingress-nginx ServiceTemplate | 4.15.1 | Legacy/migration elective only; use Gateway API for the baseline |
 | kyverno ServiceTemplate | 3.8.1 | Lab 1.7 |
 
 > **Tip:** If a hardcoded version is unavailable, check what's available:
