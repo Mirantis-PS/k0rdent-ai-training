@@ -241,17 +241,14 @@ kubectl patch managements.k0rdent.mirantis.com kcm \
 ```
 
 ### Rollback
-```bash
-# Fastest rollback: point Management back to the previous release
-kubectl patch managements.k0rdent.mirantis.com kcm \
-  --patch '{"spec":{"release":"<PREVIOUS_RELEASE_NAME>"}}' \
-  --type=merge
 
-# If needed, restore from the pre-upgrade backup using Velero Restore
-kubectl get backups -n kcm-system
-```
+Use the [Lab 1.8 recovery procedure](../labs/lab-1.8-upgrade-k0rdent.md#part-4-rollback-procedures-5-min):
+prepare a clean compatible installation, reconnect backup storage, and restore the
+successful pre-upgrade backup with a resource modifier for `Management.spec.release`.
+A direct release-field patch alone does not restore upgraded CRDs or stored data.
+Validate the restored Management, provider controllers and workload access before
+considering recovery complete.
 
----
 
 ## Troubleshooting Decision Tree
 

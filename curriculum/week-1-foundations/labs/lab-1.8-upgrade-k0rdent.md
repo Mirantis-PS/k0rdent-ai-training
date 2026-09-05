@@ -109,7 +109,7 @@ kubectl get releases.k0rdent.mirantis.com
 kubectl get management kcm -o jsonpath='{.spec.release}' && echo ""
 
 # Verify all controllers are healthy
-kubectl get pods -n kcm-system | grep -v Running
+kubectl get pods -n kcm-system --no-headers | grep -vE '[[:space:]](Running|Completed)[[:space:]]' || true
 # No output = all pods are Running (good)
 ```
 
@@ -318,7 +318,7 @@ kubectl get management kcm
 # READY should be True
 
 # Verify all controllers are healthy
-kubectl get pods -n kcm-system | grep -v Running
+kubectl get pods -n kcm-system --no-headers | grep -vE '[[:space:]](Running|Completed)[[:space:]]' || true
 # No output = all pods Running
 
 # Check for new ClusterTemplates (upgrades often ship new template versions)
@@ -336,7 +336,7 @@ kubectl get clusterdeployments -A -o wide
 
 Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` CRD controls which upgrade paths are allowed.
 
-> **Heads up — nothing to upgrade on this path:** The 1.3.1 → 1.3.2 upgrade you just performed is a **patch release**. It ships no new `aws-standalone-cp` ClusterTemplate version, so there is genuinely no managed-cluster upgrade to perform in this environment. That's the realistic outcome of a patch upgrade. Steps 1-2 below are **real discovery steps** — run them and confirm there's no upgrade target. Steps 3-4 are a **pattern walkthrough** of exactly what you'd do when a new template version IS available (typically after a minor release like 1.3.x → 1.4.x).
+> **Discover the actual upgrade path.** Management releases and cluster templates have separate versions. A patch release does not by itself prove whether a newer template is available. Run Steps 1–2 and inspect the installed template chain. If there is no supported target, record that result and treat Steps 3–4 as a pattern walkthrough. If there is a target, use its exact name after reviewing the release and provider compatibility.
 
 ### Step 1: Check for New Templates
 
@@ -383,7 +383,7 @@ spec:
 
 ### Step 3: The Upgrade Pattern (Walkthrough)
 
-> **Pattern walkthrough — do not run this against your cluster.** There is no new template version in this environment (see the note at the top of Part 3), so the patch below has no valid value to substitute. When a new template version IS available — after a minor-release management plane upgrade — this is the exact procedure you'd follow:
+> **Conditional exercise.** Only run the patch after discovery has identified a supported target in your template chain. If no target exists, read the example without applying it.
 
 ```bash
 # Check current template
@@ -482,19 +482,17 @@ spec:
 
 ### Layer 1: Management Plane Rollback
 
-**Option A: Revert the Release** (preferred)
+**Documented recovery: restore a pre-upgrade backup**
 
-```bash
-# Point Management back to the previous release
-kubectl patch managements.k0rdent.mirantis.com kcm \
-  --patch '{"spec":{"release":"<previous-release-name>"}}' \
-  --type=merge
+Follow the [Mirantis rollback procedure](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/backup/upgrades-rollbacks/).
+First prepare a clean, compatible k0rdent installation and reconnect the backup
+storage and its Secret. Confirm the selected backup completed successfully. The
+resource modifier below restores the previous release along with the backed-up
+objects. Run it on the recovery management cluster.
 
-# Wait for rollback
-kubectl get management kcm --watch
-```
-
-**Option B: Velero Restore** (documented rollback path if a release revert is not enough)
+Changing `Management.spec.release` back in place does not restore changed CRDs or
+stored state. Use an in-place downgrade only for a release pair whose supported
+recovery procedure explicitly permits it.
 
 ```bash
 # Restore from a clean k0rdent installation and patch the Management
@@ -535,7 +533,7 @@ kubectl -n kcm-system wait restores.velero.io restore-pre-upgrade \
   --for=jsonpath='{.status.phase}'='Completed' --timeout=10m
 ```
 
-**Option C: k0s Restore** (single-node lab / platform-level last resort)
+**Platform recovery: k0s Restore** (single-node lab / platform-level last resort)
 
 ```bash
 sudo k0s stop
@@ -546,16 +544,13 @@ sudo k0s start
 
 > **Warning:** A k0s restore reverts ALL cluster state (etcd included), not just k0rdent, takes the single-node management plane offline while it runs, and is not the primary rollback workflow described in the k0rdent docs.
 
-### Layer 2: Managed Cluster Rollback
+### Layer 2: Managed Cluster Recovery
 
-```bash
-# Revert the ClusterDeployment to the previous template
-kubectl patch clusterdeployment managed-cluster-01 -n kcm-system \
-  --patch '{"spec":{"template":"aws-standalone-cp-1-0-20"}}' \
-  --type=merge
-```
-
-CAPI performs another rolling update back to the original version.
+Do not assume a previous ClusterTemplate is a safe Kubernetes downgrade. Check the
+supported template chain and provider/Kubernetes compatibility for the exact pair.
+Use a tested roll-forward fix, or recreate a compatible cluster and restore the
+workload data from its backup. A management backup is not a substitute for backups
+of application volumes. Validate nodes, services, and application data after recovery.
 
 ---
 
@@ -662,7 +657,7 @@ In this lab, you:
 - Understood the three upgrade layers: management plane, managed clusters, services
 - Created a pre-upgrade ManagementBackup
 - Learned how to upgrade k0rdent Enterprise via the `Release` CRD (from `get.mirantis.com`) and `Management` patch
-- Verified available managed-cluster upgrade paths and walked through the upgrade pattern (`ClusterTemplateChain` + template change) — confirming that a patch release ships no new template version to upgrade to
+- Verified available managed-cluster upgrade paths and walked through the upgrade pattern (`ClusterTemplateChain` + template change) — recording whether the installed release and template chain provide a supported upgrade target
 - Learned rollback procedures for each layer
 - Reviewed production upgrade best practices
 

@@ -250,11 +250,20 @@ For restricted cloud environments where CCM is not available or LoadBalancer ser
 **When to use:** Air-gapped environments, restricted cloud accounts, environments behind an existing external load balancer.
 
 ```yaml
-# Override Envoy Gateway's service type via Helm values
-# helm install envoy-gateway ... --set service.type=NodePort
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: ui-nodeport
+  namespace: kcm-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: NodePort
 ```
 
-Then configure the external load balancer to route to the NodePort allocated by Kubernetes.
+Reference `ui-nodeport` from the Gateway's `spec.infrastructure.parametersRef` (group `gateway.envoyproxy.io`, kind `EnvoyProxy`). Then configure the external load balancer to route to the NodePort on the generated Envoy **data-plane** Service. The Envoy Gateway controller Helm service is a different resource.
 
 #### kubectl port-forward
 
@@ -271,11 +280,13 @@ No Gateway needed — direct access to the ClusterIP service.
 
 ### TLS Configuration Patterns
 
-All patterns configure TLS at the Gateway listener level. The HTTPRoute and backend service remain unchanged.
+Choose where TLS terminates: Envoy uses a Gateway TLS listener and a certificate Secret; AWS ACM uses an NLB TLS listener with an HTTP backend. Keep the HTTPRoute attached to the listener used by that design.
 
 #### cert-manager + Let's Encrypt
 
 Automated certificate issuance and renewal. Best for public-facing deployments.
+
+Before creating the Issuer, enable Gateway API support on the existing cert-manager release (`config.enableGatewayAPI: true` for the direct chart; nest under `cert-manager:` for the catalog wrapper). Keep an HTTP listener on port 80 on `k0rdent-gateway`, allowing HTTPRoutes from `kcm-system`, and publish DNS to its reachable load balancer. HTTP-01 issuance/renewal requires this listener even after adding HTTPS. Wait for `Certificate Ready=True` before referencing its Secret from an HTTPS listener.
 
 ```yaml
 apiVersion: cert-manager.io/v1
@@ -336,31 +347,71 @@ spec:
     - k0rdent.company.com
 ```
 
-#### AWS ACM (via NLB Annotation)
+#### AWS ACM (TLS at the NLB)
 
-AWS-native approach — no in-cluster cert management. TLS terminates at the NLB.
-
-Unlike the training default (an unannotated `type: LoadBalancer` service, which the in-tree CCM provisions as a Classic ELB), this pattern adds the `service.beta.kubernetes.io/aws-load-balancer-type: nlb` annotation alongside the ACM annotations below — that annotation is what makes the load balancer an NLB.
+This alternative terminates TLS at the NLB and uses plaintext HTTP inside the VPC.
+Apply the EnvoyProxy in the same namespace as the Gateway. Replace the certificate
+ARN with an issued ACM certificate in the load balancer's region. AWS annotations
+belong on the generated Service, configured through EnvoyProxy; annotating the
+Gateway metadata does not configure the AWS load balancer.
 
 ```yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: ui-acm
+  namespace: kcm-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: LoadBalancer
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+          service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "<issued-acm-certificate-arn>"
+          service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+          service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: k0rdent-gateway
   namespace: kcm-system
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456:certificate/abc-123"
-    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
 spec:
   gatewayClassName: envoy-gateway
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: ui-acm
   listeners:
-    - name: https
-      protocol: HTTPS
+    - name: http
+      protocol: HTTP
       port: 443
+      allowedRoutes:
+        namespaces:
+          from: Same
 ```
 
-> **Note:** With ACM, TLS terminates at the NLB. Traffic between NLB and Envoy Gateway is unencrypted inside the VPC. For end-to-end encryption, use cert-manager instead.
+Port 443 on the Service is the TLS frontend at the NLB. Its target is the Envoy
+HTTP listener; this is why the Gateway listener is HTTP and has no TLS Secret.
+Ensure the HTTPRoute parent reference uses this Gateway and, if it sets
+`sectionName`, the `http` listener. Use the cert-manager/manual-Secret pattern
+instead when encryption must extend to Envoy.
+
+```bash
+kubectl -n kcm-system wait gateway/k0rdent-gateway --for=condition=Accepted --timeout=2m
+kubectl -n kcm-system wait gateway/k0rdent-gateway --for=condition=Programmed --timeout=5m
+kubectl get svc -A -l gateway.envoyproxy.io/owning-gateway-name=k0rdent-gateway -o yaml
+# Check the Service annotations, the AWS listener's TLS certificate and TCP backend,
+# and the real DNS name covered by that certificate (do not use curl -k).
+curl --fail --show-error --head https://k0rdent.company.com
+```
+
+Gateway readiness alone does not verify that AWS applied the certificate. Record
+the successful HTTPS request as the acceptance evidence. The configuration follows
+[EnvoyProxy service customization](https://gateway.envoyproxy.io/v1.7/tasks/operations/customize-envoyproxy/).
 
 #### Manual TLS Secret
 
