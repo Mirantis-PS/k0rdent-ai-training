@@ -73,7 +73,7 @@ See [Prerequisites](curriculum/overview/prerequisites.md) for the full account, 
 | k0s | v1.35.4+k0s.0 | Kubernetes 1.35 |
 | k0rdent Enterprise | v1.3.1 | Management platform (N-1; upgrade to v1.3.2 in Lab 1.8) |
 | KubeVirt | v1.6.3 | VM workloads |
-| NVIDIA GPU Operator | v25.10.0 | GPU management |
+| NVIDIA GPU Operator | v25.3.0 | Week 5 k0s baseline; Lab 5.13 documents its separate driver requirement |
 | Cluster API (clusterctl) | v1.12.4 | Auto-installed in Lab 1.1 |
 | Metal3 CAPM3 | v1.8.0 | Bare metal provider |
 | Cilium | v1.18.4 | CNI |
@@ -120,11 +120,11 @@ k0rdent-ai-training/
 
 | Week | README | Committed content |
 |------|--------|-------------------|
-| 1 — Foundations | [README](curriculum/week-1-foundations/README.md) | 3 theory + 9 labs (stable) |
+| 1 — Foundations | [README](curriculum/week-1-foundations/README.md) | 3 theory + 9 labs (see per-lab validation notes) |
 | 2 — BMaaS | [README](curriculum/week-2-bmaas/README.md) | 5 labs |
 | 3 — VMaaS | [README](curriculum/week-3-vmaas/README.md) | 1 lab |
 | 4 — KaaS | [README](curriculum/week-4-kaas/README.md) | 4 labs (4.1, 4.4, 4.9, 4.10) — in development; no hard Week 5 dependency |
-| 5 — AI Workloads | [README](curriculum/week-5-ai-workloads/README.md) | 5 theory + 18 labs (stable, live-validated) |
+| 5 — AI Workloads | [README](curriculum/week-5-ai-workloads/README.md) | 5 theory + 18 labs (mixed validation status; see Week 5 contract) |
 | 6 — Multi-Tenancy | [README](curriculum/week-6-multitenancy/README.md) | 4 labs (incl. capstone) |
 
 ## What Gets Installed (Week 1)
