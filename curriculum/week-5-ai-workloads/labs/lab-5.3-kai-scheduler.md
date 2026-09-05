@@ -628,7 +628,7 @@ KAI's PodGrouper watches pod owner references and emits a `PodGroup` CRD per top
    ```bash
    kubectl apply -f kai-gang-job.yaml
 
-   # Watch all 4 pods get scheduled together
+   # Watch independent scheduling of this plain Job
    kubectl get pods -l job-name=gang-training -w
 
    # Check the auto-created PodGroup
@@ -636,9 +636,19 @@ KAI's PodGrouper watches pod owner references and emits a `PodGroup` CRD per top
    kubectl get podgroup -l job-name=gang-training -o yaml
    ```
 
-3. **Submit a Kubeflow PyTorchJob (Advanced)**
+Before testing the PyTorchJob below, delete the plain Job and other GPU test pods.
+On the four-GPU baseline, set the PyTorchJob Worker replicas to **4** (one Master +
+four Workers = five requested GPUs), apply it, and verify its PodGroup has
+`minMember: 5` and no member is scheduled. Inspect `.spec.nodeName` on all members;
+concurrent startup alone is insufficient evidence. Then delete the test, restore
+Worker replicas to **3**, reapply and verify all four ranks finish. If PodGrouper
+uses per-pod groups, stop and fix the operator/scheduler integration before claiming
+this objective. Keep the test queue's quota high enough to admit five GPUs so the
+first failure tests cluster capacity rather than queue configuration.
 
-   If the Kubeflow Training Operator is installed, KAI automatically gang-schedules PyTorchJobs:
+3. **Required proof of gang admission: a supported PyTorchJob**
+
+   Install the pinned legacy Training Operator from Lab 5.9 before this step. Inspect the resulting PodGroup and confirm minMember equals the total replica count before claiming a gang result.
 
    ```yaml
    # Save as kai-pytorchjob.yaml

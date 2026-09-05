@@ -138,11 +138,11 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
 |--------|------|---------------|------------|----------------|-----------------|
 | FP16 (baseline) | 16 | 1x | 1x | None | Any NVIDIA GPU |
 | INT8 SmoothQuant | 8 | ~2x | 1.5-2x | Low (<1%) | Ampere+ (A100, H100) |
-| FP8 | 8 | ~2x | 2-2.5x | Minimal (<0.5%) | **Hopper+ (H100) only** |
+| FP8 | 8 | ~2x | 2-2.5x | Minimal (<0.5%) | **Ada (SM89), Hopper and newer supported GPUs** |
 | INT4 AWQ | 4 | ~4x | 2-3x | Low (1-3%) | Ampere+ (A100, H100) |
 | INT4 GPTQ | 4 | ~4x | 2-3x | Low (1-3%) | Ampere+ (A100, H100) |
 
-> **Important:** FP8 requires Hopper architecture (H100, H200) or newer with Compute Capability >= 8.9. A100 (Ampere, CC 8.0) does **not** have native FP8 hardware support.
+> **Important:** FP8 hardware is available on Ada (CC 8.9), Hopper (H100/H200), and newer supported architectures. A100 (Ampere, CC 8.0) does **not** have native FP8 hardware support.
 
 ---
 
@@ -171,7 +171,7 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
 
 2. **Extract the workload cluster kubeconfig**
    ```bash
-   export CLUSTER_NAME=gpu-cluster-01
+   export CLUSTER_NAME=gpu-cluster
    kubectl get secret ${CLUSTER_NAME}-kubeconfig \
      -n kcm-system \
      -o jsonpath='{.data.value}' | base64 -d > /tmp/${CLUSTER_NAME}.kubeconfig
@@ -332,7 +332,7 @@ TensorRT-LLM is NVIDIA's high-performance inference framework specifically optim
 
 4. **Alternative: FP8 Quantization (H100/H200 only)**
 
-   FP8 provides the best quality-to-compression ratio but requires Hopper architecture GPUs (H100, H200) with native FP8 hardware (Compute Capability >= 8.9).
+   FP8 provides the best quality-to-compression ratio but requires supported Ada/Hopper-or-newer FP8 hardware and a compatible TensorRT-LLM model/backend.
 
    ```bash
    # ONLY run this on H100/H200 nodes
@@ -917,7 +917,7 @@ kubectl logs deployment/triton-trtllm -n trt-llm | tail -50
 
 ### FP8 Engine Fails on A100
 
-FP8 requires Hopper architecture (H100+). If you built an FP8 engine on H100 and try to run it on A100, it will fail. Rebuild with INT4 AWQ or INT8 SmoothQuant for A100 compatibility.
+FP8 requires supported Ada (SM89), Hopper, or newer hardware. If you built an FP8 engine on H100 and try to run it on A100, it will fail. Rebuild with INT4 AWQ or INT8 SmoothQuant for A100 compatibility.
 
 ```bash
 # Check GPU compute capability

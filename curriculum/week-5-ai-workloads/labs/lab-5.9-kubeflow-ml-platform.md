@@ -400,7 +400,7 @@ This lab runs on a workload cluster provisioned via k0rdent `ClusterDeployment` 
 
 ### Task 4: Install Training Operator and Run PyTorchJob (35 min)
 
-The Training Operator manages distributed training jobs. It supports the legacy `PyTorchJob` API (`kubeflow.org/v1`) and the newer unified `TrainJob` API (`trainer.kubeflow.org/v1alpha1`). This lab uses PyTorchJob since it remains widely used.
+The Training Operator manages distributed training jobs. The v1.8.1 installation in this lab provides the legacy `PyTorchJob` API (`kubeflow.org/v1`). It does not install Trainer v2 or `trainer.kubeflow.org/v1alpha1` TrainJob CRDs. Install the separate Trainer v2 components before using that API.
 
 > **Note:** Kubeflow Trainer v2 introduces TrainJob as a unified replacement for PyTorchJob, TFJob, and MPIJob. TrainJob uses `ClusterTrainingRuntime` for reusable training configurations and integrates natively with Kueue for job scheduling. For new projects, consider adopting TrainJob. See the [migration guide](https://www.kubeflow.org/docs/components/trainer/operator-guides/migration/).
 

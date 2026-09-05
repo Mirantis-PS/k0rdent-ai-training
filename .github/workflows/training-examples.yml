@@ -1,0 +1,24 @@
+name: training examples
+on:
+  pull_request:
+    paths:
+      - 'curriculum/examples/**'
+      - '.github/workflows/training-examples.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'curriculum/examples/**'
+      - '.github/workflows/training-examples.yml'
+permissions:
+  contents: read
+jobs:
+  helpers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install PyYAML==6.0.2
+      - run: python -m unittest discover -s curriculum/examples/tests -v
+      - run: shellcheck curriculum/examples/distributed-training/*.sh curriculum/examples/topology/*.sh
