@@ -123,6 +123,15 @@ kubectl get servicetemplates -n kcm-system
 +--------+   +--------+
 ```
 
+> **Ingress lifecycle (September 2026):** community ingress-nginx was retired in
+> March 2026. The ingress-nginx steps below are a **legacy/migration elective**.
+> For the baseline, use the kyverno-only Option A (and existing cert-manager), then
+> deploy Gateway API/Envoy using the workload-cluster procedure in
+> [Lab 1.2](lab-1.2-explore-k0rdent-ui.md). Run its Helm/Gateway steps with the child
+> kubeconfig and route to a child application Service. Do not deploy or validate
+> `ingress-services` on this baseline. Keep the ingress-nginx recipe only when
+> explicitly studying an existing legacy environment.
+
 ## Part 1: Browse the Service Catalog
 
 Before deploying services, explore what's available in the k0rdent Service Catalog.
@@ -628,11 +637,10 @@ EOF
 
 ### Service Priority
 
-Within a MultiClusterService, services deploy in order. Use `priority` to control cross-MCS ordering:
-
-- **Higher priority (100+)**: Infrastructure services (cert-manager, ingress)
-- **Medium priority (50-99)**: Platform services (monitoring, logging)
-- **Lower priority (1-49)**: Application services
+`priority` resolves conflicts when multiple resources manage the same Helm release
+on the same target cluster. Higher priority wins; equal priority keeps the first
+owner. It does not order unrelated services. Use `spec.dependsOn` between MCS
+resources and verify prerequisite readiness as shown above.
 
 ## Part 7: Validate Deployed Services
 
@@ -864,11 +872,11 @@ kubectl get servicetemplates -n kcm-system
 Before completing this lab, verify:
 
 - [ ] Browsed the Service Catalog at catalog.k0rdent.io
-- [ ] Installed at least 3 ServiceTemplates from catalog
+- [ ] Installed the ServiceTemplates required by the chosen baseline or elective
 - [ ] Labeled managed cluster(s) for service targeting
 - [ ] Created a MultiClusterService
 - [ ] Services deployed successfully to managed cluster(s)
-- [ ] Tested cert-manager, ingress-nginx, and kyverno
+- [ ] Tested cert-manager and kyverno; tested the chosen Gateway route (or legacy ingress elective)
 - [ ] Understood service dependencies with dependsOn
 
 ## Summary

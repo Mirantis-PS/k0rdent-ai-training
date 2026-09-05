@@ -132,7 +132,7 @@ All operations in this lab target a workload cluster managed by k0rdent Enterpri
 
 2. **Extract the workload cluster kubeconfig**
    ```bash
-   export CLUSTER_NAME=gpu-cluster-01
+   export CLUSTER_NAME=gpu-cluster
    kubectl get secret ${CLUSTER_NAME}-kubeconfig \
      -n kcm-system \
      -o jsonpath='{.data.value}' | base64 -d > /tmp/${CLUSTER_NAME}.kubeconfig
@@ -145,9 +145,9 @@ All operations in this lab target a workload cluster managed by k0rdent Enterpri
    kubectl get pods -n gpu-operator -l app=nvidia-device-plugin-daemonset
    ```
 
-### Task 2: Deploy MLflow via k0rdent ServiceTemplate (20 min)
+### Task 2: Optional catalog smoke test (20 min)
 
-The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated MLflow deployment. This is the recommended approach for k0rdent-managed environments.
+The k0rdent catalog provides the `mlflow-1-8-1` ServiceTemplate for automated MLflow deployment. This catalog path is an optional smoke/diagnosis exercise. For the required persistent tracking workflow, start at Task 3 and use its explicit database/object-storage setup.
 
 > **⚠️ Known limitations of the `mlflow-1-8-1` ServiceTemplate (community-charts/mlflow 1.8.1, app 3.7.0) — empirically validated 2026-04-17:**
 >
