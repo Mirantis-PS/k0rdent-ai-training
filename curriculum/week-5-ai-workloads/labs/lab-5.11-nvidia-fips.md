@@ -139,11 +139,19 @@ Before deploying, understand what FIPS actually protects in a GPU cluster:
 
 ### Task 1: Access the k0rdent-Managed GPU Cluster (10 min)
 
+This elective requires a separately provisioned `gpu-fips` cluster with qualified
+OS/image prerequisites and a working SSH path. Lab 5.1 does not create that cluster.
+Have the instructor provision it and supply its actual name, AMI login user, SSH key
+and bastion/routing details before proceeding. The reference in Task 3 is not an
+instruction to install the GPU Operator before preparing host FIPS mode.
+
 1. **Extract kubeconfig from the management cluster**
 
    ```bash
-   # On the k0rdent management cluster
-   kubectl get secret gpu-fips-kubeconfig -n kcm-system \
+   export MGMT_KUBECONFIG=$HOME/.kube/config
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" get clusterdeployment gpu-fips -n kcm-system
+   umask 077
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" get secret gpu-fips-kubeconfig -n kcm-system \
      -o jsonpath='{.data.value}' | base64 -d > gpu-fips.kubeconfig
 
    export KUBECONFIG=gpu-fips.kubeconfig
@@ -171,7 +179,10 @@ FIPS must be enabled at the OS level **before** deploying the GPU Operator. This
    NODE_IP=$(kubectl get nodes -l nvidia.com/gpu.present=true \
      -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 
-   ssh ec2-user@${NODE_IP}
+   # Set these to the access details for the deployed AMI; use SSH config for a bastion.
+   export NODE_SSH_USER="<ami-login-user>"
+   export NODE_SSH_KEY="<path-to-private-key>"
+   ssh -i "$NODE_SSH_KEY" "$NODE_SSH_USER@$NODE_IP"
 
    # Check FIPS mode
    cat /proc/sys/crypto/fips_enabled
@@ -246,9 +257,9 @@ FIPS must be enabled at the OS level **before** deploying the GPU Operator. This
 
 Deploy the GPU Operator through k0rdent's ServiceTemplate after the platform and image prerequisites are satisfied.
 
-1. **Option A: Deploy via ClusterDeployment serviceSpec (recommended)**
+1. **Option A: ClusterDeployment packaging reference**
 
-   If the cluster has not yet been provisioned, include the GPU Operator in the ClusterDeployment:
+   This reference shows how to package the service after selecting a host image with the required FIPS configuration. The stock Ubuntu AMI below does not establish that configuration. For the existing qualified cluster used by this lab, use Option B and avoid a second owner for the same GPU Operator release:
 
    ```yaml
    apiVersion: k0rdent.mirantis.com/v1beta1
@@ -342,7 +353,7 @@ Deploy the GPU Operator through k0rdent's ServiceTemplate after the platform and
    > **Note:** Option B assumes the existing cluster's worker nodes already run Ubuntu 22.04 (or another OS with a published GPU Operator driver image). A cluster provisioned on the template's default Amazon Linux 2 AMI cannot run the GPU Operator driver regardless of these values — see the Ubuntu 22.04 note under Option A.
 
    ```bash
-   kubectl apply -f gpu-operator-fips-mcs.yaml
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" apply -f gpu-operator-fips-mcs.yaml
    ```
 
 3. **Verify GPU Operator deployment**
@@ -395,7 +406,7 @@ Test that FIPS cryptographic restrictions are enforced inside containers running
 
    ```bash
    kubectl apply -f fips-gpu-test.yaml
-   kubectl wait --for=condition=Completed pod/fips-gpu-test --timeout=120s
+   kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/fips-gpu-test --timeout=120s
    kubectl logs fips-gpu-test
    ```
 
@@ -418,24 +429,32 @@ Test that FIPS cryptographic restrictions are enforced inside containers running
            - /bin/bash
            - -c
            - |
+             set -euo pipefail
+             command -v openssl >/dev/null || { echo "FAIL: openssl is required"; exit 1; }
              echo "=== FIPS Crypto Enforcement Test ==="
              echo ""
 
              # Check if host FIPS mode is visible in container
              echo "--- Kernel FIPS status ---"
-             cat /proc/sys/crypto/fips_enabled
+             test "$(cat /proc/sys/crypto/fips_enabled)" = 1 || { echo "FAIL: host FIPS is disabled"; exit 1; }
 
              echo ""
              echo "--- OpenSSL version ---"
-             openssl version 2>/dev/null || echo "openssl not installed"
+             openssl version
+             openssl list -providers | grep -q "FIPS" || { echo "FAIL: FIPS provider unavailable"; exit 1; }
 
              echo ""
              echo "--- Test: SHA-256 (FIPS-approved, should PASS) ---"
-             echo -n "test" | openssl sha256 2>&1 && echo "PASS: SHA-256 works" || echo "FAIL"
+             printf test | openssl dgst -propquery fips=yes -sha256 >/dev/null
+             echo "PASS: SHA-256 works with the FIPS provider"
 
              echo ""
              echo "--- Test: MD5 (NOT FIPS-approved, should FAIL) ---"
-             echo -n "test" | openssl md5 2>&1 && echo "WARNING: MD5 available (FIPS may not be enforced)" || echo "PASS: MD5 correctly rejected"
+             if printf test | openssl dgst -propquery fips=yes -md5 >/tmp/md5-error 2>&1; then
+               echo "FAIL: MD5 accepted under fips=yes"; exit 1
+             fi
+             grep -Eqi "unsupported|fetch failed" /tmp/md5-error || { cat /tmp/md5-error; exit 1; }
+             echo "PASS: MD5 unavailable under fips=yes"
 
              echo ""
              echo "--- OpenSSL providers ---"
@@ -444,7 +463,7 @@ Test that FIPS cryptographic restrictions are enforced inside containers running
 
    ```bash
    kubectl apply -f fips-crypto-test.yaml
-   kubectl wait --for=condition=Completed pod/fips-crypto-test --timeout=120s
+   kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/fips-crypto-test --timeout=120s
    kubectl logs fips-crypto-test
    ```
 
@@ -540,7 +559,7 @@ Test that FIPS cryptographic restrictions are enforced inside containers running
 
    ```bash
    kubectl apply -f fips-python-gpu-test.yaml
-   kubectl wait --for=condition=Completed pod/fips-python-gpu-test --timeout=300s
+   kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/fips-python-gpu-test --timeout=300s
    kubectl logs fips-python-gpu-test
    ```
 
@@ -710,7 +729,7 @@ kill %1 2>/dev/null
 kubectl logs -n gpu-operator -l app=nvidia-driver-daemonset --tail=50
 
 # On the node, check dmesg for module signature issues
-ssh ec2-user@${NODE_IP} "sudo dmesg | grep -i 'module.*signature\|nvidia'"
+ssh -i "$NODE_SSH_KEY" "$NODE_SSH_USER@$NODE_IP" "sudo dmesg | grep -i 'module.*signature\|nvidia'"
 ```
 
 **Cause:** FIPS-enabled kernels may enforce module signatures. The NVIDIA driver kernel module must be signed.
@@ -724,7 +743,7 @@ ssh ec2-user@${NODE_IP} "sudo dmesg | grep -i 'module.*signature\|nvidia'"
 ```bash
 # k0s uses non-standard containerd paths
 # Verify the nvidia runtime is configured
-ssh ec2-user@${NODE_IP} "cat /etc/k0s/containerd.d/nvidia.toml"
+ssh -i "$NODE_SSH_KEY" "$NODE_SSH_USER@$NODE_IP" "cat /etc/k0s/containerd.d/nvidia.toml"
 ```
 
 **Expected content:**

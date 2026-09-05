@@ -77,12 +77,12 @@ Vector databases store and query high-dimensional embeddings - numerical represe
 | **Chroma** | Development, embedded | Docker | Apache 2.0 |
 | **pgvector** | PostgreSQL extension | Existing Postgres | PostgreSQL |
 
-This lab deploys **Milvus** as a production-grade distributed solution.
+This lab deploys a **standalone Milvus** baseline with persistent storage, authentication and Attu. Distributed production deployment is an elective requiring additional nodes and sizing.
 
 ## Lab Environment
 
 **Cluster Requirements:**
-- 3 nodes minimum (for distributed deployment)
+- One workload node with sufficient CPU/RAM and bound persistent volumes; distributed mode requires additional nodes
 - 8GB RAM per node minimum
 - Persistent volume provisioner (local-path or cloud CSI)
 - Optional: GPU node for embedding generation
@@ -127,111 +127,51 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 
    ```yaml
    # Save as milvus-values.yaml
+   attu:
+     enabled: true
    cluster:
-     enabled: true
-
-   # Enable authentication (Milvus defaults to OFF)
-   extraConfigFiles:
-     user.yaml: |
-       common:
-         security:
-           authorizationEnabled: true
-
+     enabled: false
+   standalone:
+     persistence:
+       enabled: true
+       persistentVolumeClaim:
+         size: 20Gi
    etcd:
-     replicaCount: 3
-     persistence:
-       enabled: true
-       size: 10Gi
-
+     replicaCount: 1
    minio:
-     mode: distributed
-     replicas: 4
-     persistence:
-       enabled: true
-       size: 50Gi
-
-   # Woodpecker WAL (recommended for v2.6+, replaces Pulsar)
-   woodpecker:
-     enabled: true
-
-   # Disable legacy Pulsar (no longer needed with Woodpecker)
+     mode: standalone
    pulsar:
      enabled: false
    pulsarv3:
      enabled: false
-
-   # MixCoord replaces separate rootcoord, querycoord, datacoord, indexcoord
-   mixCoordinator:
-     replicas: 1
-     resources:
-       requests:
-         cpu: "0.5"
-         memory: 2Gi
-       limits:
-         cpu: "2"
-         memory: 8Gi
-
-   # StreamingNode (new in v2.6, handles real-time data ingestion)
-   streamingNode:
-     replicas: 1
-     resources:
-       requests:
-         cpu: "0.5"
-         memory: 2Gi
-       limits:
-         cpu: "2"
-         memory: 8Gi
-
-   queryNode:
-     replicas: 2
-     resources:
-       requests:
-         cpu: "0.5"
-         memory: 2Gi
-       limits:
-         cpu: "2"
-         memory: 8Gi
-
-   # DataNode now includes index building (no separate indexNode in v2.6)
-   dataNode:
-     replicas: 1
-     resources:
-       requests:
-         cpu: "0.5"
-         memory: 2Gi
-       limits:
-         cpu: "2"
-         memory: 8Gi
-
-   proxy:
-     replicas: 1
-     resources:
-       requests:
-         cpu: "0.5"
-         memory: 1Gi
-       limits:
-         cpu: "2"
-         memory: 4Gi
-
-   standalone:
+   woodpecker:
      enabled: false
-
-   attu:
-     enabled: true
-     service:
-       type: ClusterIP
-
-   metrics:
-     enabled: true
+   streaming:
+     woodpecker:
+       embedded: true
+   extraConfigFiles:
+     user.yaml: "common:\n  security:\n    authorizationEnabled: true\n"
    ```
 
-3. **Deploy Milvus via k0rdent ServiceTemplate**
+3. **Deploy the standalone baseline via k0rdent ServiceTemplate**
+
+   First install the template on the management cluster (a catalog entry is not automatically installed):
+
+   ```bash
+   helm upgrade --install milvus-template oci://ghcr.io/k0rdent/catalog/charts/kgst \
+     --set "chart=milvus:5.0.14" -n kcm-system
+   kubectl get servicetemplate milvus-5-0-14 -n kcm-system -o yaml
+   ```
 
    The k0rdent catalog includes `milvus-5-0-14` (Milvus v2.6.x). Deploy it
    using a `MultiClusterService` or `ClusterDeployment` service spec, consistent
-   with the patterns from Labs 5.1 and 5.2:
+   with the patterns from Labs 5.1 and 5.2. This resource-sized baseline uses
+   standalone Milvus; distributed components are an elective requiring multiple
+   workers and a separate storage/capacity plan. Render chart 5.0.14 with the exact
+   values before applying; the catalog wrapper requires `milvus:` while the direct
+   upstream Helm chart takes the inner values:
 
-   > **Cluster selector — adjust to match YOUR ClusterDeployment labels.** The example below uses `workload-type: ai-inference` as an illustrative convention. Lab 5.1's default `ClusterDeployment` applies `environment: training` and `gpu-enabled: "true"` labels (and no `workload-type`). Either (a) swap the selector in this manifest to `environment: training`, or (b) patch the Lab 5.1 ClusterDeployment with `spec.config.clusterLabels.workload-type: ai-inference` before applying the MCS. Confirm with `kubectl get clusterdeployment <name> -n kcm-system --show-labels` first.
+   > **Cluster selector — adjust to match your workload cluster labels.** The example uses `environment: training`, matching Lab 5.1. Inspect the actual CAPI Cluster labels in `kcm-system` before applying the MCS; ClusterDeployment metadata labels alone do not prove a selector matches the delivered cluster.
 
    ```yaml
    # Save as milvus-service.yaml
@@ -250,68 +190,34 @@ This lab deploys **Milvus** as a production-grade distributed solution.
            name: milvus
            namespace: vector-db
            values: |
-             cluster:
-               enabled: true
-             standalone:
-               enabled: false
-             extraConfigFiles:
-               user.yaml: |
-                 common:
-                   security:
-                     authorizationEnabled: true
-             etcd:
-               replicaCount: 3
-               persistence:
+             milvus:
+               attu:
                  enabled: true
-                 size: 10Gi
-             minio:
-               mode: distributed
-               replicas: 4
-               persistence:
-                 enabled: true
-                 size: 50Gi
-             pulsar:
-               # NOTE (empirical 2026-04-17): the milvus-5-0-14 catalog chart
-               # IGNORES `pulsar.enabled: false` for cluster mode and still
-               # deploys Pulsar v3 (plus BookKeeper + ZooKeeper, ~11 extra
-               # pods). If you need a lighter mq backend, either (a) use the
-               # Simplified Alternative (standalone mode) at the end of this
-               # lab, or (b) fork the chart to wire in a different mq. The
-               # key is tracked upstream on the Zilliz helm repo.
-               enabled: false
-             queryNode:
-               replicas: 2
-               resources:
-                 requests:
-                   cpu: "0.5"
-                   memory: 2Gi
-                 limits:
-                   cpu: "2"
-                   memory: 8Gi
-             dataNode:
-               replicas: 1
-               resources:
-                 requests:
-                   cpu: "0.5"
-                   memory: 2Gi
-                 limits:
-                   cpu: "2"
-                   memory: 8Gi
-             proxy:
-               replicas: 1
-               resources:
-                 requests:
-                   cpu: "0.5"
-                   memory: 1Gi
-                 limits:
-                   cpu: "2"
-                   memory: 4Gi
-             attu:
-               enabled: true
-               service:
-                 type: ClusterIP
-             metrics:
-               enabled: true
+               extraConfigFiles:
+                 user.yaml: |
+                   common:
+                     security:
+                       authorizationEnabled: true
+               cluster:
+                 enabled: false
+               standalone:
+                 persistence:
+                   enabled: true
+                   persistentVolumeClaim:
+                     size: 20Gi
+               etcd:
+                 replicaCount: 1
+               minio:
+                 mode: standalone
+               pulsar:
+                 enabled: false
+               pulsarv3:
+                 enabled: false
+               woodpecker:
+                 enabled: false
+               streaming:
+                 woodpecker:
+                   embedded: true
    ```
 
    ```bash
@@ -327,7 +233,7 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    > helm install milvus milvus/milvus \
    >   --namespace vector-db \
    >   --values milvus-values.yaml \
-   >   --version 4.2.8 \
+   >   --version 5.0.14 \
    >   --wait --timeout 15m
    > ```
    > Pin `--version` to a known stable chart release. Run `helm search repo
@@ -355,32 +261,18 @@ This lab deploys **Milvus** as a production-grade distributed solution.
 
 6. **Expected Pod List**
 
-   > **Note:** Pod names vary by Milvus version. The list below shows the v2.6.x
-   > target architecture with MixCoord and Woodpecker. If you intentionally run
-   > an older Milvus v2.5.x chart, you will instead see
-   > separate coordinator pods: `milvus-rootcoord-*`, `milvus-querycoord-*`,
-   > `milvus-datacoord-*`, `milvus-indexcoord-*`, and an `milvus-indexnode-*`
-   > pod. You will also see Pulsar-related pods (broker, bookie, zookeeper)
-   > instead of the Woodpecker components. The etcd, minio, proxy, querynode,
-   > datanode, and attu pods appear in both versions.
+   The pinned standalone configuration renders a Milvus Deployment, one etcd
+   StatefulSet, one MinIO Deployment and the Attu UI. Pod suffixes vary:
 
+   ```text
+   milvus-standalone-<suffix>
+   milvus-etcd-0
+   milvus-minio-<suffix>
+   milvus-attu-<suffix>
    ```
-   NAME                                      READY   STATUS    RESTARTS   AGE
-   milvus-mixcoord-xxx                       1/1     Running   0          5m
-   milvus-datanode-xxx                       1/1     Running   0          5m
-   milvus-querynode-xxx                      1/1     Running   0          5m
-   milvus-querynode-yyy                      1/1     Running   0          5m
-   milvus-streaming-node-xxx                 1/1     Running   0          5m
-   milvus-proxy-xxx                          1/1     Running   0          5m
-   milvus-etcd-0                             1/1     Running   0          5m
-   milvus-etcd-1                             1/1     Running   0          5m
-   milvus-etcd-2                             1/1     Running   0          5m
-   milvus-minio-0                            1/1     Running   0          5m
-   milvus-minio-1                            1/1     Running   0          5m
-   milvus-minio-2                            1/1     Running   0          5m
-   milvus-minio-3                            1/1     Running   0          5m
-   milvus-attu-xxx                           1/1     Running   0          5m
-   ```
+
+   Verify each rollout and bound PVCs before the insert/search exercise. Separate
+   MixCoord, streaming-node and Pulsar pods are not part of this baseline.
 
 ### Task 3: Configure Authentication (15 min)
 
@@ -672,63 +564,14 @@ This lab deploys **Milvus** as a production-grade distributed solution.
    kubectl apply -f milvus-ingress.yaml
    ```
 
-## Simplified Alternative: Standalone Mode
+## Distributed deployment elective
 
-For development/testing with limited resources:
-
-```yaml
-# Save as milvus-standalone-values.yaml
-cluster:
-  enabled: false
-
-standalone:
-  enabled: true
-  persistence:
-    enabled: true
-    size: 20Gi
-  resources:
-    requests:
-      cpu: "0.5"
-      memory: 2Gi
-    limits:
-      cpu: "2"
-      memory: 8Gi
-
-# Enable authentication even in standalone mode
-extraConfigFiles:
-  user.yaml: |
-    common:
-      security:
-        authorizationEnabled: true
-
-etcd:
-  replicaCount: 1
-  persistence:
-    enabled: true
-    size: 5Gi
-
-minio:
-  mode: standalone
-  persistence:
-    enabled: true
-    size: 20Gi
-
-pulsar:
-  enabled: false
-
-woodpecker:
-  enabled: false
-
-attu:
-  enabled: true
-```
-
-```bash
-helm install milvus milvus/milvus \
-  --namespace vector-db \
-  --values milvus-standalone-values.yaml \
-  --wait
-```
+Standalone is already the baseline in Task 2. For a distributed deployment, use a
+separate release/namespace, start from the **5.0.14** chart values, and size etcd,
+object storage, coordination, query/data and streaming components for the target
+node count. Render the chart and inspect requests, persistence and WAL selection
+before applying. Do not upgrade the baseline to distributed mode without a tested
+data migration and backup/restore procedure.
 
 ## Deliverables
 
@@ -741,7 +584,7 @@ helm install milvus milvus/milvus \
 ## Verification Checklist
 
 - [ ] Milvus cluster deployed and healthy
-- [ ] All components (etcd, minio, mixcoord, streaming-node) running
+- [ ] Standalone Milvus, etcd, MinIO and Attu ready; PVCs bound
 - [ ] Authentication configured and enforced (authorizationEnabled: true)
 - [ ] Collection created with index
 - [ ] Data loaded successfully

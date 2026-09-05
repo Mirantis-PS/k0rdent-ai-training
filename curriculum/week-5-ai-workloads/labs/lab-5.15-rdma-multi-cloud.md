@@ -154,17 +154,25 @@ In distributed training, GPUs must synchronize gradients after each batch using 
 
 ### Task 2: Provision GPU Clusters via k0rdent (30 min)
 
+Keep the management kubeconfig separate before switching into either workload:
+
+```bash
+export MGMT_KUBECONFIG=$HOME/.kube/config
+kubectl --kubeconfig "$MGMT_KUBECONFIG" get clusterdeployments -n kcm-system
+```
+
+
 k0rdent's core value for RDMA workloads is managing GPU clusters across cloud providers from a single management plane. Each provider requires different infrastructure (EFA vs InfiniBand), but k0rdent abstracts the provisioning.
 
 1. **Review AWS GPU ClusterDeployment**
 
-   The AWS cluster uses p4d/p5 instances with EFA enabled:
+   The following is the stock-template **negative control**, not an EFA-enabled deployment. It creates GPU workers but no EFA interfaces. Do not provision it expecting RDMA. A positive EFA experiment requires the custom AWSMachineTemplate/interface and placement-group configuration described in Part 3, verified before allocating nodes:
    ```yaml
    apiVersion: k0rdent.mirantis.com/v1beta1
    kind: ClusterDeployment
    metadata:
      name: aws-gpu-cluster
-     namespace: gpu-training
+     namespace: kcm-system
      labels:
        workload-type: gpu-training
        cloud-provider: aws
@@ -176,6 +184,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
        region: us-west-2
        controlPlane:
          instanceType: m5.xlarge
+         amiID: ami-xxxxxxxx  # same regional Ubuntu 22.04 lookup as the worker
        worker:
          instanceType: p4d.24xlarge
          # Pin an Ubuntu 22.04 AMI on BOTH node pools — the AL2 default breaks the GPU driver.
@@ -193,16 +202,19 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
            name: gpu-operator
            namespace: gpu-operator
            values: |
-             toolkit:
-               env:
-                 - name: CONTAINERD_CONFIG
-                   value: /etc/k0s/containerd.d/nvidia.toml
-                 - name: CONTAINERD_SOCKET
-                   value: /run/k0s/containerd.sock
-             driver:
-               rdma:
-                 enabled: true
-                 useHostMofed: false
+             gpu-operator:
+               toolkit:
+                 env:
+                   - name: CONTAINERD_CONFIG
+                     value: /etc/k0s/containerd.d/nvidia.toml
+                   - name: CONTAINERD_SOCKET
+                     value: /run/k0s/containerd.sock
+                   - name: CONTAINERD_RUNTIME_CLASS
+                     value: nvidia
+               driver:
+                 rdma:
+                   enabled: true
+                   useHostMofed: false
    ```
 
 2. **Review Azure GPU ClusterDeployment**
@@ -213,7 +225,7 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
    kind: ClusterDeployment
    metadata:
      name: azure-gpu-cluster
-     namespace: gpu-training
+     namespace: kcm-system
      labels:
        workload-type: gpu-training
        cloud-provider: azure
@@ -236,8 +248,9 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
            name: gpu-operator
            namespace: gpu-operator
            values: |
-             toolkit:
-               env:
+             gpu-operator:
+               toolkit:
+                 env:
                  - name: CONTAINERD_CONFIG
                    value: /etc/k0s/containerd.d/nvidia.toml
                  - name: CONTAINERD_SOCKET
@@ -279,12 +292,12 @@ k0rdent's core value for RDMA workloads is managing GPU clusters across cloud pr
 
    ```bash
    # Apply from the management cluster
-   kubectl apply -f aws-gpu-cluster.yaml
-   kubectl apply -f azure-gpu-cluster.yaml
-   kubectl apply -f network-operator-mcs.yaml
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" apply -f aws-gpu-cluster.yaml
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" apply -f azure-gpu-cluster.yaml
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" apply -f network-operator-mcs.yaml
 
    # Monitor provisioning
-   kubectl get clusterdeployments -n gpu-training -w
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" get clusterdeployments -n kcm-system -w
    ```
 
 ---
@@ -347,7 +360,7 @@ AWS EFA Architecture:
 1. **Switch to the AWS GPU cluster context**
    ```bash
    # Get kubeconfig from k0rdent
-   kubectl get secret -n gpu-training aws-gpu-cluster-kubeconfig \
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" get secret -n kcm-system aws-gpu-cluster-kubeconfig \
      -o jsonpath='{.data.value}' | base64 -d > /tmp/aws-gpu.kubeconfig
    export KUBECONFIG=/tmp/aws-gpu.kubeconfig
    ```
@@ -557,7 +570,7 @@ Azure InfiniBand Architecture:
 
 1. **Switch to the Azure GPU cluster context**
    ```bash
-   kubectl get secret -n gpu-training azure-gpu-cluster-kubeconfig \
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" get secret -n kcm-system azure-gpu-cluster-kubeconfig \
      -o jsonpath='{.data.value}' | base64 -d > /tmp/azure-gpu.kubeconfig
    export KUBECONFIG=/tmp/azure-gpu.kubeconfig
    ```
@@ -818,7 +831,7 @@ This task demonstrates k0rdent's ability to deploy the same application workload
 
 1. **Create a Custom ServiceTemplate for vLLM**
 
-   First, install the ServiceTemplate from the management cluster:
+   The ServiceTemplate/MCS below is a packaging reference: it requires a real `vllm-inference` HelmChart in `kcm-system`, which this lab does not create. Use the direct Deployment alternative for this exercise; apply the reference only after packaging and testing that chart on the management cluster:
    ```yaml
    # Save as vllm-inference-template.yaml
    apiVersion: k0rdent.mirantis.com/v1beta1

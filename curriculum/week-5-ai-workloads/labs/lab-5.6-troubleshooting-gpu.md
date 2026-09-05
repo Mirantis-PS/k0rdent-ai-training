@@ -150,7 +150,7 @@ On k0rdent-managed clusters, the GPU Operator is deployed via the `gpu-operator-
 3. **Switch to workload cluster and verify GPU nodes**
 
    ```bash
-   export KUBECONFIG=ml-gpu.kubeconfig
+   export KUBECONFIG=~/.kube/gpu-cluster.conf
 
    kubectl get nodes -o wide
    kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUs:.status.allocatable.nvidia\.com/gpu'
@@ -207,33 +207,39 @@ The most common GPU issue on k0rdent-managed clusters is the GPU Operator not in
    **Root cause:** The GPU Operator ServiceTemplate values must include k0s containerd paths:
 
    ```yaml
-   # These env vars MUST be set in the ServiceTemplate values
-   toolkit:
-     env:
-       - name: CONTAINERD_CONFIG
-         value: /etc/k0s/containerd.d/nvidia.toml    # NOT /etc/containerd/config.toml
-       - name: CONTAINERD_SOCKET
-         value: /run/k0s/containerd.sock              # NOT /run/containerd/containerd.sock
-       - name: CONTAINERD_RUNTIME_CLASS
-         value: nvidia
+   # Catalog wrapper values (direct Helm omits the gpu-operator parent).
+   gpu-operator:
+     toolkit:
+       env:
+         - name: CONTAINERD_CONFIG
+           value: /etc/k0s/containerd.d/nvidia.toml    # NOT /etc/containerd/config.toml
+         - name: CONTAINERD_SOCKET
+           value: /run/k0s/containerd.sock              # NOT /run/containerd/containerd.sock
+         - name: CONTAINERD_RUNTIME_CLASS
+           value: nvidia
    ```
 
-   **Fix:** Update the ClusterDeployment serviceSpec on the management cluster:
+   **Fix the owning release.** Lab 5.1 installed GPU Operator directly with Helm.
+   On that path, save its current values on the workload cluster, update the
+   top-level `toolkit.env` in that file, and upgrade the existing release:
 
    ```bash
-   # Switch to management cluster
-   unset KUBECONFIG
-
-   # Patch the ClusterDeployment to add correct toolkit env vars
-   # (See Lab 5.8 for full ClusterDeployment serviceSpec syntax)
-   kubectl edit clusterdeployment ml-gpu -n kcm-system
-   # Add the toolkit.env values shown above
+   export KUBECONFIG=~/.kube/gpu-cluster.conf
+   helm get values gpu-operator -n gpu-operator -o yaml > /tmp/gpu-operator-current.yaml
+   # Edit /tmp/gpu-operator-current.yaml, preserving all unrelated values.
+   helm upgrade gpu-operator nvidia/gpu-operator -n gpu-operator \
+     --version v25.3.0 -f /tmp/gpu-operator-current.yaml --wait --timeout 15m
    ```
+
+   For a **catalog-managed** cluster, edit the existing MCS/ClusterDeployment
+   owner on the management cluster using the `gpu-operator:` wrapper above.
+   Do not introduce a second owner for Lab 5.1's direct Helm release. Validate
+   node Ready, both `runc` and NVIDIA runtimes, and a successful GPU test pod.
 
 3. **Diagnose: Driver pod failures**
 
    ```bash
-   export KUBECONFIG=ml-gpu.kubeconfig
+   export KUBECONFIG=~/.kube/gpu-cluster.conf
 
    # Check driver pod status
    kubectl get pods -n gpu-operator -l app=nvidia-driver-daemonset -o wide
