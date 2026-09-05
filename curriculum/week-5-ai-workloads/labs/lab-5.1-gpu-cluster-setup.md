@@ -538,7 +538,7 @@ KAI Scheduler uses the `scheduling.run.ai/v2` API group (inherited from its Run:
 
    > **`default-queue` is auto-created by KAI Scheduler** (alongside `default-parent-queue`) as a catch-all for workloads that don't specify a `kai.scheduler/queue` label. It's safe to ignore for this lab — you should see **5 queues total**, including the auto-created `default-queue`.
 
-### Task 4: Test Gang Scheduling (30 min)
+### Task 4: Test Concurrent GPU Jobs (30 min)
 
 Gang scheduling ensures all pods in a job start together or none start, critical for distributed training.
 
@@ -581,7 +581,7 @@ Gang scheduling ensures all pods in a job start together or none start, critical
                  cpu: "2"
    ```
 
-   > **How it works (with a limitation):** KAI's PodGrouper creates PodGroups for the Job's pods. **In v0.12.10, each pod gets its own PodGroup** (`minMember: 1` each) — not a single Job-wide PodGroup with `minMember: 2` — so strictly speaking, each pod is scheduled independently, not as a true gang. The test above requests 2 GPUs of 4 available, which means there is **no resource pressure** to distinguish gang scheduling from independent scheduling; the test verifies only that both pods can run concurrently. For a **definitive** gang scheduling test, scale the Job to `parallelism: 5` (1 GPU each) on the 4-GPU worker and verify that **all 5 pods stay Pending together** — a true gang-aware scheduler will refuse to partially schedule, while a non-gang scheduler would schedule 4 and leave 1 stuck.
+   > **How it works (with a limitation):** KAI's PodGrouper creates PodGroups for the Job's pods. **In v0.12.10, each pod gets its own PodGroup** (`minMember: 1` each) — not a single Job-wide PodGroup with `minMember: 2` — so strictly speaking, each pod is scheduled independently, not as a true gang. The test above requests 2 GPUs of 4 available, which means there is **no resource pressure** to distinguish gang scheduling from independent scheduling; the test verifies only that both pods can run concurrently. For a definitive gang test, use the supported multi-pod integration in Lab 5.3; increasing this plain Job's parallelism does not change its per-pod grouping.
 
 2. **Submit Gang Job**
    ```bash
@@ -591,7 +591,7 @@ Gang scheduling ensures all pods in a job start together or none start, critical
    kubectl get pods -l job-name=gang-test -o wide -w
    ```
 
-3. **Verify Gang Behavior**
+3. **Verify Concurrent Execution**
    ```bash
    # Both pods should be scheduled simultaneously
    kubectl get pods -l job-name=gang-test -o wide
@@ -601,9 +601,9 @@ Gang scheduling ensures all pods in a job start together or none start, critical
    ```
 
 4. **Expected Behavior**
-   - Both pods scheduled within seconds of each other (gang constraint)
+   - Both pods can run when sufficient GPUs are free; this alone does not prove gang scheduling
    - Both pods land on the GPU worker node, each with 1 GPU
-   - If insufficient GPUs available, both pods remain Pending (gang constraint)
+   - This plain Job does not guarantee all-or-nothing placement. Use Lab 5.3's supported PyTorchJob/PodGroup path for a real gang-capacity test.
 
 5. **Clean Up**
    ```bash
