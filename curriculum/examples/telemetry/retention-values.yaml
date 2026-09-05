@@ -1,0 +1,3 @@
+victoria-logs-cluster:
+  vlstorage:
+    retentionPeriod: 35d
