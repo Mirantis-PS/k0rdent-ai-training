@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:49:01.563Z",
+  "ended": "2026-09-08T14:49:04.201Z",
+  "command": "kubectl patch multiclusterservice baseline-services --type=json -p='[{\"op\":\"replace\",\"path\":\"/spec/serviceSpec/services/0/values\",\"value\":\"kyverno:\n  admissionController:\n    replicas: 2\n\"}]'\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig delete pod test-pod\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig delete clusterpolicy require-labels\n",
+  "code": 0,
+  "stdout": "multiclusterservice.k0rdent.mirantis.com/baseline-services patched\npod \"test-pod\" deleted from default namespace\nclusterpolicy.kyverno.io \"require-labels\" deleted\n",
+  "stderr": ""
+}

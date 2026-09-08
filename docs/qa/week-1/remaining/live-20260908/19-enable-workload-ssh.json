@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:21:55.153Z",
+  "ended": "2026-09-08T14:21:56.830Z",
+  "command": "kubectl patch clusterdeployment managed-cluster-01 -n kcm-system --type=merge -p '{\"spec\":{\"config\":{\"sshKeyName\":\"k0rdent-clusters-qa-w1-20260908\"}}}'",
+  "code": 0,
+  "stdout": "clusterdeployment.k0rdent.mirantis.com/managed-cluster-01 patched\n",
+  "stderr": ""
+}

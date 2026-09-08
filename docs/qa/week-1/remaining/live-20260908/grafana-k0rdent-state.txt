@@ -1,0 +1,470 @@
+Browser tab: 5, Title: "k0rdent kube state - Kcm - Dashboards - Grafana", URL: "http://127.0.0.1:13000/d/eew2g6i6t96v4a/k0rdent-kube-state?orgId=1".
+1 AXWebArea k0rdent kube state - Kcm - Dashboards - Grafana, URL: 127.0.0.1:13000/d/eew2g6i6t96v4a/k0rdent-kube-state?orgId=1
+	2 container reactRoot
+		3 container
+			4 link Description: Skip to main content, Value: 127.0.0.1:13000/#pageContent
+			5 link Description: Grafana, Help: Go to home, Value: 127.0.0.1:13000/
+			6 container
+				7 image
+				8 button Search or jump to...
+				9 image
+				10 text cmd +k
+			11 button (collapsed) Description: New, Secondary Actions: Expand
+				12 image
+				13 image
+			14 button Help
+				15 image
+			16 button News
+				17 image
+			18 button Profile
+				19 image User avatar
+			20 button Description: Open menu, ID: mega-menu-toggle
+				21 image
+			22 container Breadcrumbs
+				23 content list
+					24 link Description: Home, Value: 127.0.0.1:13000/
+					28 link Description: Dashboards, Value: 127.0.0.1:13000/dashboards
+					29 link Description: Kcm, Value: 127.0.0.1:13000/dashboards/f/efxn5wuu1p8g0a/kcm
+					30 text k0rdent kube state
+			31 button Mark as favorite
+				32 image
+			33 container
+				34 button Dashboard settings
+					35 image
+				36 button Add
+					37 text Add
+					38 image
+				39 button Share
+				40 button (collapsed) Description: Time range selected: Last 15 minutes, Secondary Actions: Expand
+					41 image Layer_1
+					42 text Last 15 minutes
+					43 image
+				44 button Zoom out time range
+					45 image
+				46 button Refresh dashboard
+					47 image
+				48 button (collapsed) Description: Auto refresh turned off. Choose refresh time interval, Secondary Actions: Expand
+					49 image
+				50 button Show more items
+					51 image
+			26 button Toggle top search bar
+			27 container pageContent
+				52 container
+					53 container Dashboard submenu
+						54 container Template variables
+							55 container
+								56 text Datasource
+								57 button (collapsed) Datasource, ID: var-datasource, Secondary Actions: Expand
+							58 container
+								59 text cluster
+								60 button (collapsed) cluster, ID: var-cluster, Secondary Actions: Expand
+					61 container
+						62 container
+							63 heading ClusterDeployment, Value: 6
+								64 text ClusterDeployment
+							65 button Description: Menu for panel with title ClusterDeployment, Help: Menu
+								66 image
+							67 table
+								68 container
+									69 row table header
+										70 cell
+											71 button name, Help: Toggle SortBy
+												72 text name
+										73 cell
+											74 button condition, Help: Toggle SortBy
+												75 text condition
+										76 cell
+											77 button status, Help: Toggle SortBy
+												78 text status
+									79 container
+										80 row
+											81 cell
+												82 text managed-cluster-01
+											83 cell
+												84 text CAPIClusterSummary
+											85 cell
+												86 text True
+										87 row
+											88 cell
+												89 text managed-cluster-01
+											90 cell
+												91 text ClusterDataSourceReady
+											92 cell
+												93 text True
+										94 row
+											95 cell
+												96 text managed-cluster-01
+											97 cell
+												98 text CredentialReady
+											99 cell
+												100 text True
+										101 row
+											102 cell
+												103 text managed-cluster-01
+											104 cell
+												105 text HelmChartReady
+											106 cell
+												107 text True
+										108 row
+											109 cell
+												110 text managed-cluster-01
+											111 cell
+												112 text HelmReleaseReady
+											113 cell
+												114 text True
+										115 row
+											116 cell
+												117 text managed-cluster-01
+											118 cell
+												119 text Ready
+											120 cell
+												121 text True
+										122 row
+											123 cell
+												124 text managed-cluster-01
+											125 cell
+												126 text ServicesInReadyState
+											127 cell
+												128 text True
+										129 row
+											130 cell
+												131 text managed-cluster-01
+											132 cell
+												133 text TemplateReady
+											134 cell
+												135 text True
+						136 container
+							137 heading ClusterTemplate, Value: 6
+								138 text ClusterTemplate
+							139 table
+								140 container
+									141 row table header
+										142 cell
+											143 button name, Help: Toggle SortBy
+												144 text name
+										145 cell
+											146 button status, Help: Toggle SortBy
+												147 text status
+									148 container
+										149 row
+											150 cell
+												151 text adopted-cluster-1-0-1
+											152 cell
+												153 text True
+										154 row
+											155 cell
+												156 text aws-eks-1-0-6
+											157 cell
+												158 text True
+										159 row
+											160 cell
+												161 text aws-hosted-cp-1-0-29
+											162 cell
+												163 text True
+										164 row
+											165 cell
+												166 text aws-standalone-cp-1-0-26
+											167 cell
+												168 text True
+										169 row
+											170 cell
+												171 text azure-aks-1-0-5
+											172 cell
+												173 text True
+										174 row
+											175 cell
+												176 text azure-hosted-cp-1-0-31
+											177 cell
+												178 text True
+										179 row
+											180 cell
+												181 text azure-standalone-cp-1-0-26
+											182 cell
+												183 text True
+										184 row
+											185 cell
+												186 text docker-hosted-cp-1-0-6
+											187 cell
+												188 text True
+						189 container
+							190 heading Credential, Value: 6
+								191 text Credential
+							192 table
+								193 container
+									194 row table header
+										195 cell
+											196 button name, Help: Toggle SortBy
+												197 text name
+										198 cell
+											199 button condition, Help: Toggle SortBy
+												200 text condition
+										201 cell
+											202 button status, Help: Toggle SortBy
+												203 text status
+									204 row
+										205 cell
+											206 text aws-cluster-identity-cred
+										207 cell
+											208 text CredentialReady
+										209 cell
+											210 text True
+						211 container
+							212 heading Management, Value: 6
+								213 text Management
+							214 table
+								215 container
+									216 row table header
+										217 cell
+											218 button name, Help: Toggle SortBy
+												219 text name
+										220 cell
+											221 button condition, Help: Toggle SortBy
+												222 text condition
+										223 cell
+											224 button status, Help: Toggle SortBy
+												225 text status
+									226 row
+										227 cell
+											228 text kcm
+										229 cell
+											230 text Ready
+										231 cell
+											232 text True
+						233 container
+							234 heading MultiClusterService, Value: 6
+								235 text MultiClusterService
+							236 table
+								237 container
+									238 row table header
+										239 cell
+											240 button name, Help: Toggle SortBy
+												241 text name
+										242 cell
+											243 button condition, Help: Toggle SortBy
+												244 text condition
+										245 cell
+											246 button status, Help: Toggle SortBy
+												247 text status
+									248 container
+										249 row
+											250 cell
+												251 text kof-istio-child-cluster
+											252 cell
+												253 text MultiClusterServiceDependencyValidation
+											254 cell
+												255 text False
+										256 row
+											257 cell
+												258 text kof-istio-child-cluster
+											259 cell
+												260 text Ready
+											261 cell
+												262 text False
+										263 row
+											264 cell
+												265 text kof-child-cluster
+											266 cell
+												267 text ClusterInReadyState
+											268 cell
+												269 text True
+										270 row
+											271 cell
+												272 text kof-child-cluster
+											273 cell
+												274 text MultiClusterServiceDependencyValidation
+											275 cell
+												276 text True
+										277 row
+											278 cell
+												279 text kof-child-cluster
+											280 cell
+												281 text Ready
+											282 cell
+												283 text True
+										284 row
+											285 cell
+												286 text kof-child-cluster
+											287 cell
+												288 text ServicesDependencyValidation
+											289 cell
+												290 text True
+										291 row
+											292 cell
+												293 text kof-child-cluster
+											294 cell
+												295 text ServicesReferencesValidation
+											296 cell
+												297 text True
+										298 row
+											299 cell
+												300 text kof-istio-child-cluster
+											301 cell
+												302 text ServicesDependencyValidation
+											303 cell
+												304 text True
+						305 container
+							306 heading ProviderTemplate, Value: 6
+								307 text ProviderTemplate
+							308 table
+								309 container
+									310 row table header
+										311 cell
+											312 button name, Help: Toggle SortBy
+												313 text name
+										314 cell
+											315 button status, Help: Toggle SortBy
+												316 text status
+									317 container
+										318 row
+											319 cell
+												320 text cluster-api-1-1-4
+											321 cell
+												322 text True
+										323 row
+											324 cell
+												325 text cluster-api-provider-aws-1-0-14
+											326 cell
+												327 text True
+										328 row
+											329 cell
+												330 text cluster-api-provider-azure-1-0-18
+											331 cell
+												332 text True
+										333 row
+											334 cell
+												335 text cluster-api-provider-docker-1-0-11
+											336 cell
+												337 text True
+										338 row
+											339 cell
+												340 text cluster-api-provider-gcp-1-0-12
+											341 cell
+												342 text True
+										343 row
+											344 cell
+												345 text cluster-api-provider-infoblox-1-0-6
+											346 cell
+												347 text True
+										348 row
+											349 cell
+												350 text cluster-api-provider-ipam-1-0-7
+											351 cell
+												352 text True
+										353 row
+											354 cell
+												355 text cluster-api-provider-k0sproject-k0smotron-1-0-19
+											356 cell
+												357 text True
+						358 container
+							359 heading Release, Value: 6
+								360 text Release
+							361 table
+								362 container
+									363 row table header
+										364 cell
+											365 button name, Help: Toggle SortBy
+												366 text name
+										367 cell
+											368 button condition, Help: Toggle SortBy
+												369 text condition
+										370 cell
+											371 button status, Help: Toggle SortBy
+												372 text status
+									373 container
+										374 row
+											375 cell
+												376 text k0rdent-enterprise-1-3-1
+											377 cell
+												378 text TemplatesCreated
+											379 cell
+												380 text True
+										381 row
+											382 cell
+												383 text k0rdent-enterprise-1-3-1
+											384 cell
+												385 text TemplatesValid
+											386 cell
+												387 text True
+						388 container
+							389 heading ServiceTemplate, Value: 6
+								390 text ServiceTemplate
+							391 table
+								392 container
+									393 row table header
+										394 cell
+											395 button name, Help: Toggle SortBy
+												396 text name
+										397 cell
+											398 button status, Help: Toggle SortBy
+												399 text status
+									400 container
+										401 row
+											402 cell
+												403 text cert-manager-1-21-1
+											404 cell
+												405 text True
+										406 row
+											407 cell
+												408 text cert-manager-v1-16-4
+											409 cell
+												410 text True
+										411 row
+											412 cell
+												413 text ingress-nginx-4-12-1
+											414 cell
+												415 text True
+										416 row
+											417 cell
+												418 text kof-collectors-1-6-0
+											419 cell
+												420 text True
+										421 row
+											422 cell
+												423 text kof-configmap-propagation
+											424 cell
+												425 text True
+										426 row
+											427 cell
+												428 text kof-namespace
+											429 cell
+												430 text True
+										431 row
+											432 cell
+												433 text kof-operators-1-6-0
+											434 cell
+												435 text True
+										436 row
+											437 cell
+												438 text kof-storage-1-6-0
+											439 cell
+												440 text True
+						441 container
+							442 heading ServiceTemplateChain, Value: 6
+								443 text ServiceTemplateChain
+							444 table
+								445 container
+									446 row table header
+										447 cell
+											448 button name, Help: Toggle SortBy
+												449 text name
+										450 cell
+											451 button status, Help: Toggle SortBy
+												452 text status
+									453 container
+										454 row
+											455 cell
+												456 text kof-collectors-1-6-0
+											457 cell
+												458 text True
+										459 row
+											460 cell
+												461 text kof-operators-1-6-0
+											462 cell
+												463 text True
+										464 row
+											465 cell
+												466 text kof-storage-1-6-0
+											467 cell
+												468 text True
+
+The focused UI element is 1 AXWebArea k0rdent kube state - Kcm - Dashboards - Grafana, URL: 127.0.0.1:13000/d/eew2g6i6t96v4a/k0rdent-kube-state?orgId=1

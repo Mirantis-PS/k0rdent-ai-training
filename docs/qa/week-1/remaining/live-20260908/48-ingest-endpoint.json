@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:28:34.931Z",
+  "ended": "2026-09-08T14:28:36.765Z",
+  "command": "kubectl get svc kof-ingest-gateway -n kof; kubectl get events -n kof --field-selector involvedObject.name=kof-ingest-gateway --sort-by=.lastTimestamp",
+  "code": 0,
+  "stdout": "NAME                 TYPE           CLUSTER-IP      EXTERNAL-IP                                                                     PORT(S)         AGE\nkof-ingest-gateway   LoadBalancer   10.110.20.139   ae600124bbf6248199d1a2f05b33119a-ff1a1f2bacb79a08.elb.eu-west-1.amazonaws.com   443:30762/TCP   12s\nLAST SEEN   TYPE     REASON                 OBJECT                          MESSAGE\n12s         Normal   ScalingReplicaSet      deployment/kof-ingest-gateway   Scaled up replica set kof-ingest-gateway-5f7b4bcfdd from 0 to 1\n12s         Normal   EnsuringLoadBalancer   service/kof-ingest-gateway      Ensuring load balancer\n10s         Normal   EnsuredLoadBalancer    service/kof-ingest-gateway      Ensured load balancer\n",
+  "stderr": "ControlSocket /Users/moustaphagueye/.ssh/control-10.0.9.27-22-ubuntu already exists, disabling multiplexing\r\n"
+}

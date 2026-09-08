@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:19:33.409Z",
+  "ended": "2026-09-08T14:19:34.404Z",
+  "command": "# Set quotas for team namespaces\ncat << 'EOF' | kubectl apply -f -\napiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: team-quota\n  namespace: team-platform\nspec:\n  hard:\n    requests.cpu: \"10\"\n    requests.memory: 20Gi\n    limits.cpu: \"20\"\n    limits.memory: 40Gi\n    count/clusters.cluster.x-k8s.io: \"5\"\n---\napiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: team-quota\n  namespace: team-ml\nspec:\n  hard:\n    requests.cpu: \"20\"\n    requests.memory: 40Gi\n    limits.cpu: \"40\"\n    limits.memory: 80Gi\n    count/clusters.cluster.x-k8s.io: \"10\"\nEOF\n",
+  "code": 0,
+  "stdout": "resourcequota/team-quota created\nresourcequota/team-quota created\n",
+  "stderr": ""
+}

@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:48:29.343Z",
+  "ended": "2026-09-08T14:48:30.450Z",
+  "command": "helm pull oci://ghcr.io/k0rdent/kof/charts/kof-storage --version 1.6.0 --untar --untardir /tmp/qa-kof-source\ngrep -R -n vmrules /tmp/qa-kof-source/kof-storage/templates\nkubectl -n kof get configmap -l k0rdent.mirantis.com/kof-cluster-role --show-labels\n",
+  "code": 0,
+  "stdout": "/tmp/qa-kof-source/kof-storage/templates/victoria/vmrules.yaml:1:{{- with .Values.vmrules }}\n",
+  "stderr": "Pulled: ghcr.io/k0rdent/kof/charts/kof-storage:1.6.0\nDigest: sha256:03f6600fefc7080bf2b98819f383c8a796ab6cd08ea3a9f078f43b0bd211f4c9\nNo resources found in kof namespace.\n"
+}

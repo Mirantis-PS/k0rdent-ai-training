@@ -1,0 +1,40 @@
+[
+  {
+    "id": "i-0c7b37b41e91044a5",
+    "public": "18.201.200.232",
+    "private": "10.0.14.100",
+    "key": "k0rdent-clusters-qa-w1-20260908",
+    "groups": [
+      {
+        "GroupId": "sg-041a0fcffd7860bf5",
+        "GroupName": "managed-cluster-01-node"
+      },
+      {
+        "GroupId": "sg-0225c5521b5bfbb3a",
+        "GroupName": "managed-cluster-01-lb"
+      }
+    ],
+    "image": "ami-0b17824e95c7c50e3"
+  },
+  {
+    "id": "i-0aca64b3f85c4c778",
+    "public": "34.243.64.61",
+    "private": "10.0.0.23",
+    "key": "k0rdent-clusters-qa-w1-20260908",
+    "groups": [
+      {
+        "GroupId": "sg-041a0fcffd7860bf5",
+        "GroupName": "managed-cluster-01-node"
+      },
+      {
+        "GroupId": "sg-0338125aaf8764463",
+        "GroupName": "managed-cluster-01-controlplane"
+      },
+      {
+        "GroupId": "sg-0225c5521b5bfbb3a",
+        "GroupName": "managed-cluster-01-lb"
+      }
+    ],
+    "image": "ami-0b17824e95c7c50e3"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:03:43.599Z",
+  "ended": "2026-09-08T15:03:44.568Z",
+  "command": "nohup kubectl -n kof port-forward svc/grafana-vm-service 3000:3000 </dev/null >/tmp/qa-grafana-forward.log 2>&1 &",
+  "code": 0,
+  "stdout": "",
+  "stderr": ""
+}

@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:20:03.444Z",
+  "ended": "2026-09-08T14:20:04.435Z",
+  "command": "kubectl get backups.velero.io -n kcm-system -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,ERRORS:.status.errors,ITEMS:.status.progress.itemsBackedUp; kubectl get backup manual-backup-20260908 -n kcm-system -o jsonpath='{.status}'",
+  "code": 0,
+  "stdout": "NAME                     PHASE       ERRORS   ITEMS\nmanual-backup-20260908   Completed   <none>   108\n{\"completionTimestamp\":\"2026-09-08T14:19:42Z\",\"expiration\":\"2026-10-08T14:19:32Z\",\"formatVersion\":\"1.1.0\",\"hookStatus\":{},\"phase\":\"Completed\",\"progress\":{\"itemsBackedUp\":108,\"totalItems\":108},\"startTimestamp\":\"2026-09-08T14:19:32Z\",\"version\":1}",
+  "stderr": ""
+}

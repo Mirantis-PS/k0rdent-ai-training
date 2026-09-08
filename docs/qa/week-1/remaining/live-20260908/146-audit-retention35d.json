@@ -1,0 +1,11 @@
+{
+  "name": "146-audit-retention35d",
+  "command": "helm get values kof-storage -n kof -o yaml > /tmp/kof-storage-current.yaml\nhelm upgrade kof-storage oci://ghcr.io/k0rdent/kof/charts/kof-storage --version 1.6.0 -n kof -f /tmp/kof-storage-current.yaml -f /home/ubuntu/qa-week1/curriculum/examples/telemetry/retention-values.yaml --wait --timeout 5m",
+  "started": "2026-09-08T14:59:34.715Z",
+  "done": true,
+  "pid": 95096,
+  "code": 0,
+  "ended": "2026-09-08T15:00:48.811Z",
+  "stdout": "Release \"kof-storage\" has been upgraded. Happy Helming!\nNAME: kof-storage\nLAST DEPLOYED: Tue Sep  8 14:59:36 2026\nNAMESPACE: kof\nSTATUS: deployed\nREVISION: 3\nTEST SUITE: None\n",
+  "stderr": "Pulled: ghcr.io/k0rdent/kof/charts/kof-storage:1.6.0\nDigest: sha256:03f6600fefc7080bf2b98819f383c8a796ab6cd08ea3a9f078f43b0bd211f4c9\n"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "96-child-gateway-route",
+  "command": "export KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\nkubectl create deployment gateway-test --image=nginx:1.28.0\nkubectl expose deployment gateway-test --port=80\ncat <<'EOF' | kubectl apply -f -\napiVersion: gateway.networking.k8s.io/v1\nkind: GatewayClass\nmetadata:\n  name: envoy-gateway\nspec:\n  controllerName: gateway.envoyproxy.io/gatewayclass-controller\n---\napiVersion: gateway.networking.k8s.io/v1\nkind: Gateway\nmetadata:\n  name: training-gateway\n  namespace: default\nspec:\n  gatewayClassName: envoy-gateway\n  listeners:\n  - name: http\n    protocol: HTTP\n    port: 80\n---\napiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: gateway-test\n  namespace: default\nspec:\n  parentRefs:\n  - name: training-gateway\n  hostnames:\n  - gateway-test.example.com\n  rules:\n  - backendRefs:\n    - name: gateway-test\n      port: 80\nEOF\nkubectl rollout status deployment/gateway-test --timeout=180s\n",
+  "started": "2026-09-08T14:47:25.661Z",
+  "done": true,
+  "pid": 93608,
+  "code": 0,
+  "ended": "2026-09-08T14:47:27.475Z",
+  "stdout": "deployment.apps/gateway-test created\nservice/gateway-test exposed\ngatewayclass.gateway.networking.k8s.io/envoy-gateway created\ngateway.gateway.networking.k8s.io/training-gateway created\nhttproute.gateway.networking.k8s.io/gateway-test created\nWaiting for deployment \"gateway-test\" rollout to finish: 0 of 1 updated replicas are available...\ndeployment \"gateway-test\" successfully rolled out\n",
+  "stderr": ""
+}

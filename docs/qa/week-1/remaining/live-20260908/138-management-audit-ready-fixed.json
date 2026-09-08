@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:58:02.522Z",
+  "ended": "2026-09-08T14:58:02.990Z",
+  "command": "set -euo pipefail\nkubectl get --raw=/readyz\nsudo test -s /var/log/kubernetes/audit.log\nsudo ls -l /var/log/kubernetes/audit.log\nkubectl -n kof get opentelemetrycollector kof-collectors-daemon -o json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d[\"spec\"].get(\"tolerations\"));print(d[\"spec\"][\"config\"][\"receivers\"][\"filelog/k8s_audit\"])'\n",
+  "code": 1,
+  "stdout": "",
+  "stderr": "The connection to the server 10.0.9.27:6443 was refused - did you specify the right host or port?\n"
+}

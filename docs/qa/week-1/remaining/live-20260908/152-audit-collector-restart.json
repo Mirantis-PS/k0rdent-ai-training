@@ -1,0 +1,11 @@
+{
+  "name": "152-audit-collector-restart",
+  "command": "kubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig -n kof rollout restart daemonset/kof-collectors-daemon-collector\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig -n kof rollout status daemonset/kof-collectors-daemon-collector --timeout=180s\nkubectl -n kof rollout restart daemonset/kof-collectors-daemon-collector\nkubectl -n kof rollout status daemonset/kof-collectors-daemon-collector --timeout=180s\n",
+  "started": "2026-09-08T15:01:35.881Z",
+  "done": true,
+  "pid": 95268,
+  "code": 0,
+  "ended": "2026-09-08T15:02:02.822Z",
+  "stdout": "daemonset.apps/kof-collectors-daemon-collector restarted\nWaiting for daemon set \"kof-collectors-daemon-collector\" rollout to finish: 0 out of 2 new pods have been updated...\nWaiting for daemon set \"kof-collectors-daemon-collector\" rollout to finish: 1 out of 2 new pods have been updated...\nWaiting for daemon set \"kof-collectors-daemon-collector\" rollout to finish: 1 out of 2 new pods have been updated...\nWaiting for daemon set \"kof-collectors-daemon-collector\" rollout to finish: 1 out of 2 new pods have been updated...\nWaiting for daemon set \"kof-collectors-daemon-collector\" rollout to finish: 1 of 2 updated pods are available...\ndaemon set \"kof-collectors-daemon-collector\" successfully rolled out\ndaemonset.apps/kof-collectors-daemon-collector restarted\nWaiting for daemon set \"kof-collectors-daemon-collector\" rollout to finish: 0 out of 1 new pods have been updated...\nWaiting for daemon set \"kof-collectors-daemon-collector\" rollout to finish: 0 of 1 updated pods are available...\ndaemon set \"kof-collectors-daemon-collector\" successfully rolled out\n",
+  "stderr": ""
+}

@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-09-08T14:58:02.521Z",
+  "command": "set -euo pipefail\nsudo cp -p /etc/k0s.yaml /etc/k0s.yaml.before-audit\nsudo install -d -m 0750 -o kube-apiserver -g kube-apiserver /var/log/kubernetes\nsudo install -m 0640 -o root -g kube-apiserver /tmp/qa-audit-policy.yaml /etc/k0s/audit-policy.yaml\nsudo python3 - <<'PY'\nimport json\np='/etc/k0s.yaml';d=json.load(open(p));a=d['spec']['api'].setdefault('extraArgs',{});a.update({'audit-policy-file':'/etc/k0s/audit-policy.yaml','audit-log-path':'/var/log/kubernetes/audit.log','audit-log-maxage':'30','audit-log-maxbackup':'10','audit-log-maxsize':'200'})\nopen(p,'w').write(json.dumps(d))\nPY\nsudo /usr/local/bin/k0s config validate --config /etc/k0s.yaml\nsudo systemctl restart k0scontroller\n",
+  "code": 0,
+  "stdout": "",
+  "stderr": ""
+}

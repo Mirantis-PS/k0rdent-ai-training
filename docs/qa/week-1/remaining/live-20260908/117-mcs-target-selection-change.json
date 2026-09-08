@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:52:16.076Z",
+  "ended": "2026-09-08T14:52:17.149Z",
+  "command": "kubectl patch multiclusterservice baseline-services --type=merge -p '{\"spec\":{\"clusterSelector\":{\"matchLabels\":{\"policy-enabled\":\"true\"}}}}'\nkubectl get multiclusterservice baseline-services -o jsonpath='{.spec.clusterSelector}'\n",
+  "code": 0,
+  "stdout": "multiclusterservice.k0rdent.mirantis.com/baseline-services patched\n{\"matchLabels\":{\"environment\":\"training\",\"policy-enabled\":\"true\"}}",
+  "stderr": ""
+}
