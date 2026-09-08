@@ -24,6 +24,9 @@ data:
         location = /logs/v1/logs {
           proxy_pass http://kof-storage-victoria-logs-cluster-vlinsert.kof.svc:9481/insert/opentelemetry/v1/logs;
         }
+        location /read/ {
+          proxy_pass http://vmselect-cluster.kof.svc:8481/select/0/prometheus/;
+        }
         location / { return 404; }
       }
     }
