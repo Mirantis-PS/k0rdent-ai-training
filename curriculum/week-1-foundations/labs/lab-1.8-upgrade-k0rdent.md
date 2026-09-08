@@ -733,24 +733,74 @@ If you created the optional Azure cluster in Lab 1.5, verify its resource group 
 
 The **management cluster stays** — it is reused later in the program (Week 5 GPU labs create GPU clusters via `ClusterDeployment` on this same management cluster).
 
-> **If you're continuing the program: do NOT run `lab-destroy.sh`.** Pause the environment instead by stopping its EC2 instances — this is the supported way to pause between weeks:
+### Choosing between pausing and destroying
+
+| Gap until your next session | Do this | Why |
+|---|---|---|
+| Up to about a day | Stop the instances (below) | Saves the compute cost; the cluster comes straight back |
+| Longer than that, or unsure | `lab-destroy.sh`, then re-provision later | Stopped environments keep billing ~$2/day and are easy to forget |
+
+> **A stopped environment is not a free one, and it is harder to remove.** Two
+> things to know before you choose:
+>
+> 1. **It keeps billing.** The NAT gateway (~$0.045/hr), Elastic IP, and EBS
+>    volumes are charged whether or not the instances run — roughly **$2/day
+>    idle** against ~$6/day running. Over a month that is ~$60 for an
+>    environment nobody is using.
+> 2. **`lab-destroy.sh` needs the node running.** It connects over SSH to
+>    delete managed clusters before Terraform runs. With the instances stopped
+>    that step cannot complete, so you must start them again *before* tearing
+>    down. Skipping that leaves the VPC and NAT gateway behind, billing
+>    indefinitely.
+>
+> Re-provisioning from scratch takes ~20 minutes. If you are unsure when you
+> will return, destroying is the cheaper and safer default.
+
+#### Pausing (short gaps)
+
+```bash
+# From your local machine: find the management node and bastion instance IDs
+aws ec2 describe-instances \
+  --filters "Name=tag:Name,Values=k0rdent-training-mgmt-<your-engineer-id>*,k0rdent-training-<your-engineer-id>-bastion" \
+            "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`Name`].Value|[0]]' --output table
+
+# Stop both (state is preserved on their EBS volumes)
+aws ec2 stop-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>
+```
+
+To resume: `aws ec2 start-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>`, wait a couple of minutes, then reconnect with `./scripts/lab-connect.sh <your-engineer-id>`. The k0s cluster comes back up on its own — the management node keeps its stable private IP and the bastion keeps its Elastic IP, so your kubeconfig and SSH access still work.
+
+> **If SSH times out after resuming** — typically `Connection timed out during
+> banner exchange` — your public IP has probably changed while the lab was
+> paused. The bastion only permits the address recorded at provision time. Fix
+> it before doing anything else, teardown included:
 >
 > ```bash
-> # From your local machine: find the management node and bastion instance IDs
-> aws ec2 describe-instances \
->   --filters "Name=tag:Name,Values=k0rdent-training-mgmt-<your-engineer-id>*,k0rdent-training-<your-engineer-id>-bastion" \
->             "Name=instance-state-name,Values=running" \
->   --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`Name`].Value|[0]]' --output table
->
-> # Stop both (state is preserved on their EBS volumes)
-> aws ec2 stop-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>
+> ./scripts/lab-provision.sh <your-engineer-id> --region <your-region> --ssh-cidr auto --auto-approve
 > ```
 >
-> Stopping the instances removes the dominant compute cost. The NAT gateway (~$0.045/hr), Classic ELB, Elastic IP, and EBS volumes still bill while stopped — roughly **$2/day idle** instead of ~$6/day running.
->
-> To resume: `aws ec2 start-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>`, wait a couple of minutes, then reconnect with `./scripts/lab-connect.sh <your-engineer-id>`. The k0s cluster comes back up on its own — the management node keeps its stable private IP and the bastion keeps its Elastic IP, so your kubeconfig and SSH access still work.
+> See Lab 1.1's [Troubleshooting](lab-1.1-provision-k0rdent.md#troubleshooting) for the full diagnosis.
 
-> **If you're NOT continuing the program:** once the managed-cluster teardown above is complete and the AWS orphan checks come back empty, run `./scripts/lab-destroy.sh` to remove the management environment.
+#### Destroying (longer gaps, or when you are done)
+
+Run the managed-cluster teardown above first, confirm the AWS orphan checks come back empty, then:
+
+```bash
+./scripts/lab-destroy.sh <your-engineer-id>
+```
+
+If the instances are already stopped or terminated, start them first so the SSH cleanup step can run. If that is not possible, `--force` skips the SSH-dependent checks — the script then reports any managed-cluster resources it finds via the AWS API so you know what to remove by hand.
+
+#### Confirming nothing was left behind
+
+Teardown is easy to get half-right, and what survives is exactly what bills. After destroying, verify:
+
+```bash
+./scripts/lab-reap.sh --owner <your-engineer-id>
+```
+
+It reports any surviving environment across all regions and flags a NAT gateway with no instances left — the signature of a partial teardown. Exit code 0 means you are clean.
 
 ## Week 1 Complete!
 
