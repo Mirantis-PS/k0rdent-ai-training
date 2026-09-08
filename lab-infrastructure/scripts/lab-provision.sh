@@ -192,7 +192,10 @@ Options:
   --no-metal3                 Destroy a previously-enabled Metal3 environment
   --no-kubevirt               Destroy a previously-enabled KubeVirt environment
   --ssh-cidr <cidr>[,<cidr>]  CIDR(s) allowed to SSH to the bastion (repeatable).
-                              Default: your public IP/32 (auto-detected)
+                              Default: your current public IP/32, added to the
+                              allow-list saved by the previous run -- so a
+                              changed IP never locks you out.
+                              Pass 'auto' to keep ONLY your current IP.
   --nodes <n>                 Number of k0rdent management nodes (default: 1)
   --auto-approve              Skip confirmation prompts
   --plan-only                 Show plan without applying
@@ -305,16 +308,54 @@ ensure_student_bucket() {
     log_success "Created bucket: $bucket_name"
 }
 
+# Detect this machine's public IP, or empty string if it cannot be determined.
+detect_public_ip() {
+    curl -sf --max-time 5 https://checkip.amazonaws.com 2>/dev/null \
+        | tr -d '[:space:]' || true
+}
+
 # Resolve the CIDR allow-list for bastion SSH access.
-# Precedence: --ssh-cidr flag > ALLOWED_SSH_CIDRS env (e.g. from lab-config.env)
-# > auto-detected public IP/32 > 0.0.0.0/0 (with a loud warning).
+#
+# Precedence:
+#   --ssh-cidr <cidr>  use exactly these, discarding anything saved
+#   --ssh-cidr auto    detect the current public IP only, discarding saved
+#   ALLOWED_SSH_CIDRS  an explicitly exported value is honoured verbatim
+#   (default)          detect the current public IP and UNION it with the CIDRs
+#                      saved by the previous run
+#
+# The union matters. Previously the generated config wrote ALLOWED_SSH_CIDRS,
+# and because lab-config.env is sourced before this runs, that stale value took
+# precedence over auto-detection -- making the auto-detect branch unreachable on
+# every re-run. A student whose ISP rotated their address overnight therefore
+# lost SSH, and re-provisioning (the obvious remedy) re-applied the dead address.
+# Since lab-destroy.sh needs SSH, that alone could strand an environment and
+# leave it billing indefinitely. The saved value now lives in
+# LAB_LAST_SSH_CIDRS, so a genuinely exported ALLOWED_SSH_CIDRS keeps its
+# meaning and the previous run's IP no longer masquerades as intent.
 resolve_ssh_cidrs() {
+    local my_ip
+
+
+    if [[ "$SSH_CIDRS" == "auto" ]]; then
+        my_ip=$(detect_public_ip)
+        if [[ "$my_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            SSH_CIDRS="${my_ip}/32"
+            log_info "Bastion SSH restricted to: $SSH_CIDRS (--ssh-cidr auto; saved list discarded)"
+            return 0
+        fi
+        log_error "--ssh-cidr auto was requested but your public IP could not be detected."
+        log_error "Pass an explicit CIDR instead: --ssh-cidr <your-ip>/32"
+        exit 1
+    fi
+
     if [[ -n "$SSH_CIDRS" ]]; then
         log_info "Bastion SSH restricted to: $SSH_CIDRS (from --ssh-cidr)"
         return 0
     fi
 
-    # Ignore the unedited example placeholder ("YOUR_IP/32")
+    # An exported ALLOWED_SSH_CIDRS is a deliberate override (cohort ranges, a
+    # corporate egress block). Honoured verbatim. The unedited example
+    # placeholder is ignored.
     if [[ -n "${ALLOWED_SSH_CIDRS:-}" && "${ALLOWED_SSH_CIDRS}" != *"YOUR_IP"* ]]; then
         SSH_CIDRS="$ALLOWED_SSH_CIDRS"
         if [[ "$SSH_CIDRS" == *"0.0.0.0/0"* ]]; then
@@ -324,24 +365,50 @@ resolve_ssh_cidrs() {
             log_warn "Re-run with --ssh-cidr <your-ip>/32 to restrict access."
             log_warn "============================================================"
         else
-            log_info "Bastion SSH restricted to: $SSH_CIDRS (from ALLOWED_SSH_CIDRS)"
+            log_info "Bastion SSH restricted to: $SSH_CIDRS (from exported ALLOWED_SSH_CIDRS)"
         fi
         return 0
     fi
 
     log_info "Detecting your public IP to restrict bastion SSH access..."
-    local my_ip
-    my_ip=$(curl -sf --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || true)
-    if [[ "$my_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        SSH_CIDRS="${my_ip}/32"
-        log_info "Bastion SSH restricted to: $SSH_CIDRS (override with --ssh-cidr)"
-    else
+    my_ip=$(detect_public_ip)
+
+    local saved="${LAB_LAST_SSH_CIDRS:-}"
+    [[ "$saved" == *"YOUR_IP"* ]] && saved=""
+
+    if [[ ! "$my_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [[ -n "$saved" ]]; then
+            SSH_CIDRS="$saved"
+            log_warn "Could not detect your public IP; reusing the previous allow-list:"
+            log_warn "  $SSH_CIDRS"
+            log_warn "If SSH fails, re-run with --ssh-cidr <your-ip>/32"
+            return 0
+        fi
         SSH_CIDRS="0.0.0.0/0"
         log_warn "============================================================"
         log_warn "Could not detect your public IP. Bastion SSH will be OPEN"
         log_warn "TO THE ENTIRE INTERNET (0.0.0.0/0)."
         log_warn "Re-run with --ssh-cidr <your-ip>/32 to restrict access."
         log_warn "============================================================"
+        return 0
+    fi
+
+    if [[ -z "$saved" ]]; then
+        SSH_CIDRS="${my_ip}/32"
+        log_info "Bastion SSH restricted to: $SSH_CIDRS (override with --ssh-cidr)"
+        return 0
+    fi
+
+    # Union: keep previously-allowed CIDRs and add the current address if it is
+    # not already covered by an exact entry.
+    if [[ ",${saved}," == *",${my_ip}/32,"* ]]; then
+        SSH_CIDRS="$saved"
+        log_info "Bastion SSH restricted to: $SSH_CIDRS (current IP already allowed)"
+    else
+        SSH_CIDRS="${saved},${my_ip}/32"
+        log_info "Your public IP changed since the last run -- adding ${my_ip}/32"
+        log_info "Bastion SSH restricted to: $SSH_CIDRS"
+        log_info "  Use '--ssh-cidr auto' to keep only the current IP."
     fi
 }
 
@@ -495,9 +562,13 @@ provision_lab() {
 LAB_REGION="${REGION}"
 LAB_ENGINEER_ID="${engineer_id}"
 LAB_BUCKET="${bucket}"
-# Bastion SSH allow-list applied on the last run (reused on re-runs unless
-# overridden with --ssh-cidr)
-ALLOWED_SSH_CIDRS="${SSH_CIDRS}"
+# Bastion SSH allow-list applied on the last run. On the next run your current
+# public IP is detected and ADDED to this list, so a changed address does not
+# lock you out. Deliberately NOT named ALLOWED_SSH_CIDRS: that variable is
+# reserved for an explicit override you export yourself, and this generated
+# value must not silently outrank IP auto-detection.
+# Use '--ssh-cidr auto' to replace this list with just your current IP.
+LAB_LAST_SSH_CIDRS="${SSH_CIDRS}"
 ENVEOF
 
     local bastion_ip
@@ -627,10 +698,24 @@ if [[ -z "$IDENTIFIER" ]]; then
     usage
 fi
 
+# Capture a genuinely exported override BEFORE sourcing the generated config, so
+# that whatever lab-config.env happens to contain cannot be mistaken for intent.
+ALLOWED_SSH_CIDRS_FROM_ENV="${ALLOWED_SSH_CIDRS:-}"
+
 # Load saved config
 if [[ -f "$CONFIG_DIR/lab-config.env" ]]; then
     source "$CONFIG_DIR/lab-config.env"
 fi
+
+# Migration: versions of this script before the LAB_LAST_SSH_CIDRS split wrote
+# ALLOWED_SSH_CIDRS into lab-config.env. Anyone with such a file must have that
+# value treated as "the previous run's allow-list", not as an explicit override
+# -- otherwise it would outrank IP auto-detection and reintroduce the lockout
+# this change exists to fix.
+if [[ -z "$ALLOWED_SSH_CIDRS_FROM_ENV" && -n "${ALLOWED_SSH_CIDRS:-}" ]]; then
+    LAB_LAST_SSH_CIDRS="${LAB_LAST_SSH_CIDRS:-$ALLOWED_SSH_CIDRS}"
+fi
+ALLOWED_SSH_CIDRS="$ALLOWED_SSH_CIDRS_FROM_ENV"
 
 # Resolve region
 if [[ -z "$REGION" && -n "${LAB_REGION:-}" ]]; then
