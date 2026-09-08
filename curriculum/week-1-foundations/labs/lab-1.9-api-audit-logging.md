@@ -46,6 +46,48 @@ configure the corresponding template or a supported bastion/SSM path. Use the
 private key imported in Lab 1.5 and the AMI's SSH user (ec2-user for this AWS image).
 Remove the added rule after host access is no longer needed.
 
+### Budget collector memory before enabling audit
+
+The live management lab repeatedly OOMKilled the daemon at its default 500 MiB
+limit. Audit collection and parsing add memory pressure to the existing node
+telemetry. For this management lab, use the tested 1 GiB budget below; it preserves
+the current Helm values and pipeline processor order while adding a memory limiter
+first, smaller batches, and audit-file retry on backpressure.
+
+Run on management before enabling audit:
+
+```bash
+set -euo pipefail
+helm get values kof-collectors -n kof -o json > /tmp/kof-current.json
+kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o json > /tmp/kof-daemon.json
+python3 - <<'PY'
+import json
+v=json.load(open('/tmp/kof-current.json')); live=json.load(open('/tmp/kof-daemon.json'))
+d=v.setdefault('opentelemetry-kube-stack',{}).setdefault('collectors',{}).setdefault('daemon',{})
+d['resources']={'requests':{'cpu':'100m','memory':'512Mi'},'limits':{'cpu':'1','memory':'1Gi'}}
+c=d.setdefault('config',{}); p=c.setdefault('processors',{})
+p['memory_limiter']={'check_interval':'1s','limit_mib':768,'spike_limit_mib':192}
+p['batch']={'send_batch_size':256,'send_batch_max_size':512,'timeout':'1s'}
+c.setdefault('receivers',{}).setdefault('filelog/k8s_audit',{})['retry_on_failure']={'enabled':True}
+pipes=c.setdefault('service',{}).setdefault('pipelines',{})
+for name, pipeline in live['spec']['config']['service']['pipelines'].items():
+ pipes.setdefault(name,{})['processors']=['memory_limiter']+[x for x in pipeline.get('processors',[]) if x!='memory_limiter']
+json.dump(v,open('/tmp/kof-audit-capacity.json','w'),indent=2)
+PY
+helm upgrade kof-collectors oci://ghcr.io/k0rdent/kof/charts/kof-collectors --version 1.6.0 -n kof -f /tmp/kof-audit-capacity.json --wait --timeout 5m
+kubectl -n kof rollout status daemonset/kof-collectors-daemon-collector --timeout=180s
+kubectl -n kof get pods -l app.kubernetes.io/name=kof-collectors-daemon-collector -o wide
+```
+
+These are lab sizing values, not a production capacity guarantee. Inspect collector
+restart counts, memory usage, export failures and queue growth under your workload.
+A memory limiter can refuse data; audit-file retry allows the receiver to retry
+while local rotation still imposes a retention limit. See the
+[Collector scaling guidance](https://opentelemetry.io/docs/collector/scaling/) and
+[pinned memory-limiter behavior](https://github.com/open-telemetry/opentelemetry-collector/blob/v0.120.0/processor/memorylimiterprocessor/README.md).
+For an operator-managed child, persist any required capacity override in its
+existing KOF values annotation; a direct Helm change can be reconciled away.
+
 ## Part 2: Configure the control-plane host
 
 Run from the repository checkout on each controller, or securely copy the policy there first. Inspect `sudo systemctl show k0scontroller --property=ExecStart` to find the active config path: the Terraform management host uses `/etc/k0s/k0s.yaml`, while the pinned AWS child uses `/etc/k0s.yaml`. Set `K0S_CONFIG` accordingly. Save the active configuration before editing. k0s runs the API server as an unprivileged user; root-only files prevent startup. The process uses its user ID with group root, so group-only read permission for the named account is insufficient.
@@ -202,7 +244,9 @@ not every 4xx response is an authentication failure.
 
 Acceptance requires a token issuance event at Metadata without a response body,
 an RBAC event visible centrally, healthy exporters, confirmed retention arguments,
-and a repeated probe after a collector restart. Record timestamps, cluster name,
+and a repeated probe after a collector restart. Observe at least ten minutes of
+audit traffic with no new OOM/restarts; a single Ready snapshot is insufficient.
+Record timestamps, cluster name,
 chart version, and audit IDs; never include credentials in the evidence.
 
 ```bash

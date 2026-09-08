@@ -22,7 +22,7 @@ user identity without co-author trailers.
 | 1.6 Observability | Installed all five charts; child metrics and workload log reached management across VPCs using mTLS. Unauthenticated requests were rejected. Fixed OpenCost's read path and cluster filter; allocation API returned only the two child nodes (159). CPU recording rules yielded data from both clusters (109,159); Grafana CPU/memory, etcd and k0rdent state were inspected. |
 | 1.7 Services | Kyverno deployed through MCS; certificate issued; policy reported fail then pass after remediation (87–89,93). Retested the rewritten namespace-scoped exercise (161,163,164). MCS replica update reached two available replicas; selector opt-out removed Kyverno and opt-in restored it. Envoy Gateway 1.8.4 served nginx over an AWS load balancer (153). |
 | 1.8 Upgrade | Pre-upgrade backup completed with all 235 objects (111). Published 1.3.2 Release validated and became Ready. Management upgrade completed, all components healthy (121); workload nodes, HTTP route and S3 backup access remained functional (123). No supported AWS template-chain target was discovered; no fictitious workload-version upgrade was performed. |
-| 1.9 Audit | Enabled audit on both real controllers. Reproduced API startup failure from policy permissions, repaired ownership, and verified both readyz endpoints. Local token events had Metadata level and zero response bodies (147,148,155,162). Exact workload token and RBAC audit IDs appeared centrally after collector restart (156). Storage arguments confirm 35d retention (149). |
+| 1.9 Audit | Enabled audit on both real controllers. Reproduced API startup failure from policy permissions, repaired ownership, and verified both readyz endpoints. Local token events had Metadata level and zero response bodies (147,148,155,162). Exact workload token and RBAC audit IDs appeared centrally after collector restart (156). Storage arguments confirm 35d retention (149). Final management audit capacity retest passed ten minutes with zero restarts; all 22 probe events arrived centrally (186,195–196). |
 
 The principal post-restart workload audit IDs are
 63f37367-4759-45e3-8276-51ae8978902a (token) and
@@ -66,6 +66,11 @@ cluster/controller labels and absence of a token response body.
 12. **Cleanup precedes the audit lab and omits new cloud resources.** Keep both
     clusters through 1.9. Delete application LoadBalancers before CAPA teardown,
     remove the ingest NLB, and inspect surviving AWS resources.
+13. **Audit collection exhausts the default daemon budget.** Final health checks
+    caught four OOM restarts with a 500 MiB limit and no memory limiter (179–183).
+    Preserve Helm values and existing processors, add a first-position memory
+    limiter, use smaller batches, enable audit-file retry, and size this lab daemon
+    to 1 GiB (184–185). This is a tested lab budget, not a production sizing claim.
 
 Not every initial failure was a curriculum defect. Early CNI readiness and ELB DNS
 propagation recovered naturally. One QA-generated JSON patch contained folded
@@ -132,9 +137,15 @@ pipefail; their output, not their top-level exit alone, identifies the failure.
 Final acceptance commands include explicit assertions.
 
 Local checks: curriculum checker (62 files, zero errors), credential-log regression,
-provisioning preflight regression, Terraform formatting and validation. CI results,
-restore result and final environment state are appended after verification.
+provisioning preflight regression, Terraform formatting and validation. All seven PR checks passed at the initial head; final-head CI is available on
+[PR #29](https://github.com/Mirantis-PS/k0rdent-ai-training/pull/29).
 
 ## Final recovery and cleanup evidence
 
 The post-upgrade ConfigMap-only restore completed and recovered the exact expected value (178). Workload EC2, NAT, VPC, tagged volumes/EIPs, Classic ELBs and the ingest NLB all returned empty in AWS inventory (175). Both workload nodes are terminated. Temporary child integration resources and the imported workload key were removed. Management remains preserved for the later course.
+
+The final management audit soak ran from 15:22:22 to 15:32:32 UTC: eleven readiness/restart assertions passed, and all 22 token/RBAC events were found centrally. Final exporter queues were empty, log-export failures were zero, and RSS was about 317 MiB (186,195,196). Every non-completed pod was ready and S3 backup storage remained Available before pause.
+
+Management and bastion are preserved for later reuse. The retained NAT gateway, management Classic ELB, EIPs, EBS and S3 storage still incur charges; pausing EC2 does not remove those resources (189).
+
+AWS confirms both management i-0d1de08e59276148d and bastion i-0566dd489a39da383 are stopped (198). No Week 5 work was started.
