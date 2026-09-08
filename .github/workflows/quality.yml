@@ -61,6 +61,8 @@ jobs:
       #          counters in retry loops (e.g. `for i in $(seq 1 24)`).
       - name: Run shellcheck
         run: shellcheck -S warning -e SC2155 -e SC2034 lab-infrastructure/scripts/*.sh
+      - name: Test provisioning preflight failures
+        run: bash lab-infrastructure/scripts/tests/test-lab-provision-preflight.sh
 
   # Formatting + static validation of the lab terraform.
   terraform:

@@ -55,3 +55,9 @@ temp/
 !*secret*.example
 !*secret*.md
 credentials.json
+
+# Local QA AWS profile selection
+/lab-infrastructure/config/qa-aws.env
+/lab-infrastructure/config/.qa-aws.env.*
+/lab-infrastructure/config/qa-aws.fish
+/lab-infrastructure/config/.qa-aws.fish.*

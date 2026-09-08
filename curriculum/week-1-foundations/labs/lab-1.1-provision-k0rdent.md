@@ -50,7 +50,7 @@ In this lab, you will:
 - Terraform >= 1.8.0 installed
 - `jq` installed (the lab scripts use it to parse AWS CLI output)
 - Your own copy of this training repository (fork or template)
-- Basic terminal/shell knowledge
+- Workstation snippets below use **Bash syntax**. If your default shell is Fish, start `bash` before following them and select your AWS profile in that Bash session. The remote Ubuntu SSH session uses Bash.
 - **Supported OS:** macOS or Linux. Windows is supported via **WSL2 only** — all lab scripts are bash and do not run in PowerShell or Git Bash.
 
 > **Setup Note:** You should have either forked this repository or used "Use this template" on GitHub to create your own copy, then cloned it locally.
@@ -81,7 +81,7 @@ Before provisioning, understand the per-student architecture:
 - Each student gets their own VPC, bastion, S3 bucket, and k0rdent cluster
 - Each engineer uses a unique ID (e.g., `john-doe`, `jane-doe`)
 - Running with different IDs creates **completely isolated** environments
-- State is stored in a per-student S3 bucket: `k0rdent-lab-<your-id>-<account-id>`
+- State is stored in a per-student S3 bucket: `k0rdent-lab-<your-id>-<account-id>-<region>`
 
 ## Resuming This Lab
 
@@ -104,6 +104,24 @@ kubectl get pods -n kcm-system
 Choose ONE of these methods:
 
 ### Option A: AWS CLI Profile (Recommended)
+
+If you already have a configured profile, select it without changing its credentials:
+
+```bash
+export AWS_PROFILE=<your-existing-profile>
+aws sts get-caller-identity
+```
+
+To verify an existing profile and save a local shell selection without copying keys, run this from the repository root:
+
+```bash
+bash lab-infrastructure/scripts/lab-qa-aws-setup.sh --profile <your-existing-profile> --region <your-region>
+source lab-infrastructure/config/qa-aws.env
+```
+
+The helper also writes `qa-aws.fish` for Fish users. Source that file in Fish; the `.env` file uses Bash/Zsh syntax. Both files are ignored by Git. This checks identity and EC2 read access; it does not validate provisioning permissions or quotas.
+
+For a new profile, configure it locally:
 
 ```bash
 aws configure
@@ -402,7 +420,13 @@ Envoy Gateway uses the Kubernetes Gateway API to route traffic. AWS Cloud Contro
 ============================================
 ```
 
-**To retrieve the URL later:**
+Open the URL and sign in with the generated credentials. Confirm the Dashboard loads, then open **Cluster Templates** and compare the catalog with `kubectl get clustertemplates -A`. A reachable login page alone does not validate authentication or API access.
+
+If the UI displays an **unlicensed** banner, record that separately and confirm the training license setup with your instructor. Successful technical checks do not establish license status.
+
+**To retrieve the URL later (workstation terminal):**
+
+Keep your existing SSH session open. In a second terminal on your workstation, select the same AWS profile and region and change to `lab-infrastructure/` in your repository. The `lab-connect.sh` commands below run there, not inside the management node.
 
 ```bash
 # Get UI URL and credentials
@@ -530,9 +554,10 @@ Before completing this lab, verify:
 - [ ] Provisioning script completed successfully
 - [ ] SSH connection to management cluster works
 - [ ] k0s cluster shows node as Ready
-- [ ] All pods in kcm-system namespace are Running
+- [ ] Required pods in kcm-system are Ready; successfully completed Jobs may show Completed
+- [ ] `kubectl wait management kcm --for=condition=Ready=True --timeout=300s` succeeds
 - [ ] k0rdent CRDs are installed
-- [ ] k0rdent UI is accessible (optional)
+- [ ] k0rdent UI is accessible and login with the generated lab credentials succeeds
 - [ ] You traced the CCM chain: node `providerID` → LoadBalancer Service → `kubernetes.io/cluster/<name>` tag
 
 ## Troubleshooting

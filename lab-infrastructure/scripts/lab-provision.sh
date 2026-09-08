@@ -220,7 +220,7 @@ Examples:
   $0 john-doe --ssh-cidr 203.0.113.5/32           # Restrict bastion SSH source
 
 EOF
-    exit 1
+    exit "${1:-1}"
 }
 
 check_prerequisites() {
@@ -260,8 +260,11 @@ check_prerequisites() {
         exit 1
     fi
 
-    if ! aws sts get-caller-identity &> /dev/null; then
-        log_error "AWS credentials not configured. Please run 'aws configure'"
+    local identity_result
+    if ! identity_result=$(aws sts get-caller-identity --region "$REGION" --query Account --output text 2>&1); then
+        log_error "AWS identity check failed in ${REGION}. No infrastructure changes were attempted."
+        printf '%s\n' "$identity_result" >&2
+        log_error "Check endpoint connectivity, the selected AWS profile, and any expired SSO/session credentials."
         exit 1
     fi
 
@@ -600,7 +603,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            usage
+            usage 0
             ;;
         -*)
             log_error "Unknown option: $1"
