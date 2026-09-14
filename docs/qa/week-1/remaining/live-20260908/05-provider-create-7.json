@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:18:12.408Z",
+  "ended": "2026-09-08T14:18:13.518Z",
+  "command": "cat << 'EOF' | kubectl apply -f -\napiVersion: infrastructure.cluster.x-k8s.io/v1beta2\nkind: AWSClusterStaticIdentity\nmetadata:\n  name: aws-cluster-identity\n  labels:\n    k0rdent.mirantis.com/component: \"kcm\"\nspec:\n  secretRef: aws-cluster-identity-secret\n  allowedNamespaces: {}\nEOF\n",
+  "code": 0,
+  "stdout": "awsclusterstaticidentity.infrastructure.cluster.x-k8s.io/aws-cluster-identity created\n",
+  "stderr": ""
+}

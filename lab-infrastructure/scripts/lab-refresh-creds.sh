@@ -197,17 +197,22 @@ NEW_POD=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"
     "kubectl get pods -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws -o jsonpath='{range .items[*]}{.metadata.creationTimestamp} {.metadata.name}{\"\n\"}{end}' 2>/dev/null | sort | tail -1 | awk '{print \$2}'")
 
 if [[ -z "$NEW_POD" ]]; then
-    log_warn "Could not identify new CAPA pod; skipping log verification (CAPA may still be healthy)"
-    CAPA_STATUS=0
+    log_error "Could not identify the new CAPA pod; health verification incomplete"
+    exit 1
 else
-    CAPA_STATUS=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
-        "kubectl logs -n kcm-system '$NEW_POD' 2>/dev/null | grep -c 'AuthFailure\|RequestExpired' || echo 0")
+    if ! CAPA_LOGS=$(ssh ${SSH_OPTS} -i "$MGMT_KEY" -o "ProxyCommand=${PROXY_CMD}" ubuntu@"${MGMT_IP}" \
+        "kubectl logs -n kcm-system '$NEW_POD'"); then
+        log_error "Cannot read the new CAPA pod logs"
+        exit 1
+    fi
+    CAPA_STATUS=$(printf '%s\n' "$CAPA_LOGS" | grep -Ec 'AuthFailure|RequestExpired|ExpiredToken|InvalidClientTokenId' || true)
 fi
 
 if [[ "$CAPA_STATUS" == "0" ]]; then
     log_success "CAPA is healthy - no credential errors in new pod${NEW_POD:+ ($NEW_POD)}"
 else
     log_error "CAPA still has credential errors${NEW_POD:+ in $NEW_POD}. Check: kubectl logs -n kcm-system ${NEW_POD:-<capa-pod>}"
+    exit 1
 fi
 
 # Summary

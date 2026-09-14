@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:03:04.730Z",
+  "ended": "2026-09-08T15:03:05.624Z",
+  "command": "set -euo pipefail\npython3 - <<'PY'\nimport json,urllib.parse,urllib.request\nfor audit_id in ['63f37367-4759-45e3-8276-51ae8978902a','c623c30b-eeba-415b-90dd-44345e832ce4']:\n q=urllib.parse.urlencode({'query':'_time:10m \"'+audit_id+'\"','limit':5})\n rows=[json.loads(s) for s in urllib.request.urlopen('http://127.0.0.1:9471/select/logsql/query?'+q).read().decode().splitlines()]\n assert rows, audit_id+' missing centrally'\n for r in rows:\n  print({k:r.get(k) for k in ['audit.auditID','audit.level','audit.verb','audit.objectRef.subresource','k8s.cluster.name','k8s.node.name']})\n  if r.get('audit.objectRef.subresource')=='token':\n   assert r['audit.level']=='Metadata' and 'responseObject' not in json.loads(r['_msg'])\nPY\n",
+  "code": 0,
+  "stdout": "{'audit.auditID': '63f37367-4759-45e3-8276-51ae8978902a', 'audit.level': 'Metadata', 'audit.verb': 'create', 'audit.objectRef.subresource': 'token', 'k8s.cluster.name': 'managed-cluster-01', 'k8s.node.name': 'managed-cluster-01-cp-hhbzl'}\n{'audit.auditID': 'c623c30b-eeba-415b-90dd-44345e832ce4', 'audit.level': 'RequestResponse', 'audit.verb': 'patch', 'audit.objectRef.subresource': None, 'k8s.cluster.name': 'managed-cluster-01', 'k8s.node.name': 'managed-cluster-01-cp-hhbzl'}\n",
+  "stderr": ""
+}

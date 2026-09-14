@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:19:48.303Z",
+  "ended": "2026-09-08T14:19:53.868Z",
+  "command": "kubectl get backups -n kcm-system; kubectl get managementbackup; kubectl get backupstoragelocation -n kcm-system; source /opt/k0rdent-lab/config/lab-info.env; aws s3 ls \"s3://$ARTIFACTS_BUCKET/velero-backups/backups/\"",
+  "code": 0,
+  "stdout": "NAME                     AGE\nmanual-backup-20260908   18s\nNAME                     LASTBACKUPSTATUS   NEXTBACKUP             AGE\nkcm                                         2026-09-08T18:00:00Z   20s\nmanual-backup-20260908                                             18s\nNAME     PHASE       LAST VALIDATED   AGE   DEFAULT\naws-s3   Available   23s              44s   \n                           PRE manual-backup-20260908/\n",
+  "stderr": ""
+}

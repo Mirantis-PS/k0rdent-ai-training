@@ -1,0 +1,11 @@
+{
+  "name": "40-managed-nginx-test",
+  "command": "export KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\n# Deploy nginx to verify the cluster works\nkubectl create deployment nginx-test --image=nginx --replicas=2\n\n# Wait for pods to be ready\nkubectl wait --for=condition=available deployment/nginx-test --timeout=60s\n\n# Check pods are running\nkubectl get pods -l app=nginx-test -o wide\n\n# Clean up test deployment\nkubectl delete deployment nginx-test\n",
+  "started": "2026-09-08T14:27:03.063Z",
+  "done": true,
+  "pid": 91598,
+  "code": 0,
+  "ended": "2026-09-08T14:27:11.630Z",
+  "stdout": "deployment.apps/nginx-test created\ndeployment.apps/nginx-test condition met\nNAME                          READY   STATUS    RESTARTS   AGE   IP             NODE                                NOMINATED NODE   READINESS GATES\nnginx-test-6ff8854996-jnn5b   1/1     Running   0          6s    10.244.166.7   managed-cluster-01-md-4jg5b-mbs27   <none>           <none>\nnginx-test-6ff8854996-qljvn   1/1     Running   0          6s    10.244.166.6   managed-cluster-01-md-4jg5b-mbs27   <none>           <none>\ndeployment.apps \"nginx-test\" deleted from default namespace\n",
+  "stderr": ""
+}

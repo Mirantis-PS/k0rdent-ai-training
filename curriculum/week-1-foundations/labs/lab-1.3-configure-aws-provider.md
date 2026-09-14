@@ -382,6 +382,10 @@ kubectl get configmap aws-cluster-identity-resource-template -n kcm-system
 # 4. k0rdent Credential references the identity
 kubectl get credential aws-cluster-identity-cred -n kcm-system -o jsonpath='{.spec.identityRef}' && echo ""
 
+# 5. Wait for k0rdent to validate the reference chain
+kubectl wait credential/aws-cluster-identity-cred -n kcm-system \
+  --for=condition=CredentialReady --timeout=120s
+
 # Full chain summary
 echo "=== Credential Chain ==="
 echo "Secret:   aws-cluster-identity-secret"
@@ -391,6 +395,8 @@ echo "Credential: aws-cluster-identity-cred"
 echo ""
 echo "Ready for cluster provisioning in Lab 1.5"
 ```
+
+> Credential readiness validates the object references; it does not prove that AWS authorizes instance, networking, or IAM operations. Lab 1.5 tests those permissions by provisioning a real cluster.
 
 > **What you're verifying:** The Credential object is what ClusterDeployments reference. The ConfigMap is an auxiliary object from the official AWS setup used for identity propagation and templating workflows. If the core chain is broken (wrong secret name, missing identity, etc.), cluster provisioning will fail with credential errors in Lab 1.5.
 
@@ -450,7 +456,8 @@ With the AWS provider configured, review templates available for AWS:
 kubectl get clustertemplates -n kcm-system | grep -i aws
 
 # View details of an AWS template
-kubectl get clustertemplate -n kcm-system -l provider=aws -o yaml | head -100
+TEMPLATE_NAME="aws-standalone-cp-1-0-26"  # Use the exact installed name above
+kubectl get clustertemplate "$TEMPLATE_NAME" -n kcm-system -o yaml
 ```
 
 > **Note:** Template names vary by k0rdent version. Use `kubectl get clustertemplates -A` to see available templates.
@@ -459,9 +466,9 @@ kubectl get clustertemplate -n kcm-system -l provider=aws -o yaml | head -100
 
 Note the configurable parameters:
 - `region` - AWS region
-- `instanceType` - EC2 instance type
+- `controlPlane.instanceType` and `worker.instanceType` - EC2 instance types
 - `sshKeyName` - SSH key pair name (optional — for node SSH access)
-- `k8sVersion` - Kubernetes version
+- `k0s.version` - Kubernetes distribution version
 
 ## Part 8: Provider Security Best Practices (~5 min)
 

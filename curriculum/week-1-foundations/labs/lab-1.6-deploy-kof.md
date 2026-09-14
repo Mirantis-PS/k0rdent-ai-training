@@ -202,7 +202,7 @@ kubectl get storageclass  # Should now show 'local-path'
 
 ### Step 2: Install KOF Operators
 
-> **Note:** Each Helm install in this section uses `--wait`, which blocks until all pods are Ready. On resource-constrained nodes, installs may take longer than expected. If a `--wait` times out, check pod status with `kubectl get pods -n kof` -- if pods are still starting (ContainerCreating/Init), simply re-run the same `helm upgrade` command.
+> **Note:** Each Helm install uses `--wait` for chart-managed workloads. Operators create additional workloads asynchronously, so Helm success alone does not prove every KOF pod or telemetry path is ready. On resource-constrained nodes, installs may take longer than expected. If a `--wait` times out, check pod status with `kubectl get pods -n kof` -- if pods are still starting (ContainerCreating/Init), simply re-run the same `helm upgrade` command.
 
 ```bash
 # Install KOF operators (Grafana + OpenTelemetry operators)
@@ -273,6 +273,18 @@ helm upgrade -i --reset-values --wait -n kof kof-storage \
   --timeout 10m
 ```
 
+### Load recording rules for local storage
+
+In this single-management-cluster layout, the operator generates recording rules in a ConfigMap. Pass them to the storage chart so its VMRule resources exist; a running VMAlert with no rules leaves CPU dashboards empty. Repeat this step after changing recording rules.
+
+```bash
+kubectl -n kof get configmap kof-record-vmrules-mothership -o jsonpath='{.data.values}' > /tmp/kof-record-rules.yaml
+test -s /tmp/kof-record-rules.yaml
+helm upgrade kof-storage oci://ghcr.io/k0rdent/kof/charts/kof-storage \
+  --version 1.6.0 -n kof --reuse-values -f /tmp/kof-record-rules.yaml --wait --timeout 5m
+kubectl -n kof get vmrules
+```
+
 ### Step 5: Install KOF Collectors
 
 ```bash
@@ -319,6 +331,9 @@ opentelemetry-kube-stack:
 opencost:
   opencost:
     exporter:
+      extraEnv:
+        PROM_CLUSTER_ID_LABEL: "cluster"
+        CURRENT_CLUSTER_ID_FILTER_ENABLED: "true"
       # OpenCost serves /healthz only after its initial AWS pricing-index
       # download and parse, which takes 3+ minutes on this fully-loaded
       # single node. The chart's default startup probe budget (~160s) kills
@@ -741,6 +756,8 @@ If accessing remotely from your local machine, use the lab helper script -- it h
 ./scripts/lab-connect.sh <your-engineer-id> --tunnel 3000:3000
 ```
 
+If local port 3000 is occupied, use `--tunnel 13000:3000` and browse to `http://127.0.0.1:13000`. Confirm the tunnel binds successfully before entering credentials.
+
 This opens an SSH session to the management node with local port 3000 forwarded. Make sure the `kubectl port-forward` from the previous step is running in that session (re-run it there if needed), then browse to `http://localhost:3000` locally.
 
 <details>
@@ -795,8 +812,8 @@ Navigate to **Dashboards** in the left menu. KOF includes pre-built dashboards o
 ### Exercise: Explore Dashboards
 
 Spend 15 minutes exploring:
-- [ ] Open the `k0rdent-state` dashboard to see cluster overview
-- [ ] Check `kps-cluster-total` for resource utilization
+- [ ] Open the `k0rdent kube state` dashboard to see cluster overview
+- [ ] Open **KPS / Kubernetes / Compute Resources / Cluster**, select the cluster, and verify CPU and memory data (the resource name is `kps-cluster-total`)
 - [ ] Explore `cluster-api` to see CAPI controller activity
 - [ ] Look at `kps-etcd` to monitor etcd health
 
@@ -942,7 +959,8 @@ Before completing this lab, verify:
 - [ ] Grafana accessible via port-forward
 - [ ] Grafana showing ~50-60 pre-built dashboards
 - [ ] Metrics visible in VictoriaMetrics (query returns > 0 results)
-- [ ] (Optional) Managed cluster labeled with KOF role for child deployment
+- [ ] Child collectors configured with mTLS ingest; probe log and current child metric visible centrally
+- [ ] OpenCost allocation API returns namespace data; child query proxy is healthy
 
 ## Summary
 
@@ -1033,9 +1051,9 @@ kubectl get ns kof -o json | jq '.spec.finalizers=[]' | kubectl replace --raw "/
 
 ## Cost & Cleanup
 
-KOF adds roughly 25-30 pods to the management cluster (plus the collector pods on the managed cluster if you completed Part 3). This increases CPU/memory load on the existing nodes and creates a few small local-path PVCs, but it provisions **no new AWS resources** -- your hourly cost is unchanged from Lab 1.5.
+KOF adds roughly 25-30 pods to the management cluster (plus the collector pods on the managed cluster if you completed Part 3). This increases CPU/memory load on the existing nodes and creates a few small local-path PVCs, and the cross-VPC ingest exercise provisions an additional billable NLB. Include that NLB in cleanup; collector and PVC counts alone do not describe the AWS cost.
 
-**Do not tear anything down yet.** Labs 1.7 and 1.8 build directly on this running KOF stack and on the managed cluster from Lab 1.5. Final teardown instructions for the whole environment are at the end of Lab 1.8.
+**Do not tear anything down yet.** Labs 1.7–1.9 use this running stack and managed cluster. Complete audit acceptance in Lab 1.9 before returning to Lab 1.8’s teardown instructions.
 
 ## Next Lab
 

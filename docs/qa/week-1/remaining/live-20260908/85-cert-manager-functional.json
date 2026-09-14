@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:43:28.067Z",
+  "ended": "2026-09-08T14:43:31.638Z",
+  "command": "export KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\n\n# Check cert-manager is ready (Option B; for Option A see the note above)\nkubectl get pods -n cert-manager\n\n# Create a test certificate\ncat << 'EOF' | kubectl apply -f -\napiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: test-cert\n  namespace: default\nspec:\n  secretName: test-cert-tls\n  duration: 2160h  # 90 days\n  renewBefore: 360h # 15 days\n  issuerRef:\n    name: selfsigned-issuer\n    kind: ClusterIssuer\n  commonName: test.example.com\n  dnsNames:\n  - test.example.com\n---\napiVersion: cert-manager.io/v1\nkind: ClusterIssuer\nmetadata:\n  name: selfsigned-issuer\nspec:\n  selfSigned: {}\nEOF\n\n# Verify certificate was issued\nkubectl wait --for=condition=Ready certificate/test-cert --timeout=120s\nkubectl get certificate test-cert\nkubectl get secret test-cert-tls\n\n# Cleanup\nkubectl delete certificate test-cert\nkubectl delete clusterissuer selfsigned-issuer\n\nkubectl delete secret test-cert-tls\n",
+  "code": 0,
+  "stdout": "certificate.cert-manager.io/test-cert created\nclusterissuer.cert-manager.io/selfsigned-issuer created\ncertificate.cert-manager.io/test-cert condition met\nNAME        READY   SECRET          AGE\ntest-cert   True    test-cert-tls   1s\nNAME            TYPE                DATA   AGE\ntest-cert-tls   kubernetes.io/tls   3      1s\ncertificate.cert-manager.io \"test-cert\" deleted from default namespace\nclusterissuer.cert-manager.io \"selfsigned-issuer\" deleted\nsecret \"test-cert-tls\" deleted from default namespace\n",
+  "stderr": "No resources found in cert-manager namespace.\n"
+}

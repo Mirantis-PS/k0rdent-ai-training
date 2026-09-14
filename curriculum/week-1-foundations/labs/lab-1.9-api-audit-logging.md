@@ -10,8 +10,7 @@ Record API access without storing returned credentials, and find the events in
 VictoriaLogs. Keep the management and managed clusters until this lab is complete.
 Complete Lab 1.6's cross-cluster ingest path first. You need administrator access
 to each control-plane host, working KOF **1.6.0**, and a successful backup/recovery
-path before changing the API server. This revision has static/chart verification;
-record the live acceptance evidence below on your lab cluster.
+path before changing the API server. Record the live acceptance evidence below on your lab cluster.
 
 ## Part 1: Audit policy design
 
@@ -23,18 +22,85 @@ service-account token issuance is Metadata. `RequestResponse` on
 
 See [Kubernetes audit levels](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/).
 
-## Part 2: Configure the control-plane host
 
-Run from the repository checkout on each controller, or securely copy the policy
-there first. Save the existing k0s configuration and create the log directory:
+### AWS controller access
+
+An imported SSH key does not open port 22. CAPA also reconciles its security-group
+rules, so a manual AWS rule may disappear. For this disposable lab, inspect the
+AWSCluster and append a rule scoped to your current public IP. Run on management;
+replace the example address before applying:
 
 ```bash
-sudo cp -p /etc/k0s/k0s.yaml /etc/k0s/k0s.yaml.before-audit
-sudo install -d -m 0750 /var/log/kubernetes
-sudo install -m 0600 curriculum/examples/telemetry/audit-policy.yaml /etc/k0s/audit-policy.yaml
+kubectl get awscluster managed-cluster-01 -n kcm-system -o yaml
+kubectl explain awscluster.spec.network.additionalControlPlaneIngressRules --recursive
+kubectl patch awscluster managed-cluster-01 -n kcm-system --type=json -p='[
+  {"op":"add","path":"/spec/network/additionalControlPlaneIngressRules/-",
+   "value":{"description":"Audit lab SSH","protocol":"tcp","fromPort":22,"toPort":22,
+            "cidrBlocks":["203.0.113.10/32"]}}
+]'
 ```
 
-Merge these entries into the existing `spec.api.extraArgs` in `/etc/k0s/k0s.yaml`.
+This appends to the pinned template's existing join-API rule. It is a temporary
+provider-object change; Helm reconciliation can replace it. For persistent access,
+configure the corresponding template or a supported bastion/SSM path. Use the
+private key imported in Lab 1.5 and the AMI's SSH user (ec2-user for this AWS image).
+Remove the added rule after host access is no longer needed.
+
+### Budget collector memory before enabling audit
+
+The live management lab repeatedly OOMKilled the daemon at its default 500 MiB
+limit. Audit collection and parsing add memory pressure to the existing node
+telemetry. For this management lab, use the tested 1 GiB budget below; it preserves
+the current Helm values and pipeline processor order while adding a memory limiter
+first, smaller batches, and audit-file retry on backpressure.
+
+Run on management before enabling audit:
+
+```bash
+set -euo pipefail
+helm get values kof-collectors -n kof -o json > /tmp/kof-current.json
+kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o json > /tmp/kof-daemon.json
+python3 - <<'PY'
+import json
+v=json.load(open('/tmp/kof-current.json')); live=json.load(open('/tmp/kof-daemon.json'))
+d=v.setdefault('opentelemetry-kube-stack',{}).setdefault('collectors',{}).setdefault('daemon',{})
+d['resources']={'requests':{'cpu':'100m','memory':'512Mi'},'limits':{'cpu':'1','memory':'1Gi'}}
+c=d.setdefault('config',{}); p=c.setdefault('processors',{})
+p['memory_limiter']={'check_interval':'1s','limit_mib':768,'spike_limit_mib':192}
+p['batch']={'send_batch_size':256,'send_batch_max_size':512,'timeout':'1s'}
+c.setdefault('receivers',{}).setdefault('filelog/k8s_audit',{})['retry_on_failure']={'enabled':True}
+pipes=c.setdefault('service',{}).setdefault('pipelines',{})
+for name, pipeline in live['spec']['config']['service']['pipelines'].items():
+ pipes.setdefault(name,{})['processors']=['memory_limiter']+[x for x in pipeline.get('processors',[]) if x!='memory_limiter']
+json.dump(v,open('/tmp/kof-audit-capacity.json','w'),indent=2)
+PY
+helm upgrade kof-collectors oci://ghcr.io/k0rdent/kof/charts/kof-collectors --version 1.6.0 -n kof -f /tmp/kof-audit-capacity.json --wait --timeout 5m
+kubectl -n kof rollout status daemonset/kof-collectors-daemon-collector --timeout=180s
+kubectl -n kof get pods -l app.kubernetes.io/name=kof-collectors-daemon-collector -o wide
+```
+
+These are lab sizing values, not a production capacity guarantee. Inspect collector
+restart counts, memory usage, export failures and queue growth under your workload.
+A memory limiter can refuse data; audit-file retry allows the receiver to retry
+while local rotation still imposes a retention limit. See the
+[Collector scaling guidance](https://opentelemetry.io/docs/collector/scaling/) and
+[pinned memory-limiter behavior](https://github.com/open-telemetry/opentelemetry-collector/blob/v0.120.0/processor/memorylimiterprocessor/README.md).
+For an operator-managed child, persist any required capacity override in its
+existing KOF values annotation; a direct Helm change can be reconciled away.
+
+## Part 2: Configure the control-plane host
+
+Run from the repository checkout on each controller, or securely copy the policy there first. Inspect `sudo systemctl show k0scontroller --property=ExecStart` to find the active config path: the Terraform management host uses `/etc/k0s/k0s.yaml`, while the pinned AWS child uses `/etc/k0s.yaml`. Set `K0S_CONFIG` accordingly. Save the active configuration before editing. k0s runs the API server as an unprivileged user; root-only files prevent startup. The process uses its user ID with group root, so group-only read permission for the named account is insufficient.
+
+```bash
+K0S_CONFIG=/etc/k0s/k0s.yaml  # use /etc/k0s.yaml on the AWS child
+sudo cp -p "$K0S_CONFIG" "$K0S_CONFIG.before-audit"
+sudo install -d -m 0750 -o kube-apiserver -g kube-apiserver /var/log/kubernetes
+sudo install -m 0600 -o kube-apiserver -g kube-apiserver \
+  curriculum/examples/telemetry/audit-policy.yaml /etc/k0s/audit-policy.yaml
+```
+
+Merge these entries into the existing `spec.api.extraArgs` in the file identified by `$K0S_CONFIG`.
 Preserve all other configuration. **Do not replace the full file with this excerpt.**
 
 ```yaml
@@ -54,19 +120,19 @@ read offset, and includes the receiver in its logs pipeline. Kubernetes audit
 webhooks send `EventList`; they cannot send directly to an OTLP `/v1/logs` receiver.
 
 Validate the k0s configuration with the installed k0s version's validation command
-(`sudo k0s config validate --config /etc/k0s/k0s.yaml`) before restarting. Audit
+(`sudo /usr/local/bin/k0s config validate --config "$K0S_CONFIG"`) before restarting. Audit
 Policy is a local API-server configuration format, not a Kubernetes resource:
 `kubectl apply --dry-run=server` cannot validate that policy file. Check its YAML
 and policy fields separately; API-server startup performs semantic validation.
 
 ```bash
 sudo systemctl restart k0scontroller
-kubectl get --raw=/readyz
+kubectl get --raw=/readyz  # retry during startup; require ok before continuing
 sudo journalctl -u k0scontroller --since '5 minutes ago' --no-pager
 ```
 
 If startup fails, use the existing SSH session/console to restore
-`/etc/k0s/k0s.yaml.before-audit`, restart k0s, and inspect the reported invalid field.
+`$K0S_CONFIG.before-audit`, restart k0s, and inspect the reported invalid field.
 On HA clusters change one controller at a time and recheck API readiness.
 
 ## Part 3: Managed clusters and replacement nodes
@@ -79,6 +145,46 @@ before changing the chart. The stock template does not promise arbitrary
 `spec.config.k0s.apiServerArgs` or `extraManifests` fields; a ConfigMap alone does
 not create a host file. Publish the modified chart as a new immutable template and
 validate replacement of one controller in a disposable cluster before fleet rollout.
+
+
+### Ensure collectors cover controller nodes
+
+KOF 1.6.0 defaults tolerate the old **node-role.kubernetes.io/master** taint.
+The AWS child uses **node-role.kubernetes.io/control-plane**. Without an additional
+toleration, its audit daemon and k0s component collector miss the controller even
+though their DaemonSets report ready.
+
+On the management host, preserve the existing CAPI Cluster values annotation
+(including Lab 1.6's mTLS settings) and add this toleration:
+
+```bash
+kubectl -n kcm-system get cluster managed-cluster-01 -o json | jq -r \
+  '.metadata.annotations["k0rdent.mirantis.com/kof-collectors-values"] // "{}"' > /tmp/kof-audit-values.yaml
+python3 - <<'PY'
+import yaml
+p = '/tmp/kof-audit-values.yaml'
+values = yaml.safe_load(open(p)) or {}
+collectors = values.setdefault('opentelemetry-kube-stack', {}).setdefault('collectors', {})
+for name in ['daemon', 'target-allocator', 'controller-k0s']:
+    tolerations = collectors.setdefault(name, {}).setdefault('tolerations', [
+        {'key': 'node-role.kubernetes.io/master', 'operator': 'Exists', 'effect': 'NoSchedule'}
+    ])
+    if not any(t.get('key') == 'node-role.kubernetes.io/control-plane' for t in tolerations):
+        tolerations.append({
+            'key': 'node-role.kubernetes.io/control-plane',
+            'operator': 'Exists', 'effect': 'NoSchedule'
+        })
+with open(p, 'w') as f:
+    yaml.safe_dump(values, f, sort_keys=False)
+PY
+kubectl -n kcm-system annotate cluster managed-cluster-01 \
+  k0rdent.mirantis.com/kof-collectors-values="$(cat /tmp/kof-audit-values.yaml)" --overwrite
+kubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig -n kof get pods -o wide
+```
+
+Wait for the annotation to reconcile, then verify an audit daemon on **each**
+controller. A newly installed filelog receiver can start at the end of a file:
+generate the acceptance probes after collection is ready.
 
 ## Part 4: Verify collection and configure retention
 
@@ -138,7 +244,9 @@ not every 4xx response is an authentication failure.
 
 Acceptance requires a token issuance event at Metadata without a response body,
 an RBAC event visible centrally, healthy exporters, confirmed retention arguments,
-and a repeated probe after a collector restart. Record timestamps, cluster name,
+and a repeated probe after a collector restart. Observe at least ten minutes of
+audit traffic with no new OOM/restarts; a single Ready snapshot is insufficient.
+Record timestamps, cluster name,
 chart version, and audit IDs; never include credentials in the evidence.
 
 ```bash

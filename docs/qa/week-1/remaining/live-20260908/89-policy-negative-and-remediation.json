@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:46:08.522Z",
+  "ended": "2026-09-08T14:46:09.216Z",
+  "command": "export KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\nkubectl get policyreport -n default -o json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=[r for p in d[\"items\"] if p.get(\"scope\",{}).get(\"name\")==\"test-pod\" for r in p.get(\"results\",[]) if r[\"policy\"]==\"require-labels\"]; print(r); assert any(x[\"result\"]==\"fail\" for x in r)'\nkubectl label pod test-pod app=test-pod\n",
+  "code": 0,
+  "stdout": "[{'message': \"validation error: label 'app' is required. rule check-for-labels failed at path /metadata/labels/app/\", 'policy': 'require-labels', 'properties': {'process': 'background scan'}, 'result': 'fail', 'rule': 'check-for-labels', 'scored': True, 'source': 'kyverno', 'timestamp': {'nanos': 0, 'seconds': 1788878738}}]\npod/test-pod labeled\n",
+  "stderr": ""
+}

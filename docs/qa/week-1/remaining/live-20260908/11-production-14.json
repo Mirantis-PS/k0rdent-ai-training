@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:19:31.425Z",
+  "ended": "2026-09-08T14:19:32.297Z",
+  "command": "# Create an on-demand backup (no schedule = immediate)\ncat <<EOF | kubectl apply -f -\napiVersion: k0rdent.mirantis.com/v1beta1\nkind: ManagementBackup\nmetadata:\n  name: manual-backup-$(date +%Y%m%d)\nspec:\n  storageLocation: aws-s3\nEOF\n",
+  "code": 0,
+  "stdout": "managementbackup.k0rdent.mirantis.com/manual-backup-20260908 created\n",
+  "stderr": ""
+}

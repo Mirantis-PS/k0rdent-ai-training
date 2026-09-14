@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:18:41.811Z",
+  "ended": "2026-09-08T14:18:42.975Z",
+  "command": "# Verify the secret exists\nkubectl get secret aws-cluster-identity-secret -n kcm-system\n\n# Verify the resource template ConfigMap exists\nkubectl get configmap aws-cluster-identity-resource-template -n kcm-system\n\n# Check the identity (cluster-scoped, no namespace needed)\nkubectl get awsclusterstaticidentity\n\n# Verify the credential (or use alias: kgcred)\nkubectl get credential aws-cluster-identity-cred -n kcm-system\n",
+  "code": 0,
+  "stdout": "NAME                          TYPE     DATA   AGE\naws-cluster-identity-secret   Opaque   3      11s\nNAME                                     DATA   AGE\naws-cluster-identity-resource-template   0      28s\nNAME                   AGE\naws-cluster-identity   29s\nNAME                        READY   REGION   DESCRIPTION\naws-cluster-identity-cred   true             \n",
+  "stderr": ""
+}

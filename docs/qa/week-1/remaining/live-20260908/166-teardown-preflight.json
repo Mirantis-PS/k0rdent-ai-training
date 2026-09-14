@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:07:36.759Z",
+  "ended": "2026-09-08T15:07:38.862Z",
+  "command": "kubectl get multiclusterservice baseline-services --ignore-not-found\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig get svc -A -o json | python3 -c 'import json,sys;d=json.load(sys.stdin);print([(x[\"metadata\"][\"namespace\"],x[\"metadata\"][\"name\"],x[\"spec\"][\"type\"]) for x in d[\"items\"] if x[\"spec\"][\"type\"]==\"LoadBalancer\"])'\n",
+  "code": 0,
+  "stdout": "[]\n",
+  "stderr": ""
+}

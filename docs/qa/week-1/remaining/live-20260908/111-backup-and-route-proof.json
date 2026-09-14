@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:50:24.135Z",
+  "ended": "2026-09-08T14:50:39.888Z",
+  "command": "set -euo pipefail\nkubectl wait backup/pre-upgrade-20260908 -n kcm-system --for=jsonpath='{.status.phase}'=Completed --timeout=30s\nkubectl get backup/pre-upgrade-20260908 -n kcm-system -o json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d[\"status\"])'\nexport KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\nHOST=$(kubectl get gateway training-gateway -o jsonpath='{.status.addresses[0].value}')\ncurl -fsS --max-time 20 -H 'Host: gateway-test.example.com' \"http://$HOST\" | head -8\nkubectl -n kyverno get deployment kyverno-admission-controller\n",
+  "code": 0,
+  "stdout": "backup.velero.io/pre-upgrade-20260908 condition met\n{'completionTimestamp': '2026-09-08T14:50:39Z', 'expiration': '2026-10-08T14:50:09Z', 'formatVersion': '1.1.0', 'hookStatus': {}, 'phase': 'Completed', 'progress': {'itemsBackedUp': 235, 'totalItems': 235}, 'startTimestamp': '2026-09-08T14:50:09Z', 'version': 1}\n<!DOCTYPE html>\n<html>\n<head>\n<title>Welcome to nginx!</title>\n<style>\nhtml { color-scheme: light dark; }\nbody { width: 35em; margin: 0 auto;\nfont-family: Tahoma, Verdana, Arial, sans-serif; }\nNAME                           READY   UP-TO-DATE   AVAILABLE   AGE\nkyverno-admission-controller   2/2     2            2           7m41s\n",
+  "stderr": ""
+}

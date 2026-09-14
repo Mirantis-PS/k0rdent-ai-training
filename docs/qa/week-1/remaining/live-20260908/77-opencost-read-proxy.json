@@ -1,0 +1,11 @@
+{
+  "name": "77-opencost-read-proxy",
+  "command": "source /home/ubuntu/qa-week1/ingest.env\ncd /home/ubuntu/qa-week1\nkubectl apply -f curriculum/examples/telemetry/ingest-gateway.yaml\nkubectl rollout restart deployment/kof-ingest-gateway -n kof\nsed \"s/INGEST_HOST/$INGEST_HOST/g\" curriculum/examples/telemetry/opencost-query-proxy.yaml | kubectl --kubeconfig \"$WORKLOAD_KUBECONFIG\" apply -f -\nkubectl --kubeconfig \"$WORKLOAD_KUBECONFIG\" rollout status deployment/kof-query-proxy -n kof --timeout=180s\n",
+  "started": "2026-09-08T14:36:43.743Z",
+  "done": true,
+  "pid": 92603,
+  "code": 0,
+  "ended": "2026-09-08T14:37:03.475Z",
+  "stdout": "configmap/kof-ingest-gateway configured\ndeployment.apps/kof-ingest-gateway unchanged\nservice/kof-ingest-gateway unchanged\ndeployment.apps/kof-ingest-gateway restarted\nconfigmap/kof-query-proxy created\ndeployment.apps/kof-query-proxy created\nservice/kof-query-proxy created\nWaiting for deployment \"kof-query-proxy\" rollout to finish: 0 of 1 updated replicas are available...\ndeployment \"kof-query-proxy\" successfully rolled out\n",
+  "stderr": ""
+}

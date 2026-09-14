@@ -192,6 +192,7 @@ resource "aws_iam_role_policy" "lab_instance" {
         Effect = "Allow"
         Action = [
           "ec2:DescribeImages",
+          "ec2:DescribeInstanceTypes",
           "ec2:DescribeKeyPairs",
           "ec2:DescribeLaunchTemplates",
           "ec2:DescribeLaunchTemplateVersions",
