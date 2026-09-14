@@ -36,7 +36,11 @@ Arguments:
 
 Options:
   --region <region>           AWS region (auto-detected from saved config)
-  --auto-approve              Skip confirmation prompts
+  --auto-approve              Skip confirmation prompts (implies --force)
+  --force                     Proceed past pre-destroy cleanup warnings without
+                              prompting, but still confirm the destroy itself.
+                              Needed when the management node is stopped or
+                              terminated, so SSH-based cleanup cannot run.
   --delete-bucket             Also delete the student's S3 bucket
   --help                      Show this help message
 
@@ -44,6 +48,7 @@ Examples:
   $0 john-doe
   $0 john-doe --auto-approve
   $0 john-doe --auto-approve --delete-bucket
+  $0 john-doe --force            # node already down; skip SSH cleanup gates
 
 EOF
     exit 1
@@ -81,10 +86,16 @@ get_state_output() {
         | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
 }
 
-# Loud warning + explicit confirmation when pre-destroy cleanup cannot be
-# performed or confirmed. Resources created OUTSIDE Terraform (managed-cluster
-# VPCs from CAPA, CCM-created load balancers) would be orphaned and keep
-# billing -- never skip silently.
+# Loud warning when pre-destroy cleanup cannot be performed or confirmed.
+# Resources created OUTSIDE Terraform (managed-cluster VPCs from CAPA,
+# CCM-created load balancers) would be orphaned and keep billing -- the warning
+# is therefore ALWAYS printed in full, even when a flag lets us skip the prompt.
+#
+# The prompt itself is skipped under --force / --auto-approve. Without that,
+# the common "my node is already stopped or terminated" case was unrecoverable:
+# SSH cleanup fails, this gate is reached, and a non-interactive run hits EOF on
+# `read` -- which looks identical to the user declining, so the script exited
+# without destroying anything and the environment billed indefinitely.
 confirm_orphan_risk() {
     local reason="$1"
 
@@ -100,10 +111,25 @@ confirm_orphan_risk() {
     echo -e "${RED}============================================================${NC}"
     echo ""
 
+    if [[ "$FORCE" == "true" || "$AUTO_APPROVE" == "true" ]]; then
+        local via="--force"
+        [[ "$FORCE" == "true" ]] || via="--auto-approve"
+        log_warn "Proceeding without prompting (${via}) -- verify in the AWS console afterwards"
+        return 0
+    fi
+
+    # Not a terminal and no flag given: `read` would hit EOF immediately and be
+    # indistinguishable from a decline. Fail loudly with the way out instead.
+    if [[ ! -t 0 ]]; then
+        log_error "Cannot prompt: stdin is not a terminal (piped, cron, or CI run)."
+        log_error "Re-run interactively, or pass --force to proceed past this check."
+        exit 1
+    fi
+
     local reply=""
     read -r -p "Proceed with destroy anyway? (y/N): " reply || reply=""
     if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-        log_warn "Destruction cancelled. Fix the issue above and re-run."
+        log_warn "Destruction cancelled. Fix the issue above, or re-run with --force."
         exit 1
     fi
     log_warn "Proceeding at your own risk -- check the AWS console for orphans afterwards"
@@ -420,6 +446,7 @@ fi
 # Default values
 REGION=""
 AUTO_APPROVE="false"
+FORCE="false"
 DELETE_BUCKET="false"
 IDENTIFIER=""
 
@@ -432,6 +459,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --auto-approve)
             AUTO_APPROVE="true"
+            shift
+            ;;
+        --force)
+            FORCE="true"
             shift
             ;;
         --delete-bucket)
