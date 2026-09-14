@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:19:29.597Z",
+  "ended": "2026-09-08T14:19:30.488Z",
+  "command": "# Create a backup schedule (every 6 hours)\ncat <<EOF | kubectl apply -f -\napiVersion: k0rdent.mirantis.com/v1beta1\nkind: ManagementBackup\nmetadata:\n  name: kcm\nspec:\n  schedule: \"0 */6 * * *\"\n  storageLocation: aws-s3\nEOF\n",
+  "code": 0,
+  "stdout": "managementbackup.k0rdent.mirantis.com/kcm created\n",
+  "stderr": ""
+}

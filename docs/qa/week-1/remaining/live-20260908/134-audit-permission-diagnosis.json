@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:57:14.505Z",
+  "ended": "2026-09-08T14:57:15.001Z",
+  "command": "getent passwd | grep -E 'kube|k0s'\nps -eo user,group,args | grep '[k]ube-apiserver' | head -3\nsudo ls -ld /var/log/kubernetes /etc/k0s\nsudo ls -l /etc/k0s/audit-policy.yaml\n",
+  "code": 0,
+  "stdout": "etcd:x:997:997::/var/lib/k0s:/usr/sbin/nologin\nkonnectivity-server:x:996:996::/var/lib/k0s:/usr/sbin/nologin\nkube-apiserver:x:995:995::/var/lib/k0s:/usr/sbin/nologin\nkube-scheduler:x:994:994::/var/lib/k0s:/usr/sbin/nologin\ndrwxr-xr-x 3 root root 4096 Sep  8 14:56 /etc/k0s\ndrwxr-x--- 2 root root 4096 Sep  8 14:29 /var/log/kubernetes\n-rw------- 1 root root 1071 Sep  8 14:56 /etc/k0s/audit-policy.yaml\n",
+  "stderr": ""
+}

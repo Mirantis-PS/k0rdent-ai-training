@@ -1,0 +1,29 @@
+{
+  "at": "2026-09-08T15:23:38.828Z",
+  "result": {
+    "nat": [
+      {
+        "Id": "nat-09e167faacb418349",
+        "State": "available"
+      }
+    ],
+    "volumes": [
+      {
+        "Id": "vol-079d6bf0f2651fa7c",
+        "GiB": 30,
+        "State": "in-use"
+      },
+      {
+        "Id": "vol-02dd6c98402d7b829",
+        "GiB": 100,
+        "State": "in-use"
+      }
+    ],
+    "elbv2": [],
+    "elb": [
+      {
+        "Name": "a05900a7cc29f45f69662e6f7c4e3253"
+      }
+    ]
+  }
+}

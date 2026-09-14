@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:46:31.299Z",
+  "ended": "2026-09-08T14:46:31.710Z",
+  "command": "kubectl -n kof get vmalerts,vmalertmanagers,vmrules\nkubectl -n kof get deployments | grep -E 'alert|cost'\ncurl -fsSG http://127.0.0.1:8481/select/0/prometheus/api/v1/query --data-urlencode 'query=count by (__name__)(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate)'\n",
+  "code": 0,
+  "stdout": "NAME                                                                          STATUS        REPLICACOUNT   AGE\nvmalert.operator.victoriametrics.com/kof-mothership-record-vmrules-executor   operational                  20m\n\nNAME                                                  REPLICACOUNT   AGE   UPDATE STATUS\nvmalertmanager.operator.victoriametrics.com/cluster                  20m   operational\nkof-collectors-opencost                          0/1     1            0           17m\nvmalert-kof-mothership-record-vmrules-executor   1/1     1            1           20m\n{\"status\":\"success\",\"isPartial\":false,\"data\":{\"resultType\":\"vector\",\"result\":[]},\"stats\":{\"seriesFetched\": \"0\",\"executionTimeMsec\":0}}",
+  "stderr": ""
+}

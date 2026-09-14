@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:12:58.915Z",
+  "ended": "2026-09-08T15:13:01.179Z",
+  "command": "set -euo pipefail\nkubectl -n kcm-system wait backup/post-upgrade-qa-restore --for=jsonpath='{.status.phase}'=Completed --timeout=20s\nkubectl create namespace qa-backup-restore\ncat <<'EOF' | kubectl apply -f -\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: qa-configmap-restore\n  namespace: kcm-system\nspec:\n  backupName: post-upgrade-qa-restore\n  includedNamespaces: [kcm-system]\n  namespaceMapping:\n    kcm-system: qa-backup-restore\n  includedResources: [configmaps]\n  includeClusterResources: false\n  labelSelector:\n    matchLabels:\n      qa-restore-probe: \"true\"\nEOF\n",
+  "code": 0,
+  "stdout": "backup.velero.io/post-upgrade-qa-restore condition met\nnamespace/qa-backup-restore created\nrestore.velero.io/qa-configmap-restore created\n",
+  "stderr": ""
+}

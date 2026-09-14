@@ -1,0 +1,178 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: megatron-gpt-training
+  namespace: distributed-training
+spec:
+  slotsPerWorker: 8
+  runPolicy:
+    cleanPodPolicy: Running
+    backoffLimit: 3
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          initContainers:
+          - name: setup-megatron
+            image: nvcr.io/nvidia/pytorch:24.12-py3
+            command:
+            - bash
+            - /scripts/setup.sh
+            volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: setup-script
+              mountPath: /scripts
+          containers:
+          - name: launcher
+            image: nvcr.io/nvidia/pytorch:24.12-py3
+            command:
+            - bash
+            - /opt/mpi/launch.sh
+            envFrom:
+            - configMapRef:
+                name: megatron-config
+            volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: checkpoints
+              mountPath: /checkpoints
+            - name: mpi-adapters
+              mountPath: /opt/mpi
+              readOnly: true
+            args:
+            - -np
+            - '16'
+            - -npernode
+            - '8'
+            - -bind-to
+            - none
+            - -map-by
+            - slot
+            - -x
+            - NCCL_DEBUG=WARN
+            - -x
+            - CUDA_DEVICE_MAX_CONNECTIONS=1
+            - -x
+            - LD_LIBRARY_PATH
+            - bash
+            - /opt/mpi/run.sh
+            - python
+            - /workspace/Megatron-LM/pretrain_gpt.py
+            - --tensor-model-parallel-size=4
+            - --pipeline-model-parallel-size=2
+            - --num-layers=32
+            - --hidden-size=4096
+            - --num-attention-heads=32
+            - --seq-length=2048
+            - --max-position-embeddings=4096
+            - --micro-batch-size=1
+            - --global-batch-size=32
+            - --train-iters=100
+            - --lr=1.5e-4
+            - --min-lr=1.5e-5
+            - --lr-decay-style=cosine
+            - --log-interval=1
+            - --eval-interval=50
+            - --save-interval=50
+            - --fp16
+            - --save=/checkpoints
+            - --mock-data
+            - --tokenizer-type=NullTokenizer
+            - --vocab-size=32768
+          volumes:
+          - name: workspace
+            emptyDir: {}
+          - name: setup-script
+            configMap:
+              name: megatron-setup
+              defaultMode: 493
+          - name: checkpoints
+            persistentVolumeClaim:
+              claimName: training-checkpoints
+          - name: mpi-adapters
+            configMap:
+              name: mpi-adapters
+    Worker:
+      replicas: 2
+      template:
+        spec:
+          initContainers:
+          - name: setup-megatron
+            image: nvcr.io/nvidia/pytorch:24.12-py3
+            command:
+            - bash
+            - /scripts/setup.sh
+            volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: setup-script
+              mountPath: /scripts
+          containers:
+          - name: worker
+            image: nvcr.io/nvidia/pytorch:24.12-py3
+            command:
+            - bash
+            - /opt/mpi/worker-init.sh
+            envFrom:
+            - configMapRef:
+                name: megatron-config
+            resources:
+              limits:
+                nvidia.com/gpu: 8
+              requests:
+                nvidia.com/gpu: 8
+                memory: 512Gi
+                cpu: '64'
+            securityContext:
+              capabilities:
+                add:
+                - IPC_LOCK
+            volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+            - name: workspace
+              mountPath: /workspace
+            - name: checkpoints
+              mountPath: /checkpoints
+            - name: mpi-adapters
+              mountPath: /opt/mpi
+              readOnly: true
+            env:
+            - name: NCCL_IB_DISABLE
+              value: '1'
+            - name: TRAINING_FRAMEWORK
+              value: megatron
+          volumes:
+          - name: shm
+            emptyDir:
+              medium: Memory
+              sizeLimit: 256Gi
+          - name: workspace
+            emptyDir: {}
+          - name: setup-script
+            configMap:
+              name: megatron-setup
+              defaultMode: 493
+          - name: checkpoints
+            persistentVolumeClaim:
+              claimName: training-checkpoints
+          - name: mpi-adapters
+            configMap:
+              name: mpi-adapters
+          tolerations:
+          - key: nvidia.com/gpu
+            operator: Exists
+            effect: NoSchedule
+          runtimeClassName: nvidia
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    training.k0rdent.io/job: megatron-gpt-training
+                topologyKey: kubernetes.io/hostname
+        metadata:
+          labels:
+            training.k0rdent.io/job: megatron-gpt-training

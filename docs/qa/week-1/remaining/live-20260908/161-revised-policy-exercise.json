@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:04:29.171Z",
+  "ended": "2026-09-08T15:04:30.833Z",
+  "command": "set -euo pipefail\nexport KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\nkubectl create namespace policy-test\ncat <<'EOF' | kubectl apply -f -\napiVersion: kyverno.io/v1\nkind: ClusterPolicy\nmetadata:\n  name: require-labels\nspec:\n  validationFailureAction: Audit\n  rules:\n  - name: check-for-labels\n    match:\n      any:\n      - resources:\n          kinds: [Pod]\n          namespaces: [policy-test]\n    validate:\n      message: \"label 'app' is required\"\n      pattern:\n        metadata:\n          labels:\n            app: \"?*\"\nEOF\nkubectl wait clusterpolicy/require-labels --for=condition=Ready --timeout=120s\nkubectl run test-pod -n policy-test --image=nginx:1.28.0 --restart=Never\nkubectl get pod test-pod -n policy-test --show-labels\n",
+  "code": 0,
+  "stdout": "namespace/policy-test created\nclusterpolicy.kyverno.io/require-labels created\nclusterpolicy.kyverno.io/require-labels condition met\npod/test-pod created\nNAME       READY   STATUS              RESTARTS   AGE   LABELS\ntest-pod   0/1     ContainerCreating   0          0s    run=test-pod,topology.kubernetes.io/region=eu-west-1,topology.kubernetes.io/zone=eu-west-1a\n",
+  "stderr": ""
+}

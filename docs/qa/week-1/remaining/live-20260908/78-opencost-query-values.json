@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:36:55.488Z",
+  "ended": "2026-09-08T14:36:56.070Z",
+  "command": "source /home/ubuntu/qa-week1/ingest.env\npython3 - <<'PY'\nimport yaml\np='/tmp/kof-ingest-values.yaml'\nv=yaml.safe_load(open(p))\noc=v.setdefault('opencost',{}).setdefault('opencost',{})\noc.setdefault('prometheus',{}).setdefault('external',{}).update(enabled=True,url='http://kof-query-proxy.kof.svc:8080/prometheus')\noc.setdefault('exporter',{}).setdefault('startupProbe',{})['failureThreshold']=100\nwith open(p,'w') as f: yaml.safe_dump(v,f,sort_keys=False)\nPY\nkubectl -n kcm-system annotate cluster \"$CLUSTER_NAME\" k0rdent.mirantis.com/kof-collectors-values=\"$(cat /tmp/kof-ingest-values.yaml)\" --overwrite\n",
+  "code": 0,
+  "stdout": "cluster.cluster.x-k8s.io/managed-cluster-01 annotated\n",
+  "stderr": ""
+}

@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:19:20.015Z",
+  "ended": "2026-09-08T14:19:28.793Z",
+  "command": "# Check if the AWS plugin is already configured\nif kubectl get deployment velero -n kcm-system -o jsonpath='{.spec.template.spec.initContainers[*].name}' | grep -q velero-plugin-for-aws; then\n  echo \"AWS plugin already installed\"\nelse\n  echo \"Installing AWS plugin...\"\n  kubectl patch deployment velero -n kcm-system --type=strategic -p '{\n    \"spec\": {\n      \"template\": {\n        \"spec\": {\n          \"initContainers\": [{\n            \"name\": \"velero-plugin-for-aws\",\n            \"image\": \"velero/velero-plugin-for-aws:v1.13.2\",\n            \"imagePullPolicy\": \"IfNotPresent\",\n            \"volumeMounts\": [{\"mountPath\": \"/target\", \"name\": \"plugins\"}]\n          }]\n        }\n      }\n    }\n  }'\n  kubectl rollout status deployment/velero -n kcm-system --timeout=120s\nfi\n",
+  "code": 0,
+  "stdout": "Installing AWS plugin...\ndeployment.apps/velero patched\nWaiting for deployment \"velero\" rollout to finish: 0 out of 1 new replicas have been updated...\nWaiting for deployment \"velero\" rollout to finish: 0 out of 1 new replicas have been updated...\nWaiting for deployment \"velero\" rollout to finish: 0 out of 1 new replicas have been updated...\nWaiting for deployment \"velero\" rollout to finish: 0 of 1 updated replicas are available...\ndeployment \"velero\" successfully rolled out\n",
+  "stderr": ""
+}

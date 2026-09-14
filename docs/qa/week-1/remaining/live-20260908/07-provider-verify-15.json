@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:18:45.859Z",
+  "ended": "2026-09-08T14:18:46.857Z",
+  "command": "# List AWS cluster templates (or use alias: kgct)\nkubectl get clustertemplates -n kcm-system | grep -i aws\n\n# View details of an AWS template\nkubectl get clustertemplate -n kcm-system -l provider=aws -o yaml | head -100\n",
+  "code": 0,
+  "stdout": "aws-eks-1-0-6                    true\naws-hosted-cp-1-0-29             true\naws-standalone-cp-1-0-26         true\napiVersion: v1\nitems: []\nkind: List\nmetadata:\n  resourceVersion: \"\"\n",
+  "stderr": ""
+}

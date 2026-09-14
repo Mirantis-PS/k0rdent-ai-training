@@ -307,8 +307,8 @@ spec:
 ```
 
 ```bash
-# View the current k0s config for reference
-sudo k0s config create
+# View the active k0s config for reference
+sudo cat /etc/k0s/k0s.yaml
 ```
 
 ## Part 4: Configure Backup and Recovery (~30 min)
@@ -427,7 +427,7 @@ EOF
 kubectl get managementbackup
 ```
 
-> **Note:** `ManagementBackup` is cluster-scoped -- no `-n` flag is needed. You should see the `kcm` resource listed. The `SCHEDULE` column shows the cron expression; `LAST BACKUP` will be empty until the first scheduled run triggers.
+> **Note:** `ManagementBackup` is cluster-scoped -- no `-n` flag is needed. Enterprise 1.3.1 displays `LASTBACKUPSTATUS` and `NEXTBACKUP`; inspect `.spec.schedule` to confirm the cron expression. The last-backup status stays empty until a backup completes.
 
 ### Step 4: Create an On-Demand Backup
 
@@ -447,14 +447,16 @@ EOF
 
 ```bash
 # Watch the backup progress (Ctrl+C to exit once phase shows Completed)
-kubectl get backup -n kcm-system --watch
+kubectl get backups.velero.io -n kcm-system --watch \
+  -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,ERRORS:.status.errors
 ```
 
 > **Note:** The underlying Velero `Backup` objects are namespaced in `kcm-system` (unlike the `ManagementBackup` CRD which is cluster-scoped). The phase will transition from `InProgress` to `Completed`. This typically takes 30-60 seconds.
 
 ```bash
-# Verify the backup exists in S3
-kubectl get backup -n kcm-system
+# Verify the backup artifact exists in S3
+source /opt/k0rdent-lab/config/lab-info.env
+aws s3 ls "s3://$ARTIFACTS_BUCKET/velero-backups/backups/"
 ```
 
 ### Understanding What Gets Backed Up
@@ -626,14 +628,9 @@ check() {
 # Core Components
 check "kubectl get pods -n kcm-system | grep -q Running" "KCM pods running"
 
-# Note: In k0rdent Enterprise, CAPI/CAPA components run in kcm-system, but they
-# only appear once a provider is exercised. Informational only -- never a failure.
-if kubectl get pods -n kcm-system 2>/dev/null | grep -E 'capi|capa' | grep -q Running; then
-    echo "[PASS] CAPI/CAPA pods running"
-    PASS=$((PASS + 1))
-else
-    echo "[INFO] CAPA not installed yet -- expected before Lab 1.5"
-fi
+# Enterprise installs CAPI/CAPA during management bootstrap, before Lab 1.5.
+check "kubectl rollout status deployment/capi-controller-manager -n kcm-system --timeout=60s" "CAPI available"
+check "kubectl rollout status deployment/capa-controller-manager -n kcm-system --timeout=60s" "CAPA available"
 
 check "kubectl get credential -n kcm-system | grep -q aws" "AWS credentials configured"
 
@@ -642,7 +639,7 @@ check "kubectl get clusterrole k0rdent-cluster-admin" "Cluster admin role exists
 check "kubectl get clusterrole k0rdent-cluster-viewer" "Cluster viewer role exists"
 
 # Backup
-check "kubectl get backupstoragelocation aws-s3 -n kcm-system" "Backup storage location configured"
+check "kubectl wait backupstoragelocation/aws-s3 -n kcm-system --for=jsonpath='{.status.phase}'=Available --timeout=60s" "Backup storage location available"
 check "kubectl get managementbackup kcm" "Scheduled backup configured"
 
 # Security controls deferred by design in this training environment.
@@ -661,6 +658,7 @@ if [ "$FAIL" -eq 0 ]; then
     echo "Production readiness: READY for training use -- NOT production-hardened (see DEFERRED items)"
 else
     echo "Production readiness: NOT READY - Address failures above"
+    exit 1
 fi
 EOF
 
@@ -670,7 +668,7 @@ sudo chmod +x /usr/local/bin/production-readiness.sh
 sudo /usr/local/bin/production-readiness.sh
 ```
 
-> **Note:** If you see `[FAIL]` for any check, review the earlier sections to ensure you completed each step. `[INFO]` and `[DEFERRED]` lines are expected here: CAPA controllers only appear once you deploy your first cluster in Lab 1.5, and the three deferred controls are production tasks this lab covers as reference material only. "READY for training use" means exactly that -- this cluster is **not** production-hardened until the deferred controls are actually implemented.
+> **Note:** If you see `[FAIL]` for any check, review the earlier sections to ensure you completed each step. `[DEFERRED]` lines identify production reference material. CAPI and CAPA must already be available before Lab 1.5. "READY for training use" means exactly that -- this cluster is **not** production-hardened until the deferred controls are actually implemented.
 
 ## Validation Checklist
 

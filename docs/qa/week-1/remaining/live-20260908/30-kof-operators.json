@@ -1,0 +1,10 @@
+{
+  "name": "30-kof-operators",
+  "command": "# Install KOF operators (Grafana + OpenTelemetry operators)\nhelm upgrade -i --reset-values --wait --create-namespace -n kof kof-operators \\\n  oci://ghcr.io/k0rdent/kof/charts/kof-operators \\\n  --version 1.6.0\n\n# Verify operators are running\nkubectl get pods -n kof\n# Expected: kof-operators-grafana-operator-xxx, kof-operators-opentelemetry-operator-xxx\n",
+  "started": "2026-09-08T14:24:34.448Z",
+  "done": true,
+  "code": 0,
+  "ended": "2026-09-08T14:24:58.915Z",
+  "stdout": "Release \"kof-operators\" does not exist. Installing it now.\nNAME: kof-operators\nLAST DEPLOYED: Tue Sep  8 14:24:37 2026\nNAMESPACE: kof\nSTATUS: deployed\nREVISION: 1\nNAME                                                    READY   STATUS    RESTARTS   AGE\nkof-operators-grafana-operator-568b578d7b-x4f4s         1/1     Running   0          16s\nkof-operators-opentelemetry-operator-74c69f8c64-j9bz9   2/2     Running   0          16s\n",
+  "stderr": "Pulled: ghcr.io/k0rdent/kof/charts/kof-operators:1.6.0\nDigest: sha256:c51191116395445fb111c16bad20edf2d3d13313a7af9f47d293cb28e5f0f162\nI0908 14:24:42.588040   28308 warnings.go:107] \"Warning: spec.privateKey.rotationPolicy: In cert-manager >= v1.18.0, the default value changed from `Never` to `Always`.\"\n"
+}

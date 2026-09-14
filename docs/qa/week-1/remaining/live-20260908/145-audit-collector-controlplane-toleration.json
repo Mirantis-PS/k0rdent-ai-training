@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:59:33.318Z",
+  "ended": "2026-09-08T14:59:34.714Z",
+  "command": "set -euo pipefail\npython3 - <<'PY'\nimport yaml,subprocess\np='/tmp/kof-ingest-values.yaml';d=yaml.safe_load(open(p));cs=d.setdefault('opentelemetry-kube-stack',{}).setdefault('collectors',{})\nfor name in ['daemon','target-allocator','controller-k0s']:\n t=cs.setdefault(name,{}).setdefault('tolerations',[{'effect':'NoSchedule','key':'node-role.kubernetes.io/master','operator':'Exists'}])\n if not any(x.get('key')=='node-role.kubernetes.io/control-plane' for x in t):t.append({'effect':'NoSchedule','key':'node-role.kubernetes.io/control-plane','operator':'Exists'})\nopen(p,'w').write(yaml.safe_dump(d,sort_keys=False))\nsubprocess.run(['kubectl','annotate','cluster','managed-cluster-01','-n','kcm-system','k0rdent.mirantis.com/kof-collectors-values='+open(p).read(),'--overwrite'],check=True)\nPY\nkubectl create serviceaccount audit-probe\nkubectl create token audit-probe --duration=10m >/dev/null\nkubectl create rolebinding audit-probe --clusterrole=view --user=audit-probe\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig create serviceaccount audit-probe\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig create token audit-probe --duration=10m >/dev/null\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig create rolebinding audit-probe --clusterrole=view --user=audit-probe\n",
+  "code": 0,
+  "stdout": "cluster.cluster.x-k8s.io/managed-cluster-01 annotated\nserviceaccount/audit-probe created\nrolebinding.rbac.authorization.k8s.io/audit-probe created\nserviceaccount/audit-probe created\nrolebinding.rbac.authorization.k8s.io/audit-probe created\n",
+  "stderr": ""
+}

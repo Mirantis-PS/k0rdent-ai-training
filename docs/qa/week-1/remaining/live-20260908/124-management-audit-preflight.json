@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:55:18.541Z",
+  "ended": "2026-09-08T14:55:18.841Z",
+  "command": "sudo test -f /etc/k0s/k0s.yaml\nsudo k0s config validate --config /etc/k0s/k0s.yaml\nsudo systemctl show k0scontroller --property=ExecStart\ncat /home/ubuntu/qa-week1/curriculum/examples/telemetry/audit-policy.yaml\n",
+  "code": 0,
+  "stdout": "ExecStart={ path=/usr/local/bin/k0s ; argv[]=/usr/local/bin/k0s controller --config=/etc/k0s/k0s.yaml --enable-worker=true ; ignore_errors=no ; start_time=[Tue 2026-09-08 14:16:19 UTC] ; stop_time=[n/a] ; pid=471 ; code=(null) ; status=0/0 }\napiVersion: audit.k8s.io/v1\nkind: Policy\nomitStages: [\"RequestReceived\"]\nrules:\n  # Drop control-plane chatter\n  - level: None\n    resources:\n      - group: \"\"\n        resources: [\"events\", \"endpoints\"]\n      - group: \"coordination.k8s.io\"\n        resources: [\"leases\"]\n      - group: \"discovery.k8s.io\"\n        resources: [\"endpointslices\"]\n\n  # Sensitive: log mutations, hide payloads\n  - level: Metadata\n    resources:\n      - group: \"\"\n        resources: [\"secrets\", \"configmaps\"]\n\n  # RBAC: log everything\n  - level: RequestResponse\n    resources:\n      - group: \"rbac.authorization.k8s.io\"\n        resources: [\"roles\", \"rolebindings\", \"clusterroles\", \"clusterrolebindings\"]\n\n  # Token issuance: never record the returned bearer token\n  - level: Metadata\n    verbs: [\"create\"]\n    resources:\n      - group: \"\"\n        resources: [\"serviceaccounts/token\"]\n\n  # Interactive pod access\n  - level: RequestResponse\n    verbs: [\"create\"]\n    resources:\n      - group: \"\"\n        resources: [\"pods/exec\", \"pods/attach\", \"pods/portforward\"]\n\n  # Default\n  - level: Metadata\n",
+  "stderr": ""
+}

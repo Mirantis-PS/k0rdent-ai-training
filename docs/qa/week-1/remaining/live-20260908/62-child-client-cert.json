@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:32:46.740Z",
+  "ended": "2026-09-08T14:32:47.545Z",
+  "command": "source /home/ubuntu/qa-week1/ingest.env\nkubectl --kubeconfig \"$WORKLOAD_KUBECONFIG\" -n kof create secret generic kof-ingest-client \\\n  --from-file=tls.crt=\"$CERT_DIR/client.crt\" --from-file=tls.key=\"$CERT_DIR/client.key\" \\\n  --from-file=ca.crt=\"$CERT_DIR/ca.crt\" --dry-run=client -o yaml | kubectl --kubeconfig \"$WORKLOAD_KUBECONFIG\" apply -f -\n",
+  "code": 0,
+  "stdout": "secret/kof-ingest-client created\n",
+  "stderr": ""
+}

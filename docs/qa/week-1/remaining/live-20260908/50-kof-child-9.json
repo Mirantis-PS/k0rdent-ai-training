@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:28:59.892Z",
+  "ended": "2026-09-08T14:29:00.336Z",
+  "command": "# Re-export AWS_REGION so it expands to YOUR region in the manifest below\nsource /opt/k0rdent-lab/config/lab-info.env\necho \"AWS_REGION=$AWS_REGION\"  # Must NOT be empty -- if it is, export it manually\n\n# Create cluster configuration with storage endpoints\ncat << EOF | kubectl apply -f -\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: kof-cluster-config-managed-cluster-01\n  namespace: kcm-system\n  labels:\n    k0rdent.mirantis.com/kof-cluster-role: child\ndata:\n  # Regional/storage cluster info\n  regional_cluster_name: management\n  regional_cluster_namespace: kcm-system\n  regional_cluster_cloud: aws\n  aws_region: ${AWS_REGION}\n\n  # Metrics endpoints (VictoriaMetrics)\n  write_metrics_endpoint: \"http://vminsert-cluster.kof.svc.cluster.local:8480/insert/0/prometheus/api/v1/write\"\n  read_metrics_endpoint: \"http://vmselect-cluster.kof.svc.cluster.local:8481/select/0/prometheus\"\n\n  # Logs endpoint (VictoriaLogs)\n  write_logs_endpoint: \"http://kof-storage-victoria-logs-cluster-vlinsert.kof.svc.cluster.local:9481/insert/opentelemetry/v1/logs\"\n  read_logs_endpoint: \"http://kof-storage-victoria-logs-cluster-vlselect.kof.svc.cluster.local:9471\"\n\n  # Traces endpoint (Jaeger)\n  write_traces_endpoint: \"http://kof-storage-jaeger-collector.kof.svc.cluster.local:4318\"\nEOF\n",
+  "code": 0,
+  "stdout": "AWS_REGION=eu-west-1\nconfigmap/kof-cluster-config-managed-cluster-01 created\n",
+  "stderr": ""
+}

@@ -1,0 +1,86 @@
+{
+  "timestamp": "2026-09-08T15:12:45.566Z",
+  "results": [
+    {
+      "name": "instances",
+      "command": [
+        "ec2",
+        "describe-instances",
+        "--filters",
+        "Name=tag-key,Values=sigs.k8s.io/cluster-api-provider-aws/cluster/managed-cluster-01",
+        "Name=instance-state-name,Values=running,pending,stopping,stopped",
+        "--query",
+        "Reservations[].Instances[].InstanceId"
+      ],
+      "result": []
+    },
+    {
+      "name": "nat",
+      "command": [
+        "ec2",
+        "describe-nat-gateways",
+        "--filter",
+        "Name=vpc-id,Values=vpc-07003d15b04531ccc",
+        "--query",
+        "NatGateways[?State!=`deleted`].[NatGatewayId,State]"
+      ],
+      "result": []
+    },
+    {
+      "name": "vpc",
+      "command": [
+        "ec2",
+        "describe-vpcs",
+        "--filters",
+        "Name=vpc-id,Values=vpc-07003d15b04531ccc",
+        "--query",
+        "Vpcs[].VpcId"
+      ],
+      "result": []
+    },
+    {
+      "name": "volumes",
+      "command": [
+        "ec2",
+        "describe-volumes",
+        "--filters",
+        "Name=tag-key,Values=sigs.k8s.io/cluster-api-provider-aws/cluster/managed-cluster-01",
+        "--query",
+        "Volumes[].VolumeId"
+      ],
+      "result": []
+    },
+    {
+      "name": "eips",
+      "command": [
+        "ec2",
+        "describe-addresses",
+        "--filters",
+        "Name=tag-key,Values=sigs.k8s.io/cluster-api-provider-aws/cluster/managed-cluster-01",
+        "--query",
+        "Addresses[].AllocationId"
+      ],
+      "result": []
+    },
+    {
+      "name": "elb",
+      "command": [
+        "elb",
+        "describe-load-balancers",
+        "--query",
+        "LoadBalancerDescriptions[?VPCId==`vpc-07003d15b04531ccc`].LoadBalancerName"
+      ],
+      "result": []
+    },
+    {
+      "name": "nlb",
+      "command": [
+        "elbv2",
+        "describe-load-balancers",
+        "--query",
+        "LoadBalancers[?VpcId==`vpc-07003d15b04531ccc` || contains(DNSName,`ae600124bbf6248199d1a2f05b33119a`)].LoadBalancerName"
+      ],
+      "result": []
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:49:53.281Z",
+  "ended": "2026-09-08T14:49:53.709Z",
+  "command": "curl -fsSG http://127.0.0.1:8481/select/0/prometheus/api/v1/query --data-urlencode 'query=count by (cluster)(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate)'",
+  "code": 0,
+  "stdout": "{\"status\":\"success\",\"isPartial\":false,\"data\":{\"resultType\":\"vector\",\"result\":[{\"metric\":{\"cluster\":\"managed-cluster-01\"},\"value\":[1788878993,\"68\"]},{\"metric\":{\"cluster\":\"mothership\"},\"value\":[1788878993,\"165\"]}]},\"stats\":{\"seriesFetched\": \"233\",\"executionTimeMsec\":12}}",
+  "stderr": ""
+}

@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:56:29.630Z",
+  "ended": "2026-09-08T14:56:30.686Z",
+  "command": "set -euo pipefail\nkubectl explain awscluster.spec.network.additionalControlPlaneIngressRules --recursive | head -45\nkubectl patch awscluster managed-cluster-01 -n kcm-system --type=json -p='[{\"op\":\"add\",\"path\":\"/spec/network/additionalControlPlaneIngressRules/-\",\"value\":{\"description\":\"QA audit SSH\",\"protocol\":\"tcp\",\"fromPort\":22,\"toPort\":22,\"cidrBlocks\":[\"82.64.226.65/32\"]}}]'\n",
+  "code": 0,
+  "stdout": "GROUP:      infrastructure.cluster.x-k8s.io\nKIND:       AWSCluster\nVERSION:    v1beta2\n\nFIELD: additionalControlPlaneIngressRules <[]Object>\n\n\nDESCRIPTION:\n    AdditionalControlPlaneIngressRules is an optional set of ingress rules to\n    add to the control plane\n    IngressRule defines an AWS ingress rule for security groups.\n    \nFIELDS:\n  cidrBlocks\t<[]string>\n  description\t<string> -required-\n  fromPort\t<integer> -required-\n  ipv6CidrBlocks\t<[]string>\n  natGatewaysIPsSource\t<boolean>\n  protocol\t<string> -required-\n  enum: -1, 4, tcp, udp, ....\n  sourceSecurityGroupIds\t<[]string>\n  sourceSecurityGroupRoles\t<[]string>\n  toPort\t<integer> -required-\n\nawscluster.infrastructure.cluster.x-k8s.io/managed-cluster-01 patched\n",
+  "stderr": "Warning: primary control plane load balancer is using a classic elb which is deprecated & support will be removed in a future release, please consider using another type of load balancer instead\n"
+}

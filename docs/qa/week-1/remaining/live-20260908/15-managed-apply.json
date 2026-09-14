@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:20:05.168Z",
+  "ended": "2026-09-08T14:20:06.321Z",
+  "command": "# Apply the cluster configuration\nkubectl apply -f /tmp/managed-cluster-01.yaml\n\n# Verify it was created\nkubectl get clusterdeployment managed-cluster-01 -n kcm-system\n",
+  "code": 0,
+  "stdout": "clusterdeployment.k0rdent.mirantis.com/managed-cluster-01 created\nNAME                 READY   SERVICES   TEMPLATE                   MESSAGES   AGE\nmanaged-cluster-01                      aws-standalone-cp-1-0-26              0s\n",
+  "stderr": ""
+}

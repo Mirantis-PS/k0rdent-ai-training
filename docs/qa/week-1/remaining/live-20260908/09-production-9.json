@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:19:06.905Z",
+  "ended": "2026-09-08T14:19:07.746Z",
+  "command": "source /opt/k0rdent-lab/config/lab-info.env\n# Create the BackupStorageLocation pointing to your S3 bucket\ncat <<EOF | kubectl apply -f -\napiVersion: velero.io/v1\nkind: BackupStorageLocation\nmetadata:\n  name: aws-s3\n  namespace: kcm-system\nspec:\n  provider: aws\n  config:\n    region: $AWS_REGION\n  credential:\n    name: cloud-credentials\n    key: cloud\n  objectStorage:\n    bucket: $ARTIFACTS_BUCKET\n    prefix: velero-backups\nEOF\n",
+  "code": 0,
+  "stdout": "backupstoragelocation.velero.io/aws-s3 created\n",
+  "stderr": ""
+}

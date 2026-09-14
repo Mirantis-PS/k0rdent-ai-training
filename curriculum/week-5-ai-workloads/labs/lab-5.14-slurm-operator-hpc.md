@@ -189,7 +189,9 @@ The Slinky operator is installed via three OCI-based Helm charts: CRDs, operator
    kubectl get pods -n gpu-operator -l app.kubernetes.io/managed-by=gpu-operator
 
    # Verify cgroup v2 on a node
-   kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.containerRuntimeVersion}'
+   # On each worker through its configured SSH/console access:
+   stat -fc %T /sys/fs/cgroup
+   # Expected: cgroup2fs (a runtime version string does not establish cgroup mode)
    ```
 
    > If cert-manager is not installed:
@@ -268,7 +270,7 @@ The Slinky `slurm` Helm chart deploys a complete Slurm cluster using the operato
      # Adjust StorageClass for your environment:
      # AWS EKS: efs-sc (requires EFS CSI driver)
      # On-prem: nfs-client
-     # storageClassName: efs-sc
+     storageClassName: <your-provisioned-rwx-class>
    ```
 
    ```bash

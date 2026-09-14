@@ -10,7 +10,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Operations & Telemetry | Required | 2.5 hours |
+| Operations & Telemetry | Elective | 2.5 hours |
 
 ### Week 5 Learning Paths
 
@@ -106,7 +106,7 @@ By completing this lab, you will be able to:
 | OTLP transport to the external receiver | gRPC (`otlp/external`) | HTTP (`otlphttp/external`) | **gRPC** — lower overhead at fleet scale; HTTP is the test fallback. Both are valid OTLP transports. |
 | Exporter authentication | API key (`X-API-Key` header) | mTLS | **mTLS** — pairs with east-west + north-south encryption practices and is the production-grade default; API key is the test-only path |
 | Sampling | Always-on full rate | Tail-sampled traces | **Always-on for metrics + logs**; traces only may be tail-sampled — metrics and logs are the contractual signals for downstream consumers, so sampling traces is the only safe place to do it |
-| Buffering on the producer side | None | Persistent queue at the Collector (default `sending_queue`) | **Persistent queue with 1 h `max_elapsed_time`** — survives short external-ingest outages without breaching the 120-s SLA on the next event |
+| Buffering on the producer side | None | In-memory sending queue (default) | **File-backed queue plus a 1 h retry limit** — survives short external-ingest outages without breaching the 120-s SLA on the next event |
 | Whether to ship via Regional cluster first | Direct from child → external receiver | child → Regional KOF storage → external receiver | **Child → Regional → external** when Regional clusters exist (v1.4.0+); direct from child only when there is no Regional layer. Matches KOF's documented three-layer flow. |
 
 ---
@@ -173,201 +173,118 @@ This is the pipeline you will extend — not replace.
 
 ---
 
-## Part 3: Add an OTLP exporter to KOF for the external receiver
+## Part 3: Generate an external exporter from the installed collector
 
-The Mirantis-supported pattern is to feed extra collector values into KOF's existing
-`MultiClusterService`, which KSM then reconciles to every child cluster.
+Use the committed [values generator](../../examples/telemetry/prepare-kof-values.py).
+It reads the **actual daemon CR** to reuse existing receivers/processors, adds
+separate external pipelines, and preserves chart-input mount lists. It refuses an
+undefined receiver or an endpoint without HTTPS. A deep merge preserves unrelated
+maps; lists are replaced, so the generator deliberately retains existing list items.
 
-> **How the `kof-collectors` values actually reach the child (KOF 1.6, validated live).**
-> On this release there is **one** KOF child `MultiClusterService` — `kof-child-cluster`
-> in `kcm-system` (Helm-managed by the `kof-child` release) — and it bundles three
-> services: `cert-manager`, `kof-operators`, and `kof-collectors`. You do **not** edit
-> that MCS directly (it is Helm-owned and its `kof-collectors` values are a Go template).
-> Instead, the template reads a per-cluster override from an annotation and deep-merges it
-> over KOF's stock config with Helm's `mergeOverwrite`:
->
-> ```
-> mergeOverwrite (dict) $globalValuesFromHelm $collectorsValuesHere $collectorsValuesFromHelm $collectorsValuesFromAnnotation
-> ```
->
-> The last argument (highest precedence) is `index .Cluster.metadata.annotations "k0rdent.mirantis.com/kof-collectors-values"`.
-> Two consequences you must get right:
-> - **Annotate the CAPI `Cluster` object, not the `ClusterDeployment`.** The template's
->   `.Cluster` is the CAPI `Cluster` (`kubectl get cluster <name> -n kcm-system`). A
->   `ClusterDeployment` annotation does **not** propagate and has no effect (verified: the
->   exporter never appeared until the annotation was moved onto the `Cluster`).
-> - Because it is `mergeOverwrite`, your override **extends** KOF's config — stock
->   exporters (`otlphttp/logs`, `otlphttp/traces`, `prometheusremotewrite`) and pipelines
->   survive alongside anything you add. This is the "extend, don't replace" guarantee, and
->   it is a deep merge of maps (new *keys* add; a key you also set is overwritten).
->
-> Set the override (the YAML below is the annotation value):
-
-```yaml
-# Value of the k0rdent.mirantis.com/kof-collectors-values annotation on the CAPI Cluster.
-# kof-collectors wraps the opentelemetry-kube-stack subchart, so per-collector
-# config is set under opentelemetry-kube-stack.collectors.<name>.config — here the
-# per-node `daemon` collector (renders as the kof-collectors-daemon CR).
-opentelemetry-kube-stack:
-  collectors:
-    daemon:
-      config:
-        exporters:
-          otlphttp/external:
-            endpoint: ${env:EXTERNAL_OTLP_ENDPOINT}
-            tls:
-              cert_file: /etc/otel/tls/tls.crt
-              key_file:  /etc/otel/tls/tls.key
-              ca_file:   /etc/otel/tls/ca.crt
-            sending_queue:
-              enabled: true
-              num_consumers: 4
-              queue_size: 5000
-            retry_on_failure:
-              enabled: true
-              initial_interval: 1s
-              max_interval: 30s
-              max_elapsed_time: 3600s   # 1-hour buffer
-        processors:
-          batch/external:
-            timeout: 5s
-            send_batch_size: 16384
-        service:
-          pipelines:
-            metrics/external:
-              receivers:  [prometheus, kubeletstats]   # adjust to KOF's receiver names on your version
-              processors: [transform/external, batch/external]
-              exporters:  [otlphttp/external]
-            logs/external:
-              receivers:  [filelog/syslog, filelog/fabric-manager, filelog/subnet-manager, journald, syslog]
-              processors: [transform/external, batch/external]
-              exporters:  [otlphttp/external]
-            traces/external:
-              receivers:  [otlp]
-              processors: [batch/external]
-              exporters:  [otlphttp/external]
-```
-
-> **Note on naming:** KOF's actual receiver and pipeline names are set by the `opentelemetry-kube-stack` subchart. Inspect `kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o yaml` for the canonical names on your version before copy-pasting. `filelog/fabric-manager` and `filelog/subnet-manager` are receivers you add in Part 5 — they are not present in a default KOF install. The `daemon` collector already ships stock `metrics`, `logs`, and `traces` pipelines (verified: `traces` = `[otlp] → [otlphttp/traces]`); adding new `*/external` pipeline keys as above leaves those stock pipelines untouched.
-
-> **Transport adaptation (test receiver).** The `tls:` block above is the production mTLS
-> path. For a plain-HTTP in-cluster receiver (e.g. a throwaway Jaeger all-in-one), drop the
-> `cert_file`/`key_file`/`ca_file` stanza and use `tls: {insecure: true}` with an `http://`
-> endpoint — that is what was validated live against `http://jaeger.ext-otlp.svc.cluster.local:4318`.
-
-Apply the override by annotating the **CAPI `Cluster`** object (not the `ClusterDeployment` —
-see the box above), then verify KSM reconciles the merged config to the child cluster:
+Run from the repository root. Set explicit management/workload kubeconfigs and the
+actual cluster name (Lab 5.1 uses `gpu-cluster`). The external receiver must accept
+**both metrics and logs** over OTLP/HTTP and have a certificate whose SAN matches
+its DNS name. A trace-only Jaeger receiver cannot validate this exercise. Obtain a
+CA and client certificate/key trusted by that receiver, then install them without
+putting private keys in values or annotations:
 
 ```bash
-# collectors-values.yaml holds the opentelemetry-kube-stack:... block from above
-kubectl annotate cluster <child-cluster> -n kcm-system \
-  "k0rdent.mirantis.com/kof-collectors-values=$(cat collectors-values.yaml)" --overwrite
-
-# On the child cluster (reconciles in ~30-60 s)
-kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o yaml \
-  | yq '.spec.config.exporters | keys'
-# Expected: KOF's stock exporters (otlphttp/logs, otlphttp/traces, prometheusremotewrite,
-# debug, nop) AND 'otlphttp/external' — proof the values MERGE, not replace.
+export MGMT_KUBECONFIG=$HOME/.kube/config
+export WORKLOAD_KUBECONFIG=$HOME/.kube/gpu-cluster.conf
+export CLUSTER_NAME=gpu-cluster
+export EXTERNAL_OTLP_ENDPOINT=https://otel.example.com:4318
+# Replace the three local file paths with receiver-issued credentials.
+kubectl --kubeconfig "$WORKLOAD_KUBECONFIG" -n kof create secret generic kof-external-client \
+  --from-file=ca.crt=/secure/external-ca.crt --from-file=tls.crt=/secure/client.crt \
+  --from-file=tls.key=/secure/client.key --dry-run=client -o yaml | \
+  kubectl --kubeconfig "$WORKLOAD_KUBECONFIG" apply -f -
+helm --kubeconfig "$WORKLOAD_KUBECONFIG" -n kof get values kof-collectors --all -o json > /tmp/kof-values.json
+kubectl --kubeconfig "$WORKLOAD_KUBECONFIG" -n kof get opentelemetrycollector kof-collectors-daemon -o json > /tmp/kof-daemon.json
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n kcm-system get cluster "$CLUSTER_NAME" -o json | \
+  jq -r '.metadata.annotations["k0rdent.mirantis.com/kof-collectors-values"] // "{}"' > /tmp/kof-before.yaml
+python3 curriculum/examples/telemetry/prepare-kof-values.py --mode external \
+  --values /tmp/kof-values.json --collector /tmp/kof-daemon.json \
+  --existing /tmp/kof-before.yaml --endpoint "$EXTERNAL_OTLP_ENDPOINT" > /tmp/kof-external.yaml
 ```
 
----
+The separate `kof-external-client` Secret and `/etc/otel/external` mount preserve
+any Week 1 ingest credentials. Do not replace the storage-ingest client Secret.
 
-## Part 4: Cover the 5 network-telemetry domains via KOF labelling
-
-The canonical telemetry surface for AI infrastructure spans **five** network domains. Stamp each metric/log with a `net.domain` resource attribute so downstream consumers can filter:
-
-| Domain | KOF source | Resource attribute |
-|--------|------------|---------------------|
-| **North-South (Front-End)** | KOF scrapes ingress (`ingress-nginx`) metrics; promxy aggregates | `net.domain=north-south` |
-| **East-West (Back-end)** | `node_exporter` InfiniBand counters; DCGM PCIe/NVLink counters; UFM REST polling | `net.domain=east-west` |
-| **Management** | KOF's apiserver/kcm metrics (already in collection) | `net.domain=mgmt` |
-| **NVSwitch Fabric** (GB200+) | `nvidia-fabric-manager` exposed metrics + Subnet Manager logs | `net.domain=nvswitch` |
-| **Host Network** | `prometheus`/`kubeletstats` host metrics (already in kof-collectors-daemon) | `net.domain=host` |
-
-Use a `transform` processor in the kof-collectors values patch to stamp the right label by source. Example for east-west:
-
-```yaml
-processors:
-  transform/external:
-    metric_statements:
-      - context: datapoint
-        statements:
-          - set(resource.attributes["net.domain"], "east-west") where IsMatch(metric.name, "^node_infiniband_.*|^DCGM_FI_PROF_NVLINK_.*")
-          - set(resource.attributes["net.domain"], "host")      where IsMatch(metric.name, "^system_network_.*")
-          - set(resource.attributes["net.domain"], "north-south") where resource.attributes["k8s.namespace.name"] == "ingress-nginx"
-          - set(resource.attributes["net.domain"], "mgmt")       where IsMatch(metric.name, "^apiserver_.*|^kcm_.*")
-          - set(resource.attributes["net.domain"], "nvswitch")   where IsMatch(metric.name, "^nvidia_fabric_manager_.*")
-```
-
-For UFM REST data, KOF can scrape via a `prometheus` receiver pointing at a UFM exporter sidecar (or you can convert UFM events to logs via a small forwarder if you don't run a UFM Prometheus exporter).
-
----
-
-## Part 5: Cover the 9 standard log sources
-
-The standard scope for AI infrastructure observability includes the following log sources. Map each to a KOF receiver:
-
-| Log source | KOF receiver | Notes |
-|------------|--------------|-------|
-| Fabric Manager logs (NVLink) | `filelog/fabric-manager` on `/var/log/fabricmanager.log` (GB200+ nodes only) | Present when `nvidia-fabric-manager` runs |
-| Subnet Manager logs (NVLink) | `filelog/subnet-manager` on `/var/log/opensm.log` | Where the operator runs SM |
-| VPC Flow logs | Cloud-provider receiver — KOF doesn't ship a VPC Flow scraper out of box; add `awss3` (or equivalent cloud receiver) per region | One config per region |
-| UFM Event logs | `httpcheck` + `filelog` against UFM REST `/ufmRest/app/events` (poll every 10 s) | KOF-friendly |
-| General Switch Logs / Switch syslogs / Switch kernel logs | `syslog` receiver on the kof-collectors Collector, TCP/6514 with TLS | Configure switches to forward via TLS for transport encryption |
-| BMC SEL logs | `filelog` against a BMC-polling sidecar (Redfish or `ipmitool sel list`) on a scheduled basis | Pairs with Lab 2.4 (BMC hardening) |
-| Host syslogs | Already covered by KOF's default `filelog/syslog` | Out of the box |
-
-Sample syslog receiver patch (added to kof-collectors values):
-
-```yaml
-opentelemetry-kube-stack:
-  collectors:
-    daemon:
-      config:
-        receivers:
-          syslog:
-            tcp:
-              listen_address: 0.0.0.0:6514
-              tls:
-                cert_file: /etc/otel/syslog-tls/tls.crt
-                key_file:  /etc/otel/syslog-tls/tls.key
-            protocol: rfc5424
-            location: UTC
-```
-
-Configure each switch to forward syslog over TLS to the Collector's syslog endpoint — production-grade transport encryption.
-
----
-
-## Part 6: Validate end-to-end latency ≤ 120 s
-
-Inject a synthetic event and time it from emission to OTLP receiver.
-
-**Test 1 — synthetic log.**
+Inspect the generated YAML and render with the pinned chart and current values:
 
 ```bash
-# On a child-cluster GPU node
-ssh gpu-node-1 'logger -t otel-latency-test "PROBE_$(date +%s%N)"'
-
-# In the external OTLP receiver, find the line, subtract the nanosecond timestamp from the receive time
-# Target: ≤ 120 s; expect ≤ 30 s with this config
+helm template kof-collectors oci://ghcr.io/k0rdent/kof/charts/kof-collectors \
+  --version 1.6.0 -n kof -f /tmp/kof-values.json -f /tmp/kof-external.yaml > /tmp/kof-rendered.yaml
+# Apply the values through the owning KOF MCS's CAPI Cluster annotation.
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n kcm-system annotate cluster "$CLUSTER_NAME" \
+  k0rdent.mirantis.com/kof-collectors-values="$(cat /tmp/kof-external.yaml)" --overwrite
+kubectl --kubeconfig "$WORKLOAD_KUBECONFIG" -n kof get opentelemetrycollector kof-collectors-daemon -o yaml
 ```
 
-**Test 2 — synthetic metric.** Push a custom counter via the kof-collectors local OTLP HTTP endpoint:
+Do not edit the Helm-owned MCS or the resulting collector CR. Confirm the rendered
+receivers/exporters exist and the operator rolls out healthy pods. Validate the
+complete rendered config with the exact collector image's `validate --config=...`
+command before accepting a change. Re-generate after a KOF upgrade instead of
+blindly carrying old pipeline names forward.
+
+## Part 4: Buffering and labels
+
+The generated daemon configuration uses `file_storage/external` and a node-local
+hostPath queue. It survives a collector pod/process restart on the **same node**;
+it does not survive node/disk loss and is not a replicated queue. `max_elapsed_time`
+is the retry limit, not retention capacity. Watch queue size, capacity and failed
+exports. Resource attributes from KOF's existing pipelines are preserved.
+
+For additional network-domain attributes, classify each receiver/source explicitly.
+Do not infer a whole resource's domain from one metric name: multiple metrics can
+share that resource. Use separate source pipelines/resource processors where needed.
+
+## Part 5: Extend the source inventory deliberately
+
+The baseline exports sources already configured in KOF, including audit logs when
+Lab 1.9 is complete. Fabric-manager files, subnet-manager files and switch syslog
+are hardware-specific extensions. For each, provide the exact file/mount or TLS
+listener, parsing rules and receiver definition before adding its name to a
+pipeline. Re-render and validate with the installed collector image. Unsupported
+or absent hardware sources are N/A, not evidence that all network domains were
+observed. Record a source-to-receiver-to-backend table with the exercise evidence.
+
+## Part 6: End-to-end latency and recovery acceptance
+
+Synchronize clocks on source and receiver. Identify the daemon collector pod on a
+GPU node and port-forward its enabled OTLP HTTP port (verify `spec.config.receivers.otlp`
+first). This avoids assuming port 4318 is available on the administration machine:
 
 ```bash
-curl -X POST -H 'Content-Type: application/json' \
-  http://localhost:4318/v1/metrics \
-  -d @- <<EOF
-{ "resourceMetrics": [ { "resource": { "attributes": [{"key":"net.domain","value":{"stringValue":"mgmt"}}] },
-  "scopeMetrics": [ { "metrics": [ { "name": "otel.latency.probe", "gauge": {
-  "dataPoints": [{ "asDouble": 1.0, "timeUnixNano": "$(date +%s%N)" }] } } ] } ] } ] }
-EOF
+kubectl --kubeconfig "$WORKLOAD_KUBECONFIG" -n kof get pods -o wide
+kubectl --kubeconfig "$WORKLOAD_KUBECONFIG" -n kof port-forward pod/<daemon-pod-name> 4318:4318
 ```
 
-**Test 3 — buffered-recovery test.** Use a `NetworkPolicy` to block the kof-collectors egress for 30 s; re-enable. Confirm the `sending_queue` catches up *without* breaching the 120-s window for events generated *after* recovery.
+In a second terminal, generate a portable nanosecond timestamp and submit probes:
 
-Record all three results in a latency-evidence log.
+```bash
+PROBE_NS=$(python3 -c 'import time; print(time.time_ns())')
+PROBE_ID="kof-latency-$PROBE_NS"
+jq -n --arg ts "$PROBE_NS" --arg id "$PROBE_ID" \
+  '{resourceLogs:[{scopeLogs:[{logRecords:[{timeUnixNano:$ts,body:{stringValue:$id}}]}]}]}' | \
+  curl --fail-with-body -H 'Content-Type: application/json' --data-binary @- http://localhost:4318/v1/logs
+jq -n --arg ts "$PROBE_NS" \
+  '{resourceMetrics:[{scopeMetrics:[{metrics:[{name:"otel.latency.probe",gauge:{dataPoints:[{asDouble:1,timeUnixNano:$ts}]}}]}]}]}' | \
+  curl --fail-with-body -H 'Content-Type: application/json' --data-binary @- http://localhost:4318/v1/metrics
+```
+
+Find both probes at the external receiver and calculate arrival time minus emission
+time; the target is ≤120 seconds. Then interrupt only that receiver's connectivity
+for 30 seconds using your test receiver's firewall/NetworkPolicy (verify it really
+blocks traffic). Submit probes during the outage, restart the daemon pod on the
+same node, restore connectivity, and confirm buffered probes arrive. Record loss,
+duplicates and delay of the buffered probes as well as new probes after recovery.
+A retry timeout or queue saturation is a failed resilience test, not an SLA pass.
+
+Restore the previous annotation from `/tmp/kof-before.yaml` to revert. Remove the
+external client Secret only after no collector uses it. Keep live evidence separate
+from static/chart validation; this revised recipe still needs a qualified endpoint
+and cluster to establish end-to-end acceptance.
 
 ---
 
@@ -377,11 +294,11 @@ Record all three results in a latency-evidence log.
 - [ ] KOF `OpenTelemetryCollector` CR present on every child cluster and Healthy
 - [ ] `otlphttp/external` (or `otlp/external`) exporter visible in the rendered Collector config
 - [ ] `MultiClusterService` reconciles the patched values to all child clusters (no drift)
-- [ ] All 5 network domains have at least one metric flowing with the correct `net.domain` resource attribute
-- [ ] All 9 log sources (where applicable) appear at the external OTLP receiver
+- [ ] Every applicable source is mapped to its receiver and verified at the external endpoint; absent hardware domains are marked N/A
+- [ ] Existing KOF log sources and each configured extension appear at the external receiver
 - [ ] mTLS configured on the Collector → external receiver hop
 - [ ] Synthetic probe latency measured ≤ 120 s in all three test conditions
-- [ ] Buffered queue tested (1-hour `max_elapsed_time`) survives ≥ 30 s egress outage
+- [ ] Buffered probes survive a 30-second outage and same-node collector restart; retry limit and disk capacity are recorded
 - [ ] No parallel "shadow" OpenTelemetry Collector deployed alongside KOF
 
 ---

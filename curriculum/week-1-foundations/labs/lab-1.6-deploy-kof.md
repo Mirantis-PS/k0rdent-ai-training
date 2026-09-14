@@ -202,7 +202,7 @@ kubectl get storageclass  # Should now show 'local-path'
 
 ### Step 2: Install KOF Operators
 
-> **Note:** Each Helm install in this section uses `--wait`, which blocks until all pods are Ready. On resource-constrained nodes, installs may take longer than expected. If a `--wait` times out, check pod status with `kubectl get pods -n kof` -- if pods are still starting (ContainerCreating/Init), simply re-run the same `helm upgrade` command.
+> **Note:** Each Helm install uses `--wait` for chart-managed workloads. Operators create additional workloads asynchronously, so Helm success alone does not prove every KOF pod or telemetry path is ready. On resource-constrained nodes, installs may take longer than expected. If a `--wait` times out, check pod status with `kubectl get pods -n kof` -- if pods are still starting (ContainerCreating/Init), simply re-run the same `helm upgrade` command.
 
 ```bash
 # Install KOF operators (Grafana + OpenTelemetry operators)
@@ -273,6 +273,18 @@ helm upgrade -i --reset-values --wait -n kof kof-storage \
   --timeout 10m
 ```
 
+### Load recording rules for local storage
+
+In this single-management-cluster layout, the operator generates recording rules in a ConfigMap. Pass them to the storage chart so its VMRule resources exist; a running VMAlert with no rules leaves CPU dashboards empty. Repeat this step after changing recording rules.
+
+```bash
+kubectl -n kof get configmap kof-record-vmrules-mothership -o jsonpath='{.data.values}' > /tmp/kof-record-rules.yaml
+test -s /tmp/kof-record-rules.yaml
+helm upgrade kof-storage oci://ghcr.io/k0rdent/kof/charts/kof-storage \
+  --version 1.6.0 -n kof --reuse-values -f /tmp/kof-record-rules.yaml --wait --timeout 5m
+kubectl -n kof get vmrules
+```
+
 ### Step 5: Install KOF Collectors
 
 ```bash
@@ -319,6 +331,9 @@ opentelemetry-kube-stack:
 opencost:
   opencost:
     exporter:
+      extraEnv:
+        PROM_CLUSTER_ID_LABEL: "cluster"
+        CURRENT_CLUSTER_ID_FILTER_ENABLED: "true"
       # OpenCost serves /healthz only after its initial AWS pricing-index
       # download and parse, which takes 3+ minutes on this fully-loaded
       # single node. The chart's default startup probe budget (~160s) kills
@@ -434,7 +449,7 @@ kubectl get clusterdeployment managed-cluster-01 -n kcm-system --show-labels
 
 #### Step 2: Create Cluster Configuration
 
-> **Networking Prerequisite:** The endpoints below use internal Kubernetes DNS names (e.g., `vminsert-cluster.kof.svc.cluster.local`) that are only resolvable **within the management cluster**. In this training environment, the managed cluster runs in a separate VPC without direct connectivity to these services. We complete this step to learn the configuration pattern -- collectors will deploy but show connection errors until cross-VPC networking is established (see "Training Environment Limitation" below).
+> **Networking prerequisite:** The initial internal endpoints below bootstrap the collector configuration. After the child collectors are installed, complete the [authenticated cross-VPC ingest exercise](../../examples/telemetry/cross-cluster-ingest.md). Internal `.svc` endpoints do not work across these separate VPCs; the lab is complete only when a child log and metric arrive centrally.
 
 The child cluster needs to know where to send telemetry. Create a ConfigMap with the storage endpoints:
 
@@ -670,30 +685,13 @@ When CAPA (Cluster API for AWS) provisions managed clusters, it creates a **new 
 | **AWS PrivateLink** | High | Per-endpoint cost | Enterprise security |
 | **Same-VPC Deployment** | Low | Free | Simplified networking |
 
-##### Option A: LoadBalancer Approach (Requires AWS CCM)
+##### Option A: Authenticated TLS ingest (baseline)
 
-To expose KOF services via AWS load balancers:
-
-```bash
-# 1. Ensure the AWS Cloud Controller Manager is running (required for LoadBalancer type).
-#    Plain k0s doesn't include a CCM, but the training management cluster already runs one --
-#    it's what provisioned the Classic ELB for the k0rdent UI in Lab 1.1.
-#    See: https://kubernetes.github.io/cloud-provider-aws/
-
-# 2. Patch services to LoadBalancer type
-kubectl patch svc vminsert-cluster -n kof -p '{"spec": {"type": "LoadBalancer"}}'
-kubectl patch svc kof-storage-victoria-logs-cluster-vlinsert -n kof -p '{"spec": {"type": "LoadBalancer"}}'
-kubectl patch svc kof-storage-jaeger-collector -n kof -p '{"spec": {"type": "LoadBalancer"}}'
-
-# 3. Wait for AWS to provision the load balancers (1-2 minutes)
-kubectl get svc -n kof -w
-
-# 4. Update ConfigMap with LoadBalancer DNS names
-VMINSERT_LB=$(kubectl get svc vminsert-cluster -n kof -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-# ... update kof-cluster-config-<cluster> ConfigMap
-```
-
-> **Important:** On clusters without a cloud controller manager, `type: LoadBalancer` services stay in `<pending>` state indefinitely. That's not the case here -- the management cluster's CCM **would** provision a load balancer for each patched service (a Classic ELB by default, ~$16+/month each). We don't run these patches in this lab: each exposed endpoint adds cost and would need to be secured (vmauth + TLS) before accepting telemetry from outside the VPC.
+Complete the [KOF 1.6 cross-cluster ingest procedure](../../examples/telemetry/cross-cluster-ingest.md).
+It provides one NLB-backed proxy with mutual TLS, a client Secret in the workload
+cluster, and a generated KOF values override preserving the existing mounts. It
+forwards metrics and logs to their private storage Services. Do not expose the
+unauthenticated storage Services directly as LoadBalancers.
 
 ##### Option B: VPC Peering
 
@@ -710,51 +708,13 @@ aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $PEERING_ID
 # 4. Update security groups to allow cross-VPC traffic on ports 8480, 9481, 4318
 ```
 
-#### Training Environment Limitation
+#### Acceptance in the training environment
 
-> **Training Environment Note:** In this training setup, the managed cluster runs in a separate AWS VPC created by CAPA, and the ConfigMap endpoints are internal Kubernetes DNS names that only resolve inside the management cluster. Bridging the two VPCs is a real infrastructure change: either expose each KOF storage service through a load balancer (Option A -- the management cluster's CCM can do this, but each ELB adds cost and the public endpoints must be secured with vmauth + TLS) or set up VPC peering with route table and security group changes (Option B). Both are beyond this lab's scope, so we don't establish the cross-VPC path here.
->
-> **What you'll observe:**
-> - Collectors deploy successfully on the child cluster
-> - Pods show `Running` status
-> - Collector logs show connection errors to management cluster endpoints
->
-> **This is expected behavior** - the collectors are correctly configured, but network connectivity isn't established.
->
-> **For this lab**, we complete the labeling and configuration steps to understand the pattern. The key learning objectives are:
-> 1. How to label clusters for automatic KOF deployment
-> 2. How MultiClusterService distributes workloads
-> 3. What configuration is needed for telemetry endpoints
->
-> In production, you would implement one of the networking solutions above.
-
-### Verify Child Cluster Collectors
-
-Once networking is configured and collectors are deployed:
-
-```bash
-# Check KOF pods on managed cluster
-KUBECONFIG=/tmp/managed-cluster-01.kubeconfig kubectl get pods -n kof
-
-# Expected pods:
-# - kof-collectors-cluster-stats-collector-xxx
-# - kof-collectors-daemon-collector-xxx (DaemonSet)
-# - kof-collectors-kube-state-metrics-xxx
-# - kof-collectors-prometheus-node-exporter-xxx
-# - kof-collectors-opencost-xxx
-
-# Check if metrics are being exported (look for no errors)
-KUBECONFIG=/tmp/managed-cluster-01.kubeconfig kubectl logs -n kof -l app.kubernetes.io/name=opentelemetry-collector --tail=20
-```
-
-### Component Summary
-
-| Component | Deployed On | Purpose |
-|-----------|-------------|---------|
-| **kof-child** | Management cluster | Creates MultiClusterService to auto-deploy collectors |
-| **kof-collectors** | Child clusters | OpenTelemetry, kube-state-metrics, node-exporter, OpenCost |
-| **kof-regional** | Regional clusters | Storage + aggregation for a region |
-| **vmauth credentials** | Auto-distributed | Authentication for remote write |
+Collector connection errors indicate an incomplete ingest path. Complete Option A,
+then demonstrate both a child log and a current child metric in management Grafana.
+Keep the disconnected state as a troubleshooting observation, not a passing result.
+The baseline covers metrics and logs; traces and multi-region routing are electives.
+VPC peering alone does not make another cluster's Service CIDRs or `.svc` DNS usable.
 
 ## Part 4: Access Grafana Dashboards (~15 min)
 
@@ -795,6 +755,8 @@ If accessing remotely from your local machine, use the lab helper script -- it h
 # From your local machine, in lab-infrastructure/
 ./scripts/lab-connect.sh <your-engineer-id> --tunnel 3000:3000
 ```
+
+If local port 3000 is occupied, use `--tunnel 13000:3000` and browse to `http://127.0.0.1:13000`. Confirm the tunnel binds successfully before entering credentials.
 
 This opens an SSH session to the management node with local port 3000 forwarded. Make sure the `kubectl port-forward` from the previous step is running in that session (re-run it there if needed), then browse to `http://localhost:3000` locally.
 
@@ -850,8 +812,8 @@ Navigate to **Dashboards** in the left menu. KOF includes pre-built dashboards o
 ### Exercise: Explore Dashboards
 
 Spend 15 minutes exploring:
-- [ ] Open the `k0rdent-state` dashboard to see cluster overview
-- [ ] Check `kps-cluster-total` for resource utilization
+- [ ] Open the `k0rdent kube state` dashboard to see cluster overview
+- [ ] Open **KPS / Kubernetes / Compute Resources / Cluster**, select the cluster, and verify CPU and memory data (the resource name is `kps-cluster-total`)
 - [ ] Explore `cluster-api` to see CAPI controller activity
 - [ ] Look at `kps-etcd` to monitor etcd health
 
@@ -997,7 +959,8 @@ Before completing this lab, verify:
 - [ ] Grafana accessible via port-forward
 - [ ] Grafana showing ~50-60 pre-built dashboards
 - [ ] Metrics visible in VictoriaMetrics (query returns > 0 results)
-- [ ] (Optional) Managed cluster labeled with KOF role for child deployment
+- [ ] Child collectors configured with mTLS ingest; probe log and current child metric visible centrally
+- [ ] OpenCost allocation API returns namespace data; child query proxy is healthy
 
 ## Summary
 
@@ -1088,9 +1051,9 @@ kubectl get ns kof -o json | jq '.spec.finalizers=[]' | kubectl replace --raw "/
 
 ## Cost & Cleanup
 
-KOF adds roughly 25-30 pods to the management cluster (plus the collector pods on the managed cluster if you completed Part 3). This increases CPU/memory load on the existing nodes and creates a few small local-path PVCs, but it provisions **no new AWS resources** -- your hourly cost is unchanged from Lab 1.5.
+KOF adds roughly 25-30 pods to the management cluster (plus the collector pods on the managed cluster if you completed Part 3). This increases CPU/memory load on the existing nodes and creates a few small local-path PVCs, and the cross-VPC ingest exercise provisions an additional billable NLB. Include that NLB in cleanup; collector and PVC counts alone do not describe the AWS cost.
 
-**Do not tear anything down yet.** Labs 1.7 and 1.8 build directly on this running KOF stack and on the managed cluster from Lab 1.5. Final teardown instructions for the whole environment are at the end of Lab 1.8.
+**Do not tear anything down yet.** Labs 1.7–1.9 use this running stack and managed cluster. Complete audit acceptance in Lab 1.9 before returning to Lab 1.8’s teardown instructions.
 
 ## Next Lab
 

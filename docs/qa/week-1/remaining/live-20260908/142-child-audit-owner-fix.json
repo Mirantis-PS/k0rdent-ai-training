@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-09-08T14:58:27.306Z",
+  "command": "set -euo pipefail\nsudo chown kube-apiserver:kube-apiserver /etc/k0s/audit-policy.yaml\nsudo -u kube-apiserver test -r /etc/k0s/audit-policy.yaml\nsudo ls -ln /etc/k0s/audit-policy.yaml\n",
+  "code": 0,
+  "stdout": "-rw-r----- 1 993 991 1071 Sep  8 14:57 /etc/k0s/audit-policy.yaml\n",
+  "stderr": ""
+}

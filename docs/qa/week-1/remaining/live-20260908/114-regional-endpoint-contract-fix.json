@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:51:06.949Z",
+  "ended": "2026-09-08T14:51:08.012Z",
+  "command": "python3 - <<'PY'\nimport json,subprocess\nget=lambda args:json.loads(subprocess.check_output(['kubectl']+args))\nc=get(['-n','kcm-system','get','cm','kof-cluster-config-managed-cluster-01','-o','json'])\nd={'apiVersion':'v1','kind':'ConfigMap','metadata':{'name':'kof-management','namespace':'kcm-system'},'data':c['data']}\nsubprocess.run(['kubectl','apply','-f','-'],input=json.dumps(d).encode(),check=True)\nPY\nkubectl label clusterdeployment managed-cluster-01 -n kcm-system k0rdent.mirantis.com/kof-regional-cluster-name=management --overwrite\n",
+  "code": 0,
+  "stdout": "configmap/kof-management created\nclusterdeployment.k0rdent.mirantis.com/managed-cluster-01 labeled\n",
+  "stderr": "ControlSocket /Users/moustaphagueye/.ssh/control-10.0.9.27-22-ubuntu already exists, disabling multiplexing\r\n"
+}

@@ -131,10 +131,10 @@ Modern large language models exceed single-GPU or even single-node memory capaci
 ```
 Parameters:      140 GB (FP16)
 Gradients:       140 GB (FP16)
-Optimizer:       560 GB (FP32 master weights + momentum + variance)
+Optimizer/master: 840 GB (3 FP32 copies × 70B parameters)
 Activations:     ~100 GB (depends on batch/sequence)
 ─────────────────────────────
-Total:           ~940 GB = 12x A100-80GB minimum
+Total:           ~1220 GB; aggregate lower bound 16x 80GB, before sharding/buffer headroom
 ```
 
 ### Parallelism Strategies
@@ -324,7 +324,7 @@ The MPI Operator enables distributed training jobs on Kubernetes. There is no MP
 
 ### Task 2b: Adapt the NVIDIA PyTorch Image for MPI Operator (required, 15 min)
 
-The stock `nvcr.io/nvidia/pytorch:24.12-py3` image does **not** run under MPI Operator as-is. Three gaps must be closed before any MPIJob in this lab will work. All three fixes below were validated live (single-node, 4× A10G) — see the validation callout at the end of this task.
+The stock `nvcr.io/nvidia/pytorch:24.12-py3` image does **not** run under MPI Operator as-is. Three gaps must be closed before any MPIJob in this lab will work. The historical single-node smoke below validated this approach; the newly committed manifests and pinned dependencies still need a live run.
 
 **Gap 1 — no SSH server.** MPI Operator v2beta1 launches ranks by having the launcher `ssh` into each worker (this is true even for a single worker — the launcher pod is separate from the worker pod). The NVIDIA PyTorch image ships **no** `sshd` (`which sshd` → not found). If the worker runs `command: ["sleep", "infinity"]`, the operator's automatic `sshd` injection is suppressed (it only injects `/usr/sbin/sshd -De` when the worker sets *no* command) — and even if it did inject, the binary is absent. So each worker must install and start `sshd` itself.
 
@@ -334,85 +334,32 @@ The stock `nvcr.io/nvidia/pytorch:24.12-py3` image does **not** run under MPI Op
 
 1. **Create the shared worker bootstrap + env shim**
 
-   ```yaml
-   # Save as mpi-adapters.yaml
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: mpi-worker-bootstrap
-     namespace: distributed-training
-   data:
-     # Installs + starts sshd on port 22 (the operator's default) reading the
-     # operator-mounted /root/.ssh/authorized_keys. This is the worker's main process.
-     worker-init.sh: |
-       #!/bin/bash
-       set -e
-       export DEBIAN_FRONTEND=noninteractive
-       if ! command -v /usr/sbin/sshd >/dev/null 2>&1; then
-         apt-get update -qq
-         apt-get install -y -qq --no-install-recommends openssh-server >/dev/null
-       fi
-       mkdir -p /var/run/sshd
-       ssh-keygen -A
-       cat > /etc/ssh/sshd_mpi.conf <<EOF
-       Port 22
-       PermitRootLogin prohibit-password
-       PubkeyAuthentication yes
-       StrictModes no
-       AuthorizedKeysFile /root/.ssh/authorized_keys
-       EOF
-       exec /usr/sbin/sshd -D -e -f /etc/ssh/sshd_mpi.conf
-   ---
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: mpi-torch-shim
-     namespace: distributed-training
-   data:
-     # Runs on each rank (mpirun spawns it on the worker) and exec's the real command.
-     # MASTER_ADDR/MASTER_PORT are propagated from the launcher via `mpirun -x`.
-     run.sh: |
-       #!/bin/bash
-       export RANK="${OMPI_COMM_WORLD_RANK}"
-       export LOCAL_RANK="${OMPI_COMM_WORLD_LOCAL_RANK}"
-       export WORLD_SIZE="${OMPI_COMM_WORLD_SIZE}"
-       export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
-       export MASTER_PORT="${MASTER_PORT:-29500}"
-       exec "$@"
-   ```
+   Use the committed [adapter ConfigMap](../../examples/distributed-training/mpi-adapters.yaml),
+   generated from the adjacent worker, launcher and rank-mapping scripts. The worker
+   starts sshd and installs the framework dependencies before accepting the launcher;
+   the launcher fails after a bounded readiness wait. `/opt/mpi` avoids shadowing
+   training scripts mounted at `/scripts`.
+
 
    ```bash
-   kubectl apply -f mpi-adapters.yaml
+   kubectl apply -f curriculum/examples/distributed-training/mpi-adapters.yaml
    ```
 
 2. **The worker and launcher pattern used by every MPIJob below**
 
-   Each MPIJob's **Worker** container runs the bootstrap (mount the ConfigMaps and set `command: ["bash", "/bootstrap/worker-init.sh"]`), and its **Launcher** waits for worker `sshd`, disables host-key prompts, and wraps the Python command with the shim. For a **multi-node** (2× p4d) job, derive `MASTER_ADDR` from the first host in the operator-provided hostfile so rank 0's node is the rendezvous:
-
-   ```bash
-   # launcher preamble (bash -c), before mpirun:
-   command -v ssh >/dev/null 2>&1 || { apt-get update -qq && \
-     apt-get install -y -qq --no-install-recommends openssh-client >/dev/null; }
-   SSHOPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
-   for h in $(awk '{print $1}' /etc/mpi/hostfile); do
-     for i in $(seq 1 60); do ssh $SSHOPTS "$h" true 2>/dev/null && break; sleep 5; done
-   done
-   export MASTER_ADDR=$(awk 'NR==1{print $1}' /etc/mpi/hostfile)   # rank-0 host (multi-node)
-   export MASTER_PORT=29500
-   mpirun --allow-run-as-root --mca plm_rsh_args "$SSHOPTS" \
-     -np 16 -npernode 8 -bind-to none -map-by slot \
-     -x MASTER_ADDR -x MASTER_PORT -x NCCL_DEBUG=INFO -x LD_LIBRARY_PATH -x PATH \
-     /scripts/run.sh python /scripts/<your_script>.py <args>
-   ```
-
-   The `-x MASTER_ADDR -x MASTER_PORT` flags propagate those values to every rank; `run.sh` then fills in `RANK`/`LOCAL_RANK`/`WORLD_SIZE` from the per-process OMPI vars. `--mca plm_rsh_args "$SSHOPTS"` makes `mpirun`'s own `ssh` skip host-key verification.
+   Every committed job mounts `/opt/mpi`. The worker runs `worker-init.sh`;
+   the launcher runs `launch.sh`, waits for SSH, and selects the first worker in
+   `/etc/mpi/hostfile` as `MASTER_ADDR`. It exports the rendezvous address to each
+   MPI process, which runs `/opt/mpi/run.sh` before Python. Read these three scripts
+   to trace startup, readiness failure and rank mapping. Do not add a second
+   launcher preamble or mount another ConfigMap over `/opt/mpi`.
 
    > **⚠️ Validation status (live run 2026-07-07).** The three adaptations above were validated on a **single-node g5.12xlarge (4× A10G)** child cluster, gpu-operator 25.3.0, k0s v1.35.1:
    > - MPI Operator v0.8.0 install, worker `sshd` bootstrap, launcher `ssh`-wait, and the OMPI→torch shim were proven end-to-end — a trivial MPIJob spawned 4 ranks (rank 0–3, one per worker), and the **NCCL all-reduce test (Task 3) passed with each rank bound to a distinct GPU** (`rank 0 cudaDev 0`, `rank 1 cudaDev 1`, `rank 2 cudaDev 2`, `rank 3 cudaDev 3`).
    > - The DeepSpeed (Task 5) and FSDP (Task 6) **full training runs were not completed green** in the live window (the pip-install fix was applied after hitting PEP 668, but the run was cut short by cluster teardown). Treat Tasks 4–6 as **structurally fixed but needs-live-check**.
    > - Everything **multi-node** (2× p4d: `np=16`, cross-node bandwidth, the hostfile-derived `MASTER_ADDR`, NVLink/EFA numbers) is **doc-verified only** — this smoke ran on one node. On AWS, cross-node NCCL falls back to TCP anyway (see the EFA note in Task 3).
 
-   > **Single-node smoke variant (no p4d, ~$6/h on one g5.12xlarge).** To run this lab's logic without a 2-node p4d cluster, downscale every MPIJob: `Worker.replicas: 1`, `slotsPerWorker: 4`, `mpirun -np 4 -npernode 4`, `resources.limits.nvidia.com/gpu: 4`, **drop** the `rdma/rdma_shared_device_ib` resource, set `MASTER_ADDR=127.0.0.1` (all ranks on one pod), and use a tiny model (e.g. `gpt2` instead of `Llama-2-7b`) so it fits in 22 GiB A10G memory. This validates the distributed-training *logic* (NCCL, ZeRO-3, FSDP, checkpointing, rank→GPU mapping); bandwidth/NVLink/EFA claims require the full 2× p4d shape and stay doc-verified.
+   > **Single-node smoke variant (no p4d, ~$6/h on one g5.12xlarge).** To run this lab's logic without a 2-node p4d cluster, downscale every MPIJob: `Worker.replicas: 1`, `slotsPerWorker: 4`, `mpirun -np 4 -npernode 4`, `resources.limits.nvidia.com/gpu: 4`, keep the TCP baseline, reduce worker CPU/memory requests and shared-memory size to fit the allocatable node capacity, retain the hostfile-derived rendezvous address, and use a tiny model (e.g. `gpt2` instead of `Llama-2-7b`) so it fits in 22 GiB A10G memory. This validates the distributed-training *logic* (NCCL, ZeRO-3, FSDP, checkpointing, rank→GPU mapping); bandwidth/NVLink/EFA claims require the full 2× p4d shape and stay doc-verified.
 
 ### Task 3: Verify Multi-Node Connectivity (30 min)
 
@@ -422,119 +369,12 @@ Before training, verify NCCL communication across nodes.
 
 1. **Deploy Multi-Node NCCL Test**
 
-   > **Apply the Task 2b adaptations to this manifest.** Change each Worker to `command: ["bash", "/bootstrap/worker-init.sh"]` and mount the `mpi-worker-bootstrap` ConfigMap at `/bootstrap`; wrap the launcher's `python` invocation with the `ssh`-wait preamble and `/scripts/run.sh` shim (mount `mpi-torch-shim` at `/scripts`), and add `-x MASTER_ADDR -x MASTER_PORT`. Without these the launcher cannot reach the workers and `dist.init_process_group()` has no `RANK`/`MASTER_ADDR`. This NCCL job — with the shim — was the step validated live (4 ranks, each on a distinct GPU).
+   > The committed MPIJob manifest incorporates the Task 2b adapters. It uses TCP as the portable network baseline; select RDMA only after the separate hardware preflight succeeds.
 
-   ```yaml
-   # Save as nccl-multi-node-test.yaml
-   apiVersion: kubeflow.org/v2beta1
-   kind: MPIJob
-   metadata:
-     name: nccl-test
-     namespace: distributed-training
-   spec:
-     slotsPerWorker: 8
-     runPolicy:
-       cleanPodPolicy: Running
-     mpiReplicaSpecs:
-       Launcher:
-         replicas: 1
-         template:
-           spec:
-             containers:
-               - name: launcher
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command:
-                   - mpirun
-                   - --allow-run-as-root
-                   - -np
-                   - "16"
-                   - -npernode
-                   - "8"
-                   - -bind-to
-                   - none
-                   - -map-by
-                   - slot
-                   - -x
-                   - NCCL_DEBUG=INFO
-                   - -x
-                   - NCCL_IB_DISABLE=0
-                   - -x
-                   - NCCL_NET_GDR_LEVEL=SYS
-                   - -x
-                   - LD_LIBRARY_PATH
-                   - python
-                   - -c
-                   - |
-                     import torch
-                     import torch.distributed as dist
-                     import os
-                     dist.init_process_group(backend='nccl')
-                     rank = dist.get_rank()
-                     local_rank = int(os.environ.get('LOCAL_RANK', rank % 8))
-                     torch.cuda.set_device(local_rank)
-                     # All-reduce benchmark using PyTorch
-                     for size_mb in [1, 8, 64, 256, 1024, 4096]:
-                         tensor = torch.zeros(size_mb * 1024 * 1024 // 4, device=f'cuda:{local_rank}')
-                         torch.cuda.synchronize()
-                         start = torch.cuda.Event(enable_timing=True)
-                         end = torch.cuda.Event(enable_timing=True)
-                         # Warmup
-                         for _ in range(5):
-                             dist.all_reduce(tensor)
-                         torch.cuda.synchronize()
-                         start.record()
-                         iters = 20
-                         for _ in range(iters):
-                             dist.all_reduce(tensor)
-                         end.record()
-                         torch.cuda.synchronize()
-                         elapsed_ms = start.elapsed_time(end) / iters
-                         size_bytes = size_mb * 1024 * 1024
-                         algbw = size_bytes / (elapsed_ms / 1000) / 1e9
-                         busbw = algbw * (2 * (dist.get_world_size() - 1) / dist.get_world_size())
-                         if rank == 0:
-                             print(f'Size: {size_mb:>5} MB | Time: {elapsed_ms:>8.2f} ms | AlgBW: {algbw:>8.2f} GB/s | BusBW: {busbw:>8.2f} GB/s')
-                     dist.destroy_process_group()
-       Worker:
-         replicas: 2
-         template:
-           spec:
-             containers:
-               - name: worker
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command: ["sleep", "infinity"]
-                 env:
-                   - name: NCCL_DEBUG
-                     value: "INFO"
-                   - name: NCCL_IB_DISABLE
-                     value: "0"
-                   - name: NCCL_NET_GDR_LEVEL
-                     value: "SYS"
-                 resources:
-                   limits:
-                     nvidia.com/gpu: 8
-                     rdma/rdma_shared_device_ib: 8  # Or vpc.amazonaws.com/efa: 4 for AWS
-                   requests:
-                     nvidia.com/gpu: 8
-                 securityContext:
-                   capabilities:
-                     add: ["IPC_LOCK"]
-                 volumeMounts:
-                   - name: shm
-                     mountPath: /dev/shm
-             volumes:
-               - name: shm
-                 emptyDir:
-                   medium: Memory
-                   sizeLimit: 64Gi
-             tolerations:
-               - key: nvidia.com/gpu
-                 operator: Exists
-                 effect: NoSchedule
-   ```
+   Apply the supporting resources before the complete MPIJob manifest:
 
    ```bash
-   kubectl apply -f nccl-multi-node-test.yaml
+   kubectl apply -f curriculum/examples/distributed-training/nccl-multi-node-test.yaml
 
    # Watch the job
    kubectl logs -f -n distributed-training \
@@ -642,7 +482,7 @@ Megatron-LM is NVIDIA's framework for training large transformer models with 3D 
 
 4. **Create Megatron-LM Setup Script**
 
-   The NVIDIA PyTorch container does not include Megatron-LM. We clone it as part of the launcher setup.
+   The NVIDIA PyTorch container does not include Megatron-LM. The init container clones the same pinned revision independently on the launcher and each worker.
 
    ```yaml
    # Save as megatron-setup.yaml
@@ -660,182 +500,23 @@ Megatron-LM is NVIDIA's framework for training large transformer models with 3D 
        if [ ! -d "/workspace/Megatron-LM" ]; then
          echo "Cloning Megatron-LM..."
          cd /workspace
-         git clone --depth 1 https://github.com/NVIDIA/Megatron-LM.git
+         git clone --depth 1 --branch core_v0.10.0 https://github.com/NVIDIA/Megatron-LM.git
          cd Megatron-LM
-         pip install -e . 2>/dev/null || echo "Megatron-LM setup complete (editable install)"
        fi
 
        echo "Megatron-LM ready at /workspace/Megatron-LM"
    ```
 
 5. **Deploy Megatron Training Job**
-   > **Apply the Task 2b adaptations.** Worker = `bash /bootstrap/worker-init.sh` (mount `mpi-worker-bootstrap`); wrap `pretrain_gpt.py` with the `ssh`-wait preamble + `/scripts/run.sh` shim and `-x MASTER_ADDR -x MASTER_PORT` — Megatron reads `RANK`/`LOCAL_RANK`/`WORLD_SIZE`/`MASTER_ADDR` from the environment just like the other scripts. The `setup-megatron` init pattern already installs Megatron-LM into the shared `/workspace` volume; keep it. **Status: needs-live-check** — Megatron was not run live (it also needs a tokenizer + preprocessed `--data-path`, or `--mock-data`, which this smoke did not stand up).
+   > The committed MPIJob manifest incorporates the Task 2b adapters. It uses TCP as the portable network baseline; select RDMA only after the separate hardware preflight succeeds.
 
-   ```yaml
-   # Save as megatron-training.yaml
-   apiVersion: kubeflow.org/v2beta1
-   kind: MPIJob
-   metadata:
-     name: megatron-gpt-training
-     namespace: distributed-training
-   spec:
-     slotsPerWorker: 8
-     runPolicy:
-       cleanPodPolicy: Running
-       backoffLimit: 3
-     mpiReplicaSpecs:
-       Launcher:
-         replicas: 1
-         template:
-           spec:
-             initContainers:
-               - name: setup-megatron
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command: ["bash", "/scripts/setup.sh"]
-                 volumeMounts:
-                   - name: workspace
-                     mountPath: /workspace
-                   - name: setup-script
-                     mountPath: /scripts
-             containers:
-               - name: launcher
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command:
-                   - mpirun
-                   - --allow-run-as-root
-                   - -np
-                   - "16"
-                   - -npernode
-                   - "8"
-                   - -bind-to
-                   - none
-                   - -map-by
-                   - slot
-                   - -x
-                   - NCCL_DEBUG=WARN
-                   - -x
-                   - NCCL_IB_DISABLE=0
-                   - -x
-                   - NCCL_NET_GDR_LEVEL=SYS
-                   - -x
-                   - NCCL_P2P_LEVEL=NVL
-                   - -x
-                   - CUDA_DEVICE_MAX_CONNECTIONS=1
-                   - -x
-                   - LD_LIBRARY_PATH
-                   - python
-                   - /workspace/Megatron-LM/pretrain_gpt.py
-                   - --tensor-model-parallel-size=4
-                   - --pipeline-model-parallel-size=2
-                   - --num-layers=32
-                   - --hidden-size=4096
-                   - --num-attention-heads=32
-                   - --seq-length=2048
-                   - --max-position-embeddings=4096
-                   - --micro-batch-size=1
-                   - --global-batch-size=32
-                   - --train-iters=100
-                   - --lr=1.5e-4
-                   - --min-lr=1.5e-5
-                   - --lr-decay-style=cosine
-                   - --log-interval=1
-                   - --eval-interval=50
-                   - --save-interval=50
-                   - --fp16
-                   - --data-path=/data/preprocessed
-                   - --save=/checkpoints
-                   - --load=/checkpoints
-                 envFrom:
-                   - configMapRef:
-                       name: megatron-config
-                 volumeMounts:
-                   - name: workspace
-                     mountPath: /workspace
-                   - name: checkpoints
-                     mountPath: /checkpoints
-                   - name: data
-                     mountPath: /data
-             volumes:
-               - name: workspace
-                 emptyDir: {}
-               - name: setup-script
-                 configMap:
-                   name: megatron-setup
-                   defaultMode: 0755
-               - name: checkpoints
-                 persistentVolumeClaim:
-                   claimName: training-checkpoints
-               - name: data
-                 persistentVolumeClaim:
-                   claimName: training-data
-       Worker:
-         replicas: 2
-         template:
-           spec:
-             initContainers:
-               - name: setup-megatron
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command: ["bash", "/scripts/setup.sh"]
-                 volumeMounts:
-                   - name: workspace
-                     mountPath: /workspace
-                   - name: setup-script
-                     mountPath: /scripts
-             containers:
-               - name: worker
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command: ["sleep", "infinity"]
-                 envFrom:
-                   - configMapRef:
-                       name: megatron-config
-                 resources:
-                   limits:
-                     nvidia.com/gpu: 8
-                     rdma/rdma_shared_device_ib: 8
-                   requests:
-                     nvidia.com/gpu: 8
-                     memory: 512Gi
-                     cpu: "64"
-                 securityContext:
-                   capabilities:
-                     add: ["IPC_LOCK"]
-                 volumeMounts:
-                   - name: shm
-                     mountPath: /dev/shm
-                   - name: workspace
-                     mountPath: /workspace
-                   - name: checkpoints
-                     mountPath: /checkpoints
-                   - name: data
-                     mountPath: /data
-             volumes:
-               - name: shm
-                 emptyDir:
-                   medium: Memory
-                   sizeLimit: 256Gi
-               - name: workspace
-                 emptyDir: {}
-               - name: setup-script
-                 configMap:
-                   name: megatron-setup
-                   defaultMode: 0755
-               - name: checkpoints
-                 persistentVolumeClaim:
-                   claimName: training-checkpoints
-               - name: data
-                 persistentVolumeClaim:
-                   claimName: training-data
-             tolerations:
-               - key: nvidia.com/gpu
-                 operator: Exists
-                 effect: NoSchedule
-   ```
+   Apply the supporting resources before the complete MPIJob manifest:
 
    ```bash
    kubectl apply -f megatron-config.yaml
    kubectl apply -f megatron-setup.yaml
    kubectl apply -f training-storage.yaml
-   kubectl apply -f megatron-training.yaml
+   kubectl apply -f curriculum/examples/distributed-training/megatron-training.yaml
 
    # Monitor training
    kubectl logs -f -n distributed-training megatron-gpt-training-launcher-0
@@ -1014,8 +695,9 @@ DeepSpeed ZeRO partitions optimizer states across GPUs, enabling larger models w
                    print(f"Step {step}, Loss: {loss.item():.4f}")
 
            # Save model
-           if local_rank == 0:
-               model_engine.save_checkpoint("/checkpoints/deepspeed-final")
+           # DeepSpeed checkpointing is collective: every rank participates.
+           model_engine.save_checkpoint("/checkpoints/deepspeed-final", tag="final")
+           if torch.distributed.get_rank() == 0:
                print("Training complete. Checkpoint saved.")
 
        if __name__ == "__main__":
@@ -1026,133 +708,14 @@ DeepSpeed ZeRO partitions optimizer states across GPUs, enabling larger models w
 
    > **Critical: DeepSpeed Launcher vs MPI Operator.** DeepSpeed's own launcher (`deepspeed --num_gpus=... train.py`) uses SSH-based process spawning that conflicts with MPI Operator's mpirun orchestration. When using MPIJob, always launch with `mpirun ... python train.py --deepspeed --deepspeed_config=...` so that MPI Operator manages process distribution while DeepSpeed handles the optimization.
 
-   > **Apply the Task 2b adaptations AND install the Python packages on the workers.** `deepspeed`, `transformers`, and `accelerate` are not in the image. Because `mpirun` runs `train.py` on the workers, install there — run a one-shot install pass (`-npernode 1`, so once per node, race-free) in the launcher *before* the training `mpirun`:
-   >
-   > ```bash
-   > mpirun --allow-run-as-root --mca plm_rsh_args "$SSHOPTS" -npernode 1 -bind-to none \
-   >   -x PATH -x LD_LIBRARY_PATH \
-   >   pip install --no-cache-dir --break-system-packages \
-   >     'transformers==4.47.1' 'accelerate==1.2.1' 'deepspeed==0.16.2'
-   > ```
-   >
-   > `--break-system-packages` is required — the image's Python is PEP 668 "externally managed" and plain `pip install` fails with `error: externally-managed-environment` (confirmed live). Then run the training `mpirun` with `/scripts/run.sh python /scripts/train.py --deepspeed --deepspeed_config=...`. Worker = `bash /bootstrap/worker-init.sh` per Task 2b. **Status: needs-live-check** — the DeepSpeed ZeRO-3 run was not completed green in the live window.
+   > The committed manifest runs the pinned package installation during worker startup and maps MPI ranks through `/opt/mpi/run.sh`. TCP is the baseline. **Status: needs-live-check** — a complete multi-node training and checkpoint-resume run is still required.
 
-   ```yaml
-   # Save as deepspeed-training.yaml
-   apiVersion: kubeflow.org/v2beta1
-   kind: MPIJob
-   metadata:
-     name: deepspeed-llm-training
-     namespace: distributed-training
-   spec:
-     slotsPerWorker: 8
-     runPolicy:
-       cleanPodPolicy: Running
-     mpiReplicaSpecs:
-       Launcher:
-         replicas: 1
-         template:
-           spec:
-             containers:
-               - name: launcher
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command:
-                   - mpirun
-                   - --allow-run-as-root
-                   - -np
-                   - "16"
-                   - -npernode
-                   - "8"
-                   - -bind-to
-                   - none
-                   - -map-by
-                   - slot
-                   - -x
-                   - NCCL_DEBUG=WARN
-                   - -x
-                   - NCCL_IB_DISABLE=0
-                   - -x
-                   - NCCL_NET_GDR_LEVEL=SYS
-                   - -x
-                   - LD_LIBRARY_PATH
-                   - python
-                   - /scripts/train.py
-                   - --deepspeed
-                   - --deepspeed_config=/config/ds_config.json
-                 volumeMounts:
-                   - name: config
-                     mountPath: /config
-                   - name: train-script
-                     mountPath: /scripts
-                   - name: checkpoints
-                     mountPath: /checkpoints
-             volumes:
-               - name: config
-                 configMap:
-                   name: deepspeed-config
-               - name: train-script
-                 configMap:
-                   name: deepspeed-train-script
-               - name: checkpoints
-                 persistentVolumeClaim:
-                   claimName: training-checkpoints
-       Worker:
-         replicas: 2
-         template:
-           spec:
-             containers:
-               - name: worker
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command: ["sleep", "infinity"]
-                 env:
-                   - name: NCCL_DEBUG
-                     value: "WARN"
-                   - name: NCCL_IB_DISABLE
-                     value: "0"
-                   - name: NCCL_NET_GDR_LEVEL
-                     value: "SYS"
-                 resources:
-                   limits:
-                     nvidia.com/gpu: 8
-                     rdma/rdma_shared_device_ib: 8
-                   requests:
-                     nvidia.com/gpu: 8
-                 securityContext:
-                   capabilities:
-                     add: ["IPC_LOCK"]
-                 volumeMounts:
-                   - name: shm
-                     mountPath: /dev/shm
-                   - name: config
-                     mountPath: /config
-                   - name: train-script
-                     mountPath: /scripts
-                   - name: checkpoints
-                     mountPath: /checkpoints
-             volumes:
-               - name: shm
-                 emptyDir:
-                   medium: Memory
-                   sizeLimit: 256Gi
-               - name: config
-                 configMap:
-                   name: deepspeed-config
-               - name: train-script
-                 configMap:
-                   name: deepspeed-train-script
-               - name: checkpoints
-                 persistentVolumeClaim:
-                   claimName: training-checkpoints
-             tolerations:
-               - key: nvidia.com/gpu
-                 operator: Exists
-                 effect: NoSchedule
-   ```
+   Apply the supporting resources before the complete MPIJob manifest:
 
    ```bash
    kubectl apply -f deepspeed-config.yaml
    kubectl apply -f deepspeed-train-script.yaml
-   kubectl apply -f deepspeed-training.yaml
+   kubectl apply -f curriculum/examples/distributed-training/deepspeed-training.yaml
 
    # Monitor training
    kubectl logs -f -n distributed-training deepspeed-llm-training-launcher-0
@@ -1258,98 +821,13 @@ FSDP is PyTorch's native implementation of ZeRO-style sharding. It provides simi
    ```
 
 3. **Deploy FSDP Training Job**
-   > **Apply the Task 2b adaptations AND install `transformers` on the workers.** FSDP is native to PyTorch, but `fsdp_train.py` imports `transformers` (not in the image). Add the one-shot install pass in the launcher before training:
-   >
-   > ```bash
-   > mpirun --allow-run-as-root --mca plm_rsh_args "$SSHOPTS" -npernode 1 -bind-to none \
-   >   -x PATH -x LD_LIBRARY_PATH \
-   >   pip install --no-cache-dir --break-system-packages 'transformers==4.47.1'
-   > ```
-   >
-   > Then `/scripts/run.sh python /scripts/fsdp_train.py`; worker = `bash /bootstrap/worker-init.sh`. The shim is essential here — `fsdp_train.py` does `int(os.environ["LOCAL_RANK"])`, which `KeyError`s under raw `mpirun`. **Status: needs-live-check** — the FSDP training run was not completed green in the live window.
+   > The committed manifest runs the pinned package installation during worker startup and maps MPI ranks through `/opt/mpi/run.sh`. TCP is the baseline. **Status: needs-live-check** — a complete multi-node training and checkpoint-resume run is still required.
 
-   ```yaml
-   # Save as fsdp-training.yaml
-   apiVersion: kubeflow.org/v2beta1
-   kind: MPIJob
-   metadata:
-     name: fsdp-training
-     namespace: distributed-training
-   spec:
-     slotsPerWorker: 8
-     runPolicy:
-       cleanPodPolicy: Running
-     mpiReplicaSpecs:
-       Launcher:
-         replicas: 1
-         template:
-           spec:
-             containers:
-               - name: launcher
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command:
-                   - mpirun
-                   - --allow-run-as-root
-                   - -np
-                   - "16"
-                   - -npernode
-                   - "8"
-                   - -bind-to
-                   - none
-                   - -map-by
-                   - slot
-                   - -x
-                   - NCCL_DEBUG=WARN
-                   - -x
-                   - NCCL_NET_GDR_LEVEL=SYS
-                   - -x
-                   - LD_LIBRARY_PATH
-                   - python
-                   - /scripts/fsdp_train.py
-                 volumeMounts:
-                   - name: train-script
-                     mountPath: /scripts
-       Worker:
-         replicas: 2
-         template:
-           spec:
-             containers:
-               - name: worker
-                 image: nvcr.io/nvidia/pytorch:24.12-py3
-                 command: ["sleep", "infinity"]
-                 env:
-                   - name: NCCL_NET_GDR_LEVEL
-                     value: "SYS"
-                 resources:
-                   limits:
-                     nvidia.com/gpu: 8
-                   requests:
-                     nvidia.com/gpu: 8
-                 securityContext:
-                   capabilities:
-                     add: ["IPC_LOCK"]
-                 volumeMounts:
-                   - name: shm
-                     mountPath: /dev/shm
-                   - name: train-script
-                     mountPath: /scripts
-             volumes:
-               - name: shm
-                 emptyDir:
-                   medium: Memory
-                   sizeLimit: 256Gi
-               - name: train-script
-                 configMap:
-                   name: fsdp-train-script
-             tolerations:
-               - key: nvidia.com/gpu
-                 operator: Exists
-                 effect: NoSchedule
-   ```
+   Apply the supporting resources before the complete MPIJob manifest:
 
    ```bash
    kubectl apply -f fsdp-train-script.yaml
-   kubectl apply -f fsdp-training.yaml
+   kubectl apply -f curriculum/examples/distributed-training/fsdp-training.yaml
 
    # Monitor training
    kubectl logs -f -n distributed-training fsdp-training-launcher-0

@@ -1,0 +1,42 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages: ["RequestReceived"]
+rules:
+  # Drop control-plane chatter
+  - level: None
+    resources:
+      - group: ""
+        resources: ["events", "endpoints"]
+      - group: "coordination.k8s.io"
+        resources: ["leases"]
+      - group: "discovery.k8s.io"
+        resources: ["endpointslices"]
+
+  # Sensitive: log mutations, hide payloads
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps"]
+
+  # RBAC: log everything
+  - level: RequestResponse
+    resources:
+      - group: "rbac.authorization.k8s.io"
+        resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+
+  # Token issuance: never record the returned bearer token
+  - level: Metadata
+    verbs: ["create"]
+    resources:
+      - group: ""
+        resources: ["serviceaccounts/token"]
+
+  # Interactive pod access
+  - level: RequestResponse
+    verbs: ["create"]
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+
+  # Default
+  - level: Metadata

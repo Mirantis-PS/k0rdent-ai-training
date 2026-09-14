@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:01:35.882Z",
+  "ended": "2026-09-08T15:01:36.760Z",
+  "command": "set -euo pipefail\nhelm --kubeconfig=/tmp/managed-cluster-01.kubeconfig list -n envoy-gateway-system\ncurl -fsS --max-time 20 -H 'Host: gateway-test.example.com' http://a44edec12f30e4aa993e1c993a3b85a5-614695011.eu-west-1.elb.amazonaws.com | head -5\n",
+  "code": 0,
+  "stdout": "NAME         \tNAMESPACE           \tREVISION\tUPDATED                                \tSTATUS  \tCHART              \tAPP VERSION\nenvoy-gateway\tenvoy-gateway-system\t2       \t2026-09-08 14:55:08.396123133 +0000 UTC\tdeployed\tgateway-helm-v1.8.4\tv1.8.4     \n<!DOCTYPE html>\n<html>\n<head>\n<title>Welcome to nginx!</title>\n<style>\n",
+  "stderr": "ControlSocket /Users/moustaphagueye/.ssh/control-10.0.9.27-22-ubuntu already exists, disabling multiplexing\r\n"
+}

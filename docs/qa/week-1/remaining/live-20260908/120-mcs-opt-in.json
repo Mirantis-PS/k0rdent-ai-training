@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:52:46.900Z",
+  "ended": "2026-09-08T14:52:47.739Z",
+  "command": "kubectl label clusterdeployment managed-cluster-01 -n kcm-system policy-enabled=true --overwrite",
+  "code": 0,
+  "stdout": "clusterdeployment.k0rdent.mirantis.com/managed-cluster-01 labeled\n",
+  "stderr": "ControlSocket /Users/moustaphagueye/.ssh/control-10.0.9.27-22-ubuntu already exists, disabling multiplexing\r\n"
+}

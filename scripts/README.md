@@ -60,3 +60,17 @@ To check those, render to an image and look at it:
 ```bash
 npx -y @mermaid-js/mermaid-cli -i ../curriculum/path/to/file.md -o /tmp/out.md -e png -b white
 ```
+
+## `check-curriculum.py`
+
+Checks Week 1/5 YAML and Python fences, complete YAML shell heredocs, local file
+links and committed example YAML/Python/Bash files. Standalone fixtures additionally
+reject nonpositive topology maxSkew. This complements the existing link and Mermaid
+tools; it does not replace Helm rendering, versioned CRD admission, or live GPU tests.
+
+```bash
+python3 -m pip install PyYAML==6.0.2
+python3 scripts/check-curriculum.py
+# A specific changed directory/file is also accepted:
+python3 scripts/check-curriculum.py curriculum/week-5-ai-workloads
+```

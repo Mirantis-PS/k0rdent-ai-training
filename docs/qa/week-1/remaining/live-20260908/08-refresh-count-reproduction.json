@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T14:18:57.910Z",
+  "ended": "2026-09-08T14:18:59.954Z",
+  "command": "POD=$(kubectl get pods -n kcm-system -l cluster.x-k8s.io/provider=infrastructure-aws -o jsonpath='{.items[0].metadata.name}'); COUNT=$(kubectl logs -n kcm-system \"$POD\" | grep -c 'AuthFailure\\|RequestExpired' || echo 0); printf 'Captured count: <%s>\\n' \"$COUNT\"; kubectl get clustertemplate aws-standalone-cp-1-0-26 -n kcm-system -o jsonpath='{.status.config.controlPlane.instanceType}{\"\\n\"}{.status.config.k0s.version}{\"\\n\"}'; kubectl get credential aws-cluster-identity-cred -n kcm-system -o jsonpath='{.status}'",
+  "code": 0,
+  "stdout": "Captured count: <0\n0>\n\nv1.35.1+k0s.1\n{\"conditions\":[{\"lastTransitionTime\":\"2026-09-08T14:18:15Z\",\"message\":\"Credential is ready\",\"observedGeneration\":1,\"reason\":\"Succeeded\",\"status\":\"True\",\"type\":\"CredentialReady\"}],\"ready\":true}",
+  "stderr": ""
+}

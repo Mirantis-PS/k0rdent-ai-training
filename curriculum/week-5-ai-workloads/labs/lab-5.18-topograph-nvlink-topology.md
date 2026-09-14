@@ -10,7 +10,7 @@
 
 | Track | Tier | Duration |
 |-------|------|----------|
-| Operations & Telemetry | Required | 2 hours |
+| Operations & Telemetry | Elective | 2 hours |
 
 ### Week 5 Learning Paths
 
@@ -26,7 +26,7 @@
 
 **Duration:** 2 hours
 **Type:** Hands-on Technical
-**Environment:** Multi-node GPU cluster (≥4 GPU nodes, ideally on real or simulated NVLink fabric)
+**Environment:** Two free GPUs for the simulated placement baseline; qualified multi-node NVLink hardware for a performance comparison
 
 ## Table of Contents
 
@@ -75,14 +75,14 @@ By completing this lab, you will be able to:
 - [ ] Deploy NVIDIA's `topograph` reference implementation against a k0rdent-managed cluster
 - [ ] Query the topology API and validate the response shape
 - [ ] Read the K8s node labels topograph applies: `network.topology.nvidia.com/{leaf,spine,core}` for switch tiers and `network.topology.nvidia.com/accelerator` for the NVLink domain
-- [ ] Author a scheduler plugin or PodTopologySpread constraint that prefers in-domain placement
+- [ ] Select a single domain using required node affinity; distinguish colocation from topology spread
 - [ ] Measure throughput uplift vs naive placement on a multi-node NCCL all-reduce
 
 ---
 
 ## Prerequisites
 
-- Lab 4.4 (Cilium + Multus) — required (you need the secondary network)
+- Lab 4.4 (Cilium + Multus) is needed only for the optional secondary-network/RDMA path; ordinary label placement does not require it
 - Lab 5.3 (KAI Scheduler) **or** Lab 5.4 (Run:AI) — pick one; this lab integrates with whichever you ran
 - Lab 5.17 (OTel) — recommended (topology stats flow through OTel)
 - A working multi-node GPU cluster — ideally on real NVLink hardware; an InfiniBand / RoCE simulation works for the structure but not for performance validation in Part 6
@@ -217,11 +217,10 @@ kubectl get nodes -L \
 # `kubectl -n topograph get svc`.
 kubectl -n topograph port-forward svc/topograph 49021:49021 &
 curl -s http://localhost:49021/healthz    # -> OK
-# Async flow: request generation, capture the uid, then fetch by uid
-UID=$(curl -s -X POST -H 'Content-Type: application/json' \
-  -d '{"provider":{"name":"aws"},"engine":{"name":"k8s"}}' \
-  http://localhost:49021/v1/generate)
-curl -s "http://localhost:49021/v1/topology?uid=$UID" > switch-fabric-topology.json
+# From the repository root. The script checks HTTP 202/200 and polls with a deadline.
+bash curriculum/examples/topology/query-topology.sh http://localhost:49021 topology-result.txt
+# The k8s engine applies node labels; its result is not promised to be JSON.
+kubectl get nodes -L network.topology.nvidia.com/accelerator
 ```
 
 For production, front the REST endpoint with a proper service that adds:
@@ -265,77 +264,70 @@ For non-NVLink hardware (e.g. the g5 / A10G lab cluster) the accelerator label i
 
 ## Part 5: Integrate with the scheduler (KAI / Volcano)
 
-The simplest integration uses Kubernetes-native `PodTopologySpread` + node-label affinity. Example: a 16-GPU job that must stay inside one NVLink domain:
+Choose a domain first, then constrain **all worker replicas** to that value with
+required node affinity (`operator: In`). `Exists` permits any domain. Topology
+spread balances pods across eligible domains, so it does not enforce colocation;
+`maxSkew` must be positive and zero is invalid. When needed, add hostname spreading
+*within* the selected domain and use the installed scheduler's supported gang API.
 
-```yaml
-apiVersion: scheduling.run.ai/v1   # or v1 for KAI / Volcano equivalent
-kind: TrainingWorkload
-metadata:
-  name: nccl-allreduce-16gpu
-spec:
-  template:
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - { key: network.topology.nvidia.com/accelerator, operator: Exists }
-      topologySpreadConstraints:
-      - maxSkew: 0
-        topologyKey: network.topology.nvidia.com/accelerator
-        whenUnsatisfiable: DoNotSchedule
-        labelSelector:
-          matchLabels: { app: nccl-allreduce-16gpu }
-      containers:
-      - name: trainer
-        image: nvcr.io/nvidia/pytorch:24.10-py3
-        resources:
-          limits:
-            nvidia.com/gpu: 4   # 4 GPUs/pod × 4 pods = 16
+The committed fixtures use the installed MPI Operator `MPIJob` API: two workers
+with one GPU each. They include the MPI startup/rank adapters and a real all-reduce
+benchmark. Install MPI Operator as in Lab 5.16, then create its namespace/adapters:
+
+```bash
+kubectl create namespace distributed-training --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f curriculum/examples/distributed-training/mpi-adapters.yaml
 ```
 
-For larger jobs that intentionally *span* domains, drop `maxSkew: 0` to allow spread.
+**Standard A10G path: simulated placement only.** Label a GPU worker with a separate
+training label; do not fake NVIDIA-discovered labels:
 
-For KAI / Run:AI specifically, configure topology-aware queue policies — refer back to Lab 5.3 / 5.4 for queue setup.
+```bash
+kubectl get nodes -l nvidia.com/gpu.present=true
+kubectl label node <gpu-worker-name> training.k0rdent.io/accelerator-domain=training-domain-a
+```
 
----
+The [topology fixture](../../examples/topology/benchmark-topology.yaml) selects this
+value. Two pods can run on the single four-GPU worker. This proves the affinity
+wiring, not NVLink availability or a bandwidth improvement.
+
+**Real NVLink path:** copy that fixture and replace the training label key/value
+with `network.topology.nvidia.com/accelerator` and a domain actually reported by
+topograph. Set worker replicas, slotsPerWorker, GPU requests/limits, and the
+launcher's `-np`/`-npernode` consistently. Require sufficient free GPUs in that domain
+before starting; otherwise the example can partially allocate and wait. To teach
+gang admission, use Lab 5.3's capacity test with the configured scheduler. This
+MPI fixture demonstrates placement and communication, not atomic admission.
 
 ## Part 6: Validate topology-aware placement vs naive placement
 
-Run the same NCCL all-reduce benchmark twice:
+Run the fixtures sequentially so one does not consume the other's GPU capacity.
+Use the committed paths from the repository root:
 
 ```bash
-# Naive: no topology constraints
-kubectl apply -f benchmark-naive.yaml
-kubectl logs -l job-name=nccl-allreduce-naive -f | tee naive.log
+kubectl apply -f curriculum/examples/topology/benchmark-naive.yaml
+kubectl -n distributed-training wait mpijob/nccl-allreduce-naive --for=condition=Succeeded --timeout=15m
+kubectl -n distributed-training logs job/nccl-allreduce-naive-launcher > naive.log
+kubectl -n distributed-training get pods -o wide
+kubectl -n distributed-training delete mpijob/nccl-allreduce-naive --wait=true
 
-# Topology-aware: nodeAffinity + spread constraints from Part 5
-kubectl apply -f benchmark-topology.yaml
-kubectl logs -l job-name=nccl-allreduce-topo -f | tee topo.log
+kubectl apply -f curriculum/examples/topology/benchmark-topology.yaml
+kubectl -n distributed-training wait mpijob/nccl-allreduce-topo --for=condition=Succeeded --timeout=15m
+kubectl -n distributed-training logs job/nccl-allreduce-topo-launcher > topo.log
+kubectl -n distributed-training get pods -o wide
 ```
 
-Extract the busbw reported by `all_reduce_perf`:
+On a failed/timed-out run inspect the MPIJob conditions and launcher/worker logs;
+do not report a speedup. Record each worker's actual node and domain, GPU model,
+NCCL transport, rank count, tensor sizes and reported BusBW. Compare several runs
+on identical hardware with identical settings. Do not promise a particular uplift:
+if naive placement already uses the same domain, no placement benefit is expected.
+The simulated-label path has **no NVLink performance acceptance claim**.
 
 ```bash
-grep "size .* GB/s" naive.log topo.log
+kubectl -n distributed-training delete mpijob/nccl-allreduce-topo --wait=true
+kubectl label node <gpu-worker-name> training.k0rdent.io/accelerator-domain-
 ```
-
-**Expected (real NVLink hardware):**
-
-| Job size | Naive busbw | Topology-aware busbw | Uplift |
-|----------|------------|----------------------|--------|
-| 16 GPU (2 nodes) | varies by leaf alignment | ≥10% higher in domain | 5-15% |
-| 72 GPU (full NVL72) | 30-50% lower if it crossed | full NVLink rate | 30-50% |
-| 144 GPU (2× NVL72) | depends on spine | matches single-domain rate × 2 | substantial |
-
-Record actual numbers in a perf-evidence log.
-
-On synthetic / non-NVLink hardware, you won't see the perf uplift but you can still validate that:
-
-- placement respected the constraints
-- pods landed where the labels said they would
-- the scheduler rejected impossible placements
 
 ---
 
@@ -358,8 +350,8 @@ On synthetic / non-NVLink hardware, you won't see the perf uplift but you can st
 | topograph pod errors talking to the cloud API | Wrong `global.provider.name` or missing IAM permission | Match the provider to your cluster and grant `ec2:DescribeInstanceTopology` (`AmazonEC2ReadOnlyAccess`) |
 | No labels applied; Node Observer logs `Waiting for node-data-broker pods to become ready`; API logs `Extracted topology for 0 instances` | `node-data-broker` DaemonSet stuck `0/1` — it can't reach IMDS (`169.254.169.254 ... connection reset`) because CAPA nodes launch with IMDSv2 hop limit = 1 | Set `httpPutResponseHopLimit: 2` in the AWSMachineTemplate's `instanceMetadataOptions`, or run the broker `hostNetwork: true`. (Distinct from an IAM failure — the API server's AWS creds work.) |
 | `network.topology.nvidia.com/accelerator` label empty | Instances not in a capacity block, or provider returned no `CapacityBlockId` | Confirm the nodes launched in a capacity block / NVLink domain the provider can see |
-| Pod stuck Pending despite a domain having free GPUs | Other workloads spread across domains, blocking spread constraint | Either drop `maxSkew: 0` or evict the spreader |
-| Naive job outperforms topology-aware (suspicious) | The naive job got lucky and landed in-domain | Re-run with more replicas to wash out noise |
+| Pod stuck Pending despite a domain having free GPUs | Other workloads spread across domains, using the selected domain's capacity | Check the selected domain and available GPU capacity; do not bypass required affinity or evict unrelated jobs |
+| Naive job outperforms topology-aware | Placement, contention or measurement variance may explain the result | Record actual placement and repeat the same workload; no uplift is guaranteed |
 | Switch IDs all collapse to one value | LLDP not configured on switches | Enable LLDP on every switch port; verify with `lldpctl` from a host |
 
 ---
@@ -368,7 +360,7 @@ On synthetic / non-NVLink hardware, you won't see the perf uplift but you can st
 
 - **Topology is data — the scheduler is the consumer.** Half this lab is wiring data flow.
 - **Two distinct API surfaces matter:** Backend Switch Fabric (leaf/spine/core) and NVLink Domain. They can share a service, but the schemas are distinct because the consumers may differ.
-- **Topology-aware placement is not a micro-optimization on GB200+** — it's the difference between healthy training throughput and a job that costs 50% more to finish.
+- **Measure topology effects on the target fabric.** Record placement and repeated benchmark results before claiming a throughput or cost improvement.
 
 ---
 

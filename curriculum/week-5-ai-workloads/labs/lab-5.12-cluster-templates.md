@@ -168,7 +168,7 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
    kubectl get clustertemplates -n kcm-system
    ```
 
-   Expected output on k0rdent Enterprise 1.3.2 (each release ships its own template set — the 1.3.2 release replaced the 1.3.1-era `aws-standalone-cp-1-0-20` with `1-0-26`, the exact upgrade path Lab 1.8 walks through; template names include version suffixes — empirical 2026-07-06):
+   Illustrative output from an Enterprise 1.3.2 environment. Discover your actual template set: management and template versions are independent, and Lab 1.8 does not guarantee a particular template upgrade.
    ```
    NAME                             VALID
    adopted-cluster-1-0-1            true
@@ -219,7 +219,7 @@ k0rdent ships pre-validated ClusterTemplates for each supported provider. These 
          sourceRef:
            kind: HelmRepository
            name: kcm-templates        # internal k0rdent Enterprise template repo
-         version: 1.0.20
+         version: 1.0.26
 
      # Required CAPI providers (flat string array)
      providers:

@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:01:19.889Z",
+  "ended": "2026-09-08T15:01:20.556Z",
+  "command": "nohup kubectl -n kof port-forward svc/kof-storage-victoria-logs-cluster-vlselect 9471:9471 </dev/null >/tmp/qa-vl-forward.log 2>&1 &\nnohup kubectl -n kof port-forward svc/vmselect-cluster 8481:8481 </dev/null >/tmp/qa-vm-forward.log 2>&1 &\nnohup kubectl -n kof port-forward svc/kof-mothership-grafana-service 3000:3000 </dev/null >/tmp/qa-grafana-forward.log 2>&1 &\n",
+  "code": 0,
+  "stdout": "",
+  "stderr": ""
+}

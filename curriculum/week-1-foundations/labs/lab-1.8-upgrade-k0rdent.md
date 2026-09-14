@@ -57,7 +57,7 @@ In this lab, you will:
 
 - Completed Labs 1.1-1.7
 - Management cluster running with k0rdent Enterprise v1.3.1
-- (Optional) Managed cluster from Lab 1.5 still running
+- Managed cluster from Lab 1.5 still running for continuity and Lab 1.9
 
 ## Resuming This Lab
 
@@ -109,7 +109,7 @@ kubectl get releases.k0rdent.mirantis.com
 kubectl get management kcm -o jsonpath='{.spec.release}' && echo ""
 
 # Verify all controllers are healthy
-kubectl get pods -n kcm-system | grep -v Running
+kubectl get pods -n kcm-system --no-headers | grep -vE '[[:space:]](Running|Completed)[[:space:]]' || true
 # No output = all pods are Running (good)
 ```
 
@@ -142,7 +142,8 @@ spec:
 EOF
 
 # Wait for completion
-kubectl get backup -n kcm-system --watch
+kubectl get backups.velero.io -n kcm-system --watch \
+  -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,ERRORS:.status.errors
 # Wait until phase shows "Completed", then Ctrl+C
 ```
 
@@ -318,7 +319,7 @@ kubectl get management kcm
 # READY should be True
 
 # Verify all controllers are healthy
-kubectl get pods -n kcm-system | grep -v Running
+kubectl get pods -n kcm-system --no-headers | grep -vE '[[:space:]](Running|Completed)[[:space:]]' || true
 # No output = all pods Running
 
 # Check for new ClusterTemplates (upgrades often ship new template versions)
@@ -336,7 +337,7 @@ kubectl get clusterdeployments -A -o wide
 
 Upgrading a managed cluster's Kubernetes version is done by changing the `template` field in the ClusterDeployment. The `ClusterTemplateChain` CRD controls which upgrade paths are allowed.
 
-> **Heads up — nothing to upgrade on this path:** The 1.3.1 → 1.3.2 upgrade you just performed is a **patch release**. It ships no new `aws-standalone-cp` ClusterTemplate version, so there is genuinely no managed-cluster upgrade to perform in this environment. That's the realistic outcome of a patch upgrade. Steps 1-2 below are **real discovery steps** — run them and confirm there's no upgrade target. Steps 3-4 are a **pattern walkthrough** of exactly what you'd do when a new template version IS available (typically after a minor release like 1.3.x → 1.4.x).
+> **Discover the actual upgrade path.** Management releases and cluster templates have separate versions. A patch release does not by itself prove whether a newer template is available. Run Steps 1–2 and inspect the installed template chain. If there is no supported target, record that result and treat Steps 3–4 as a pattern walkthrough. If there is a target, use its exact name after reviewing the release and provider compatibility.
 
 ### Step 1: Check for New Templates
 
@@ -351,7 +352,7 @@ kubectl get clusterdeployment -n kcm-system \
   -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.template}{"\n"}{end}'
 ```
 
-> **Expected result here:** a single `aws-standalone-cp` version — the same one your cluster already uses. **Patch releases (e.g., 1.3.1 → 1.3.2)** don't ship new templates; **minor releases (e.g., 1.3.x → 1.4.x)** typically do. Seeing only one version is the correct outcome for this lab, not an error.
+> Record the installed template versions and available upgrade targets. Release numbering alone does not establish whether a new cluster template is included.
 
 ### Step 2: Check Upgrade Paths
 
@@ -383,7 +384,7 @@ spec:
 
 ### Step 3: The Upgrade Pattern (Walkthrough)
 
-> **Pattern walkthrough — do not run this against your cluster.** There is no new template version in this environment (see the note at the top of Part 3), so the patch below has no valid value to substitute. When a new template version IS available — after a minor-release management plane upgrade — this is the exact procedure you'd follow:
+> **Conditional exercise.** Only run the patch after discovery has identified a supported target in your template chain. If no target exists, read the example without applying it.
 
 ```bash
 # Check current template
@@ -482,19 +483,17 @@ spec:
 
 ### Layer 1: Management Plane Rollback
 
-**Option A: Revert the Release** (preferred)
+**Documented recovery: restore a pre-upgrade backup**
 
-```bash
-# Point Management back to the previous release
-kubectl patch managements.k0rdent.mirantis.com kcm \
-  --patch '{"spec":{"release":"<previous-release-name>"}}' \
-  --type=merge
+Follow the [Mirantis rollback procedure](https://docs.mirantis.com/k0rdent-enterprise/latest/admin/backup/upgrades-rollbacks/).
+First prepare a clean, compatible k0rdent installation and reconnect the backup
+storage and its Secret. Confirm the selected backup completed successfully. The
+resource modifier below restores the previous release along with the backed-up
+objects. Run it on the recovery management cluster.
 
-# Wait for rollback
-kubectl get management kcm --watch
-```
-
-**Option B: Velero Restore** (documented rollback path if a release revert is not enough)
+Changing `Management.spec.release` back in place does not restore changed CRDs or
+stored state. Use an in-place downgrade only for a release pair whose supported
+recovery procedure explicitly permits it.
 
 ```bash
 # Restore from a clean k0rdent installation and patch the Management
@@ -535,7 +534,7 @@ kubectl -n kcm-system wait restores.velero.io restore-pre-upgrade \
   --for=jsonpath='{.status.phase}'='Completed' --timeout=10m
 ```
 
-**Option C: k0s Restore** (single-node lab / platform-level last resort)
+**Platform recovery: k0s Restore** (single-node lab / platform-level last resort)
 
 ```bash
 sudo k0s stop
@@ -546,16 +545,13 @@ sudo k0s start
 
 > **Warning:** A k0s restore reverts ALL cluster state (etcd included), not just k0rdent, takes the single-node management plane offline while it runs, and is not the primary rollback workflow described in the k0rdent docs.
 
-### Layer 2: Managed Cluster Rollback
+### Layer 2: Managed Cluster Recovery
 
-```bash
-# Revert the ClusterDeployment to the previous template
-kubectl patch clusterdeployment managed-cluster-01 -n kcm-system \
-  --patch '{"spec":{"template":"aws-standalone-cp-1-0-20"}}' \
-  --type=merge
-```
-
-CAPI performs another rolling update back to the original version.
+Do not assume a previous ClusterTemplate is a safe Kubernetes downgrade. Check the
+supported template chain and provider/Kubernetes compatibility for the exact pair.
+Use a tested roll-forward fix, or recreate a compatible cluster and restore the
+workload data from its backup. A management backup is not a substitute for backups
+of application volumes. Validate nodes, services, and application data after recovery.
 
 ---
 
@@ -640,7 +636,7 @@ clusterctl describe cluster <name> -n <namespace>
 2. How does the `Release` CRD drive the management plane upgrade?
 3. What role does `ClusterTemplateChain` play in managed cluster upgrades?
 4. Why do we create a ManagementBackup before upgrading?
-5. What are the three rollback options for the management plane, in order of preference?
+5. Why is changing the desired Release back insufficient to guarantee recovery, and when would you use management backup restore versus platform recovery?
 
 <details>
 <summary><strong>Answer Key</strong> (click to expand)</summary>
@@ -649,7 +645,7 @@ clusterctl describe cluster <name> -n <namespace>
 2. The `Release` CRD defines the target k0rdent version and all provider template versions. For Enterprise, you download the Release YAML from `get.mirantis.com` and apply it with `kubectl create`. Then you patch the Management object's `.spec.release` to point to the new Release. The KCM controller reconciles the difference -- upgrading controllers, CAPI providers, and templates to match the new Release spec.
 3. `ClusterTemplateChain` defines allowed upgrade paths between ClusterTemplate versions (e.g., `1-0-20` can upgrade to `1-0-21` but not to `1-0-25`). This prevents invalid version jumps and ensures managed clusters follow validated upgrade paths. If you try to set a template not in the chain's `availableUpgrades`, the change is rejected.
 4. ManagementBackup (via Velero) captures all k0rdent CRDs, CAPI resources, and secrets to S3. If the upgrade corrupts the management plane, you can restore to the exact pre-upgrade state and reconnect to managed clusters that kept running independently.
-5. (a) Revert the `Management` object to the previous Release — fastest, just changes the desired state; (b) Velero restore — restores CRDs and resources from the S3 backup; (c) k0s restore from a `k0s backup` archive — last resort, reverts ALL cluster state.
+5. A release-reference change does not restore migrated CRDs or stored state. Use the documented recovery procedure on a clean compatible installation with a verified management backup. A k0s archive is a separate platform recovery option that restores the entire captured cluster state; test that procedure independently.
 
 </details>
 
@@ -662,7 +658,7 @@ In this lab, you:
 - Understood the three upgrade layers: management plane, managed clusters, services
 - Created a pre-upgrade ManagementBackup
 - Learned how to upgrade k0rdent Enterprise via the `Release` CRD (from `get.mirantis.com`) and `Management` patch
-- Verified available managed-cluster upgrade paths and walked through the upgrade pattern (`ClusterTemplateChain` + template change) — confirming that a patch release ships no new template version to upgrade to
+- Verified available managed-cluster upgrade paths and walked through the upgrade pattern (`ClusterTemplateChain` + template change) — recording whether the installed release and template chain provide a supported upgrade target
 - Learned rollback procedures for each layer
 - Reviewed production upgrade best practices
 
@@ -670,30 +666,19 @@ In this lab, you:
 
 ## End of Week 1: Tear Down Managed Clusters
 
-Week 1 is done with the managed clusters — delete them now, **before** disconnecting.
+**If continuing to Lab 1.9, keep both clusters and KOF running.** Complete its audit acceptance tests first, then return here for final teardown. Run this section now only if you are skipping Lab 1.9.
 
-> **Why this matters:** Every managed cluster runs in its **own VPC** that CAPA created — EC2 instances, a NAT gateway, a load balancer, and EBS volumes. `lab-destroy.sh` only knows about the Terraform-managed management VPC; it **cannot see or delete** managed-cluster resources. A forgotten managed cluster bills indefinitely and can cost more than the entire quoted week.
+> **Why this matters:** Every managed cluster runs in its **own VPC** that CAPA created — EC2 instances, NAT gateways (three with the template defaults), a load balancer, and EBS volumes. `lab-destroy.sh` only knows about the Terraform-managed management VPC; it **cannot see or delete** managed-cluster resources. A forgotten managed cluster bills indefinitely and can cost more than the entire quoted week.
 
 ### Step 0: Delete the Lab 1.7 MultiClusterServices First
 
-The ingress-nginx LoadBalancer service from Lab 1.7 created a Classic ELB on the managed cluster via the cloud controller manager. Delete the services first so CCM removes its load balancer — deleting the ClusterDeployment alone can orphan it:
-
-```bash
-# Make sure you're on the management cluster
-export KUBECONFIG=/home/ubuntu/.kube/config
-
-# Delete the MultiClusterServices from Lab 1.7
-# (your baseline-services may be the kyverno-only variant from Lab 1.7 Part 8 — delete it either way)
-kubectl delete multiclusterservice ingress-services baseline-services
-
-# Wait ~2 minutes for CCM to remove the ingress load balancer before proceeding
-```
+Complete Lab 1.7’s cleanup to remove the Gateway, application and baseline MCS. Wait for the application load balancer to disappear in AWS. Then remove Lab 1.6’s management ingest Service and NLB using its cleanup instructions. Keep the API load balancer until CAPA deletes the cluster.
 
 ### Step 1: Delete the ClusterDeployments
 
 ```bash
-# Delete all managed clusters (managed-cluster-01 and the optional Azure cluster, if created)
-kubectl delete clusterdeployment --all -n kcm-system
+# Delete this lab cluster; delete an optional Azure cluster separately by its exact name
+kubectl delete clusterdeployment managed-cluster-01 -n kcm-system
 
 # Watch until the list is empty — CAPA deprovisions the cloud resources first,
 # so deletion takes 10-15 minutes. Do NOT interrupt it.
@@ -705,7 +690,7 @@ kubectl get clusterdeployments -A --watch
 
 ### Step 2: Verify Nothing Was Orphaned in AWS
 
-CAPA and the cloud controller manager tag everything they create with per-cluster tags. Confirm AWS shows no leftovers — **every command below should print nothing**:
+CAPA and the cloud controller manager tag everything they create with per-cluster tags. Confirm AWS shows no leftovers — **every command below should print nothing** after asynchronous deletion finishes:
 
 ```bash
 # EC2 instances — should be empty
@@ -751,7 +736,7 @@ The **management cluster stays** — it is reused later in the program (Week 5 G
 > aws ec2 stop-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>
 > ```
 >
-> Stopping the instances removes the dominant compute cost. The NAT gateway (~$0.045/hr), Classic ELB, Elastic IP, and EBS volumes still bill while stopped — roughly **$2/day idle** instead of ~$6/day running.
+> Stopping the instances removes the dominant compute cost. NAT gateways, load balancers, Elastic IP, and EBS volumes still bill while stopped — the remaining amount depends on region, load balancers, storage and networking. Inventory those resources instead of assuming a fixed idle rate.
 >
 > To resume: `aws ec2 start-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>`, wait a couple of minutes, then reconnect with `./scripts/lab-connect.sh <your-engineer-id>`. The k0s cluster comes back up on its own — the management node keeps its stable private IP and the bastion keeps its Elastic IP, so your kubeconfig and SSH access still work.
 
@@ -774,6 +759,6 @@ You now have a solid foundation in k0rdent Enterprise for managing multi-cluster
 
 ## Next
 
-Complete the [Week 1 Quiz](../week-1-quiz.md) to finish Week 1.
+Continue to [Lab 1.9: Kubernetes API Audit Logging](lab-1.9-api-audit-logging.md) before teardown, then complete the [Week 1 Quiz](../week-1-quiz.md).
 
 Then proceed to [Week 2: Bare Metal as a Service](../../week-2-bmaas/README.md) to learn how to manage bare metal infrastructure with k0rdent.

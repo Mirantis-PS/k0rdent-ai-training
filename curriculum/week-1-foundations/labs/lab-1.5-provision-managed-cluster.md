@@ -67,7 +67,7 @@ In this lab, you will:
 
 > **Important:** This lab provisions real cloud infrastructure that incurs costs.
 >
-> - **Estimated AWS cost:** ~$0.15/hour for minimal cluster (1 control plane + 1 worker)
+> - **AWS cost:** two EC2 instances plus EBS, load balancing, public IPv4 and NAT gateway charges. The tested `aws-standalone-cp-1-0-26` defaults created three NAT gateways in eu-west-1. Inspect the rendered AWSCluster and AWS resources; the two-node count does not describe total cost.
 > - **If you're continuing to Labs 1.6-1.8 (recommended), keep the cluster running** — it's required by Labs 1.6/1.7, and final cleanup happens at the end of Lab 1.8
 > - Cleanup instructions for those stopping after this lab are provided at the end (Part 7)
 
@@ -163,7 +163,7 @@ aws ec2 describe-key-pairs --key-names k0rdent-clusters --region $AWS_REGION
 > # Run from your LOCAL machine (same commands as Lab 1.3 Part 6)
 > ssh-keygen -t ed25519 -f ~/.ssh/k0rdent-clusters -N ""
 > aws ec2 import-key-pair --key-name k0rdent-clusters \
->   --public-key-material fileb://~/.ssh/k0rdent-clusters.pub --region $AWS_REGION
+>   --public-key-material "fileb://$HOME/.ssh/k0rdent-clusters.pub" --region $AWS_REGION
 > chmod 600 ~/.ssh/k0rdent-clusters
 > ```
 
@@ -220,7 +220,7 @@ spec:
     worker:
       instanceType: t3.medium
       rootVolumeSize: 50
-    # sshKeyName: k0rdent-clusters  # Optional — only needed for direct SSH to nodes
+    sshKeyName: k0rdent-clusters  # Use your engineer-suffixed name from Lab 1.3
     clusterIdentity:
       name: aws-cluster-identity
       namespace: kcm-system
@@ -237,7 +237,7 @@ EOF
 >   kubectl patch awsclusterstaticidentity aws-cluster-identity --type=merge \
 >     -p '{"spec":{"allowedNamespaces":{}}}'
 >   ```
-> - **sshKeyName** (commented out): Only needed if you want direct SSH access to managed cluster nodes. If included, the key pair must exist in the target region (see Lab 1.3, Part 6).
+> - **sshKeyName**: Required when continuing to Lab 1.9, which changes the control-plane host configuration. Use the key pair created in the target region (Lab 1.3, Part 6). Keep its private key on your administration machine.
 
 > **Metadata labels vs clusterLabels:** The `metadata.labels` on the ClusterDeployment are used by MultiClusterService for cluster targeting via `clusterSelector`. The `spec.config.clusterLabels` propagate to the underlying CAPI Cluster object and are used for other purposes. For MCS to match your cluster, ensure the relevant labels are on the ClusterDeployment's metadata. In the YAML above, `environment: training` is set in both places intentionally.
 
@@ -475,7 +475,7 @@ kubectl get cm -n kube-system | grep -i cni
 kubectl describe nodes | grep -A 10 "Capacity:"
 
 # Check node conditions
-kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[-1].type}{"\n"}{end}'
+kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
 ```
 
 ### Deploy a Test Workload
@@ -618,7 +618,7 @@ kubectl get clusterdeployment azure-cluster-01 -n kcm-system -w
 
 > **Important: SKIP this section if you are continuing to Labs 1.6-1.8 (the recommended path).**
 >
-> `managed-cluster-01` is **required** by Labs 1.6 and 1.7, and is inspected during the upgrade in Lab 1.8. Final cleanup happens at the **end of Lab 1.8**, not here. Keeping the cluster running costs ~$0.15/hour. Only run the steps below if you are genuinely stopping after this lab.
+> `managed-cluster-01` is **required** by Labs 1.6 and 1.7, and is inspected during the upgrade in Lab 1.8. Final cleanup happens at the **end of Lab 1.8**, not here. Keeping the cluster running costs compute plus networking and storage charges. Only run the steps below if you are genuinely stopping after this lab.
 >
 > If you created the optional Azure cluster in Part 6, delete it now regardless — it is not used by any later lab.
 

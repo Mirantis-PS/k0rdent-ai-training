@@ -1,0 +1,11 @@
+{
+  "name": "176-remove-child-management-resources",
+  "command": "helm uninstall kof-child -n kof --wait --timeout 3m\nkubectl -n kcm-system delete configmap kof-management kof-cluster-config-managed-cluster-01 --ignore-not-found\nsource /home/ubuntu/qa-week1/ingest.env\ntest -n \"$CERT_DIR\"\nrm -rf -- \"$CERT_DIR\"\nrm -f /tmp/managed-cluster-01.kubeconfig /tmp/kof-values.json /tmp/kof-annotation-before.yaml /tmp/kof-ingest-values.yaml\n",
+  "started": "2026-09-08T15:12:45.567Z",
+  "done": true,
+  "pid": 96445,
+  "code": 0,
+  "ended": "2026-09-08T15:12:48.438Z",
+  "stdout": "release \"kof-child\" uninstalled\nconfigmap \"kof-management\" deleted from kcm-system namespace\nconfigmap \"kof-cluster-config-managed-cluster-01\" deleted from kcm-system namespace\n",
+  "stderr": ""
+}

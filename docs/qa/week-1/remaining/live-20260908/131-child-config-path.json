@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-09-08T14:56:54.744Z",
+  "command": "sudo systemctl show k0scontroller --property=ExecStart\nsudo ls -l /etc/k0s\nsudo k0s config validate --config /etc/k0s/k0s.yaml\npython3 -c 'import yaml;print(\"PyYAML available\")'\n",
+  "code": 1,
+  "stdout": "ExecStart={ path=/usr/local/bin/k0s ; argv[]=/usr/local/bin/k0s controller --config=/etc/k0s.yaml --disable-components=konnectivity-server --enable-cloud-provider=true --enable-dynamic-config=true --enable-worker=true --kubelet-extra-args=--hostname-override=managed-cluster-01-cp-hhbzl --cloud-provider=external --fail-cgroupv1=false --labels=k0smotron.io/machine-name=managed-cluster-01-cp-hhbzl ; ignore_errors=no ; start_time=[Tue 2026-09-08 14:22:41 UTC] ; stop_time=[n/a] ; pid=2539 ; code=(null) ; status=0/0 }\ntotal 4\ndrwxr-xr-x 2 root root   6 Sep  8 14:24 containerd.d\n-rw-r--r-- 1 root root 362 Sep  8 14:24 containerd.toml\n",
+  "stderr": "sudo: k0s: command not found\nTraceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'yaml'\n"
+}

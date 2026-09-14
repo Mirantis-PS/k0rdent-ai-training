@@ -284,25 +284,13 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
          workload-type: ml-training
      serviceSpec:
        services:
-         # cert-manager (required for KServe's webhook certificates)
          - template: cert-manager-1-17-2
            name: cert-manager
            namespace: cert-manager
-
-         # KServe for model serving
-         - template: kserve-crd-v0-15-0
-           name: kserve-crd
-           namespace: kserve
-         - template: kserve-v0-15-0
-           name: kserve
-           namespace: kserve
-
-         # MLflow for experiment tracking
-         - template: mlflow-1-8-1
-           name: mlflow
-           namespace: mlflow
-
-         # KubeRay for distributed compute
+           values: |
+             cert-manager:
+               crds:
+                 enabled: true
          - template: kuberay-operator-1-5-1
            name: kuberay
            namespace: kuberay
@@ -313,6 +301,58 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
 
    ```bash
    kubectl apply -f ml-platform-mcs.yaml
+   ```
+
+   Deploy KServe in a dependent MCS once the prerequisite rollout is ready.
+   The explicit dependency controls sequencing; priority only resolves competing
+   owners. MLflow's persistent stack is deployed in Lab 5.10, with one owner.
+
+   ```yaml
+   # Save as kserve-stack-mcs.yaml
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: kserve-crds
+   spec:
+     dependsOn: [ml-platform]
+     clusterSelector:
+       matchLabels:
+         workload-type: ml-training
+     serviceSpec:
+       services:
+         - template: kserve-crd-v0-15-0
+           name: kserve-crd
+           namespace: kserve
+       priority: 100
+   ---
+   apiVersion: k0rdent.mirantis.com/v1beta1
+   kind: MultiClusterService
+   metadata:
+     name: kserve-stack
+   spec:
+     dependsOn: [kserve-crds]
+     clusterSelector:
+       matchLabels:
+         workload-type: ml-training
+     serviceSpec:
+       services:
+         - template: kserve-v0-15-0
+           name: kserve
+           namespace: kserve
+           values: |
+             kserve:
+               controller:
+                 deploymentMode: RawDeployment
+       priority: 100
+   ```
+
+   ```bash
+   kubectl apply -f kserve-stack-mcs.yaml
+   # On the workload cluster, verify the CRDs and webhook, not only pod existence.
+   kubectl --kubeconfig ~/.kube/gpu-cluster.conf wait crd/certificates.cert-manager.io \
+     --for=condition=Established --timeout=5m
+   kubectl --kubeconfig ~/.kube/gpu-cluster.conf -n cert-manager rollout status \
+     deployment/cert-manager-webhook --timeout=5m
    ```
 
 3. **Monitor Deployment Status**
@@ -333,118 +373,35 @@ The catalog uses a meta-chart called **kgst** (k0rdent Generic Service Template)
    ```bash
    # Switch to a target cluster context (or use kubectl with --context)
    kubectl get pods -n kserve
-   kubectl get pods -n mlflow
+   # MLflow is deployed separately in Lab 5.10.
    kubectl get pods -n kuberay
    kubectl get pods -n gpu-operator
    ```
 
-### Task 4: Customize Services with Helm Values (30 min)
+### Task 4: Customize the existing service owner (30 min)
 
-The `values` field in service specs is a **string** (YAML-as-string using the `|` block scalar), not a structured object. This allows Helm templating within the values.
+KSM values are YAML strings. Update the existing `ml-platform` MCS rather than
+creating an equal-priority MCS for the same release. Add `replicaCount: 2` below
+`cert-manager:` in its existing values block, preserving `crds.enabled: true` and
+all other services. Apply the edited file and inspect the target cluster:
 
-1. **Deploy MLflow with Custom Configuration**
-   ```yaml
-   # Save as mlflow-custom-mcs.yaml
-   apiVersion: k0rdent.mirantis.com/v1beta1
-   kind: MultiClusterService
-   metadata:
-     name: mlflow-custom
-     namespace: kcm-system
-   spec:
-     clusterSelector:
-       matchLabels:
-         workload-type: ml-training
-     serviceSpec:
-       services:
-         - template: mlflow-1-8-1
-           name: mlflow
-           namespace: mlflow
-           values: |
-             mlflow:
-               tracking:
-                 backendStoreUri: postgresql://mlflow:password@postgres:5432/mlflow
-                 defaultArtifactRoot: s3://mlflow-artifacts/
-               service:
-                 type: ClusterIP
-                 port: 5000
-       priority: 100
-   ```
+```bash
+kubectl apply -f ml-platform-mcs.yaml
+helm --kubeconfig ~/.kube/gpu-cluster.conf get values cert-manager -n cert-manager
+helm --kubeconfig ~/.kube/gpu-cluster.conf get manifest cert-manager -n cert-manager
+kubectl --kubeconfig ~/.kube/gpu-cluster.conf -n cert-manager rollout status deployment/cert-manager --timeout=5m
+# Management-side delivery is through KSM/Sveltos, not a workload HelmRelease.
+kubectl get servicesets -A
+kubectl get clustersummaries -A
+```
 
-   ```bash
-   kubectl apply -f mlflow-custom-mcs.yaml
-   ```
-
-2. **Use valuesFrom for Secrets**
-
-   For sensitive values (database credentials, API tokens), use `valuesFrom` to reference Kubernetes Secrets:
-
-   ```bash
-   # Create a Secret with Helm values (use --from-file for reliable multi-line YAML)
-   cat <<EOF > /tmp/mlflow-custom-values.yaml
-   mlflow:
-     tracking:
-       backendStoreUri: postgresql://mlflow:realpassword@postgresql.mlflow:5432/mlflow
-       defaultArtifactRoot: s3://mlflow-artifacts/
-   EOF
-   kubectl create secret generic mlflow-db-values \
-     -n kcm-system \
-     --from-file=values=/tmp/mlflow-custom-values.yaml
-   ```
-
-   ```yaml
-   # In MultiClusterService spec:
-   services:
-     - template: mlflow-1-8-1
-       name: mlflow
-       namespace: mlflow
-       valuesFrom:
-         - kind: Secret
-           name: mlflow-db-values
-           namespace: kcm-system
-           optional: false
-   ```
-
-3. **Deploy KServe with Custom Serving Mode**
-   ```yaml
-   # Save as kserve-custom-mcs.yaml
-   apiVersion: k0rdent.mirantis.com/v1beta1
-   kind: MultiClusterService
-   metadata:
-     name: kserve-stack
-     namespace: kcm-system
-   spec:
-     clusterSelector:
-       matchLabels:
-         workload-type: ml-inference
-     serviceSpec:
-       services:
-         - template: kserve-crd-v0-15-0
-           name: kserve-crd
-           namespace: kserve
-         - template: kserve-v0-15-0
-           name: kserve
-           namespace: kserve
-           values: |
-             kserve:
-               controller:
-                 deploymentMode: RawDeployment
-               modelmesh:
-                 enabled: false
-       priority: 100
-   ```
-
-   ```bash
-   kubectl apply -f kserve-custom-mcs.yaml
-   ```
-
-4. **Verify Custom Values Were Applied**
-   ```bash
-   # On the target cluster, check the HelmRelease created by k0rdent
-   kubectl get helmreleases -A
-
-   # Check the values on the HelmRelease
-   kubectl get helmrelease mlflow -n mlflow -o jsonpath='{.spec.values}' | jq .
-   ```
+Confirm the live Deployment has the requested replica count. `helm get values`
+alone cannot prove a chart used a value. Restore the original replica count when
+finished. For sensitive service values, reference a Secret using that service's
+`valuesFrom`, and keep its namespace/distribution consistent with the installed KSM
+provider. For a persistent MLflow workflow use [Lab 5.10](lab-5.10-mlflow-experiment-tracking.md),
+which provisions its database/object store explicitly. The community MLflow chart
+does not turn unrelated PostgreSQL/S3 subchart toggles into those services.
 
 ### Task 5: Version Management with ServiceTemplateChain (15 min)
 
@@ -461,7 +418,7 @@ The `values` field in service specs is a **string** (YAML-as-string using the `|
    >   -n kcm-system
    > ```
    >
-   > Alternatively, you can modify the chain below to only reference templates you already installed (e.g., use `kserve-crd-v0-15-0` and `kserve-v0-15-0`).
+   > Use versions of the same KServe controller chart in this chain. `kserve-crd` and `kserve` are separate components; their prerequisite relationship belongs in `dependsOn`, not an upgrade chain. This task defines the chain only; do not downgrade the controller deployed in Task 3 merely to exercise it.
 
    ```yaml
    # Save as kserve-chain.yaml

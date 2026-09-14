@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:11:58.190Z",
+  "ended": "2026-09-08T15:11:59.672Z",
+  "command": "set -euo pipefail\nkubectl -n kcm-system create configmap qa-restore-probe --from-literal=proof=week1-live-backup-restore\nkubectl -n kcm-system label configmap qa-restore-probe k0rdent.mirantis.com/component=kcm qa-restore-probe=true\ncat <<'EOF' | kubectl apply -f -\napiVersion: k0rdent.mirantis.com/v1beta1\nkind: ManagementBackup\nmetadata:\n  name: post-upgrade-qa-restore\nspec:\n  storageLocation: aws-s3\nEOF\n",
+  "code": 0,
+  "stdout": "configmap/qa-restore-probe created\nconfigmap/qa-restore-probe labeled\nmanagementbackup.k0rdent.mirantis.com/post-upgrade-qa-restore created\n",
+  "stderr": ""
+}

@@ -1,0 +1,8 @@
+{
+  "started": "2026-09-08T15:02:33.055Z",
+  "ended": "2026-09-08T15:02:34.670Z",
+  "command": "set -euo pipefail\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig -n kof rollout status daemonset/kof-collectors-daemon-collector --timeout=20s\nkubectl -n kof rollout status daemonset/kof-collectors-daemon-collector --timeout=20s\nkubectl create token audit-probe --duration=10m >/dev/null\nkubectl annotate rolebinding audit-probe qa-round=after-restart --overwrite\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig create token audit-probe --duration=10m >/dev/null\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig annotate rolebinding audit-probe qa-round=after-restart --overwrite\n",
+  "code": 0,
+  "stdout": "daemon set \"kof-collectors-daemon-collector\" successfully rolled out\ndaemon set \"kof-collectors-daemon-collector\" successfully rolled out\nrolebinding.rbac.authorization.k8s.io/audit-probe annotated\nrolebinding.rbac.authorization.k8s.io/audit-probe annotated\n",
+  "stderr": ""
+}
