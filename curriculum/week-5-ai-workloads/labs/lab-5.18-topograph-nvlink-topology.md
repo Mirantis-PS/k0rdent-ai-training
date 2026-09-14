@@ -15,12 +15,12 @@
 ### Week 5 Learning Paths
 
 ```
-5.16 Dist Train ➔ 5.17 OTel ➔ [5.18] topograph (YOU ARE HERE)
+5.16 Dist Train ➔ 5.17 OTel ➔ [5.18] topograph (YOU ARE HERE) ➔ 5.19 MIG
 ```
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.17 — OTel Telemetry Export](lab-5.17-otel-telemetry-export.md) | **Lab 5.18 — topograph / NVLink Topology** | [Week 6 — Multi-Tenancy](../../week-6-multitenancy/) |
+| [Lab 5.17 — OTel Telemetry Export](lab-5.17-otel-telemetry-export.md) | **Lab 5.18 — topograph / NVLink Topology** | [Lab 5.19 — MIG Partitioning](lab-5.19-mig-partitioning.md) |
 
 ---
 

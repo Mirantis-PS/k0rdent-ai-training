@@ -47,7 +47,7 @@ A single GPU worker does not satisfy a multi-node, FIPS, RDMA, or real NVLink-do
 | Configuration | Instance | GPUs | GPU Memory | Interconnect | Cost/hr (on-demand) | Best For |
 |--------------|----------|------|------------|--------------|-------------------|----------|
 | **Standard** | g5.12xlarge | 4x A10G | 24GB each | PCIe | ~$5.67 | Labs 5.1-5.12 |
-| **Advanced** | p4d.24xlarge | 8x A100 | 40GB each | NVLink 3.0 (600 GB/s) | ~$32.77 | Labs 5.13-5.15, distributed training |
+| **Advanced** | p4d.24xlarge | 8x A100 | 40GB each | NVLink 3.0 (600 GB/s) | ~$32.77 | Labs 5.13-5.16, distributed training, **5.19 (MIG — A100 required)** |
 
 > **Cost reminder:** GPU instances are significantly more expensive than Week 1 infrastructure. Always destroy your GPU environment when not actively working. See [Cost Management](#cost-management) below.
 
@@ -315,7 +315,18 @@ GPU instances are the most expensive resources in this training:
    kubectl delete clusterdeployment gpu-cluster -n kcm-system
    ```
 
-2. **Use the standard GPU lab** (g5.12xlarge) for Labs 5.1-5.12. Only provision the advanced lab (p4d.24xlarge) for Labs 5.13-5.15.
+2. **Use the standard GPU lab** (g5.12xlarge) for Labs 5.1-5.12 and 5.17. Only provision the advanced lab (p4d.24xlarge) for Labs 5.13-5.16 and 5.19.
+
+3. **Lab 5.19 (MIG) has no cheaper path.** MIG is absent from A10G, L4, L40S, and
+   T4, so there is no g5/g6 fallback. One sitting is ~3.2 hours of p4d time
+   (**~$105**). Provision it only when you can complete the lab in one pass, and
+   confirm teardown afterwards:
+   ```bash
+   aws ec2 describe-instances --region us-east-1 \
+     --filters "Name=instance-state-name,Values=running,pending" \
+               "Name=instance-type,Values=p4d.24xlarge" \
+     --query 'Reservations[].Instances[].[InstanceId,LaunchTime]' --output text
+   ```
 
 ### Check Running Resources
 
@@ -370,12 +381,31 @@ After completing the foundation track, choose one or more paths:
 | [5.15](lab-5.15-rdma-multi-cloud.md) | RDMA Multi-Cloud | 4h |
 | [5.16](lab-5.16-distributed-training.md) | Distributed Training | 4.5h |
 
+**Operations & Telemetry**
+
+| Lab | Title | Duration |
+|-----|-------|----------|
+| [5.17](lab-5.17-otel-telemetry-export.md) | KOF → External OTel Export | 2.5h |
+| [5.18](lab-5.18-topograph-nvlink-topology.md) | topograph / NVLink Topology | 2h |
+
+**GPU Partitioning (Requires p4d.24xlarge worker)**
+
+| Lab | Title | Duration |
+|-----|-------|----------|
+| [5.19](lab-5.19-mig-partitioning.md) | MIG Partitioning | 3.2h |
+
+> **Why 5.19 needs p4d:** MIG exists only on A30/A100/H100/H200/B200-class GPUs.
+> The A10G in `g5.12xlarge` has no MIG support at any driver version, so this lab
+> cannot run on the standard GPU lab. Budget **~$105** for one sitting.
+
 ```
 FOUNDATION (Required)                                    CHOOSE YOUR PATH
 ━━━━━━━━━━━━━━━━━━━━                                    ━━━━━━━━━━━━━━━━
 5.1 ➔ 5.2 ➔ 5.3 ➔ 5.4 ➔ 5.5 ➔ 5.6 ➔ 5.7 ➔ 5.8  ──►  ML Platforms (5.9-5.10)
                                                          Compliance (5.11-5.12)
                                                          Advanced (5.13-5.16) ⚠ p4d required
+                                                         Ops & Telemetry (5.17-5.18)
+                                                         GPU Partitioning (5.19) ⚠ p4d required
 ```
 
 ---

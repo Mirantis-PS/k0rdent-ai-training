@@ -1,6 +1,6 @@
 # Week 5: AI Workloads & Service Catalog
 
-**Estimated content volume:** 49.5 hours of labs + 5.25 hours theory + 45-minute assessment (55.5 hours before provisioning/retry time)
+**Estimated content volume:** 52.7 hours of labs + 5.25 hours theory + 45-minute assessment (58.7 hours before provisioning/retry time)
 **Recommended guided path:** Labs 5.1, 5.2, 5.3, 5.5 and 5.6 (14 hours), plus theory and assessment: ~20 hours; reserve 2–4 additional hours for setup/retries. Other labs are electives.
 **Focus:** GPU scheduling, model serving, ML platforms, AI tools, service catalog
 **Lab Ratio:** ~90% hands-on if all labs are counted
@@ -53,6 +53,7 @@ By the end of this week, engineers will be able to:
 - [ ] Deploy Kubeflow for ML pipelines and distributed training
 - [ ] Set up MLflow for experiment tracking and model registry
 - [ ] Configure fractional GPU sharing and gang scheduling
+- [ ] Partition GPUs with MIG for hardware-isolated multi-tenancy, and allocate slices through DRA
 - [ ] Deploy Slurm on Kubernetes for HPC workloads
 - [ ] Optimize inference with TensorRT-LLM
 - [ ] Configure RDMA/RoCE for multi-cloud GPU networking
@@ -101,7 +102,7 @@ Topics:
 
 ---
 
-## Lab Exercises (49.5 hours across all tracks)
+## Lab Exercises (52.7 hours across all tracks)
 
 All lab files are in the [labs/](labs/) directory.
 
@@ -125,6 +126,9 @@ All lab files are in the [labs/](labs/) directory.
 | 5.16 | Distributed Training | Advanced | 4.5h | [lab-5.16-distributed-training.md](labs/lab-5.16-distributed-training.md) |
 | 5.17 | External Telemetry Export | Operations elective | 2.5h | [lab-5.17-otel-telemetry-export.md](labs/lab-5.17-otel-telemetry-export.md) |
 | 5.18 | Topology and NVLink Domains | Operations elective | 2h | [lab-5.18-topograph-nvlink-topology.md](labs/lab-5.18-topograph-nvlink-topology.md) |
+| 5.19 | MIG Partitioning | GPU Partitioning | 3.2h | [lab-5.19-mig-partitioning.md](labs/lab-5.19-mig-partitioning.md) |
+
+> Lab 5.19 requires `p4d.24xlarge` (A100); the standard `g5.12xlarge` worker uses A10G GPUs, which do not support MIG. Lab 5.19 is pending validation.
 
 The [lab contract](resources/lab-contract.md) defines environments and validation
 requirements. These are planning estimates, not guaranteed completion times.
@@ -154,7 +158,7 @@ requirements. These are planning estimates, not guaranteed completion times.
 
 | Theory Section | Primary Labs |
 |---------------|-------------|
-| 5.1 GPU Scheduling | Lab 5.1, Lab 5.3 (KAI), Lab 5.4 (Run:AI), Lab 5.6 |
+| 5.1 GPU Scheduling | Lab 5.1, Lab 5.3 (KAI), Lab 5.4 (Run:AI), Lab 5.6, Lab 5.19 (MIG) |
 | 5.2 LLM Inference Architecture | Lab 5.5 (vLLM), Lab 5.13 (TensorRT-LLM) |
 | 5.3 GPU Communication | Lab 5.15 (RDMA) |
 | 5.4 Distributed Training | Lab 5.16 (Distributed Training) |
@@ -177,6 +181,10 @@ requirements. These are planning estimates, not guaranteed completion times.
 - RDMA/RoCE networking for distributed training
 - TensorRT-LLM optimization techniques
 - Troubleshooting patterns for GPU workloads
+- MIG slice arithmetic: which profiles are valid on a 40GB vs 80GB GPU, and why
+- MIG `single` vs `mixed` device-plugin strategies and their effect on resource names
+- Why MIG reconfiguration is a node-level operation, and what it invalidates
+- Which GPUs support MIG (and which never will), plus MIG vs vGPU licensing
 
 **Passing Score:** 80%. Complete the [Week 5 assessment and practical rubric](week-5-quiz.md).
 
