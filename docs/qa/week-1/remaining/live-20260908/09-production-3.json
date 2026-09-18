@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:19:02.276Z",
-  "ended": "2026-09-08T14:19:03.297Z",
-  "command": "# Cluster Admin - Full access\ncat << 'EOF' | kubectl apply -f -\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: k0rdent-cluster-admin\nrules:\n- apiGroups: [\"k0rdent.mirantis.com\"]\n  resources: [\"*\"]\n  verbs: [\"*\"]\n- apiGroups: [\"cluster.x-k8s.io\"]\n  resources: [\"*\"]\n  verbs: [\"*\"]\n- apiGroups: [\"infrastructure.cluster.x-k8s.io\"]\n  resources: [\"*\"]\n  verbs: [\"*\"]\nEOF\n\n# Cluster Viewer - Read-only access\ncat << 'EOF' | kubectl apply -f -\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: k0rdent-cluster-viewer\nrules:\n- apiGroups: [\"k0rdent.mirantis.com\"]\n  resources: [\"*\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"cluster.x-k8s.io\"]\n  resources: [\"*\"]\n  verbs: [\"get\", \"list\", \"watch\"]\nEOF\n\n# Project Admin - Manage clusters within a project\ncat << 'EOF' | kubectl apply -f -\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: k0rdent-project-admin\n  namespace: team-platform\nrules:\n- apiGroups: [\"k0rdent.mirantis.com\"]\n  resources: [\"clusterdeployments\", \"multiclusterservices\"]\n  verbs: [\"*\"]\n- apiGroups: [\"\"]\n  resources: [\"secrets\"]\n  verbs: [\"get\", \"list\", \"create\", \"update\", \"delete\"]\nEOF\n",
-  "code": 0,
-  "stdout": "clusterrole.rbac.authorization.k8s.io/k0rdent-cluster-admin created\nclusterrole.rbac.authorization.k8s.io/k0rdent-cluster-viewer created\nrole.rbac.authorization.k8s.io/k0rdent-project-admin created\n",
-  "stderr": ""
-}

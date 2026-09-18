@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:33:41.407Z",
-  "ended": "2026-09-08T14:33:42.599Z",
-  "command": "set -e\ncd /home/ubuntu/qa-week1\nsource ingest.env\nkubectl --kubeconfig \"$MGMT_KUBECONFIG\" -n kcm-system get configmap \"kof-cluster-config-$CLUSTER_NAME\" -o yaml > /tmp/kof-endpoints-before.yaml\njq -n --arg host \"$INGEST_HOST\" '{data:{write_metrics_endpoint:(\"https://\"+$host+\"/metrics\"),write_logs_endpoint:(\"https://\"+$host+\"/logs/v1/logs\")}}' > /tmp/kof-endpoints-patch.json\nkubectl --kubeconfig \"$MGMT_KUBECONFIG\" -n kcm-system patch configmap \"kof-cluster-config-$CLUSTER_NAME\" --type=merge --patch-file /tmp/kof-endpoints-patch.json\nhelm --kubeconfig \"$WORKLOAD_KUBECONFIG\" -n kof get values kof-collectors --all -o json > /tmp/kof-values.json\nkubectl --kubeconfig \"$MGMT_KUBECONFIG\" -n kcm-system get cluster \"$CLUSTER_NAME\" -o json | jq -r '.metadata.annotations[\"k0rdent.mirantis.com/kof-collectors-values\"] // \"{}\"' > /tmp/kof-annotation-before.yaml\npython3 curriculum/examples/telemetry/prepare-kof-values.py --mode storage \\\n  --values /tmp/kof-values.json --existing /tmp/kof-annotation-before.yaml > /tmp/kof-ingest-values.yaml\nkubectl --kubeconfig \"$MGMT_KUBECONFIG\" -n kcm-system annotate cluster \"$CLUSTER_NAME\" \\\n  k0rdent.mirantis.com/kof-collectors-values=\"$(cat /tmp/kof-ingest-values.yaml)\" --overwrite\n",
-  "code": 0,
-  "stdout": "configmap/kof-cluster-config-managed-cluster-01 patched\ncluster.cluster.x-k8s.io/managed-cluster-01 annotated\n",
-  "stderr": ""
-}

@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:34:20.639Z",
-  "ended": "2026-09-08T14:34:21.821Z",
-  "command": "curl -fsSG --data-urlencode 'query=kube_node_info{cluster=\"managed-cluster-01\"}' http://localhost:8481/select/0/prometheus/api/v1/query | jq '{status,result:.data.result}'; curl -fsSG --data-urlencode 'query=\"KOF_CROSS_CLUSTER_PROBE\"' --data-urlencode 'limit=2' http://localhost:9471/select/logsql/query; kubectl get pods -n kof | grep opencost; kubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig logs deployment/kof-collectors-opencost -n kof -c kof-collectors-opencost --previous --tail=3",
-  "code": 0,
-  "stdout": "{\n  \"status\": \"success\",\n  \"result\": []\n}\nkof-collectors-opencost-6c84d497bc-mzlkx                          2/2     Running   3 (4m34s ago)   5m33s\n\u001b[90m2026-09-08T14:33:57.216612206Z\u001b[0m \u001b[32mINF\u001b[0m Prometheus Client Max Concurrency set to 5\n\u001b[90m2026-09-08T14:34:07.221476487Z\u001b[0m \u001b[1m\u001b[31mFTL\u001b[0m\u001b[0m Failed to create Prometheus data source: failed to query prometheus at http://vmselect-cluster.kof.svc.cluster.local:8481/select/0/prometheus: query error: 'Post \"http://vmselect-cluster.kof.svc.cluster.local:8481/select/0/prometheus/api/v1/query?query=up&time=1788878037\": dial tcp: lookup vmselect-cluster.kof.svc.cluster.local on 10.96.0.10:53: no such host' fetching query 'up'\nTroubleshooting help available at: https://www.opencost.io/docs/integrations/prometheus\n",
-  "stderr": ""
-}

@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:16:18.586Z",
-  "ended": "2026-09-08T14:16:18.654Z",
-  "command": "kubectl get nodes; kubectl get management; kubectl get pods -n kcm-system",
-  "code": 255,
-  "stdout": "",
-  "stderr": "ssh: connect to host 54.155.216.244 port 22: Connection refused\r\n"
-}

@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:34:04.199Z",
-  "ended": "2026-09-08T14:34:04.711Z",
-  "command": "kubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig run kof-ingest-probe --restart=Never --image=busybox:1.37.0 -- sh -c 'echo KOF_CROSS_CLUSTER_PROBE; sleep 5'",
-  "code": 0,
-  "stdout": "pod/kof-ingest-probe created\n",
-  "stderr": ""
-}

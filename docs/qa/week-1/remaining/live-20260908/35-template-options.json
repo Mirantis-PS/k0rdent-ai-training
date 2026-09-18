@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:25:45.476Z",
-  "ended": "2026-09-08T14:25:45.746Z",
-  "command": "kubectl get clustertemplate aws-standalone-cp-1-0-26 -n kcm-system -o jsonpath='{.status.config}' | jq '{ami,controlPlane,worker,bastion,k0s,network}'",
-  "code": 0,
-  "stdout": "{\n  \"ami\": null,\n  \"controlPlane\": {\n    \"amiID\": \"\",\n    \"iamInstanceProfile\": \"control-plane.cluster-api-provider-aws.sigs.k8s.io\",\n    \"imageLookup\": {\n      \"baseOS\": \"\",\n      \"format\": \"amzn2-ami-hvm*-gp2\",\n      \"org\": \"137112412989\"\n    },\n    \"instanceType\": \"\",\n    \"nonRootVolumes\": [],\n    \"rootVolumeSize\": 8,\n    \"uncompressedUserData\": false\n  },\n  \"worker\": {\n    \"amiID\": \"\",\n    \"iamInstanceProfile\": \"control-plane.cluster-api-provider-aws.sigs.k8s.io\",\n    \"imageLookup\": {\n      \"baseOS\": \"\",\n      \"format\": \"amzn2-ami-hvm*-gp2\",\n      \"org\": \"137112412989\"\n    },\n    \"instanceType\": \"\",\n    \"nonRootVolumes\": [],\n    \"rootVolumeSize\": 8,\n    \"uncompressedUserData\": false\n  },\n  \"bastion\": {\n    \"allowedCIDRBlocks\": [],\n    \"ami\": \"\",\n    \"disableIngressRules\": false,\n    \"enabled\": false,\n    \"instanceType\": \"t2.micro\"\n  },\n  \"k0s\": {\n    \"api\": {\n      \"extraArgs\": {}\n    },\n    \"arch\": \"amd64\",\n    \"cpArgs\": [],\n    \"files\": [],\n    \"network\": {\n      \"calico\": {\n        \"mode\": \"ipip\"\n      },\n      \"provider\": \"calico\"\n    },\n    \"version\": \"v1.35.1+k0s.1\",\n    \"workerArgs\": []\n  },\n  \"network\": null\n}\n",
-  "stderr": ""
-}

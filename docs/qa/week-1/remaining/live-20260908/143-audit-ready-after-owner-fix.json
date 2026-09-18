@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:58:54.301Z",
-  "ended": "2026-09-08T14:58:55.068Z",
-  "command": "kubectl get --raw=/readyz\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig get --raw=/readyz\nsudo ls -l /var/log/kubernetes/audit.log\n",
-  "code": 0,
-  "stdout": "okok-rw------- 1 kube-apiserver root 3287470 Sep  8 14:58 /var/log/kubernetes/audit.log\n",
-  "stderr": ""
-}

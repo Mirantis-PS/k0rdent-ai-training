@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:19:30.489Z",
-  "ended": "2026-09-08T14:19:31.424Z",
-  "command": "# Verify the backup schedule\nkubectl get managementbackup\n",
-  "code": 0,
-  "stdout": "NAME   LASTBACKUPSTATUS   NEXTBACKUP             AGE\nkcm                       2026-09-08T18:00:00Z   1s\n",
-  "stderr": ""
-}

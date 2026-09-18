@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:29:42.992Z",
-  "ended": "2026-09-08T14:29:44.785Z",
-  "command": "kubectl logs -n kof deployment/kof-collectors-opencost -c kof-collectors-opencost --tail=35",
-  "code": 0,
-  "stdout": "\u001b[90m2026-09-08T14:29:37.36978821Z\u001b[0m \u001b[1m???\u001b[0m Log level set to info\n\u001b[90m2026-09-08T14:29:37.369927239Z\u001b[0m \u001b[32mINF\u001b[0m Starting cost-model version 1.118.0 (37e08c6)\n\u001b[90m2026-09-08T14:29:37.369941147Z\u001b[0m \u001b[32mINF\u001b[0m Kubernetes enabled: true\n\u001b[90m2026-09-08T14:29:37.369952098Z\u001b[0m \u001b[32mINF\u001b[0m Carbon Estimates enabled: false\n\u001b[90m2026-09-08T14:29:37.369962636Z\u001b[0m \u001b[32mINF\u001b[0m Cloud Costs enabled: false\n\u001b[90m2026-09-08T14:29:37.369972426Z\u001b[0m \u001b[32mINF\u001b[0m Custom Costs enabled: false\n\u001b[90m2026-09-08T14:29:37.369983571Z\u001b[0m \u001b[32mINF\u001b[0m MCP Server enabled: true\n\u001b[90m2026-09-08T14:29:37.41532835Z\u001b[0m \u001b[32mINF\u001b[0m Could not find Custom Pricing file at path '/var/configs/aws.json'\n\u001b[90m2026-09-08T14:29:37.420134173Z\u001b[0m \u001b[32mINF\u001b[0m Found ProviderID starting with \"aws\", using AWS Provider\n\u001b[90m2026-09-08T14:29:37.420272623Z\u001b[0m \u001b[32mINF\u001b[0m Prometheus Client Max Concurrency set to 5\n",
-  "stderr": "ControlSocket /Users/moustaphagueye/.ssh/control-54.155.216.244-22-ec2-user already exists, disabling multiplexing\r\n"
-}

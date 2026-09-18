@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:56:54.745Z",
-  "ended": "2026-09-08T14:56:56.160Z",
-  "command": "kubectl get --raw=/readyz\nsudo test -s /var/log/kubernetes/audit.log\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig -n kof get daemonset kof-collectors-daemon-collector -o json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d[\"spec\"][\"template\"][\"spec\"].get(\"tolerations\"));print(d[\"status\"])'\nkubectl -n kof get pods -o wide | grep daemon-collector\n",
-  "code": 1,
-  "stdout": "[{'effect': 'NoSchedule', 'key': 'node-role.kubernetes.io/master', 'operator': 'Exists'}]\n{'currentNumberScheduled': 1, 'desiredNumberScheduled': 1, 'numberAvailable': 1, 'numberMisscheduled': 0, 'numberReady': 1, 'observedGeneration': 2, 'updatedNumberScheduled': 1}\n",
-  "stderr": "The connection to the server 10.0.9.27:6443 was refused - did you specify the right host or port?\nThe connection to the server 10.0.9.27:6443 was refused - did you specify the right host or port?\n"
-}

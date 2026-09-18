@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:19:00.960Z",
-  "ended": "2026-09-08T14:19:02.275Z",
-  "command": "# Create team namespaces\nkubectl create namespace team-platform\nkubectl create namespace team-ml\nkubectl create namespace team-data\n\n# Optional: add your own organizational labels for reporting or automation\nkubectl label namespace team-platform team=platform\nkubectl label namespace team-ml team=ml\nkubectl label namespace team-data team=data\n",
-  "code": 0,
-  "stdout": "namespace/team-platform created\nnamespace/team-ml created\nnamespace/team-data created\nnamespace/team-platform labeled\nnamespace/team-ml labeled\nnamespace/team-data labeled\n",
-  "stderr": ""
-}

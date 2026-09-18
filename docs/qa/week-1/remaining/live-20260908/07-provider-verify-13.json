@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:18:44.479Z",
-  "ended": "2026-09-08T14:18:45.858Z",
-  "command": "# 1. Secret exists with AWS keys\nkubectl get secret aws-cluster-identity-secret -n kcm-system\n\n# 2. AWSClusterStaticIdentity references the secret\nkubectl get awsclusterstaticidentity aws-cluster-identity -o jsonpath='{.spec.secretRef}' && echo \"\"\n\n# 3. Resource template ConfigMap exists (used in identity propagation workflows)\nkubectl get configmap aws-cluster-identity-resource-template -n kcm-system\n\n# 4. k0rdent Credential references the identity\nkubectl get credential aws-cluster-identity-cred -n kcm-system -o jsonpath='{.spec.identityRef}' && echo \"\"\n\n# Full chain summary\necho \"=== Credential Chain ===\"\necho \"Secret:   aws-cluster-identity-secret\"\necho \"Identity: aws-cluster-identity\"\necho \"Template: aws-cluster-identity-resource-template\"\necho \"Credential: aws-cluster-identity-cred\"\necho \"\"\necho \"Ready for cluster provisioning in Lab 1.5\"\n",
-  "code": 0,
-  "stdout": "NAME                          TYPE     DATA   AGE\naws-cluster-identity-secret   Opaque   3      14s\naws-cluster-identity-secret\nNAME                                     DATA   AGE\naws-cluster-identity-resource-template   0      31s\n{\"apiVersion\":\"infrastructure.cluster.x-k8s.io/v1beta2\",\"kind\":\"AWSClusterStaticIdentity\",\"name\":\"aws-cluster-identity\",\"namespace\":\"kcm-system\"}\n=== Credential Chain ===\nSecret:   aws-cluster-identity-secret\nIdentity: aws-cluster-identity\nTemplate: aws-cluster-identity-resource-template\nCredential: aws-cluster-identity-cred\n\nReady for cluster provisioning in Lab 1.5\n",
-  "stderr": ""
-}

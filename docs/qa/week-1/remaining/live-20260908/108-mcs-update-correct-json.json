@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:49:43.349Z",
-  "ended": "2026-09-08T14:49:43.980Z",
-  "command": "python3 - <<'PY'\nimport json,subprocess\np=[{'op':'replace','path':'/spec/serviceSpec/services/0/values','value':'kyverno:\\n  admissionController:\\n    replicas: 2\\n'}]\nsubprocess.run(['kubectl','patch','multiclusterservice','baseline-services','--type=json','-p',json.dumps(p)],check=True)\nPY",
-  "code": 0,
-  "stdout": "multiclusterservice.k0rdent.mirantis.com/baseline-services patched\n",
-  "stderr": ""
-}

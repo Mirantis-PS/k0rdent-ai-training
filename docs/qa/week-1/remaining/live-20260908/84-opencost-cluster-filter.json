@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:43:01.445Z",
-  "ended": "2026-09-08T14:43:28.066Z",
-  "command": "python3 - <<'PY'\nimport yaml,subprocess\np='/tmp/kof-ingest-values.yaml'\nd=yaml.safe_load(open(p)); e=d['opencost']['opencost'].setdefault('exporter',{}); e['extraEnv']={'CURRENT_CLUSTER_ID_FILTER_ENABLED':'true','PROM_CLUSTER_ID_LABEL':'cluster'}\nopen(p,'w').write(yaml.safe_dump(d,sort_keys=False))\nsubprocess.run(['kubectl','annotate','cluster','managed-cluster-01','-n','kcm-system','k0rdent.mirantis.com/kof-collectors-values='+open(p).read(),'--overwrite'],check=True)\nPY\nhelm upgrade kof-collectors oci://ghcr.io/k0rdent/kof/charts/kof-collectors --version 1.6.0 -n kof --reuse-values --set-string opencost.opencost.exporter.extraEnv.CURRENT_CLUSTER_ID_FILTER_ENABLED=true --set-string opencost.opencost.exporter.extraEnv.PROM_CLUSTER_ID_LABEL=cluster\n",
-  "code": 0,
-  "stdout": "cluster.cluster.x-k8s.io/managed-cluster-01 annotated\nRelease \"kof-collectors\" has been upgraded. Happy Helming!\nNAME: kof-collectors\nLAST DEPLOYED: Tue Sep  8 14:43:03 2026\nNAMESPACE: kof\nSTATUS: deployed\nREVISION: 2\nTEST SUITE: None\n",
-  "stderr": "Pulled: ghcr.io/k0rdent/kof/charts/kof-collectors:1.6.0\nDigest: sha256:2c26b757984e990a6d35f0ebfb4737c43bf737e7239c03c0251ffe7326995cc1\n"
-}

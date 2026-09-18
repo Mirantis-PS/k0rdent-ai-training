@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:56:01.686Z",
-  "ended": "2026-09-08T14:56:02.994Z",
-  "command": "kubectl explain awscluster.spec | grep -A 8 -B 3 -i ingress\nkubectl explain awscluster.spec.networkSpec\n",
-  "code": 1,
-  "stdout": "GROUP:      infrastructure.cluster.x-k8s.io\nKIND:       AWSCluster\nVERSION:    v1beta2\n\n",
-  "stderr": "error: field \"networkSpec\" does not exist\n"
-}

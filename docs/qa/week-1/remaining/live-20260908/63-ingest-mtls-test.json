@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:32:47.546Z",
-  "ended": "2026-09-08T14:32:48.052Z",
-  "command": "source /home/ubuntu/qa-week1/ingest.env\ncurl --connect-timeout 10 --max-time 15 --cacert \"$CERT_DIR/ca.crt\" -o /dev/null -w '%{http_code}\\n' \"https://$INGEST_HOST/logs/v1/logs\"\ncurl --connect-timeout 10 --max-time 15 --fail-with-body --cacert \"$CERT_DIR/ca.crt\" --cert \"$CERT_DIR/client.crt\" --key \"$CERT_DIR/client.key\" -H 'Content-Type: application/json' -d '{\"resourceLogs\":[]}' \"https://$INGEST_HOST/logs/v1/logs\"",
-  "code": 22,
-  "stdout": "400\nremoteAddr: \"10.244.209.204:41096\"; requestURI: /insert/opentelemetry/v1/logs; json encoding isn't supported for opentelemetry format. Use protobuf encoding\n",
-  "stderr": "  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100   237  100   237    0     0  11199      0 --:--:-- --:--:-- --:--:-- 11850\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100   176  100   157  100    19   5100    617 --:--:-- --:--:-- --:--:--  5866\ncurl: (22) The requested URL returned error: 400\n"
-}

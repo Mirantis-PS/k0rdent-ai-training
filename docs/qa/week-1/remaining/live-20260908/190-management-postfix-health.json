@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T15:23:52.346Z",
-  "ended": "2026-09-08T15:23:53.351Z",
-  "command": "set -euo pipefail\nsudo kubectl get --raw=/readyz\nsudo kubectl get management -o wide\nsudo kubectl -n kcm-system get backupstoragelocations -o wide\nsudo kubectl get pods -A -o json | python3 -c 'import json,sys;x=json.load(sys.stdin)[\"items\"];bad=[(p[\"metadata\"][\"namespace\"],p[\"metadata\"][\"name\"],p[\"status\"][\"phase\"]) for p in x if p[\"status\"][\"phase\"]!=\"Succeeded\" and not all(c.get(\"ready\",False) for c in p[\"status\"].get(\"containerStatuses\",[{}]))];print(\"not_ready\",bad);assert not bad'\n",
-  "code": 0,
-  "stdout": "okNAME   READY   RELEASE                    AGE\nkcm    True    k0rdent-enterprise-1-3-2   4h22m\nNAME     PHASE       LAST VALIDATED   AGE   DEFAULT\naws-s3   Available   43s              64m   \nnot_ready []\n",
-  "stderr": ""
-}

@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:46:57.169Z",
-  "ended": "2026-09-08T14:46:58.007Z",
-  "command": "mkdir -p /tmp/qa-kof-source\nhelm pull oci://ghcr.io/k0rdent/kof/charts/kof-mothership --version 1.6.0 --untar --untardir /tmp/qa-kof-source\nrg -n 'record|regional' /tmp/qa-kof-source/kof-mothership/templates --glob '*yaml' | head -60\nkubectl -n kof get pods | grep opencost\nkubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig -n default get policyreport -o json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=[r for p in d[\"items\"] if p.get(\"scope\",{}).get(\"name\")==\"test-pod\" for r in p.get(\"results\",[]) if r[\"policy\"]==\"require-labels\"];print(r);assert any(x[\"result\"]==\"pass\" for x in r)'\n",
-  "code": 0,
-  "stdout": "kof-collectors-opencost-5b56c6fb-lhb82                            2/2     Running   0               3m40s\n[{'message': \"validation rule 'check-for-labels' passed.\", 'policy': 'require-labels', 'properties': {'process': 'background scan'}, 'result': 'pass', 'rule': 'check-for-labels', 'scored': True, 'source': 'kyverno', 'timestamp': {'nanos': 0, 'seconds': 1788878799}}]\n",
-  "stderr": "Pulled: ghcr.io/k0rdent/kof/charts/kof-mothership:1.6.0\nDigest: sha256:6ecd1b2d25c6011d68bb718946c0cbf086066f39ac938f2293f25675fcd9f872\nbash: line 3: rg: command not found\n"
-}
