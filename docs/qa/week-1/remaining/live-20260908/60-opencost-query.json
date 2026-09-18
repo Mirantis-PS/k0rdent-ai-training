@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:31:55.186Z",
-  "ended": "2026-09-08T14:31:57.005Z",
-  "command": "curl -fsS \"http://localhost:9003/allocation/compute?window=1h&aggregate=namespace\" | jq '{code,namespaces:(.data[0]|keys)}'; kubectl get pods -n kof | grep opencost",
-  "code": 0,
-  "stdout": "kof-collectors-opencost-6c84d497bc-mzlkx                          1/2     Running   3 (2m9s ago)    3m8s\n",
-  "stderr": "ControlSocket /Users/moustaphagueye/.ssh/control-54.155.216.244-22-ec2-user already exists, disabling multiplexing\r\ncurl: (52) Empty reply from server\n"
-}

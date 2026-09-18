@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:19:32.298Z",
-  "ended": "2026-09-08T14:19:33.409Z",
-  "command": "# Apply Pod Security Standards to namespaces\nkubectl label namespace team-platform \\\n  pod-security.kubernetes.io/enforce=restricted \\\n  pod-security.kubernetes.io/warn=restricted\n\nkubectl label namespace team-ml \\\n  pod-security.kubernetes.io/enforce=baseline \\\n  pod-security.kubernetes.io/warn=restricted\n",
-  "code": 0,
-  "stdout": "namespace/team-platform labeled\nnamespace/team-ml labeled\n",
-  "stderr": ""
-}

@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:28:58.996Z",
-  "ended": "2026-09-08T14:28:59.891Z",
-  "command": "# Label the cluster with KOF child role\nkubectl label clusterdeployment managed-cluster-01 \\\n  k0rdent.mirantis.com/kof-cluster-role=child \\\n  -n kcm-system\n\n# Label for secret distribution (required for collector authentication)\nkubectl label clusterdeployment managed-cluster-01 \\\n  k0rdent.mirantis.com/kof-storage-secrets=true \\\n  -n kcm-system\n\n# Verify labels were applied\nkubectl get clusterdeployment managed-cluster-01 -n kcm-system --show-labels\n",
-  "code": 0,
-  "stdout": "clusterdeployment.k0rdent.mirantis.com/managed-cluster-01 labeled\nclusterdeployment.k0rdent.mirantis.com/managed-cluster-01 labeled\nNAME                 READY   SERVICES   TEMPLATE                   MESSAGES          AGE     LABELS\nmanaged-cluster-01   True    0/0        aws-standalone-cp-1-0-26   Object is ready   8m53s   environment=training,k0rdent.mirantis.com/component=kcm,k0rdent.mirantis.com/kof-cluster-role=child,k0rdent.mirantis.com/kof-storage-secrets=true,owner=lab-user\n",
-  "stderr": ""
-}

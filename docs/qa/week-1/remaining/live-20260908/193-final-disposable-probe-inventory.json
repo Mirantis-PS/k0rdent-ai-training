@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T15:30:47.322Z",
-  "ended": "2026-09-08T15:30:48.226Z",
-  "command": "set -euo pipefail\nsudo kubectl get serviceaccounts,rolebindings,configmaps -n default -o name | grep -E 'audit-|qa-' || true\nsudo kubectl get namespaces -o name\nsudo kubectl get multiclusterservices -o wide\n",
-  "code": 0,
-  "stdout": "serviceaccount/audit-capacity-probe\nrolebinding.rbac.authorization.k8s.io/audit-capacity-probe\nnamespace/default\nnamespace/envoy-gateway-system\nnamespace/k0s-autopilot\nnamespace/kcm-system\nnamespace/kof\nnamespace/kube-node-lease\nnamespace/kube-public\nnamespace/kube-system\nnamespace/local-path-storage\nnamespace/mgmt\nnamespace/projectsveltos\nnamespace/team-data\nnamespace/team-ml\nnamespace/team-platform\nNAME                                        CLUSTERS   PROVIDER   SELF-MANAGEMENT   AGE\nkof-namespace                               0/0                                     65m\nkof-namespace-propagation                   0/0                                     65m\nkof-storage-secrets                         0/0                                     65m\nkof-storage-secrets-remote-templates-copy   0/0                                     65m\n",
-  "stderr": ""
-}

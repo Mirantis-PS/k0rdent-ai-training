@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T15:06:07.971Z",
-  "ended": "2026-09-08T15:06:20.690Z",
-  "command": "set -euo pipefail\nexport KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\nkubectl get policyreport -n policy-test -o json | python3 -c 'import json,sys;d=json.load(sys.stdin);r=[r for p in d[\"items\"] if p.get(\"scope\",{}).get(\"name\")==\"test-pod\" for r in p.get(\"results\",[])];print(r);assert any(x[\"result\"]==\"pass\" for x in r)'\nkubectl delete namespace policy-test\nkubectl delete clusterpolicy require-labels\nkubectl delete rolebinding audit-probe\nkubectl delete serviceaccount audit-probe\nunset KUBECONFIG\nkubectl delete rolebinding audit-probe\nkubectl delete serviceaccount audit-probe\n",
-  "code": 0,
-  "stdout": "[{'message': \"validation rule 'check-for-labels' passed.\", 'policy': 'require-labels', 'properties': {'process': 'background scan'}, 'result': 'pass', 'rule': 'check-for-labels', 'scored': True, 'source': 'kyverno', 'timestamp': {'nanos': 0, 'seconds': 1788879954}}]\nnamespace \"policy-test\" deleted\nclusterpolicy.kyverno.io \"require-labels\" deleted\nrolebinding.rbac.authorization.k8s.io \"audit-probe\" deleted from default namespace\nserviceaccount \"audit-probe\" deleted from default namespace\nrolebinding.rbac.authorization.k8s.io \"audit-probe\" deleted from default namespace\nserviceaccount \"audit-probe\" deleted from default namespace\n",
-  "stderr": ""
-}

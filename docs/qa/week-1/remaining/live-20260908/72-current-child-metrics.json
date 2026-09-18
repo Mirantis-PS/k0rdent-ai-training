@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:34:50.901Z",
-  "ended": "2026-09-08T14:34:51.483Z",
-  "command": "curl -fsSG --data-urlencode 'query=up{cluster=\"managed-cluster-01\"}' http://localhost:8481/select/0/prometheus/api/v1/query | jq '{status,result:.data.result}'; kubectl logs -n kof deployment/kof-ingest-gateway --tail=6; curl -fsS \"http://localhost:9003/allocation/compute?window=1h&aggregate=namespace\" | jq '{code,namespaces:(.data[0]|keys)}'",
-  "code": 0,
-  "stdout": "{\n  \"status\": \"success\",\n  \"result\": []\n}\n10.0.9.27 - vYCmsSZL [08/Sep/2026:14:34:49 +0000] \"POST /logs/v1/logs HTTP/1.1\" 200 0 \"-\" \"OpenTelemetry Collector Contrib/0.123.0 (linux/amd64)\"\n10.0.9.27 - - [08/Sep/2026:14:34:49 +0000] \"GET /healthz HTTP/1.1\" 200 3 \"-\" \"kube-probe/1.35\"\n10.0.9.27 - vYCmsSZL [08/Sep/2026:14:34:50 +0000] \"POST /logs/v1/logs HTTP/1.1\" 200 0 \"-\" \"OpenTelemetry Collector Contrib/0.123.0 (linux/amd64)\"\n10.0.9.27 - vYCmsSZL [08/Sep/2026:14:34:50 +0000] \"POST /metrics HTTP/1.1\" 204 0 \"-\" \"opentelemetry-collector-contrib/0.123.0\"\n10.0.9.27 - vYCmsSZL [08/Sep/2026:14:34:50 +0000] \"POST /metrics HTTP/1.1\" 204 0 \"-\" \"opentelemetry-collector-contrib/0.123.0\"\n10.0.9.27 - vYCmsSZL [08/Sep/2026:14:34:51 +0000] \"POST /metrics HTTP/1.1\" 204 0 \"-\" \"opentelemetry-collector-contrib/0.123.0\"\n",
-  "stderr": "curl: (7) Failed to connect to localhost port 9003 after 0 ms: Connection refused\n"
-}

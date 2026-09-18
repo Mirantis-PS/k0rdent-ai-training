@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:35:02.827Z",
-  "ended": "2026-09-08T14:35:03.272Z",
-  "command": "nohup kubectl port-forward svc/kof-collectors-opencost -n kof 9003:9003 >/tmp/qa-cost-forward.log 2>&1 </dev/null &\n",
-  "code": 0,
-  "stdout": "",
-  "stderr": ""
-}

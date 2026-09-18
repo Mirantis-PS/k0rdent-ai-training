@@ -1,5 +1,5 @@
 # OS generated files
-.DS_Store?
+.DS_Store
 ehthumbs.db
 
 # IDE and editor files
@@ -61,3 +61,13 @@ credentials.json
 /lab-infrastructure/config/.qa-aws.env.*
 /lab-infrastructure/config/qa-aws.fish
 /lab-infrastructure/config/.qa-aws.fish.*
+
+# Agent and editor tooling scaffolding (local only)
+.codex/
+.claude/
+CLAUDE.md
+scratchpad/
+
+# Agent validation evidence - kept local, never published to the course repo
+docs/qa/
+docs/superpowers/

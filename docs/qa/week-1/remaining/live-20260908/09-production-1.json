@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:18:59.955Z",
-  "ended": "2026-09-08T14:19:00.959Z",
-  "command": "# Check current node count\nkubectl get nodes\n\n# For production, you would deploy 3 nodes\n# This lab focuses on single-node configuration hardening\n",
-  "code": 0,
-  "stdout": "NAME           STATUS   ROLES           AGE     VERSION\nip-10-0-9-27   Ready    control-plane   3h20m   v1.35.4+k0s\n",
-  "stderr": ""
-}

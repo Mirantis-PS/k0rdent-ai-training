@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:28:13.294Z",
-  "ended": "2026-09-08T14:28:24.678Z",
-  "command": "cd /home/ubuntu/qa-week1; kubectl apply -f curriculum/examples/telemetry/ingest-gateway.yaml; kubectl get svc kof-ingest-gateway -n kof",
-  "code": 0,
-  "stdout": "configmap/kof-ingest-gateway created\ndeployment.apps/kof-ingest-gateway created\nservice/kof-ingest-gateway created\nNAME                 TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)         AGE\nkof-ingest-gateway   LoadBalancer   10.110.20.139   <pending>     443:30762/TCP   0s\n",
-  "stderr": ""
-}

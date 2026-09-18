@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:19:28.793Z",
-  "ended": "2026-09-08T14:19:29.596Z",
-  "command": "# Verify the BackupStorageLocation is now Available\nkubectl get backupstoragelocation -n kcm-system\n",
-  "code": 0,
-  "stdout": "NAME     PHASE       LAST VALIDATED   AGE   DEFAULT\naws-s3   Available   1s               22s   \n",
-  "stderr": ""
-}

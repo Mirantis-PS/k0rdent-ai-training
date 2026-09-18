@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T15:10:13.177Z",
-  "ended": "2026-09-08T15:10:13.513Z",
-  "command": "kubectl get clusterdeployment managed-cluster-01 -n kcm-system --ignore-not-found\nkubectl get machines -n kcm-system\n",
-  "code": 0,
-  "stdout": "NAME                 READY   SERVICES   TEMPLATE                   MESSAGES                                                AGE\nmanaged-cluster-01   False   0/0        aws-standalone-cp-1-0-26   * Deleting: Waiting for K0sControlPlane to be deleted   50m\n",
-  "stderr": "No resources found in kcm-system namespace.\n"
-}

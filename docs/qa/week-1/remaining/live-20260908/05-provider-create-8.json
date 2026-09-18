@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:18:13.519Z",
-  "ended": "2026-09-08T14:18:14.611Z",
-  "command": "cat << 'EOF' | kubectl apply -f -\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: aws-cluster-identity-resource-template\n  namespace: kcm-system\n  labels:\n    k0rdent.mirantis.com/component: \"kcm\"\n  annotations:\n    projectsveltos.io/template: \"true\"\nEOF\n",
-  "code": 0,
-  "stdout": "configmap/aws-cluster-identity-resource-template created\n",
-  "stderr": ""
-}

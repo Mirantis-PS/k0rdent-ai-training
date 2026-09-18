@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:24:02.842Z",
-  "ended": "2026-09-08T14:24:06.072Z",
-  "command": "aws ec2 describe-instance-types --instance-types t3.medium --region eu-west-1 --query 'InstanceTypes[].VCpuInfo.DefaultVCpus' --output text; kubectl get awsmachinetemplates -n kcm-system -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity",
-  "code": 0,
-  "stdout": "2\nNAME                           CAPACITY\nmanaged-cluster-01-cp-mt       <none>\nmanaged-cluster-01-worker-mt   <none>\n",
-  "stderr": ""
-}

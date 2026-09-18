@@ -1,7 +1,0 @@
-{
-  "timestamp": "2026-09-08T14:55:28.868Z",
-  "command": "sudo systemctl show k0scontroller --property=ExecStart\nsudo ls -l /etc/k0s /var/lib/k0s/kubelet.conf\nsudo k0s config validate --config /etc/k0s/k0s.yaml\ncommand -v python3\n",
-  "code": 255,
-  "stdout": "",
-  "stderr": "ssh: connect to host 34.243.64.61 port 22: Operation timed out\r\n"
-}

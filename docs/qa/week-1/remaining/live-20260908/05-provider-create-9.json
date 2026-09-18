@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:18:14.612Z",
-  "ended": "2026-09-08T14:18:15.668Z",
-  "command": "cat << 'EOF' | kubectl apply -f -\napiVersion: k0rdent.mirantis.com/v1beta1\nkind: Credential\nmetadata:\n  name: aws-cluster-identity-cred\n  namespace: kcm-system\nspec:\n  identityRef:\n    apiVersion: infrastructure.cluster.x-k8s.io/v1beta2\n    kind: AWSClusterStaticIdentity\n    name: aws-cluster-identity\n    namespace: kcm-system\nEOF\n",
-  "code": 0,
-  "stdout": "credential.k0rdent.mirantis.com/aws-cluster-identity-cred created\n",
-  "stderr": ""
-}

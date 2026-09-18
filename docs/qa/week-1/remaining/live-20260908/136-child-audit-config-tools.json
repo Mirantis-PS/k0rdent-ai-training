@@ -1,7 +1,0 @@
-{
-  "timestamp": "2026-09-08T14:57:28.390Z",
-  "command": "sudo /usr/local/bin/k0s config validate --config /etc/k0s.yaml\ngetent passwd kube-apiserver\ncommand -v ruby\nsudo cat /etc/k0s.yaml\n",
-  "code": 0,
-  "stdout": "kube-apiserver:x:993:991::/var/lib/k0s:/usr/sbin/nologin\n{\"apiVersion\":\"k0s.k0sproject.io/v1beta1\",\"kind\":\"ClusterConfig\",\"metadata\":{\"name\":\"k0s\"},\"spec\":{\"api\":{\"externalAddress\":\"managed-cluster-01-apiserver-966545245.eu-west-1.elb.amazonaws.com\",\"extraArgs\":{\"anonymous-auth\":\"true\"}},\"images\":{\"repository\":\"registry.mirantis.com/k0rdent-enterprise\"},\"network\":{\"calico\":{\"mode\":\"ipip\"},\"podCIDR\":\"10.244.0.0/16\",\"provider\":\"calico\",\"serviceCIDR\":\"10.96.0.0/12\"},\"storage\":{\"etcd\":{\"extraArgs\":{\"name\":\"managed-cluster-01-cp-hhbzl\"}}}}}\n",
-  "stderr": ""
-}

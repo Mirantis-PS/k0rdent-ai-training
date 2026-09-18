@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T15:07:52.292Z",
-  "ended": "2026-09-08T15:07:53.376Z",
-  "command": "kubectl -n kof delete service kof-ingest-gateway --wait=false\nkubectl -n kof delete deployment,configmap kof-ingest-gateway --wait=false\nkubectl -n kof delete secret kof-ingest-server\n",
-  "code": 0,
-  "stdout": "service \"kof-ingest-gateway\" deleted from kof namespace\ndeployment.apps \"kof-ingest-gateway\" deleted from kof namespace\nconfigmap \"kof-ingest-gateway\" deleted from kof namespace\nsecret \"kof-ingest-server\" deleted from kof namespace\n",
-  "stderr": "ControlSocket /Users/moustaphagueye/.ssh/control-10.0.9.27-22-ubuntu already exists, disabling multiplexing\r\n"
-}

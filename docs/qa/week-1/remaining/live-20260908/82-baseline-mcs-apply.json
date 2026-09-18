@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:42:40.034Z",
-  "ended": "2026-09-08T14:42:40.773Z",
-  "command": "kubectl label clusterdeployment managed-cluster-01 -n kcm-system environment=training --overwrite\ncat <<EOF | kubectl apply -f -\napiVersion: k0rdent.mirantis.com/v1beta1\nkind: MultiClusterService\nmetadata:\n  name: baseline-services\nspec:\n  clusterSelector:\n    matchLabels:\n      environment: training\n  serviceSpec:\n    services:\n    - template: kyverno-3-8-1\n      name: kyverno\n      namespace: kyverno\n      values: |\n        kyverno:\n          admissionController:\n            replicas: 1\n    priority: 100\nEOF\n",
-  "code": 0,
-  "stdout": "clusterdeployment.k0rdent.mirantis.com/managed-cluster-01 not labeled\nmulticlusterservice.k0rdent.mirantis.com/baseline-services created\n",
-  "stderr": ""
-}

@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:47:51.789Z",
-  "ended": "2026-09-08T14:47:52.625Z",
-  "command": "kubectl -n kof get configmap kof-record-vmrules-mothership -o json | python3 -c 'import json,sys; d=json.load(sys.stdin);print(d[\"metadata\"].get(\"labels\"));print([(k,len(v)) for k,v in d.get(\"data\",{}).items()])'\nkubectl get configmaps -A -l k0rdent.mirantis.com/kof-regional-cluster-name -o yaml\nkubectl -n kof get deployment kof-mothership-kof-operator -o json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d[\"spec\"][\"template\"][\"spec\"][\"containers\"][0].get(\"args\"))'\n",
-  "code": 0,
-  "stdout": "{'app.kubernetes.io/managed-by': 'Helm', 'k0rdent.mirantis.com/kof-generated': 'true', 'k0rdent.mirantis.com/kof-record-vmrules-cluster-name': 'mothership'}\n[('values', 38833)]\napiVersion: v1\nitems: []\nkind: List\nmetadata:\n  resourceVersion: \"\"\n['--http-server-port=9090']\n",
-  "stderr": ""
-}

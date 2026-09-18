@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:19:06.026Z",
-  "ended": "2026-09-08T14:19:06.905Z",
-  "command": "source /opt/k0rdent-lab/config/lab-info.env\n\n# Create an empty credentials file (Velero requires the secret to exist,\n# but with an empty [default] profile it falls back to the instance profile)\nkubectl create secret generic cloud-credentials \\\n  -n kcm-system \\\n  --from-literal=cloud=$'[default]\\n' \\\n  --dry-run=client -o yaml | kubectl apply -f -\n",
-  "code": 0,
-  "stdout": "secret/cloud-credentials created\n",
-  "stderr": ""
-}

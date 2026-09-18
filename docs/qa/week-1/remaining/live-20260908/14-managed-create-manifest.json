@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:20:04.439Z",
-  "ended": "2026-09-08T14:20:05.168Z",
-  "command": "source /opt/k0rdent-lab/config/lab-info.env\n# Replace TEMPLATE_NAME with the actual template name from above\nTEMPLATE_NAME=\"aws-standalone-cp-1-0-26\"  # Adjust based on your output\n\ncat << EOF > /tmp/managed-cluster-01.yaml\napiVersion: k0rdent.mirantis.com/v1beta1\nkind: ClusterDeployment\nmetadata:\n  name: managed-cluster-01\n  namespace: kcm-system\n  labels:\n    environment: training\n    owner: lab-user\nspec:\n  template: ${TEMPLATE_NAME}\n  credential: aws-cluster-identity-cred\n  dryRun: false\n  cleanupOnDeletion: true\n  config:\n    region: ${AWS_REGION}\n    publicIP: true\n    controlPlaneNumber: 1\n    controlPlane:\n      instanceType: t3.medium\n      rootVolumeSize: 50\n    workersNumber: 1\n    worker:\n      instanceType: t3.medium\n      rootVolumeSize: 50\n    # sshKeyName: k0rdent-clusters  # Optional — only needed for direct SSH to nodes\n    clusterIdentity:\n      name: aws-cluster-identity\n      namespace: kcm-system\n    clusterLabels:\n      environment: training\nEOF\n",
-  "code": 0,
-  "stdout": "",
-  "stderr": ""
-}

@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T15:06:20.694Z",
-  "ended": "2026-09-08T15:07:05.703Z",
-  "command": "set -euo pipefail\nexport KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\nkubectl delete httproute gateway-test\nkubectl delete gateway training-gateway\nkubectl delete service,deployment gateway-test\nunset KUBECONFIG\nkubectl delete multiclusterservice baseline-services\n",
-  "code": 255,
-  "stdout": "httproute.gateway.networking.k8s.io \"gateway-test\" deleted from default namespace\ngateway.gateway.networking.k8s.io \"training-gateway\" deleted from default namespace\nservice \"gateway-test\" deleted from default namespace\ndeployment.apps \"gateway-test\" deleted from default namespace\nmulticlusterservice.k0rdent.mirantis.com \"baseline-services\" deleted\n",
-  "stderr": "Command failed: /usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=15 -i /Users/moustaphagueye/k0rdent-ai-training-qa-w1-20260908/lab-infrastructure/config/keys/qa-w1-20260908-k0rdent.pem -o ProxyCommand=ssh -oConnectTimeout=15 -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR -i /Users/moustaphagueye/k0rdent-ai-training-qa-w1-20260908/lab-infrastructure/config/keys/qa-w1-20260908-bastion.pem -W %h:%p ec2-user@54.155.216.244 ubuntu@10.0.9.27 set -euo pipefail\nexport KUBECONFIG=/tmp/managed-cluster-01.kubeconfig\nkubectl delete httproute gateway-test\nkubectl delete gateway training-gateway\nkubectl delete service,deployment gateway-test\nunset KUBECONFIG\nkubectl delete multiclusterservice baseline-services\n\n"
-}

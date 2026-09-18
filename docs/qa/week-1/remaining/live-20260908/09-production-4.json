@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:19:03.298Z",
-  "ended": "2026-09-08T14:19:04.632Z",
-  "command": "# Create service accounts for teams\nkubectl create serviceaccount platform-admin -n team-platform\nkubectl create serviceaccount ml-admin -n team-ml\nkubectl create serviceaccount ml-viewer -n team-ml\n\n# Bind roles -- each persona gets the least-privileged role that fits\n\n# platform-admin: project admin within team-platform only\nkubectl create rolebinding platform-admin-binding \\\n  --role=k0rdent-project-admin \\\n  --serviceaccount=team-platform:platform-admin \\\n  -n team-platform\n\n# ml-admin: full k0rdent access, but only within team-ml\n# (a RoleBinding to a ClusterRole scopes the ClusterRole's rules to one namespace)\nkubectl create rolebinding ml-admin-binding \\\n  --clusterrole=k0rdent-cluster-admin \\\n  --serviceaccount=team-ml:ml-admin \\\n  -n team-ml\n\n# ml-viewer: read-only k0rdent access across the whole cluster\nkubectl create clusterrolebinding ml-viewer-binding \\\n  --clusterrole=k0rdent-cluster-viewer \\\n  --serviceaccount=team-ml:ml-viewer\n",
-  "code": 0,
-  "stdout": "serviceaccount/platform-admin created\nserviceaccount/ml-admin created\nserviceaccount/ml-viewer created\nrolebinding.rbac.authorization.k8s.io/platform-admin-binding created\nrolebinding.rbac.authorization.k8s.io/ml-admin-binding created\nclusterrolebinding.rbac.authorization.k8s.io/ml-viewer-binding created\n",
-  "stderr": ""
-}

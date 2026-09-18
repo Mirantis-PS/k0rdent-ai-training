@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:27:29.363Z",
-  "ended": "2026-09-08T14:27:31.507Z",
-  "command": "kubectl get daemonsets -A; kubectl get nodes -o custom-columns=NAME:.metadata.name,PROVIDER:.spec.providerID; ls /opt/k0rdent-lab; python3 -c 'import yaml; print(yaml.__version__)'",
-  "code": 0,
-  "stdout": "NAMESPACE     NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                                AGE\nkube-system   aws-cloud-controller-manager   1         1         1       1            1           node-role.kubernetes.io/control-plane=true   3h27m\nkube-system   calico-node                    1         1         1       1            1           kubernetes.io/os=linux                       3h29m\nkube-system   konnectivity-agent             1         1         1       1            1           <none>                                       3h29m\nkube-system   kube-proxy                     1         1         1       1            1           kubernetes.io/os=linux                       3h29m\nNAME           PROVIDER\nip-10-0-9-27   aws:///eu-west-1a/i-0d1de08e59276148d\nconfig\n{config,scripts,examples,manifests}\nREADME.md\nscripts\n5.4.1\n",
-  "stderr": "ControlSocket /Users/moustaphagueye/.ssh/control-54.155.216.244-22-ec2-user already exists, disabling multiplexing\r\nControlSocket /Users/moustaphagueye/.ssh/control-10.0.9.27-22-ubuntu already exists, disabling multiplexing\r\n"
-}

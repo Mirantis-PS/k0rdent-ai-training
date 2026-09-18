@@ -1,8 +1,0 @@
-{
-  "started": "2026-09-08T14:32:20.422Z",
-  "ended": "2026-09-08T14:32:21.608Z",
-  "command": "kubectl get multiclusterservice; kubectl get clusterdeployment managed-cluster-01 -n kcm-system; kubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig get pods -n kof; kubectl --kubeconfig=/tmp/managed-cluster-01.kubeconfig get ns kof",
-  "code": 0,
-  "stdout": "NAME                                        CLUSTERS   PROVIDER   SELF-MANAGEMENT   AGE\nkof-child-cluster                           0/1                                     38s\nkof-istio-child-cluster                                                             38s\nkof-namespace                               0/0                                     6m43s\nkof-namespace-propagation                   0/0                                     6m43s\nkof-storage-secrets                         1/1                                     6m43s\nkof-storage-secrets-remote-templates-copy   0/0                                     6m43s\nNAME                 READY   SERVICES   TEMPLATE                   MESSAGES                  AGE\nmanaged-cluster-01   False   1/2        aws-standalone-cp-1-0-26   1/2 Services are ready.   12m\nNAME                                       READY   STATUS    RESTARTS   AGE\ncert-manager-6fdfc5fb4d-6k2q7              1/1     Running   0          24s\ncert-manager-cainjector-756c95fcb8-7zp82   1/1     Running   0          24s\ncert-manager-startupapicheck-hkgg7         1/1     Running   0          8s\ncert-manager-webhook-7745fd95df-zl9sf      1/1     Running   0          24s\nNAME   STATUS   AGE\nkof    Active   3m10s\n",
-  "stderr": ""
-}
