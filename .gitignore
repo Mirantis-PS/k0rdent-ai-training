@@ -62,12 +62,9 @@ credentials.json
 /lab-infrastructure/config/qa-aws.fish
 /lab-infrastructure/config/.qa-aws.fish.*
 
-# Agent and editor tooling scaffolding (local only)
+# Local tooling and scratch directories
 .codex/
-.claude/
-CLAUDE.md
 scratchpad/
 
-# Agent validation evidence - kept local, never published to the course repo
+# Validation evidence - kept local, not published with the course
 docs/qa/
-docs/superpowers/

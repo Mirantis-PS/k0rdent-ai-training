@@ -38,7 +38,6 @@ jobs:
           args: >-
             --offline
             --no-progress
-            --exclude-path .auto-claude
             --exclude-path graphify-out
             --exclude-path node_modules
             --exclude-path docs
