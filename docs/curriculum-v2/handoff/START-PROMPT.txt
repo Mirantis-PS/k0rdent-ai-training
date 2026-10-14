@@ -1,0 +1,17 @@
+Travaille directement dans le dépôt Mirantis-PS/k0rdent-ai-training ouvert dans ce projet.
+
+Je te fournis le dossier codex-v2-handoff. Ce n'est pas un outil de migration : ce sont les consignes détaillées et les documents de conception de notre V2.
+
+Lis les instructions du dépôt et inspecte git status, la branche et le commit source. Préserve mes modifications et les fichiers existants. Installe sans écrasement les documents docs/curriculum-v2/ dans le dépôt et intègre, si compatible, AGENTS-SECTION.md aux instructions existantes, sans les remplacer.
+
+Lis explicitement MASTER-SPEC.md, IMPLEMENTATION-PLAN.md, COVERAGE-MATRIX.md, PRESERVATION-MAP.md et STATUS.md ainsi que les deux documents de référence pour comprendre la destination pédagogique. Les anciennes propositions génériques ou basées sur des semaines ont été abandonnées. Les spécifications consolidées font foi sous réserve de mes instructions et de celles du dépôt.
+
+Objectif complet : une vraie V2 hands-on centrée sur k0rdent/k0rdent AI, qui conserve le contenu actuel, notamment Weeks 1 et 5, et intègre GPU, mémoire, communication distribuée, réseau, allocation, inférence, stockage, observabilité et économie avec des profils matériels à qualifier.
+
+Autorisation immédiate : exécute P0 et P1 sur refactor/curriculum-v2-structure avec de vraies modifications et des commits locaux. Ne t'arrête pas à un nouveau plan et ne me livre pas de script de migration. Préserve la totalité des exigences P2 à P5 dans la matrice et le journal, mais ne mélange pas leurs changements pédagogiques/techniques à cette PR de structure. Déplacer les fichiers ne termine pas la V2.
+
+Avant les déplacements, établis le mapping complet des fichiers réels. Après chaque jalon, vérifie la conservation, les liens et le diff ; mets à jour la couverture et l'état avec des preuves. Respecte l'ordre des prérequis et le lifecycle réel des labs, indépendamment de leur nouveau dossier. Conserve les versions, commandes et paramètres éprouvés, hormis les corrections de chemins nécessaires et documentées.
+
+N'invente aucune fonctionnalité k0rdent AI, disponibilité AWS ou validation GPU. Aucun provisioning payant, push, publication de PR ou merge sans mon accord. En cas de blocage, poursuis les tâches indépendantes et indique précisément ce qui reste impossible et pourquoi.
+
+À la fin, donne la branche, le SHA source, les commits, les contrôles réalisés et les points ouverts. Présente séparément la réorganisation terminée et le travail restant pour la V2 complète ; chaque notion du cahier des charges doit être traçable à un contenu ou à une tâche détaillée.

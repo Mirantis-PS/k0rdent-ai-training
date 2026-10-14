@@ -1,0 +1,35 @@
+{
+  "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
+  "checks": [
+    {
+      "check": "curriculum all tracked",
+      "code": 1,
+      "stdout": "Checked 113 files; 1 errors. Live cluster and full CRD validation are separate.\n",
+      "stderr": "lab-infrastructure/terraform/modules/bastion/templates/bastion-cloud-init.yaml: while scanning a directive\n  in \"<unicode string>\", line 65, column 1:\n    %{ if length(ssh_public_keys) > 0 ~}\n    ^\nexpected alphabetic or numeric character, but found '{'\n  in \"<unicode string>\", line 65, column 2:\n    %{ if length(ssh_public_keys) > 0 ~}\n     ^\n"
+    },
+    {
+      "check": "mermaid",
+      "code": 0,
+      "stdout": "OK: 55 mermaid block(s) across 85 file(s) parse cleanly.\n",
+      "stderr": ""
+    },
+    {
+      "check": "diff whitespace",
+      "code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "existing default scope",
+      "code": 0,
+      "stdout": "Checked 70 files; 0 errors. Live cluster and full CRD validation are separate.\n",
+      "stderr": ""
+    },
+    {
+      "check": "all tracked curriculum",
+      "code": 0,
+      "stdout": "Checked 86 files; 0 errors. Live cluster and full CRD validation are separate.\n",
+      "stderr": ""
+    }
+  ]
+}
