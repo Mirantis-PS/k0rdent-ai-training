@@ -22,8 +22,10 @@ Foundation operations labs are early dependencies, not an end-of-course block. P
 | 6.3 | [Lab 6.3 — Capacity & Fleet Management APIs](labs/capacity-fleet-apis.md) |
 | 6.4 | [Lab 6.4 — Data Sanitization + At-Rest Encryption](labs/sanitization-at-rest-crypto.md) |
 
-## Remaining V2 work
+## P2 educational draft
 
-P2/P4: add the cross-domain fault bank, evidence-driven diagnosis, usage/economics and instructor guidance. See the [coverage matrix](../../../docs/curriculum-v2/COVERAGE-MATRIX.md) for required evidence and phase gates.
+- [AI-LAB-08 — Diagnose and restore](labs/diagnose-restore.md)
+
+Use the [P2 learner path](../../learning-paths/pedagogical-v2.md) for the new sequence, concept capsules and evidence contract. Original source bodies above are preserved. P3 product sources, P4 GPU qualification and P5 independent pilot remain pending; these additions do not claim runtime validation.
 
 [All modules](../../README.md) · [Original course index](../../references/original-course.md)

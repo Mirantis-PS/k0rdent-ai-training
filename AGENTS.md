@@ -13,7 +13,7 @@ Read the reference design and workshop when doing pedagogical authoring. Links i
 
 Operate on the actual checkout. Preserve all source content, user changes, known-good versions and operational configuration. No migration-script deliverable in place of editing the repository. No destructive Git operations, paid/cloud operations, push, PR publication or merge without explicit authorization. Use `refactor/curriculum-v2-structure` for the initial task; never overwrite an existing branch. Preserve existing Git identity and worktree practices.
 
-Execute only the authorized phase. Currently P0/P1 are authorized. Preserve full later-phase scope in the coverage matrix and status; do not label structural reorganization as completion of the whole V2. Resolve missing product sources or hardware access as scoped blockers while completing independent work.
+Execute only the authorized phase. P0/P1 were completed locally. The owner subsequently authorized P2 pedagogical enrichment and local commits, preserving existing material; no push or PR. P3–P5 runtime/product work remains gated. Preserve full later-phase scope in the coverage matrix and status; do not label structural reorganization as completion of the whole V2. Resolve missing product sources or hardware access as scoped blockers while completing independent work.
 
 Keep the course centered on k0rdent AI, majority hands-on, and accessible GPU profiles. Preserve Weeks 1 and 5 and all optional source content. Keep learning documents in English. Never invent product APIs, hardware support, test evidence or capacity guarantees.
 

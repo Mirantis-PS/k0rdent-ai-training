@@ -17,8 +17,10 @@ The existing RDMA and training labs require specialized networking, multiple wor
 | Reference | [5.3 GPU Communication and Interconnect Architecture](theory/gpu-communication.md) |
 | Reference | [5.4 Distributed Training Patterns](theory/distributed-training.md) |
 
-## Remaining V2 work
+## P2 educational draft
 
-P2/P4: derive a real miniature two-worker NCCL/training path on ordinary networking and record actual transport. See the [coverage matrix](../../../docs/curriculum-v2/COVERAGE-MATRIX.md) for required evidence and phase gates.
+- [AI-LAB-04 — Two-worker proof](labs/two-worker-proof.md)
+
+Use the [P2 learner path](../../learning-paths/pedagogical-v2.md) for the new sequence, concept capsules and evidence contract. Original source bodies above are preserved. P3 product sources, P4 GPU qualification and P5 independent pilot remain pending; these additions do not claim runtime validation.
 
 [All modules](../../README.md) · [Original course index](../../references/original-course.md)

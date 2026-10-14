@@ -1,12 +1,14 @@
 # k0rdent AI Infrastructure Training
 
+**P2 educational draft available:** [guided learner path](curriculum/learning-paths/pedagogical-v2.md), with new labs, concept lessons and separate instructor guidance. Product-source integration, GPU execution and independent pilot remain gated.
+
 A hands-on curriculum for infrastructure engineers learning to deploy, understand and operate AI services with k0rdent. The material is organized into competency domains, with a separate learning path that preserves lab prerequisites and resource lifecycle.
 
 **Start with the [learning path](curriculum/learning-paths/core.md)** after reviewing the [infrastructure prerequisites](curriculum/overview/prerequisites.md). Browse the [eight curriculum domains](curriculum/README.md) or [optional extensions](curriculum/extensions/README.md).
 
 ## Current scope
 
-This branch completes the P0/P1 structural work for V2: inventory, preservation, relocation and navigation. Existing lab bodies and known-good settings are retained. New learning experiences, authoritative k0rdent AI product integration, affordable GPU profiles and an independent pilot remain future phases. No live lab validation is implied by the reorganization.
+This branch adds the P2 educational draft on top of completed P0/P1 preservation and reorganization: seven concept lessons, nine learner labs including a new capstone, instructor solutions, a fault bank and assessment evidence. Existing lab bodies and known-good settings are retained. Authoritative k0rdent AI product integration, affordable GPU qualification and an independent pilot remain P3–P5; no live execution is claimed.
 
 The preserved GPU baseline uses one four-GPU worker; a cheaper one-GPU variant is not yet qualified. Follow each lab’s compatibility, access and cleanup requirements. Course duration and active-learning percentage will be measured during the pilot.
 

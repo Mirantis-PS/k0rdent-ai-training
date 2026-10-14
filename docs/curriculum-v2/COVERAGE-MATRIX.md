@@ -1,5 +1,7 @@
 # V2 coverage matrix
 
+**P2 update:** authored introduction/practice/revisit links and acceptance checks for every row are in [P2-COVERAGE.md](P2-COVERAGE.md). The table below is retained as the P1 source-candidate baseline; its pending P2 notes are historical, superseded by that additive trace. Runtime and product gates remain open.
+
 **P0/P1 inventory recorded at 05b142690db65b79b0a48339568bc5d9df7c8269.** Links below identify preserved source candidates, not proof of complete topic coverage. P2 must assess and enrich actual sections; P3–P5 retain their source, hardware and pilot gates. Only structural preservation is statically checked in P1.
 
 This table covers the original AI-infrastructure learning recommendations plus the owner's final k0rdent-centric, hands-on and preservation constraints. Numeric performance targets, hardware support and exact software versions are intentionally not invented.

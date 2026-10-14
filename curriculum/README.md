@@ -1,8 +1,10 @@
 # k0rdent AI curriculum
 
+**P2 educational draft available:** [guided learner path](learning-paths/pedagogical-v2.md), with new labs, concept lessons and separate instructor guidance. Product-source integration, GPU execution and independent pilot remain gated.
+
 The course is organized by competency. Start with the [core learning path](learning-paths/core.md), which preserves the source prerequisite and cleanup sequence across these folders.
 
-**Current release state:** P0/P1 reorganize existing material. The complete pedagogical V2, product integration, affordable GPU qualification and independent pilot remain P2–P5. Historical lab bodies retain their labels and validation limitations. There is no fixed weekly schedule or newly validated course-duration promise.
+**Current release state:** P0/P1 reorganize existing material. P2 adds an educational draft; product integration, affordable GPU qualification and independent pilot remain P3–P5. Historical lab bodies retain their labels and validation limitations. There is no fixed weekly schedule or newly validated course-duration promise.
 
 | Domain | Preserved focus |
 |---|---|

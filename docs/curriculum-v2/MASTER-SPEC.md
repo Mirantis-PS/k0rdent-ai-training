@@ -9,7 +9,7 @@
 
 Latest explicit owner instructions take precedence over earlier proposals. Follow repository instructions and preserve unrelated work. This master specification resolves the historical design changes. The two reference documents provide depth, but do not override the decisions below. Exact source-file names, counts, prerequisites and runtime compatibility must be checked against the checkout rather than inferred from the conversation.
 
-The current task is a conservative repository reorganization. The complete V2 is the destination, not permission to mix all future changes into its structural commit. Read `IMPLEMENTATION-PLAN.md` for the current execution boundary and `COVERAGE-MATRIX.md` for obligations that must not disappear when deferred.
+The initial task was a conservative repository reorganization. The owner subsequently authorized P2 educational enrichment and local commits on2026-10-14; P3 product integration, P4 GPU execution and P5 independent pilot remain separately gated. The complete V2 is the destination, not permission to mix all future changes into its structural commit. Read `IMPLEMENTATION-PLAN.md` for the current execution boundary and `COVERAGE-MATRIX.md` for obligations that must not disappear when deferred.
 
 ### Accepted owner constraints
 

@@ -16,8 +16,10 @@ The foundation multi-cluster lab depends on KOF/child state and precedes upgrade
 | 5.12 | [Lab 5.12: Cluster Templates for AI Workloads](labs/cluster-templates.md) |
 | 5.2 | [Lab 5.2 - Service Catalog Blueprints](labs/service-catalog.md) |
 
-## Remaining V2 work
+## P2 educational draft
 
-P2/P3/P4: source supported product interfaces, prove versioned delivery/rollback and distinguish propagation from simultaneous GPU serving. See the [coverage matrix](../../../docs/curriculum-v2/COVERAGE-MATRIX.md) for required evidence and phase gates.
+- [AI-LAB-07 — Declarative release and rollback](labs/declarative-release.md)
+
+Use the [P2 learner path](../../learning-paths/pedagogical-v2.md) for the new sequence, concept capsules and evidence contract. Original source bodies above are preserved. P3 product sources, P4 GPU qualification and P5 independent pilot remain pending; these additions do not claim runtime validation.
 
 [All modules](../../README.md) · [Original course index](../../references/original-course.md)

@@ -14,8 +14,10 @@ The source capstone spans the original program and is not the new modest-GPU ass
 |---|---|
 | 6.6 | [Lab 6.6 - CAPSTONE: End-to-End Tenant Onboarding](labs/capstone.md) |
 
-## Remaining V2 work
+## P2 educational draft
 
-P2/P5: write the new customer-engagement capstone, rubric, changed-requirement incident and independent pilot. See the [coverage matrix](../../../docs/curriculum-v2/COVERAGE-MATRIX.md) for required evidence and phase gates.
+- [AI-CAP-01 — Customer handover under changed demand](labs/customer-handover.md)
+
+Use the [P2 learner path](../../learning-paths/pedagogical-v2.md) for the new sequence, concept capsules and evidence contract. Original source bodies above are preserved. P3 product sources, P4 GPU qualification and P5 independent pilot remain pending; these additions do not claim runtime validation.
 
 [All modules](../../README.md) · [Original course index](../../references/original-course.md)

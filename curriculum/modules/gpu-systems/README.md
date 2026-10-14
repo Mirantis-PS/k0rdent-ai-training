@@ -16,8 +16,10 @@ Complete the foundation chain and inspect the GPU lab contract before provisioni
 | 5.18 | [Lab 5.18 — Network Topology + NVLink Domain Discovery](labs/topograph-nvlink-topology.md) |
 | Reference | [Week 5 lab contract and validation evidence](resources/lab-contract.md) |
 
-## Remaining V2 work
+## P2 educational draft
 
-P2/P4: add GPU architecture, memory budgeting and controlled context/concurrency experiments; qualify GPU-1. See the [coverage matrix](../../../docs/curriculum-v2/COVERAGE-MATRIX.md) for required evidence and phase gates.
+- [AI-LAB-02 — Memory and concurrency](labs/memory-concurrency.md)
+
+Use the [P2 learner path](../../learning-paths/pedagogical-v2.md) for the new sequence, concept capsules and evidence contract. Original source bodies above are preserved. P3 product sources, P4 GPU qualification and P5 independent pilot remain pending; these additions do not claim runtime validation.
 
 [All modules](../../README.md) · [Original course index](../../references/original-course.md)

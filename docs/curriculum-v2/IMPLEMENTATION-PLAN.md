@@ -2,7 +2,7 @@
 
 ## Authorization and sequencing
 
-**Authorized now: P0 and P1, direct repository reorganization and complete requirements capture.** P2–P5 remain the intended complete V2, not silently authorized code/runtime/cloud changes. Each later lot requires explicit owner authorization; paid execution and publishing require separate permission. Keeping later lots pending does not remove them from scope.
+**Authorization update2026-10-14: P0/P1 completed; owner explicitly authorized P2 enrichment and local commits.** P3–P5 remain the intended complete V2, not silently authorized code/runtime/cloud changes. Each later lot requires explicit owner authorization; paid execution and publishing require separate permission. Keeping later lots pending does not remove them from scope.
 
 Do not mix phase completion with overall project completion. Do not ask the owner to reconfirm already decided constraints. Work through independently achievable tasks and report blockers with exact evidence. Follow existing Git workflow/instructions; if an existing branch or user changes conflict, choose a non-destructive worktree approach where possible and report it rather than overwriting anything.
 

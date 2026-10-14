@@ -1,0 +1,55 @@
+# Evidence metadata only; not a Kubernetes manifest. Null means unknown, never pass.
+lab_id: null
+repository_sha: null
+state: drafted
+timestamp_utc: null
+operator: null
+management_context: null
+workload_context: null
+namespace: null
+resource_owner: null
+product:
+  distribution: null
+  version: null
+  authoritative_source: null
+  integration_classification: unresolved
+versions:
+  kubernetes: null
+  k0s: null
+  gpu_operator: null
+  scheduler: null
+  driver: null
+  cuda: null
+  framework: null
+  nccl: null
+  serving_image_digest: null
+model:
+  id: null
+  revision: null
+  tokenizer_revision: null
+  dtype: null
+  quantization: null
+hardware:
+  profile: null
+  gpu_model: null
+  gpu_count: null
+  memory_gib: null
+  topology_evidence: null
+  region_az: null
+storage_and_cache_state: null
+hypothesis: null
+changed_variable: null
+stop_condition: null
+budget_and_expiry: null
+raw_evidence_paths: []
+observations: []
+blockers: []
+restoration:
+  desired_revision: null
+  check: null
+  retained_resources: []
+  owner_and_expiry: null
+cost:
+  allocated_gpu_hours: null
+  measured_or_estimated: null
+  included_resources: []

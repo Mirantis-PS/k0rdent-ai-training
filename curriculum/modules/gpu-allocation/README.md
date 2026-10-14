@@ -16,8 +16,10 @@ GPU bootstrap precedes KAI. Retain the explicit KAI version transition. Multi-wo
 | 5.3 | [Lab 5.3 - KAI Scheduler (Open-Source GPU Scheduling)](labs/kai-scheduler.md) |
 | Reference | [5.1 GPU Scheduling for AI Workloads](theory/gpu-scheduling.md) |
 
-## Remaining V2 work
+## P2 educational draft
 
-P2/P3/P4: add bounded sharing/queue experiments, allocation-versus-admission explanations and a separately compatible DRA path. See the [coverage matrix](../../../docs/curriculum-v2/COVERAGE-MATRIX.md) for required evidence and phase gates.
+- [AI-LAB-03 — Two teams and a queue](labs/two-team-queue.md)
+
+Use the [P2 learner path](../../learning-paths/pedagogical-v2.md) for the new sequence, concept capsules and evidence contract. Original source bodies above are preserved. P3 product sources, P4 GPU qualification and P5 independent pilot remain pending; these additions do not claim runtime validation.
 
 [All modules](../../README.md) · [Original course index](../../references/original-course.md)

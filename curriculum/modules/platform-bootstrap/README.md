@@ -22,8 +22,10 @@ Start with the infrastructure prerequisites, then follow the core learning path 
 | Reference | [1.2 k0rdent Components Deep Dive](theory/k0rdent-components.md) |
 | Reference | [1.3 Infrastructure Providers and Cluster API](theory/infrastructure-providers.md) |
 
-## Remaining V2 work
+## P2 educational draft
 
-P2/P3/P4: derive and qualify a shorter first-response path; integrate authoritative k0rdent AI sources. See the [coverage matrix](../../../docs/curriculum-v2/COVERAGE-MATRIX.md) for required evidence and phase gates.
+- [AI-LAB-01 — First private response](labs/first-private-response.md)
+
+Use the [P2 learner path](../../learning-paths/pedagogical-v2.md) for the new sequence, concept capsules and evidence contract. Original source bodies above are preserved. P3 product sources, P4 GPU qualification and P5 independent pilot remain pending; these additions do not claim runtime validation.
 
 [All modules](../../README.md) · [Original course index](../../references/original-course.md)
