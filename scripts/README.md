@@ -74,3 +74,13 @@ python3 scripts/check-curriculum.py
 # A specific changed directory/file is also accepted:
 python3 scripts/check-curriculum.py curriculum/modules/inference-and-data
 ```
+
+## `check-curriculum-migration.py`
+
+Read-only preservation check for the P0/P1 snapshot. It verifies every baseline source against the relocation commit and reviewed destination digests, checks lab code fences for changes beyond repository paths, and checks tracked Markdown local links, images, headings and repository URL paths. The maintenance-script guide is excluded from the lab code-fence invariant because its validation commands change with the directory layout.
+
+```bash
+python3 scripts/check-curriculum-migration.py
+```
+
+This snapshot check requires the source and relocation commits in local Git history. It is intentionally separate from the ongoing curriculum checker: future authorized content changes must review/update the destination digests, while retaining the original baseline and relocation evidence. Archived handoff references are kept byte-for-byte and are excluded from navigation checks. External URLs and live runtime compatibility are not tested.

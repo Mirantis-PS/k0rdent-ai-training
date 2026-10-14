@@ -52,3 +52,9 @@ Decision: work on the requested branch in the clean checkout. Preserve numbered 
 ### P1 relocation and path repair
 
 P0 commit: 7df48c77ce41749e8979317ee1ccb529701d87d8. Pure relocation commit: 34aa897055b8ec1bd78383fd80a5ca95eb284612; 64 renames, 100% similarity, zero inserted/deleted lines. All 144 destination digests matched baseline before commit. Repaired local links/images, inline source paths and repository paths independently. The relocated-source checker passes (87 checked paths, zero errors); diff whitespace passes. Historical entry-point stubs and original-course index retain discoverability. Module navigation and final validation remain in progress. Existing source prerequisites and compatibility discrepancies are recorded in curriculum/migration/PREREQUISITES.md.
+
+### P1 navigation milestone
+
+Created eight module indexes, eight extension indexes, curriculum/root entry points and a prerequisite-aware core path. All 40 coverage rows now point to preserved source candidates or explicit new-work obligations; none is credited with new runtime validation. Reconciled all 28 historical IDs with canonical paths. Repaired 30 pre-existing heading links (see anchor-edits.json); missing compliance-pack headings point to the existing verification checklists without adding procedures.
+
+Checks passed: 144 preserved sources; 1,569 unchanged source code fences apart from explicit repository paths; 1,533 local links/images/anchors; 55 Mermaid blocks; 14 existing example unit tests; diff whitespace. Normalized original Markdown comparison found no non-path content changes, excluding the maintenance guide whose checker instructions were updated. Workflows, infrastructure scripts/Terraform and example code have no diff from baseline. Final evidence/status report remains to be committed.

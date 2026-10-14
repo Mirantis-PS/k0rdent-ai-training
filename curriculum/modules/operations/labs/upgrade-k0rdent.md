@@ -30,7 +30,7 @@
   - [Step 5: Upgrade Services on a Managed Cluster](#step-5-upgrade-services-on-a-managed-cluster)
 - [Part 4: Rollback Procedures (~5 min)](#part-4-rollback-procedures-5-min)
   - [Layer 1: Management Plane Rollback](#layer-1-management-plane-rollback)
-  - [Layer 2: Managed Cluster Rollback](#layer-2-managed-cluster-rollback)
+  - [Layer 2: Managed Cluster Rollback](#layer-2-managed-cluster-recovery)
 - [Production Upgrade Best Practices](#production-upgrade-best-practices)
 - [Troubleshooting](#troubleshooting)
   - [Management object stuck in not-ready state](#management-object-stuck-in-not-ready-state)

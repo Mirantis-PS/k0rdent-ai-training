@@ -11,9 +11,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "a4d259385abfa76e302cc68b8ceef04c005e97b90583af731a4f55e7c246f901"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -24,9 +25,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "28ca4356ccfe3ca7d5e1390d04fa4ada4d10a20133dafbbffc6511116d7fe203"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -37,9 +39,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "5e4d3023f69f6e30afbb4f76446ee6a07ff40ea1fb097f78e4e82fed8304b59f"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -50,9 +53,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "6a63c7c5388ebaf1c131fe097f5f28063eb6de10afb6c1a259d63ea1baae899e"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -63,9 +67,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "40a84a77f3eb7df2309924d6eccf8072284cb566711f9c9601f451232cb33c30"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -76,9 +81,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "6b0f8355238b42d9a1517c705b78576e681b082c5e056d328f2ea047c31ac425"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -89,9 +95,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "6634e9844d9eb16fd8910191bf81884a5d6d7e250db7b06c831f037f75011ef5"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -102,9 +109,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "7b132a7ac89fa142658ac540754fd68bf1307afdb3b4754191d787d24f1dd11d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -115,9 +123,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "531c4b2fb93adf994e928f0564d5480225d42ad0b14adc60401ec47ed277db12"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -128,9 +137,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "464e539f719a68d4d5619cc5c7c96194e64c090196bdb39e17f15b3f6740b38c"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -141,9 +151,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "2c3b9d3647b0a863ed69e73d2a713c89174441d69b3ef4c334fc4533600ef64b"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -154,9 +165,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "d86fd97d94391080749908f3a628cb9df9ee33085751f2af29eba3d0766b0a05"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -167,9 +179,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "c228d7fcf3731c93e9fee42506e93b5f949094724cb10af92148607915dd32a4"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -180,9 +193,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "02d378b2e43d8b7d8eaf2759bff636d88f9ebb61e7aaf5d7945caf525ef322f2"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -193,9 +207,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "5bb4354ee55cc114da78f83346f6af7faa4d742255518678105f559a0ae79968"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -206,9 +221,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "97dbd4031e9463dba453cac760d41314120424de4646321e4de4fb1f7316b28f"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -219,9 +235,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "7ca98158acf0dc58ed7e229778cf065f94963953361c4b1b361d08c7dca8a916"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -232,9 +249,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "d59e63a2be78dd08f738f51d9ca5f48856e107b969e72094caa9c010e2de073b"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -245,9 +263,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "a01b780a888afb428000e33c51ce3eef94d9851ecefe2c40d6b5031a02b4a6e2"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -258,9 +277,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "b4362b0af5945b55f6beb208ae87edfa107265e3c99cda05027d8e69dbd8397c"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -271,9 +291,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "2576cbf6b7a996086ebccb66c14247932d85019ba8819386f58895674a8528ac"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -284,9 +305,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "b2bbebe3aeae34da22cb4ef40138c3c2a24384de67b9102da028e00364a41c10"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -297,9 +319,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "037da2143e5afaedf9a57741469670f6094eb912250b2db4eba8b4f08130302e"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -310,9 +333,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "b8f55eb5bf153731f6a93c41741a15b6d78b03d35b4233e50e8c28edfac280bd"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -323,9 +347,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "4cb4ab61edd871cc381dd0790510dc22eb4877b8fe155519136bfd7e71b2bc95"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -336,9 +361,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "03a353273bc3bed5cbd7adebf72078df9a74e819a5a9729ae3e51f656f99e2ad"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -349,9 +375,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "7f9b5c98bc0ca3f025164facbb0012bf3d1e8ccc5475ee6b519d2518c03b1c92"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -362,9 +389,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "7fa98ee0b0ee430f1e6f0c48e3fd1d82818eb7276a987f20fe5d719e3a5d683b"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -375,9 +403,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "24b0100c137acf4ee0178f03b66fb5f3e23e609a3c559499a669b4df2792855d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -388,9 +417,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "888a8957ff85cf04aa50336448e1be82a1108f667aaf6c8588e2522dde5bb2c6"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -401,9 +431,10 @@
       "historical_id": "1.1",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "5a9fa7a01d6dd7a4ed4a94d095bc83694e5cbdb2f9df3fc2678dceb21efc26ae"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -414,9 +445,10 @@
       "historical_id": "1.2",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "442e8026b06773e26843b53f355305e786c7487f678e0bf6349793bcef93873c"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -427,9 +459,10 @@
       "historical_id": "1.3",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "303f1c59074ea3b5293daa90251211239a8f283c98be3d0c14b053b2d39537f5"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -440,9 +473,10 @@
       "historical_id": "1.4",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "da4f5d88bf47a6c34987f5a72ff7b6272e98df627e15c58b4d40c1a392fd9b23"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -453,9 +487,10 @@
       "historical_id": "1.5",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "d31e97ab86dc4a11646e49b0fad3fb1593b42db3a92b2e83719d0ebff044c046"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -466,9 +501,10 @@
       "historical_id": "1.6",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "eefeed336535e11ce51dffeab6af10b95a431d97603d07ec165c6a0f210c3571"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -479,9 +515,10 @@
       "historical_id": "1.7",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "cf8f402a014308749abf3f9f578517d5cc1f43586a82cf47b15abef38741d955"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -492,9 +529,10 @@
       "historical_id": "1.8",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "6601195ae3c9e3b10e128f9f4435594ca157b8ce5cb1a4e15d561c7126c4a5ed"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -505,9 +543,10 @@
       "historical_id": "1.9",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "23bc32b512cb761f6b652c0cb28d5fa794a5bccae0dc9f5a9b56af2b6f05a6d7"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -518,9 +557,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "d41dd96c393b84ca8938ad9504e6b40888dd355996877869e35de49377683c73"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -531,9 +571,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "a60587c93d03f920e9a9fbfee752e1e895352527c15825593ea0a0d8f49b6813"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -544,9 +585,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "21d61991ea2a36d0236ebc2e3d01a1d8cd7bcde359ad4ed54b5ac64459fd0bc8"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -557,9 +599,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "5c254fbe1c8f7acbd5da9926b0b44da65fd3345c806b81544da8bf56fb24b207"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -570,9 +613,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "4ea955d9d6bd055ee63d164ebc42932d0064ed7842f0377f0a713dc3c076c375"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -583,9 +627,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "3b8bae7a90b4749322fde782643adc21634524a1039b26d6e606a50747a24f28"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -596,9 +641,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "e5ed755db3abf5333aa7b57452b265ea418814851154eccfc694190374075743"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -609,9 +655,10 @@
       "historical_id": "2.1",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "0ade6ce85d7f1863f285fd20c8bdf00a8e482c53408d260c967d19f390388c47"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -622,9 +669,10 @@
       "historical_id": "2.2",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "2bafa37073788c0fd79dab64104d22d5a7e1333754c6264e993e5344ae19d84c"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -635,9 +683,10 @@
       "historical_id": "2.3",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "f84f74860e72d2b8364433e438467410213bdd0b3718d61361c8e0ca5ad814ec"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -648,9 +697,10 @@
       "historical_id": "2.4",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "f9911207bb4a18fd6e0f6f45c5bac672a044252b4651d2ae8d8d075a436b1f4e"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -661,9 +711,10 @@
       "historical_id": "2.5",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "25941a3e59462e050f5dbb8abaf8ef40bca308e1f86caaa9a94e7ee1305f2dee"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -674,9 +725,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "635a4de12b86c53ea283f2a9b734fa97b07c4fb2b34301906e59b365de06877d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -687,9 +739,10 @@
       "historical_id": "3.3",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "b3aede1ca366dfa931f7f462c5ee5e2d366a5be22e7514b824ace46efabcb15d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -700,9 +753,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "eea16acf01210c80c0999c3bf207aa79b682cc2185ffc3e07f0b9d234672fd10"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -713,9 +767,10 @@
       "historical_id": "4.1",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "af4c6e813c419ccb9f85cede6407214a0618d4d1160d27b4a125638e9ec0fae8"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -726,9 +781,10 @@
       "historical_id": "4.10",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "effd0ccc23d5edd9a402aa64cdf49a5b22b719d4ad8c23708e838c75c4252322"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -739,9 +795,10 @@
       "historical_id": "4.4",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "ac7ab6988850924e9e355d276f68e7c960753c04529b1f882b91793a430f6d04"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -752,9 +809,10 @@
       "historical_id": "4.9",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "f4352f2fac29f632434ee12b0f62009059c1a819cf1fc12ac0983140f11ae85a"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -765,9 +823,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "82587bafa5e0e596de808a4bf6fffc371bf446491af56928dfbb5b3d3bd9f463"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -778,9 +837,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "bf3849630b711a1cbeed11379b7dafb296b2baa65cadfdf427374272c329ec2f"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -791,9 +851,10 @@
       "historical_id": "5.1",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "cc949ee0c90767349b5131b810af1e2819d06327e37b9b800ed48b562d96b59e"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -804,9 +865,10 @@
       "historical_id": "5.10",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "7178be8f1fd454c1b7b782612204284ab1b579c0d253d0f11afecb924777ef30"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -817,9 +879,10 @@
       "historical_id": "5.11",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "f3b8e29eb5e23008acfaa9b6297dde0b08af760e2d97f49a7799be747b6f2bd3"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -830,9 +893,10 @@
       "historical_id": "5.12",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "563be888872bcd86c4cbcdeb37064735e0642d410221cc6a713945afacb7a73f"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -843,9 +907,10 @@
       "historical_id": "5.13",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "7fef402d399060bec9432af56af3cd5958ea53b71f09218c1b10ebb2938807ee"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -856,9 +921,10 @@
       "historical_id": "5.14",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "8a6d190c0700d4e515dd4280819eddd5c008acb1e9d4079a085ff4822315e2c4"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -869,9 +935,10 @@
       "historical_id": "5.15",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "357b0f03c12ff32f80a9433ea69c7174ec27f7cb7943dddde1dd8758c492458d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -882,9 +949,10 @@
       "historical_id": "5.16",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "9ad9a3d09bfcec4585e598279f55eab57e678b77e37078a7da0ed9cd7cc9658a"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -895,9 +963,10 @@
       "historical_id": "5.17",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "9ae00ffa41b837d0c2fa647cea49e8af2b82e1b9853d2ba7a4f02dec0edd7c72"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -908,9 +977,10 @@
       "historical_id": "5.18",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "ec7fdaf2a7aaa5562ffaee9d98aa4ef5b877d633af4a89fea472ec98df7c5b77"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -921,9 +991,10 @@
       "historical_id": "5.19",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "ee7c7b0a0e35390bf70119d4c22ed96509967f6db18ce959361e12387dd87a64"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -934,9 +1005,10 @@
       "historical_id": "5.2",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "8decb933d1c70a5a6bdd834aed4dae99a64b4de3521c02a6692c9aa0396015a9"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -947,9 +1019,10 @@
       "historical_id": "5.3",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "d83fbb7ac67a535ae7efbb51935b52150717d1d877081ad3a2eae7d42699e5f9"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -960,9 +1033,10 @@
       "historical_id": "5.4",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "0e6df245139bdf40077f9a2aa838b6c9670382d2239967c54747414869102497"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -973,9 +1047,10 @@
       "historical_id": "5.5",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "0f7348b49e19fe64e0d5146db875ffe84a0e679f652ba53f0a4ede2c60ad160d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -986,9 +1061,10 @@
       "historical_id": "5.6",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "d927a38f29b8f8a1994f3f1ec7a0b4bb63df439b3e56ac87606c85f83b91efd8"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -999,9 +1075,10 @@
       "historical_id": "5.7",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "f7a8be2c060ae55ca21d86caa7573aa7bfc24630812c9773c1026ca04336bfb2"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1012,9 +1089,10 @@
       "historical_id": "5.8",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "bd63b6e2e51c5365a1210ff4d4cd493160224cfb78d4d03d7cffca7e665672a9"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1025,9 +1103,10 @@
       "historical_id": "5.9",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "a9d4d3f425fe9dea01507dd45e0aeca8d105a589d75e1023c97e54a5ab82bcba"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1038,9 +1117,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "07f08da145adfeaf1fe897591cab2264150eb43038ee85034ef55122c661564e"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1051,9 +1131,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "7936e920199ba9ddc9cb1c5859d6334b0e8ac83f67532f271c8cedf3af821d86"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1064,9 +1145,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "2b37ccdc1c1e1b098b9ed00947b39e4fac025b1f50dabbbdcd4946e080893ae9"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1077,9 +1159,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "b3ba2fb95ae210a47a02bb817c5b7bce85ed91e1767de2db26862a89700cd14d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1090,9 +1173,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "f86f726e8e413940e1aac84d02c038b0ea05f87caf8570f623288ba7cf3e09d8"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1103,9 +1187,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "36defb64ecc071091fff017b6ed66cf0bbf860fd5ad5de7c7dbc9279ad696cb8"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1116,9 +1201,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "5460b715f4390c0ca46b5808444d21ef60ac0ea70ae8750fe4acb44c074e48c5"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1129,9 +1215,10 @@
       "historical_id": "",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "1a1d5fc8871830db6d2815d6768e9dcc996670e895bf22a25e2e85b182088f2f"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1142,9 +1229,10 @@
       "historical_id": "6.2",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "5c9d58da9c73001fe08cbc51140f0c8fe867da9e9523fa0f634f75b04858cf71"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1155,9 +1243,10 @@
       "historical_id": "6.3",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "ea37bf6ae62f7aea39dd7b32053fef32d48802a9c6acef934c68e0adef7ee30f"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1168,9 +1257,10 @@
       "historical_id": "6.4",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "73d273615a841adf36f37bf684f01e07c6ed0072f43550cca487a84e19d168f3"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1181,9 +1271,10 @@
       "historical_id": "6.6",
       "treatment": "relocate-whole",
       "reason": "Competency navigation; preserve complete original",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "88bc563bc530b81b1da7173f786e053b876c684403198564aa2ccabfa7f61b81"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1194,9 +1285,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "cbfe129b9c6dfcdb7b99ef0c41929058095d16ac278ef0e048325a032eedee00"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1207,9 +1299,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "b02e72b62a7c437f6083c6d786b4dcdd87d8eafee89f7b50eccbe1790c03c3b2"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1220,9 +1313,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "9822759fd80860aebb14f19ac8970c08ed04d977922facacff6f0b545f742f24"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1233,9 +1327,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "b29ac33ea37da7c9b7e84688eca9dcba84ea6c827574375f4db92c903eb034b3"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1246,9 +1341,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "e9826284ecf1aa7a9de9d909e31e2fe877de74f3474070203273fca1cd31d4ff"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1259,9 +1355,10 @@
       "historical_id": "4.1",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "6dde0832a0f03ea5075dcfddcdaeafae3ff90f245493940db937422dcba3a154"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1272,9 +1369,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "f8047d111161213766db521609843240c9c1a81a6823943060ae7951f87cebbd"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1285,9 +1383,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "bb588fc7586ba45fd5cad7ec62e0eaf3edfcd59156dfd11f55b56ef0ae330991"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1298,9 +1397,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "2765f9fd975d7a81f5031aeb0e615ba913e51939da6114114859611460c0ae6e"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1311,9 +1411,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "ef854659bc1e0f8b7743fa8741b59bf2febfb73427f60e3ed130423a6606abc7"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1324,9 +1425,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "4f4240209988d7f83b14fcbd2dd8080f69dc5ddb9eb7ba95782054adc0399ec5"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1337,9 +1439,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "2cdcc50e42a60a28e27d90a9420f291f63171c6933353818cf04e6e6f13b8837"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1350,9 +1453,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "c51a112204d67b038692a8a3d4658f70ad5e783dd7375df042969c91c07f4e14"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1363,9 +1467,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "e3bd6992b42e3554efe39d49261b882bcc7c2e0d974763e51a25e65fa746eec4"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1376,9 +1481,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "91cc1f14b1581c3e16bd183e24f00d9fddc7116caea1fb49533fcb4e1200d5e7"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1389,9 +1495,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "258b5848360c5a8583d5200803a293ab446fdf9987b5ed2e2b50b78e9a8c0786"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1402,9 +1509,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "bd0fc67c41141ef687d94de3de547b17c836723e3b9ad011bed83e0e4e2c3b4d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1415,9 +1523,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "44ce059f3866a5231bffd1271921b223e3c4ea28c3fd2e12ee0090119b36a232"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1428,9 +1537,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "9fafcbdef4f33b6360eceab53d613f009e428323eb5f1fbcf662e8d714f7d3c3"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1441,9 +1551,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "d8cff728038e6068b75dd7e27d6c05853714d773fbf68bc268787c4cff75a175"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1454,9 +1565,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "82f227139681dddaae4438ab39f8f8071ede4bf5486b6d8c3f60de8b4d13d0da"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1467,9 +1579,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "a442cc9a9de08baa680dbb6e1ae897c5654358c175d58bd94f49a123dc10c370"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1480,9 +1593,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "b9b94a32447bdf085dc1a05b7a1a3c6b84fe1bf130947b7db335475b8351f6b8"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1493,9 +1607,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "052abef943113221128a6b0fca42b48276cd501afd175185131d90afab0df803"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1506,9 +1621,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "18ae3527f47f8bbb1e52c1ac374e1f1d816821440485f3b9546017430e183fa1"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1519,9 +1635,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "e56d30b9975ab0741f9ef51eb1c2392856be2a63146e1ee4339fd69c9763ca12"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1532,9 +1649,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "369e1d4286af1a1f3b0453efc227f1d7fa8d583df1bf8c22c5e9fed6e98bfbc3"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1545,9 +1663,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "ebc3d63e28864270dd2529d845ced47ed2dc2497f43f03946353ec697e3c73a5"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1558,9 +1677,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "60ee3c62587b95ee3c88f3bebdf7c83e5ddacab50d26db0a396d5577ffc84b94"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1571,9 +1691,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "83e5ff70fc2321b0f3bfb20a66b9681aa80b23260637d0750cc3344e0e0b67ef"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1584,9 +1705,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "302fed3f83d272270fff2fc5e499677b58122003cd27a513396f5f0f6675cc60"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1597,9 +1719,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "fa3cc3b5a7ef7cdbb0cbb6702b4fd6efc901d9f69500949fb90ca0b43cfacf39"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1610,9 +1733,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "3cbcc8425da35c042496ba321b764c95cd186af799fb68ab003f172eb55e88c6"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1623,9 +1747,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "b7ec76f0bd4cdcd9a0ddda58f28d739be0474b0aeecdcf16f2b1490cb4d4ee20"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1636,9 +1761,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "bef20864dc8ec7ed9a6bc9493af873583bb0c758731b8566a901df0c9b94297b"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1649,9 +1775,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "43448cb9af7ae0d923b8564259180a8f3b9745cc054b969454742f5a1b9f1660"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1662,9 +1789,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "d04dd59aefc88e3019974b8b07a69b9a997e4feb9b0cc740eff85bfb41dc2ecb"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1675,9 +1803,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "0125c8b43eb4e9c33be82bd809d8ef328dca6283094115dedd979f969cfdab00"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1688,9 +1817,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "681df3008144b28fee568f14a8604aac534750fa1bb6de4398c945a7bd8a5488"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1701,9 +1831,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "85ccdbd27e1715c575808a07611449ba15afe6f94ecbb3bfd0ad708158422abb"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1714,9 +1845,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "6e540d4df929733ac22ccdb5be0cc195bf515761c965e78c970df045030a34c4"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1727,9 +1859,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "1bd2cd65dd967487f46e54d88a1c6949b01ecb4b9130091f5b4a476b047290d6"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1740,9 +1873,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "1dc74949eb51f727e8805baacc8ecf3c8d21b56dc15920a704c027e426259447"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1753,9 +1887,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "dfa10e74de9e92c6af8d3952673b129dfe19f875db40837e433b3c0cf7b2c3dd"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1766,9 +1901,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "5259432f99e22fad46b052903af466b42fe2bb03b23f65c62a36c4df30ca5489"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1779,9 +1915,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "800fd7fe0ad400623ec6450705b571bb3f17685a5a7051d825e30eefb9257af7"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1792,9 +1929,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "81c2fc87e90040d68fae99d304aa3a91e4307df70233027cc5af83edb6f5cd71"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1805,9 +1943,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "7218ee408bbe2fb04e66f8686684366749b8ab62ee94dac42d57925ef68399b8"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1818,9 +1957,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "d72e1799a1e302648fb6fa5194012709b62680d5f87c5a3afea09f160f0a2274"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1831,9 +1971,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "00008e6ade044c3720847be7cc0686006f8b491d1a261f59a9a42353b083a456"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1844,9 +1985,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
-      "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
+      "link_edit_commit": "606cc5d7dba9c14e85132400d23a5e1f6192b7db",
+      "verification_result": "Byte-identical at relocation; reviewed path/navigation or validator-scope edits only",
+      "current_digest": "f4e1f99cb2e80896e52b212da25b682b56d331aea78059af77d159a2262e980e"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1857,9 +1999,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "303d3b4baf218118dc625f2ba64031b57a482a1a3dbd15417a6966bc4c7ebc7d"
     },
     {
       "source_commit": "05b142690db65b79b0a48339568bc5d9df7c8269",
@@ -1870,9 +2013,10 @@
       "historical_id": "",
       "treatment": "retain",
       "reason": "Preserve operational/shared source in place",
-      "relocation_commit": null,
+      "relocation_commit": "34aa897055b8ec1bd78383fd80a5ca95eb284612",
       "link_edit_commit": null,
-      "verification_result": "Baseline digest recorded; relocation pending"
+      "verification_result": "Byte-identical to source",
+      "current_digest": "cd9f3e94b86ae3e431ef153ef96f6ca8048f8f70208200ed17ba9a8c99bc47cd"
     }
   ]
 }

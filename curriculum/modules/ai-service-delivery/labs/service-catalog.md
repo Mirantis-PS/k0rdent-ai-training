@@ -37,7 +37,7 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
   - [Task 1: Explore the External Catalog](#task-1-explore-the-external-catalog-15-min)
   - [Task 2: Install ServiceTemplates from the Catalog](#task-2-install-servicetemplates-from-the-catalog-20-min)
   - [Task 3: Deploy Services via MultiClusterService](#task-3-deploy-services-via-multiclusterservice-30-min)
-  - [Task 4: Customize Services with Helm Values](#task-4-customize-services-with-helm-values-30-min)
+  - [Task 4: Customize Services with Helm Values](#task-4-customize-the-existing-service-owner-30-min)
   - [Task 5: Version Management with ServiceTemplateChain](#task-5-version-management-with-servicetemplatechain-15-min)
   - [Task 6: Single-Cluster Deployment via ClusterDeployment](#task-6-single-cluster-deployment-via-clusterdeployment-15-min)
   - [Task 7: Remove a ServiceTemplate](#task-7-remove-a-servicetemplate-10-min)

@@ -31,8 +31,8 @@ GPU clusters for Week 5 labs are deployed via **ClusterDeployment** using the
 ## Table of Contents
 
 1. [Learning Objectives](#learning-objectives)
-2. [Theory Content](#theory-content)
-3. [Lab Exercises](#lab-exercises)
+2. [Theory Content](#theory-content-525-hours)
+3. [Lab Exercises](#lab-exercises-527-hours-across-all-tracks)
 4. [Theory-to-Lab Mapping](#theory-to-lab-mapping)
 5. [Assessment](#assessment)
 

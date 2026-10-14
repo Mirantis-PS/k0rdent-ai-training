@@ -31,7 +31,7 @@
 - [Part 3: Resource Discovery API](#part-3-resource-discovery-api)
 - [Part 4: Atomic Topology Block reservation](#part-4-atomic-topology-block-reservation)
 - [Part 5: Unified Health & Lifecycle](#part-5-unified-health--lifecycle)
-- [Part 6: Produce the compliance-pack artifacts](#part-6-produce-the-compliance-pack-artifacts)
+- [Part 6: Produce the compliance-pack artifacts](#verification-checklist)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
 - [Key Takeaways](#key-takeaways)

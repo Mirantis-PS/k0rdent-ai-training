@@ -1,0 +1,245 @@
+{
+  "note": "Existing heading-target defects found during P1 audit. Two missing compliance-pack sections now point to the available verification checklist; no missing procedure was invented.",
+  "edits": [
+    {
+      "source": "curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md",
+      "target": "#part-1-the-ai-cloud-provider-networking-pattern",
+      "kind": "anchor",
+      "dest": "curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md",
+      "to": "#part-1-the-the-provider-networking-pattern",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md",
+      "target": "#part-2-byoip--including-unusual-prefixes",
+      "kind": "anchor",
+      "dest": "curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md",
+      "to": "#part-2-byoip-including-70008",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md",
+      "target": "#part-3-dedicated-interconnect--vif--bgp",
+      "kind": "anchor",
+      "dest": "curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md",
+      "to": "#part-3-private-cloud-interconnect--vif--bgp",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md",
+      "target": "#part-4-macsec-on-the-storage-path",
+      "kind": "anchor",
+      "dest": "curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md",
+      "to": "#part-4-macsec-to-the-provider-storage",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/extensions/ml-platforms/labs/mlflow-experiment-tracking.md",
+      "target": "#task-2-deploy-mlflow-via-k0rdent-servicetemplate-20-min",
+      "kind": "anchor",
+      "dest": "curriculum/extensions/ml-platforms/labs/mlflow-experiment-tracking.md",
+      "to": "#task-2-optional-catalog-smoke-test-20-min",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/extensions/ml-platforms/labs/mlflow-experiment-tracking.md",
+      "target": "#task-3-manual-mlflow-deployment-30-min",
+      "kind": "anchor",
+      "dest": "curriculum/extensions/ml-platforms/labs/mlflow-experiment-tracking.md",
+      "to": "#task-3-production-ready-mlflow-on-k0rdent--rustfs--postgresql--raw-mlflow-45-min",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/ai-service-delivery/labs/service-catalog.md",
+      "target": "#task-4-customize-services-with-helm-values-30-min",
+      "kind": "anchor",
+      "dest": "curriculum/modules/ai-service-delivery/labs/service-catalog.md",
+      "to": "#task-4-customize-the-existing-service-owner-30-min",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/gpu-systems/labs/gpu-cluster-setup.md",
+      "target": "#pre-lab-deploy-gpu-cluster-via-k0rdent-15-min--15-min-wait",
+      "kind": "anchor",
+      "dest": "curriculum/modules/gpu-systems/labs/gpu-cluster-setup.md",
+      "to": "#pre-lab-deploy-gpu-cluster-via-k0rdent-15-min--10-min-wait",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/gpu-systems/labs/gpu-cluster-setup.md",
+      "target": "#task-4-test-gang-scheduling-30-min",
+      "kind": "anchor",
+      "dest": "curriculum/modules/gpu-systems/labs/gpu-cluster-setup.md",
+      "to": "#task-4-test-concurrent-gpu-jobs-30-min",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/breakfix-api.md",
+      "target": "#part-7-produce-the-compliance-pack-artifacts",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/breakfix-api.md",
+      "to": "#verification-checklist",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/capacity-fleet-apis.md",
+      "target": "#part-6-produce-the-compliance-pack-artifacts",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/capacity-fleet-apis.md",
+      "to": "#verification-checklist",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/deploy-kof.md",
+      "target": "#verify-child-cluster-collectors",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/deploy-kof.md",
+      "to": "#step-5-verify-collectors-on-child-cluster",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/deploy-kof.md",
+      "target": "#component-summary",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/deploy-kof.md",
+      "to": "#component-deep-dive",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/otel-telemetry-export.md",
+      "target": "#part-3-add-an-otlp-exporter-to-kof-for-the-external-receiver",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/otel-telemetry-export.md",
+      "to": "#part-3-generate-an-external-exporter-from-the-installed-collector",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/otel-telemetry-export.md",
+      "target": "#part-4-cover-the-5-network-telemetry-domains-via-kof-labelling",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/otel-telemetry-export.md",
+      "to": "#part-4-buffering-and-labels",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/otel-telemetry-export.md",
+      "target": "#part-5-cover-the-9-standard-log-sources",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/otel-telemetry-export.md",
+      "to": "#part-5-extend-the-source-inventory-deliberately",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/otel-telemetry-export.md",
+      "target": "#part-6-validate-end-to-end-latency--120-s",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/otel-telemetry-export.md",
+      "to": "#part-6-end-to-end-latency-and-recovery-acceptance",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/operations/labs/upgrade-k0rdent.md",
+      "target": "#layer-2-managed-cluster-rollback",
+      "kind": "anchor",
+      "dest": "curriculum/modules/operations/labs/upgrade-k0rdent.md",
+      "to": "#layer-2-managed-cluster-recovery",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#1-k0rdent-cluster-manager-kcm-deep-dive",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#1-k0rdent-cluster-manager-kcm---deep-dive",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#2-k0rdent-state-management-ksm-deep-dive",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#2-k0rdent-state-management-ksm---deep-dive",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#gateway-api-envoy-gateway",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#gateway-api--envoy-gateway",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#integration-with-helm",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#built-in-provider-workflow",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#gitops-model",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#source-and-gitops-integration",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#3-k0rdent-observability-and-finops-kof-deep-dive",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#3-k0rdent-observability-and-finops-kof---deep-dive",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#kcm-system-k0rdent-control-plane",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#kcm-system--k0rdent-control-plane",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#projectsveltos-service-distribution-engine",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#projectsveltos--service-distribution-engine",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#envoy-gateway-system-ingress-layer",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#envoy-gateway-system--ingress-layer",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "target": "#kube-system-kubernetes-infrastructure",
+      "kind": "anchor",
+      "dest": "curriculum/modules/platform-bootstrap/theory/k0rdent-components.md",
+      "to": "#kube-system--kubernetes-infrastructure",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/references/source-guides/week-5-ai-workloads/README.md",
+      "target": "#theory-content",
+      "kind": "anchor",
+      "dest": "curriculum/references/source-guides/week-5-ai-workloads/README.md",
+      "to": "#theory-content-525-hours",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    },
+    {
+      "source": "curriculum/references/source-guides/week-5-ai-workloads/README.md",
+      "target": "#lab-exercises",
+      "kind": "anchor",
+      "dest": "curriculum/references/source-guides/week-5-ai-workloads/README.md",
+      "to": "#lab-exercises-527-hours-across-all-tracks",
+      "reason": "Pre-existing TOC target does not match available section; navigation-only repair"
+    }
+  ]
+}

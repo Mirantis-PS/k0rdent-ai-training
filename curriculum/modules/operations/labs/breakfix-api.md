@@ -32,7 +32,7 @@
 - [Part 4: Diagnostics](#part-4-diagnostics)
 - [Part 5: The NVLink reconfiguration safety rule](#part-5-the-nvlink-reconfiguration-safety-rule)
 - [Part 6: Drill — full breakfix walkthrough](#part-6-drill--full-breakfix-walkthrough)
-- [Part 7: Produce the compliance-pack artifacts](#part-7-produce-the-compliance-pack-artifacts)
+- [Part 7: Produce the compliance-pack artifacts](#verification-checklist)
 - [Verification Checklist](#verification-checklist)
 - [Troubleshooting](#troubleshooting)
 - [Key Takeaways](#key-takeaways)
