@@ -18,6 +18,8 @@ A good trace separates management reconciliation from client traffic. The servin
 
 If product ownership is unresolved, accept the annotated diagram and source request, but withhold product-native deployment credit. If GPU access is missing, accept the use-case/trace exercise only. Do not paste a response from the source lab into the evidence packet.
 
+Provenance: derived from [Lab 1.1](../../modules/platform-bootstrap/labs/provision-k0rdent.md), [Lab 1.5](../../modules/platform-bootstrap/labs/provision-managed-cluster.md), [Lab 5.1](../../modules/gpu-systems/labs/gpu-cluster-setup.md), [Lab 5.2](../../modules/ai-service-delivery/labs/service-catalog.md) and [Lab 5.5 Tasks 1–4](../../modules/inference-and-data/labs/vllm-inference.md); the original provisioning and serving bodies remain intact.
+
 ## AI-LAB-02
 
 For the hypothetical example: weights≈5.59GiB; KV128KiB/token;4096 tokens≈0.5GiB per sequence; concurrency4≈2GiB. At8192 and concurrency8, KV≈8GiB. Workspace/headroom still must be added. Learners should distinguish decimal bytes from GiB and KV heads from query heads. Real architectures may invalidate the simplified formula; identifying that is a strength.
@@ -36,6 +38,8 @@ A defensible two-team policy protects A’s needed capacity/latency and lets B u
 
 The GPU-1 path cannot prove simultaneous whole-device or successful gang execution. Mark those checkpoints separately; an observed wait proves only that wait. Restore serving and queue policy before distributed work.
 
+Provenance: derived from [Lab 5.3](../../modules/gpu-allocation/labs/kai-scheduler.md), [Lab 5.19](../../modules/gpu-allocation/labs/mig-partitioning.md), [Lab 5.1 Tasks 2–6](../../modules/gpu-systems/labs/gpu-cluster-setup.md) and the preserved [licensed orchestration elective](../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md).
+
 ## AI-LAB-04
 
 Expected two-rank arithmetic: AllReduce([1],[2]) gives3 on each; AllGather gives[1,2]; Broadcast gives7 in the fixture; ReduceScatter of rank-constant two-element inputs gives3 on each. The fixture checks full parameter vectors across ranks after DDP updates. Global batch stays64 in both runs, so two ranks each receive32 examples. Training timing includes a loss collective each step and excludes startup; it is intentionally not a production efficiency benchmark.
@@ -43,6 +47,8 @@ Expected two-rank arithmetic: AllReduce([1],[2]) gives3 on each; AllGather gives
 Require both rank logs, actual allocated devices and distinct hosts for cross-node credit. A world_size field alone is insufficient evidence of allocation. NCCL backend does not establish transport; inspect interface/provider logs and topology. TCP is an acceptable core result. A slower two-worker run is plausible for tiny compute and should not be tuned until it appears faster. Compare equivalent data/steps and report repeat spread.
 
 The missing-rank fault can hang before the process group exists, so enforce the outer deadline. Restore by stopping the incomplete launch and starting the complete pair. Advanced fabric discussion should connect oversubscription/locality/congestion to measurable symptoms, while withholding RDMA/fabric-operations credit without actual evidence. No GPU-2: keep runtime incomplete; do not use two CPU processes as a substitute.
+
+Provenance: derived from [Lab 5.16](../../modules/distributed-ai/labs/distributed-training.md), [Lab 5.15](../../modules/distributed-ai/labs/rdma-multi-cloud.md) and [training theory](../../modules/distributed-ai/theory/distributed-training.md). The miniature fixture keeps real NCCL and training with fewer dependencies; the original training examples and larger-framework routes are preserved.
 
 ## AI-LAB-05
 
@@ -52,6 +58,8 @@ The four-path table must distinguish durable weights/datasets/checkpoints from e
 
 Expected tooling rationale: MLflow/registry for experiment/artifact identity, notebooks for interactive work, vector storage for retrieval, workflow platform for orchestration when needed. None is mandatory merely because it appears in the catalog. Do not require live checkpoint or GDS experiments on an unqualified environment; retain those specific gates.
 
+Provenance: derived from [Lab 5.5](../../modules/inference-and-data/labs/vllm-inference.md), [Lab 5.16 checkpoint tasks](../../modules/distributed-ai/labs/distributed-training.md) and the [ML platform sources](../../extensions/ml-platforms/README.md).
+
 ## AI-LAB-06
 
 Accept a recommendation that rejects higher concurrency because p95/error behavior violates the stated SLO. Check successful counts and actual lengths before comparing throughput. Early EOS or rejected requests can make comparisons unfair. One hundred requests and three repetitions are an instructional protocol, not a reliable p99 service guarantee. Require repeat spread and limitations.
@@ -59,6 +67,8 @@ Accept a recommendation that rejects higher concurrency because p95/error behavi
 Allocated GPU-hours include idle/load time within the declared boundary. Cost/token uses defined useful output and scoped costs; estimates and billing cannot be mixed. Tokens/s/GPU is not model-independent efficiency. MFU cannot be calculated from a utilization screenshot. Replicas help aggregate capacity only when each model fits and routing/readiness permit; TP/PP introduce communication; EP applies to supported MoE designs.
 
 The command is a scaffold. If authenticated serving or a different approved client route is required, use its documented mechanism and record the difference rather than disabling authentication. Missing metrics remain missing, not zero. No GPU: evaluate the protocol and rejection criteria, withhold performance-result credit.
+
+Provenance: derived from [Lab 5.5 benchmarking](../../modules/inference-and-data/labs/vllm-inference.md), [KOF](../../modules/operations/labs/deploy-kof.md), [telemetry](../../modules/operations/labs/otel-telemetry-export.md) and the [vLLM 0.14.0 CLI](https://docs.vllm.ai/en/v0.14.0/cli/bench/serve/).
 
 ## AI-LAB-07
 
@@ -68,14 +78,20 @@ Check candidate target selectors and secret references before apply. Review/rend
 
 For missing P3 documentation, accept a precise release skeleton based on known source interfaces plus a blocked product integration table. Do not grant k0rdent AI-native support credit until authoritative sources resolve it.
 
+Provenance: derived from [Lab 5.2](../../modules/ai-service-delivery/labs/service-catalog.md), [Lab 5.12](../../modules/ai-service-delivery/labs/cluster-templates.md), [Lab 1.7](../../modules/ai-service-delivery/labs/multicluster-services.md), [upgrade](../../modules/operations/labs/upgrade-k0rdent.md) and [audit](../../modules/operations/labs/api-audit-logging.md).
+
 ## AI-LAB-08
 
 Pick an unused fault layer and retain the hidden change/restore plan. Release only symptom, scope and deadline. Give hints in increasing order: ask which layer fails; suggest an observation; reveal a relevant event; reveal the change only after the attempt. Record assistance.
 
 A good investigation eliminates an alternative and uses a minimal owned change. Require original-operation success, settled reconciliation and restoration, not just restart success. If the fix would require shared configuration, an evidence-backed escalation is the correct action. Evaluate runbook clarity by having a partner identify the symptom, discriminator, fix and rollback without extra explanation.
 
+Provenance: derived from [Lab 5.6](../../modules/operations/labs/troubleshooting-gpu.md), the [break/fix API](../../modules/operations/labs/breakfix-api.md), [KOF](../../modules/operations/labs/deploy-kof.md), [telemetry](../../modules/operations/labs/otel-telemetry-export.md) and [audit](../../modules/operations/labs/api-audit-logging.md).
+
 ## AI-CAP-01
 
 Change demand within qualified limits and choose a different root-cause layer from the preceding incident. Do not simply rename the previous failure. Ask the learner to explain one rejected alternative and one unsupported claim. Score the integrated evidence packet using the rubric, with separate analytical and execution states.
 
 A passing customer handover ties memory, queue policy, data paths, measured SLO and declarative ownership to the changed requirement, includes the real GPU-2 proof, diagnoses/restores the new incident and closes resources. Missing hardware or product sources keep the corresponding runtime claims incomplete; they need not invalidate sound analysis. Independent review is useful but does not satisfy P5 independent reproduction. Record pilot findings, hints, active fraction and cost before suggesting release readiness.
+
+Provenance: a new capstone derived from the continuous customer scenario and the [legacy capstone](../../modules/capstone/labs/capstone.md); all original broader-program material is retained. This AI-specific assessment does not replace specialized endorsements. Independent execution remains a P5 gate: a peer review in this draft is not an independently reproduced course.

@@ -1,32 +1,32 @@
 # AI-LAB-01 — First private response
 
-> **Course step 13 of 21.** [Previous step](../../gpu-allocation/labs/kai-scheduler.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-systems/labs/memory-concurrency.md). Follow this sequence when older lab-number references differ.
+> **Course step 13 of 21.** [Previous step](../../gpu-allocation/labs/kai-scheduler.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-systems/labs/memory-concurrency.md)
 
-
-**Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate; CPU analysis only. **Guidance:** high; command scaffold.
+**Status:** [draft](../../../README.md#check-runtime-readiness) · **Profile:** GPU-1 candidate; CPU analysis only · **Guidance:** high, commands supplied
 
 ## Prerequisites and input state
 
-Complete the foundation and GPU entry sequence in the learner path, including source KAI transition. Instructor supplies a qualified single-device model/image/dtype and environment card. A source four-GPU deployment is not automatically a GPU-1 deployment. P3 blocks unknown product-native installation; P4 blocks unqualified hardware/model execution.
+- Course guide foundation and GPU entry steps, including the KAI transition.
+- Instructor environment card with a qualified single-device model, image and dtype (a source four-GPU deployment isn't GPU-1).
 
 ## Objectives and problem
 
-Deliver one private response for team A and locate every owning resource between desired state and GPU process. Distinguish service readiness from cluster health. Classify team B’s batch/training needs without deploying unrelated tools.
+Serve one private response for team A and name every owning resource from desired state to GPU process. Tell service readiness from cluster health, and classify team B's needs without deploying extra tools.
 
 ## Concept capsule
 
-Read [Request to platform](../lessons/request-to-platform.md). Sketch request and desired-state paths before touching a cluster. Complete its five-use-case classification exercise.
+Read [Request to platform](../lessons/request-to-platform.md), sketch the request and desired-state paths and complete its five-use-case classification.
 
 ## Hypothesis
 
-Predict which observable condition proves the model loaded, which proves network reachability, and which proves a successful request. Write why a Ready node or Running Pod alone is insufficient.
+Predict which observation proves the model loaded, which proves reachability and which proves a successful request. Why isn't a Ready node or Running Pod enough?
 
 ## Procedure and checkpoints
 
-1. Copy the session template to a private evidence directory. Set CTX, NS, DEPLOY and SVC from the environment card; verify the displayed cluster identity with the instructor. Record an initial object inventory.
-2. Inspect the approved source 5.5 model access and server configuration. Keep model access tokens in the existing secret mechanism. Use the owner-approved serving manifest, one qualified GPU and private ClusterIP access. Do not install a new product API or reuse the source public Gateway as a convenience. If no approved manifest exists, mark deployment blocked and finish the diagram/config review.
-3. After the owning controller applies the approved desired state, collect conditions and startup logs. Confirm the actual model revision and GPU allocation, not just the image tag.
-4. Forward the approved Service locally. Run the response check from another terminal, with the model name returned by the server. The example assumes the approved Service exposes port8000; use the card’s port if different. These are inspection/client commands, not a k0rdent AI installation procedure.
+1. Copy the session template to a private evidence directory, set CTX, NS, DEPLOY and SVC from the card, confirm cluster identity with the instructor and record an object inventory.
+2. Review the model access and server configuration approved from source [5.5](../../inference-and-data/labs/vllm-inference.md); model tokens stay in the existing secret mechanism. Deploy with the owner-approved manifest, one qualified GPU and private ClusterIP access, with no new product API or public Gateway. Without an approved manifest, mark deployment blocked and finish the diagram and configuration review.
+3. Once the owning controller applies the desired state, collect conditions and startup logs and confirm the actual model revision and GPU allocation, not just the image tag.
+4. Forward the Service and run the response check from a second terminal with the served model name. The example assumes port 8000; use the card's port if different. These are client commands, not a k0rdent AI installation.
 
 ```bash
 : "${CTX:?set workload context}" "${NS:?set learner namespace}"
@@ -37,7 +37,7 @@ kubectl --context "$CTX" -n "$NS" logs "deployment/$DEPLOY" --tail=100
 kubectl --context "$CTX" -n "$NS" port-forward --address 127.0.0.1 "service/$SVC" 8000:8000
 ```
 
-In the second terminal (use the approved authentication mechanism if the service requires one):
+Second terminal (add the approved authentication if the service requires it):
 
 ```bash
 curl --fail-with-body --max-time 20 http://127.0.0.1:8000/v1/models
@@ -49,30 +49,34 @@ curl --fail-with-body --max-time 120 -H 'Content-Type: application/json' --data-
 rm -- "$REQUEST_JSON"
 ```
 
-Check HTTP success, nonempty completion and token accounting. Save timestamps and sanitized response. Record the workload object’s owner and management source revision. Stop on the five-minute readiness deadline; diagnose rather than retrying indefinitely.
+Check HTTP success, a nonempty completion and token accounting. Save timestamps, the sanitized response, the workload owner and the management source revision. At the five-minute readiness deadline, stop and diagnose.
 
 ## Interpretation
 
-Which component generated the response? Where would a wrong model revision be detected? Would a RAG request add storage, retrieval and context costs? Explain which components are demonstrated k0rdent integrations and which k0rdent AI classifications remain unresolved.
+- Which component generated the response?
+- Where would a wrong model revision show up?
+- What would a RAG request add in storage, retrieval and context cost?
+- Which components are demonstrated k0rdent integrations, and which k0rdent AI classifications are unresolved?
 
 ## Bounded incident or tradeoff
 
-Use an incorrect Service name only in the local port-forward command. Observe the local error; compare it with the healthy server status. Restore the correct name. Do not delete or alter shared Services to simulate a network incident.
+Put a wrong Service name in the local port-forward only, compare its error with the healthy server status, then restore it. Don't alter shared Services.
 
 ## Declarative delivery
 
-Save the approved desired-state file/revision and a resource ownership diagram. Link the server configuration to its catalog/template owner if documented; otherwise label the integration gap P3-SOURCES.
+Save the approved desired-state revision and an ownership diagram. Link the server configuration to its catalog or template owner if documented; otherwise label the gap P3-SOURCES.
 
 ## Restoration and cleanup
 
-Stop the port-forward with Ctrl-C, remove only the local temporary request file, and retain the known-good private service for AI-LAB-02. Record GPU resources still allocated and their expiry. Do not run source whole-cluster teardown.
+Stop the port-forward, delete only the temporary request file and keep the service for AI-LAB-02. Record allocated GPUs and their expiry; don't run the source whole-cluster teardown.
 
 ## Evidence and acceptance
 
-Accept the reasoning exercise independently. Runtime acceptance additionally requires exact versions, private response, model identity, GPU allocation, ownership path and retained-resource inventory. A saved sample response from documentation does not pass.
+- Use-case classification and ownership trace (these pass alone as analysis).
+- For runtime: exact versions, private response, model identity, GPU allocation, ownership path and retained-resource inventory.
+
+A response copied from documentation doesn't pass.
 
 ## Provenance and instructor route
 
-Derived from [Lab 1.1](provision-k0rdent.md), [Lab 1.5](provision-managed-cluster.md), [Lab 5.1](../../gpu-systems/labs/gpu-cluster-setup.md), [Lab 5.2](../../ai-service-delivery/labs/service-catalog.md) and [Lab 5.5 Tasks 1–4](../../inference-and-data/labs/vllm-inference.md). Original provisioning and serving bodies remain intact.
-
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-01)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-01)
