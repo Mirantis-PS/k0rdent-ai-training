@@ -1,11 +1,11 @@
 # HPC extension
 
-Optional source material, preserved whole. Slurm keeps its multi-node, host support and RWX storage prerequisites. These are historical source claims, not new runtime results. BMaaS, VMaaS and KaaS are not mandatory installation stages for the core path.
+Optional and preserved whole; results are historical, not re-run. Slurm needs multiple nodes, host support and RWX storage.
 
 | Historical ID | Canonical document |
 |---|---|
 | 5.14 | [Lab 5.14 - Slurm on Kubernetes for HPC Workloads](labs/slurm-operator-hpc.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
+Before running a lab, check its entry state, compatibility and cleanup; the [compatibility notes](../../references/compatibility.md) list historical label mismatches.
 
 [Extensions](../README.md) · [Core learning path](../../README.md)

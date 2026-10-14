@@ -1,6 +1,6 @@
 # Topic index
 
-For the order of execution use the [course guide](../README.md). Modules group material by competency; they are not separate prerequisite chains.
+Modules group material by competency, not prerequisite order; the [course guide](../README.md) sets the order.
 
 | Domain | What you learn |
 |---|---|

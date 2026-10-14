@@ -1,6 +1,6 @@
 # Bare metal extension
 
-Optional source material, preserved whole. Source labs remain under development; their existing sandbox/BMC access requirements apply. These are historical source claims, not new runtime results. BMaaS, VMaaS and KaaS are not mandatory installation stages for the core path.
+Optional and preserved whole; results are historical, not re-run. The labs are still under development and need sandbox and BMC access.
 
 | Historical ID | Canonical document |
 |---|---|
@@ -10,6 +10,6 @@ Optional source material, preserved whole. Source labs remain under development;
 | 2.4 | [Lab 2.4 — BMC Hardening](labs/bmc-hardening.md) |
 | 2.5 | [Lab 2.5 — Hardware Root of Trust, Secure Boot, and TPM 2.0](labs/secure-boot-tpm.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
+Before running a lab, check its entry state, compatibility and cleanup; the [compatibility notes](../../references/compatibility.md) list historical label mismatches.
 
 [Extensions](../README.md) · [Core learning path](../../README.md)
