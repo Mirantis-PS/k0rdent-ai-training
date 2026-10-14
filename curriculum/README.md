@@ -93,3 +93,7 @@ Inventory GPU/CPU nodes, clusters, volumes, caches, load balancers and networkin
 ## Optional material
 
 Use [extensions](extensions/README.md) only when a customer requirement and the prerequisites justify them. You do not need a bare-metal → virtualization → Kubernetes chain before the AI course. The [module indexes](modules/README.md) provide topic lookup; [glossary](appendix/glossary.md) and [AI assessment](references/assessments/ai-workloads-quiz.md) support review.
+
+### Check retained infrastructure
+
+After saving audit evidence and following the finish/pause sequence above, use the [report-only resource scan](../lab-infrastructure/README.md#lab-reapsh) to check tagged leftovers. A paused management environment still incurs non-compute charges. For a longer gap, decide explicitly whether to retain state or repeat platform setup later; do not destroy prerequisites needed by your next lab.

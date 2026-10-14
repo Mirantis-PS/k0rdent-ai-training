@@ -23,6 +23,8 @@ Learn to provision a k0rdent environment, serve a model privately, manage GPU ca
 
 ## What you can run
 
+For cohorts, use a dedicated AWS account per learner; see the [shared-account controls](curriculum/overview/prerequisites.md#shared-account-controls) if sharing is unavoidable.
+
 The platform labs contain the existing AWS provisioning procedures. Running them requires your own authorized AWS environment and incurs infrastructure costs; there is no hosted lab portal.
 
 The AI workshops are an educational draft with explicit execution prerequisites. The existing GPU baseline uses a four-A10G worker. A cheaper single-GPU profile and the two-worker exercise have not been qualified for this revision. Product-specific k0rdent AI integration still needs authoritative distribution/version sources. Use the [readiness table](curriculum/README.md#check-runtime-readiness) before allocating GPUs; a documented procedure is not a claim that this revision has been live-tested.
@@ -37,7 +39,7 @@ The AI workshops are an educational draft with explicit execution prerequisites.
 | Look up infrastructure commands | [Infrastructure reference](lab-infrastructure/README.md) |
 | Diagnose provisioning problems | [Troubleshooting](lab-infrastructure/docs/troubleshooting.md) |
 
-The published repository contains the course, instructor material and lab execution assets. Authoring history, maintenance tooling and automated tests are kept locally.
+The published repository contains the course, instructor material and lab execution assets. Authoring history and maintenance tooling are kept locally. Publishing configuration and offline CI regression checks are versioned so pull requests can be validated automatically.
 
 ## Updating the course
 
