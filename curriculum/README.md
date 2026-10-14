@@ -6,10 +6,10 @@ Team A needs a private interactive assistant over approved documents; team B nee
 
 ## Prepare
 
-- Check the [Kubernetes and Linux prerequisites](overview/prerequisites.md). Its cost figures are historical estimates, not a quote.
-- Work on macOS, Linux or WSL2 with Bash, Git, SSH, AWS CLI v2, Terraform >=1.8.0 and jq; the labs install cluster tools on the instances. Run workstation commands from the repository root unless a lab says otherwise.
-- Get a dedicated AWS account or approved lab scope that can create the documented IAM, network and compute resources. Fix your region, quotas, spending ceiling, cleanup deadline and a unique lab ID. The repository provides no hosted environment.
-- Read the [architecture](modules/platform-bootstrap/theory/k0rdent-architecture.md), then start with [Provision the management cluster](modules/platform-bootstrap/labs/provision-k0rdent.md): its credential, tool-check and provisioning sections are the setup procedure. Don't start from the infrastructure reference's generic GPU flag.
+- Check the [Kubernetes and Linux prerequisites](overview/prerequisites.md); its cost figures are historical estimates, not a quote.
+- Use macOS, Linux or WSL2 with Bash, Git, SSH, AWS CLI v2, Terraform >=1.8.0 and jq. The labs install cluster tools on the instances. Run workstation commands from the repository root unless a lab says otherwise.
+- Get a dedicated AWS account or approved lab scope that can create the documented IAM, network and compute resources. Fix your region, quotas, spending ceiling, cleanup deadline and a unique lab ID. No hosted environment is provided.
+- Read the [architecture](modules/platform-bootstrap/theory/k0rdent-architecture.md), then follow [Provision the management cluster](modules/platform-bootstrap/labs/provision-k0rdent.md) for setup, not the infrastructure reference's generic GPU flag.
 
 Check your tools before provisioning anything:
 
@@ -37,11 +37,11 @@ Keep the management cluster for the whole course and the first managed cluster u
 | 8 | [Upgrade management](modules/operations/labs/upgrade-k0rdent.md) | The documented 1.3.1→1.3.2 transition is complete. Don't tear down yet. |
 | 9 | [Capture API audit evidence](modules/operations/labs/api-audit-logging.md) | Audit evidence is saved before child cleanup; management stays up. |
 
-Check your understanding with the [foundation assessment](references/assessments/foundations-quiz.md). Lab pages keep historical IDs; follow this table's order.
+Test yourself with the [foundation assessment](references/assessments/foundations-quiz.md). Lab pages keep historical IDs; follow this table's order.
 
 ## Check runtime readiness
 
-Do this before you allocate a GPU or start load. You can study a blocked step but not mark it executed. Workshop pages marked **draft** are written and statically checked but have not run on GPU hardware; treat their expected results as predictions.
+Do this before you allocate a GPU or start load. Workshop pages marked **draft** are written and statically checked but have not run on GPU hardware: treat their expected results as predictions, and don't mark a blocked step executed.
 
 | Part | Required input | Current limitation |
 |---|---|---|
@@ -52,7 +52,7 @@ Do this before you allocate a GPU or start load. You can study a blocked step bu
 | Product-native k0rdent AI delivery | Versioned product sources and documented resource ownership | Distribution, version and interfaces unresolved. Use no invented APIs. |
 | Specialized exercises | Matching MIG/vGPU/NVLink/RDMA/GDS hardware, software and access | Optional; not part of the baseline. |
 
-Before runtime work, fill in an [environment and evidence card](references/pedagogy/evidence-contract.md): private access, versions, limits, raw results and retained resources. Without hardware you can still do calculations and design reviews; label them *analytical*.
+Before runtime work, fill in an [environment and evidence card](references/pedagogy/evidence-contract.md). Without hardware you can still do calculations and design reviews; label them *analytical*.
 
 ## Run the AI workshops
 
@@ -62,7 +62,7 @@ Set up the GPU environment first, in this order:
 2. [Service catalog](modules/ai-service-delivery/labs/service-catalog.md): verify management and workload contexts and ownership.
 3. [KAI scheduling setup](modules/gpu-allocation/labs/kai-scheduler.md): complete its 0.12.10→0.14.0 transition and queue checks. Its multi-worker sections need extra nodes. Run:ai is an optional licensed alternative to KAI.
 
-Then run the workshops in order: read each concept capsule just before its exercise, predict, collect evidence, interpret and restore state. The first workshop reuses [vLLM inference](modules/inference-and-data/labs/vllm-inference.md) deployment details through its private-service route; that lab's four-GPU manifest is not a qualified one-GPU shortcut.
+Then run the workshops in order, reading each concept capsule just before its exercise. The first workshop reuses [vLLM inference](modules/inference-and-data/labs/vllm-inference.md) deployment details through its private-service route; that lab's four-GPU manifest is not a qualified one-GPU shortcut.
 
 | Order | Workshop | Retain for the next step |
 |---|---|---|
@@ -76,24 +76,22 @@ Then run the workshops in order: read each concept capsule just before its exerc
 | 8 | [Diagnose and restore](modules/operations/labs/diagnose-restore.md) | Incident timeline, restored service and runbook. |
 | 9 | [Customer handover capstone](modules/capstone/labs/customer-handover.md) | Changed-requirement decision, unfamiliar-incident recovery and complete handover packet. |
 
-Without GPU-2 access, continue the storage, performance and release work and record the distributed proof as incomplete; full course execution requires it.
+Without GPU-2 access, continue the other workshops and record the distributed proof as incomplete; full course execution requires it.
 
 ## Evidence and completion
 
-Keep one decision log for both teams, starting from the [session template](references/pedagogy/session-template.yaml) and [measurement table](references/pedagogy/measurements.csv). Each lab lists its acceptance checks, incident, declarative deliverable and cleanup. Keep secrets, kubeconfigs and private prompts out of shared evidence.
-
-Early workshops give you commands; later ones leave experiment and diagnosis choices to you. Log active work, reading, waiting and hints; the pilot uses them to measure the 70–80% active-learning target and course duration. The [assessment rubric](instructor/pedagogical-v2/rubric.md) scores reasoning, static review, live execution and independent reproduction separately.
+Keep one decision log for both teams, starting from the [session template](references/pedagogy/session-template.yaml) and [measurement table](references/pedagogy/measurements.csv). Log your time as the evidence card describes, and keep secrets, kubeconfigs and private prompts out of shared evidence. Grading follows the [assessment rubric](instructor/pedagogical-v2/rubric.md).
 
 ## Finish or pause
 
-Save evidence before deleting temporary workloads. Between workshops, restore sharing, queue and serving configuration rather than tearing down the cluster. At the end, follow each lab's cleanup. Capture the foundation audit before child teardown; keep management only if a planned lab needs it.
+Save evidence before deleting temporary workloads. Between workshops, restore sharing, queue and serving configuration rather than tearing down the cluster. At the end, follow each lab's cleanup; capture the foundation audit before child teardown, and keep management only if a planned lab needs it.
 
-Inventory GPU and CPU nodes, clusters, volumes, caches, load balancers and networking: deleting a Pod doesn't release its GPU node. Give anything you keep an owner and an expiry date. Use the [infrastructure cleanup reference](../lab-infrastructure/README.md#lab-destroysh) and [troubleshooting guide](../lab-infrastructure/docs/troubleshooting.md) with the lab instructions, and check resource scope before any destroy command.
+Inventory GPU and CPU nodes, clusters, volumes, caches, load balancers and networking: deleting a Pod doesn't release its GPU node. Give anything you keep an owner and an expiry date. Use the [infrastructure cleanup reference](../lab-infrastructure/README.md#lab-destroysh) and [troubleshooting guide](../lab-infrastructure/docs/troubleshooting.md), and check resource scope before any destroy command.
 
 ## Optional material
 
-Use [extensions](extensions/README.md) when a customer requirement calls for one and you meet its prerequisites; you don't need a bare-metal → virtualization → Kubernetes chain first. For lookup and review: [module indexes](modules/README.md), [glossary](appendix/glossary.md), [AI assessment](references/assessments/ai-workloads-quiz.md).
+Use [extensions](extensions/README.md) when a customer requirement calls for one; no bare-metal → virtualization → Kubernetes chain is needed first. For lookup and review: [module indexes](modules/README.md), [glossary](appendix/glossary.md), [AI assessment](references/assessments/ai-workloads-quiz.md).
 
 ### Check retained infrastructure
 
-After saving audit evidence and following [Finish or pause](#finish-or-pause), run the [report-only resource scan](../lab-infrastructure/README.md#lab-reapsh) for tagged leftovers. A paused management environment still incurs non-compute charges. Before a long break, decide whether to keep state or redo setup later; don't destroy what your next lab needs.
+After saving audit evidence and following [Finish or pause](#finish-or-pause), run the [report-only resource scan](../lab-infrastructure/README.md#lab-reapsh) for tagged leftovers. A paused management environment still incurs non-compute charges; before a long break, decide whether to keep state or redo setup later.
