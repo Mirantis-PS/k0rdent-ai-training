@@ -366,4 +366,4 @@ kubectl label node <gpu-worker-name> training.k0rdent.io/accelerator-domain-
 
 ## Next Lab
 
-[Week 6 — Multi-Tenancy](../../../../docs/archive/curriculum/original-course.md#week-6-multitenancy) — once your single-tenant fabric is observable and steerable, the next layer is making it safe to share across tenants.
+[Operations](../../operations/README.md) — once your single-tenant fabric is observable and steerable, the next layer is making it safe to share across tenants.

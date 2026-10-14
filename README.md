@@ -32,6 +32,5 @@ The AI workshops are an educational draft with explicit execution prerequisites.
 | Choose an optional specialization | [Extensions](curriculum/extensions/README.md) |
 | Look up infrastructure commands | [Infrastructure reference](lab-infrastructure/README.md) |
 | Diagnose provisioning problems | [Troubleshooting](lab-infrastructure/docs/troubleshooting.md) |
-| Maintain the course or inspect its history | [Maintainer guide](docs/README.md) |
 
-The curriculum contains learning material and exercise assets. Historical syllabi and migration records live under docs; they are not additional learner steps.
+The published repository contains the course, instructor material and lab execution assets. Authoring history, maintenance tooling and automated tests are kept locally.

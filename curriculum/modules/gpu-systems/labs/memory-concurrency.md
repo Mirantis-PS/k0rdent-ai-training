@@ -51,6 +51,6 @@ Budget with bytes/GiB, compatibility table, topology/device chain, raw results f
 
 ## Provenance and instructor route
 
-Derived from [Lab 5.5 memory background/benchmarking](../../inference-and-data/labs/vllm-inference.md), [GPU setup](gpu-cluster-setup.md), [topology](topograph-nvlink-topology.md) and the supplied [workshop design](../../../../docs/curriculum-v2/reference/exemple-atelier-memoire-inference.md).
+Derived from [Lab 5.5 memory background/benchmarking](../../inference-and-data/labs/vllm-inference.md), [GPU setup](gpu-cluster-setup.md), [topology](topograph-nvlink-topology.md) and the supplied the original memory-workshop design (retained locally).
 
 [Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-02)

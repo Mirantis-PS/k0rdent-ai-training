@@ -68,3 +68,13 @@ scratchpad/
 
 # Validation evidence - kept local, not published with the course
 docs/qa/
+
+# Local authoring and validation workspace (not part of the published course)
+/docs/
+/scripts/
+/.github/
+/AGENTS.md
+/curriculum/examples/tests/
+/curriculum/examples/pedagogical-v2/tests/
+/curriculum/examples/telemetry/tests/
+/lab-infrastructure/scripts/tests/

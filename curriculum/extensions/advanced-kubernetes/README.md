@@ -9,6 +9,6 @@ Optional source material, preserved whole. Hosted control planes, networking and
 | 4.4 | [Lab 4.4: Custom CNI — Cilium as Primary CNI + Multus Secondary Networks](labs/cilium-multus.md) |
 | 4.9 | [Lab 4.9 — Dynamic Resource Allocation (DRA) for GPUs](labs/dynamic-resource-allocation.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [prerequisite record](../../../docs/curriculum-v2/migration/PREREQUISITES.md) for historical label mismatches.
+Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
 
-[Extensions](../README.md) · [Core learning path](../../README.md) · [Original course](../../../docs/archive/curriculum/original-course.md)
+[Extensions](../README.md) · [Core learning path](../../README.md)

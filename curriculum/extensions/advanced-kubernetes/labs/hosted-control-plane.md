@@ -65,7 +65,7 @@ YOU ARE HERE
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Week 3 (VMaaS)](../../../../docs/archive/curriculum/original-course.md#week-3-vmaas) | **Lab 4.1 — Hosted Control Plane** | [Lab 4.4 — Cilium + Multus](cilium-multus.md) (4.2/4.3 in development — see the [Week 4 lab map](../../../../docs/archive/curriculum/source-guides/kubernetes/README.md)) |
+| [Virtualization extension](../../virtualization/README.md) | **Lab 4.1 — Hosted Control Plane** | [Lab 4.4 — Cilium + Multus](cilium-multus.md) (4.2/4.3 in development — see the [Advanced Kubernetes labs](../README.md)) |
 
 ---
 
@@ -733,7 +733,7 @@ Strong answers cite:
 
 ## Next Lab
 
-[Lab 4.4 — Cilium + Multus](cilium-multus.md) — customizes the CNI and adds secondary networks on a k0rdent-managed cluster, building on the template-fork pattern from this lab. (Lab 4.2 — Multi-Provider GPU Cluster — is in development; see the [Week 4 lab map](../../../../docs/archive/curriculum/source-guides/kubernetes/README.md).)
+[Lab 4.4 — Cilium + Multus](cilium-multus.md) — customizes the CNI and adds secondary networks on a k0rdent-managed cluster, building on the template-fork pattern from this lab. (Lab 4.2 — Multi-Provider GPU Cluster — is in development; see the [Advanced Kubernetes labs](../README.md).)
 
 ---
 

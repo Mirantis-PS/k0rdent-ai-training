@@ -5,7 +5,7 @@
 
 **Track:** Foundations / Production · **Tier:** Recommended · **Duration:** 1.5 hours
 
-[Previous: Lab 1.8](upgrade-k0rdent.md) · [Week 1](../../../../docs/archive/curriculum/source-guides/foundations/README.md)
+[Previous: Lab 1.8](upgrade-k0rdent.md) · [course guide](../../../README.md)
 
 ## Objective and prerequisites
 

@@ -635,7 +635,7 @@ kubectl delete pvc -n jupyter --all
 kubectl get pods -n jupyter
 ```
 
-> **Cost reminder:** GPU workloads consume resources even when idle. See the [labs README cleanup guide](../../../../docs/archive/curriculum/source-guides/ai-workloads/labs/README.md#cleanup).
+> **Cost reminder:** GPU workloads consume resources even when idle. See the [course cleanup guide](../../../README.md#finish-or-pause).
 
 ## Key Takeaways
 

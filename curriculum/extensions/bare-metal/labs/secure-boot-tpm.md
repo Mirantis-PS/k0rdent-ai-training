@@ -12,7 +12,7 @@
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 2.4 — BMC Hardening](bmc-hardening.md) | **Lab 2.5 — Secure Boot + TPM 2.0** | [Week 3 — VMaaS](../../../../docs/archive/curriculum/source-guides/virtualization/README.md) |
+| [Lab 2.4 — BMC Hardening](bmc-hardening.md) | **Lab 2.5 — Secure Boot + TPM 2.0** | [Virtualization extension](../../virtualization/README.md) |
 
 ```
 Week 2 BMaaS path:
@@ -384,4 +384,4 @@ If *any* in-scope firmware component is unsigned or its signature cannot be veri
 
 ## Next Lab
 
-[Week 3 — VMaaS](../../../../docs/archive/curriculum/source-guides/virtualization/README.md). With the BMC locked down (Lab 2.4) and the boot chain attested (Lab 2.5), the bare-metal layer is ready to host virtualization for tenant workloads. Week 3 builds the VM substrate on top of this foundation.
+[Virtualization extension](../../virtualization/README.md). With the BMC locked down (Lab 2.4) and the boot chain attested (Lab 2.5), the bare-metal layer is ready to host virtualization for tenant workloads. Week 3 builds the VM substrate on top of this foundation.

@@ -92,4 +92,4 @@ Inventory GPU/CPU nodes, clusters, volumes, caches, load balancers and networkin
 
 ## Optional material
 
-Use [extensions](extensions/README.md) only when a customer requirement and the prerequisites justify them. You do not need a bare-metal → virtualization → Kubernetes chain before the AI course. The [module indexes](modules/README.md) provide topic lookup; [glossary](appendix/glossary.md) and [AI assessment](references/assessments/ai-workloads-quiz.md) support review. Historical guides and curriculum maintenance records are in the [maintainer guide](../docs/README.md), outside the learner sequence.
+Use [extensions](extensions/README.md) only when a customer requirement and the prerequisites justify them. You do not need a bare-metal → virtualization → Kubernetes chain before the AI course. The [module indexes](modules/README.md) provide topic lookup; [glossary](appendix/glossary.md) and [AI assessment](references/assessments/ai-workloads-quiz.md) support review.

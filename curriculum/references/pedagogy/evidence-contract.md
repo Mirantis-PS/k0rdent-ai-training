@@ -30,7 +30,7 @@ Never fill missing measurements with the hypothetical numbers in the lessons. Ke
 
 All shell examples run from the repository root unless stated otherwise. Variables in angle brackets or environment-card fields must be resolved before execution. Use explicit workload context and namespace in every Kubernetes mutation. Stop at the instructor's deadline or on unbounded retries, unexpected provisioning, loss of tenant isolation or unrelated workload impact. Preserve a known-good declarative revision and identify its reconciler before changing anything.
 
-Runtime acceptance requires both observable checkpoints and restored state. Keep the management cluster for subsequent labs. Do not run whole-source cleanup after each derived exercise: use only the scoped cleanup below, then the original end-of-path teardown after evidence is saved. Foundation audit follows the management upgrade and precedes child-cluster teardown. See [prerequisite record](../../../docs/curriculum-v2/migration/PREREQUISITES.md).
+Runtime acceptance requires both observable checkpoints and restored state. Keep the management cluster for subsequent labs. Do not run whole-source cleanup after each derived exercise: use only the scoped cleanup below, then the original end-of-path teardown after evidence is saved. Foundation audit follows the management upgrade and precedes child-cluster teardown. See [compatibility and lifecycle notes](../compatibility.md).
 
 ## Time and cost measurement
 

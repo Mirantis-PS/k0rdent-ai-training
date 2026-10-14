@@ -6,6 +6,6 @@ Optional source material, preserved whole. TensorRT-LLM keeps its separate drive
 |---|---|
 | 5.13 | [Lab 5.13 - TensorRT-LLM Inference Optimization](labs/tensorrt-llm.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [prerequisite record](../../../docs/curriculum-v2/migration/PREREQUISITES.md) for historical label mismatches.
+Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
 
-[Extensions](../README.md) · [Core learning path](../../README.md) · [Original course](../../../docs/archive/curriculum/original-course.md)
+[Extensions](../README.md) · [Core learning path](../../README.md)

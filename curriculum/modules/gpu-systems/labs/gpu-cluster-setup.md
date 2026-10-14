@@ -23,7 +23,7 @@ YOU ARE HERE                                              Advanced (5.13-5.16)
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Week 5 Overview](../../../../docs/archive/curriculum/source-guides/ai-workloads/README.md) | **Lab 5.1 - GPU Cluster Setup** | [Lab 5.2 - Service Catalog](../../ai-service-delivery/labs/service-catalog.md) |
+| [course guide](../../../README.md) | **Lab 5.1 - GPU Cluster Setup** | [Lab 5.2 - Service Catalog](../../ai-service-delivery/labs/service-catalog.md) |
 
 ---
 

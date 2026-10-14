@@ -7,4 +7,4 @@ Teach from the same [course guide](../README.md) as learners. Before a runtime s
 3. Score the evidence with the [rubric](pedagogical-v2/rubric.md), separating reasoning from actual execution.
 4. For the capstone, change the customer requirements and choose an unfamiliar fault layer. Record hints, active time, waiting, resource costs and cleanup.
 
-Independent reproduction and live GPU/product qualification remain outstanding; see [current status](../../docs/curriculum-v2/STATUS.md).
+Independent reproduction and live GPU/product qualification remain outstanding; see [course guide](../README.md).

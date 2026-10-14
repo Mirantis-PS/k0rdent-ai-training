@@ -309,4 +309,4 @@ Create a troubleshooting runbook document with:
 
 ## Next Steps
 
-With Week 1 complete, proceed to the [Week 1 Quiz](../../../references/assessments/foundations-quiz.md), then continue to [Week 2: BMaaS](../../../../docs/archive/curriculum/source-guides/bare-metal/README.md)
+With Week 1 complete, proceed to the [Week 1 Quiz](../../../references/assessments/foundations-quiz.md), then continue to [Bare metal extension](../README.md)

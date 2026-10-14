@@ -10,6 +10,6 @@ Optional source material, preserved whole. Source labs remain under development;
 | 2.4 | [Lab 2.4 — BMC Hardening](labs/bmc-hardening.md) |
 | 2.5 | [Lab 2.5 — Hardware Root of Trust, Secure Boot, and TPM 2.0](labs/secure-boot-tpm.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [prerequisite record](../../../docs/curriculum-v2/migration/PREREQUISITES.md) for historical label mismatches.
+Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
 
-[Extensions](../README.md) · [Core learning path](../../README.md) · [Original course](../../../docs/archive/curriculum/original-course.md)
+[Extensions](../README.md) · [Core learning path](../../README.md)
