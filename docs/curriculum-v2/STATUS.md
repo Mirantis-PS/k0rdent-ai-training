@@ -1,19 +1,23 @@
 # V2 status and decision record
 
-Updated 2026-10-14. **P0 and P1 complete with local static evidence. P2–P5 are not complete.** This record distinguishes reorganization from pedagogical enrichment and runtime qualification.
+Updated 2026-10-14. **P0/P1 complete; P2 educational draft complete and static-checked. P3–P5 are not complete.** This record distinguishes reorganization from pedagogical enrichment and runtime qualification.
 
 ## Actual environment
 
 - Repository: /Users/moustaphagueye/k0rdent-ai-training
 - Source branch: chore/remove-tooling-references
 - Source SHA: 05b142690db65b79b0a48339568bc5d9df7c8269
-- Work branch: refactor/curriculum-v2-structure
+- P1 branch retained: refactor/curriculum-v2-structure
+- Current work branch: codex/curriculum-v2-pedagogy
+- P2 base SHA: 314353e3010c6811e3811eea2ceff53a8b49d188
+- P2 content commit: f2fafb3 (43 files; seven lessons, nine labs, instructor materials, evidence and coverage)
 - Source working tree: clean; no pre-existing tracked/untracked edits. Ignored local notes, credential/config files, QA material and other worktrees preserved.
 - P0 commit: 7df48c77ce41749e8979317ee1ccb529701d87d8
 - Pure relocation commit: 34aa897055b8ec1bd78383fd80a5ca95eb284612
 - Path repair commit: 606cc5d7dba9c14e85132400d23a5e1f6192b7db
 - Navigation/coverage commit: 1be482b01491c03c04020a1c66df5733523c2374
-- Final reporting commit: the commit containing this update; resolve with git log -1 -- docs/curriculum-v2/STATUS.md.
+- P1 final reporting commit: 314353e3010c6811e3811eea2ceff53a8b49d188
+- P2 evidence/reporting commit: the commit containing this update; resolve with git log -1 -- docs/curriculum-v2/STATUS.md.
 - Push / PR / merge: none.
 - Cloud resources provisioned or changed: none. Existing remote resources were not inspected.
 - Labs executed: none; local static checks and example unit tests only.
@@ -25,7 +29,7 @@ Updated 2026-10-14. **P0 and P1 complete with local static evidence. P2–P5 are
 |---|---|---|---|---|
 | P0 | Baseline and source inventory | Authorized | Complete | [144-file inventory](../../curriculum/migration/source-inventory.json), [42-lab contracts](../../curriculum/migration/lab-contract-inventory.json), [prerequisites](../../curriculum/migration/PREREQUISITES.md) |
 | P1 | Conservative reorganization | Authorized | Complete; static-checked | [Validation report](../../curriculum/migration/VALIDATION.md), [learning path](../../curriculum/learning-paths/core.md), four milestone commits above and final reporting commit |
-| P2 | Full pedagogical enrichment | Requires next-lot authorization | Pending | All 40 [coverage requirements](COVERAGE-MATRIX.md) retained; source candidates identified, new exercises not implemented |
+| P2 | Full pedagogical enrichment | Explicitly authorized by owner; local commits only | Educational draft complete; static-checked; not runtime-validated | [Learner path](../../curriculum/learning-paths/pedagogical-v2.md), [40-row teaching trace](P2-COVERAGE.md), [validation and blockers](P2-VALIDATION.md) |
 | P3 | Product integration | Authorization and authoritative sources required | Source-dependent work blocked | Distribution/version, native/integrated/optional boundaries and interfaces remain unsourced |
 | P4 | Affordable GPU qualification | Authorization, hardware access and budget required | Live work blocked | GPU-1/GPU-2 candidates and test obligations retained; current four-GPU source baseline unchanged |
 | P5 | Independent pilot/review | Authorization and independent learner required | Pending | New capstone, measured active time/cost and independent reproduction remain required |
@@ -40,7 +44,7 @@ Open for later phases: active study-hour budget; GPU spending ceiling, regions/q
 
 ## Next action
 
-Owner review of the local branch. P2 can begin after explicit authorization. Publishing, paid execution and merging remain unrequested. A proposed PR description is saved locally at [PR-DESCRIPTION.md](../../curriculum/migration/PR-DESCRIPTION.md); no PR was opened.
+Owner review of the P2 educational draft. P3 requires target k0rdent AI distribution/version and authoritative sources; P4 requires authorized hardware/budget and runtime qualification; P5 requires an independent learner. Publishing, paid execution and merging remain unrequested. A proposed PR description is saved locally at [PR-DESCRIPTION.md](../../curriculum/migration/PR-DESCRIPTION.md); no PR was opened.
 
 ## Historical milestone log
 
@@ -63,3 +67,9 @@ P0 commit: 7df48c77ce41749e8979317ee1ccb529701d87d8. Pure relocation commit: 34a
 Created eight module indexes, eight extension indexes, curriculum/root entry points and a prerequisite-aware core path. All 40 coverage rows now point to preserved source candidates or explicit new-work obligations; none is credited with new runtime validation. Reconciled all 28 historical IDs with canonical paths. Repaired 30 pre-existing heading links (see anchor-edits.json); missing compliance-pack headings point to the existing verification checklists without adding procedures.
 
 Checks passed: 144 preserved sources; 1,569 unchanged source code fences apart from explicit repository paths; 1,533 local links/images/anchors; 55 Mermaid blocks; 14 existing example unit tests; diff whitespace. Normalized original Markdown comparison found no non-path content changes, excluding the maintenance guide whose checker instructions were updated. Workflows, infrastructure scripts/Terraform and example code have no diff from baseline. Final evidence/status report remains to be committed.
+
+### P2 educational enrichment — 2026-10-14
+
+Owner explicitly authorized course enrichment, preservation and local commits, with no push or PR. Created codex/curriculum-v2-pedagogy from the clean P1 result. Added seven concept lessons, eight progressive workshops and one independent capstone, separate instructor solutions, nine bounded faults, rubric, session/result templates, primary source ledger and all 40 introduction/practice/revisit mappings. New NCCL/DDP fixture is a GPU-only candidate; CPU tests check its input guards only. Original source bodies, operational infrastructure and existing examples remain unchanged.
+
+Static preservation, links/code syntax, 55 Mermaid diagrams, five new guard tests and 14 existing tests pass; details and exact gates are in P2-VALIDATION.md. Product-native ownership/interfaces, affordable GPU-1 qualification, real GPU-2 execution, specialized hardware and independent pilot remain unproven. No cloud or GPU operation, push or PR occurred.
