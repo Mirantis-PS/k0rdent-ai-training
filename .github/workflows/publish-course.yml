@@ -1,24 +1,28 @@
 name: Publish course
 
 on:
-  push:
+  pull_request:
     branches: [curriculum-v2-pedagogy]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
 
 permissions:
   contents: read
 
 concurrency:
-  group: course-pages
+  group: course-pages-${{ github.event.action == 'closed' && 'publish' || github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   build:
+    name: Validate course
+    if: github.event.action != 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          ref: ${{ github.event.action == 'closed' && github.event.pull_request.merge_commit_sha || github.sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -87,10 +91,12 @@ jobs:
       - name: Build and validate links
         run: python -m mkdocs build --strict
       - uses: actions/upload-pages-artifact@v4
+        if: github.event.action == 'closed' && github.event.pull_request.merged == true
         with:
           path: build/course-site
 
   deploy:
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
