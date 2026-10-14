@@ -1,28 +1,41 @@
 name: Publish course
 
 on:
+  push:
+    branches: [curriculum-v2-pedagogy]
   pull_request:
     branches: [curriculum-v2-pedagogy]
-    types: [opened, synchronize, reopened, ready_for_review, closed]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: course-pages-${{ github.event.action == 'closed' && 'publish' || github.event.pull_request.number }}
+  group: course-pages-${{ github.event_name == 'push' && 'publish' || github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   build:
     name: Validate course
-    if: github.event.action != 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Require a merged pull request for publication
+        if: github.event_name == 'push'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const pulls = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+              ...context.repo, commit_sha: context.sha
+            });
+            const merged = pulls.some(pr => pr.merged_at &&
+              pr.base.ref === 'curriculum-v2-pedagogy' && pr.merge_commit_sha === context.sha);
+            if (!merged) core.setFailed('Publication requires a merged PR targeting curriculum-v2-pedagogy.');
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-          ref: ${{ github.event.action == 'closed' && github.event.pull_request.merge_commit_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -91,12 +104,12 @@ jobs:
       - name: Build and validate links
         run: python -m mkdocs build --strict
       - uses: actions/upload-pages-artifact@v4
-        if: github.event.action == 'closed' && github.event.pull_request.merged == true
+        if: github.event_name == 'push'
         with:
           path: build/course-site
 
   deploy:
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true
+    if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
