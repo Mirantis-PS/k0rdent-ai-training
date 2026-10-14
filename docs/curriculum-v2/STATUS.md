@@ -1,45 +1,50 @@
 # V2 status and decision record
 
-**Initialized 2026-10-14. No repository work is claimed by this handoff.**
+Updated 2026-10-14. **P0 and P1 complete with local static evidence. P2–P5 are not complete.** This record distinguishes reorganization from pedagogical enrichment and runtime qualification.
 
 ## Actual environment
 
-- Repository path: not inspected in this session.
-- Source SHA: not captured.
-- Working-tree state: unknown.
-- Branch created: no.
-- Commits created in target repository: none.
+- Repository: /Users/moustaphagueye/k0rdent-ai-training
+- Source branch: chore/remove-tooling-references
+- Source SHA: 05b142690db65b79b0a48339568bc5d9df7c8269
+- Work branch: refactor/curriculum-v2-structure
+- Source working tree: clean; no pre-existing tracked/untracked edits. Ignored local notes, credential/config files, QA material and other worktrees preserved.
+- P0 commit: 7df48c77ce41749e8979317ee1ccb529701d87d8
+- Pure relocation commit: 34aa897055b8ec1bd78383fd80a5ca95eb284612
+- Path repair commit: 606cc5d7dba9c14e85132400d23a5e1f6192b7db
+- Navigation/coverage commit: 1be482b01491c03c04020a1c66df5733523c2374
+- Final reporting commit: the commit containing this update; resolve with git log -1 -- docs/curriculum-v2/STATUS.md.
 - Push / PR / merge: none.
-- Cloud resources provisioned: none.
-- Labs executed: none.
-- Product k0rdent AI sources: awaited from owner.
+- Cloud resources provisioned or changed: none. Existing remote resources were not inspected.
+- Labs executed: none; local static checks and example unit tests only.
+- Product k0rdent AI sources: still awaited from owner.
 
 ## Phases
 
 | Phase | Scope | Authorization | Actual state | Evidence |
 |---|---|---|---|---|
-| P0 | Baseline and source inventory | Authorized | Pending | None |
-| P1 | Conservative reorganization | Authorized | Pending | None |
-| P2 | Full pedagogical enrichment | Requires explicit next-lot authorization | Pending, preserved in spec | None |
-| P3 | Product integration | Authorization and product sources required | Blocked for source-dependent work | None |
-| P4 | Affordable GPU qualification | Authorization, access and budget required | Blocked for live work | None |
-| P5 | Independent pilot / review | Authorization and learner required | Pending | None |
+| P0 | Baseline and source inventory | Authorized | Complete | [144-file inventory](../../curriculum/migration/source-inventory.json), [42-lab contracts](../../curriculum/migration/lab-contract-inventory.json), [prerequisites](../../curriculum/migration/PREREQUISITES.md) |
+| P1 | Conservative reorganization | Authorized | Complete; static-checked | [Validation report](../../curriculum/migration/VALIDATION.md), [learning path](../../curriculum/learning-paths/core.md), four milestone commits above and final reporting commit |
+| P2 | Full pedagogical enrichment | Requires next-lot authorization | Pending | All 40 [coverage requirements](COVERAGE-MATRIX.md) retained; source candidates identified, new exercises not implemented |
+| P3 | Product integration | Authorization and authoritative sources required | Source-dependent work blocked | Distribution/version, native/integrated/optional boundaries and interfaces remain unsourced |
+| P4 | Affordable GPU qualification | Authorization, hardware access and budget required | Live work blocked | GPU-1/GPU-2 candidates and test obligations retained; current four-GPU source baseline unchanged |
+| P5 | Independent pilot/review | Authorization and independent learner required | Pending | New capstone, measured active time/cost and independent reproduction remain required |
 
-## Decisions to preserve
+## Decisions and remaining questions
 
-The owner wants a k0rdent/k0rdent AI course, not generic AI training with product branding. No weeks or mandatory BMaaS/VMaaS/KaaS sequence. Keep all existing content, especially Weeks 1 and 5. Week 5 is the main foundation for practical work. Introduce initial AI-infrastructure subjects around the platform with majority active work. Hardware availability and cost are first-class constraints. Work directly on the checkout, not via a migration-script deliverable. Do not invent product functionality or imply runtime tests that have not happened.
+Keep the course centered on k0rdent/k0rdent AI, preserve all source material, organize by competency, retain English learning material and aim for majority active learning. Current module folders do not alter lab lifecycle. The source management upgrade and KAI version transition remain in order. No mandatory BMaaS → VMaaS → KaaS chain is added.
 
-## Deferred decisions
+P1 preserves historical labels and claims inside source bodies, with path and heading-link repairs only. Original schedules and broader capstone are source references, not new course promises. The learning path records older prerequisite-label conflicts and the audit-before-teardown rule. Scope and rationale are in [PREREQUISITES.md](../../curriculum/migration/PREREQUISITES.md).
 
-Study-hour budget, GPU spend ceiling/concurrency/regions, actual k0rdent AI version/sources, exact validated model/runtime/dtype, advanced hardware access and certification modality remain open. These do not block safe inventory, content moves, navigation or detailed backlog capture.
+Open for later phases: active study-hour budget; GPU spending ceiling, regions/quotas/concurrency; exact k0rdent AI distribution/docs; supported model/runtime/dtype; specialized hardware access; certification modality and pilot learner. None prevented the completed structural work. Current operational compatibility, external web links, remote CI and live GPU behavior have not been revalidated.
 
-## Update format after each milestone
+## Next action
 
-Record date, phase, source/current SHA, actual files/commits, requirements affected, checks actually run, failures, blockers, residual resources and next authorized action. Preserve a short chronological record. No “done” without an evidence reference.
+Owner review of the local branch. P2 can begin after explicit authorization. Publishing, paid execution and merging remain unrequested. A proposed PR description is saved locally at [PR-DESCRIPTION.md](../../curriculum/migration/PR-DESCRIPTION.md); no PR was opened.
 
-## Current handoff verification
+## Historical milestone log
 
-The handoff package itself includes the two prior design files copied byte-for-byte, a 28-row historical preservation map and 40 coverage requirements. This is document packaging, not a check of source-code conservation or GPU behavior. See the package manifest for file digests.
+The entries below describe status at each milestone, not the current phase table.
 
 ## Execution record — 2026-10-14, P0
 
