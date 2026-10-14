@@ -1,56 +1,63 @@
 # AI-LAB-02 — Memory and concurrency
 
-> **Course step 14 of 21.** [Previous step](../../platform-bootstrap/labs/first-private-response.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-allocation/labs/two-team-queue.md). Follow this sequence when older lab-number references differ.
+> **Course step 14 of 21.** [Previous step](../../platform-bootstrap/labs/first-private-response.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-allocation/labs/two-team-queue.md)
 
-
-**Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate. **Guidance:** high; bounded matrix.
+**Status:** [draft](../../../README.md#check-runtime-readiness) · **Profile:** GPU-1 candidate · **Guidance:** high
 
 ## Prerequisites and input state
 
-AI-LAB-01 private endpoint and saved desired state; matching vLLM0.14.0 benchmark client; instructor-approved maximum context/concurrency and allocation deadline. No change to driver/operator/model revision.
+- AI-LAB-01 private endpoint and its saved desired state.
+- Benchmark client matching vLLM 0.14.0.
+- Instructor-approved maximum context, concurrency and allocation deadline.
+
+Keep the driver, operator and model revision unchanged.
 
 ## Objectives and problem
 
-Explain why fitting model weights is insufficient. Establish a bounded serving envelope for team A and distinguish device cache pressure from host/container memory failure.
+Explain why weights that fit in GPU memory can still fail to serve. Set team A's serving envelope and tell device KV-cache pressure from host memory failure.
 
 ## Concept capsule
 
-Read [Memory and topology](../lessons/memory-and-topology.md). Complete the hypothetical calculation, then replace every available term with the actual model’s configuration. Read only the prefill/decode section of [data and performance](../../inference-and-data/lessons/data-and-service-performance.md).
+Read [Memory and topology](../lessons/memory-and-topology.md) and redo its example with your model's configuration. Then read the prefill/decode section of [data and performance](../../inference-and-data/lessons/data-and-service-performance.md).
 
 ## Hypothesis
 
-Predict the effect of increasing input length and concurrency separately on cache occupancy, TTFT and errors. State whether the runtime preallocates KV memory; predict which metric will expose pressure if total device memory stays flat.
+Predict how longer inputs, then higher concurrency, change cache occupancy, TTFT and errors. If the runtime preallocates KV memory, which metric will show the pressure?
 
 ## Procedure and checkpoints
 
-1. Record model layers, KV heads, head dimension, cache dtype and configured context limit. Estimate weights, KV, runtime workspace and explicit uncertainty/headroom. Record host RAM separately. Do not assume model-name parameter count is exact.
-2. Capture GPU inventory/topology through the approved tools in source 5.1/5.18, and allocatable resources/events through Kubernetes. Explain device publication from operator → toolkit/runtime → device plugin → Pod. If DRA is proposed, review class/claim/allocation on paper; do not switch allocator paths.
-3. Use the AI-LAB-06 benchmark command with 20 requests, one warmup, output64 and fixed seed7 as a short diagnostic, not a statistically stable tail benchmark. Run input128 at concurrency1, then input512 at concurrency1, then input512 at concurrency2 only if within the approved envelope. Repeat each condition three times. Keep all other factors and cache policy fixed; capture achieved lengths.
-4. For each condition, collect client result JSON, server errors/cache metrics, device memory/activity and timestamps. Confirm successful/failed request totals. Compare your estimate with configured cache capacity and observed pressure. Stop after the first failed condition or the time cap; do not hunt for a destructive OOM.
-5. Build a compatibility decision table for FP32/FP16/BF16/FP8/FP4 and integer quantization: representation, proposed use, required model/kernel/hardware evidence, quality check, supported/unknown/rejected. Only the already approved dtype is executed. Add a diagram of CPU, GPU memory and local NIC/PCIe/NUMA paths; mark absent NVLink/NVSwitch honestly.
+1. From the model configuration, record layers, KV heads, head dimension, cache dtype and context limit. Estimate weights, KV cache, workspace and headroom with their uncertainty; note host RAM separately.
+2. Inventory GPUs and topology with the lab [5.1](gpu-cluster-setup.md) and [5.18](topograph-nvlink-topology.md) tools, and allocatable resources and events with Kubernetes. Trace operator → toolkit/runtime → device plugin → Pod. Don't change the allocator path.
+3. Run the AI-LAB-06 benchmark (20 requests, one warmup, output 64, seed 7) three times per condition: input 128 at concurrency 1, input 512 at concurrency 1, then input 512 at concurrency 2 if the envelope allows. Change nothing else and record achieved lengths. This short diagnostic can't give stable tail latencies.
+4. Per condition, save the client JSON, server errors, cache metrics, device memory and activity, and timestamps, then compare them with your estimate. Stop at the first failure or the time cap; don't chase an OOM.
+5. Tabulate FP32, FP16, BF16, FP8, FP4 and integer quantization: proposed use, model/kernel/hardware evidence needed, quality check and verdict (supported, unknown or rejected). Run only the approved dtype. Draw the CPU, GPU memory and NIC/PCIe/NUMA paths, marking absent NVLink/NVSwitch.
 
 ## Interpretation
 
-Why can device memory remain nearly constant while admission/latency changes? Which metric differentiates a full KV pool from weight-loading failure? What would doubling GPUs change if you used replicas versus TP? Why does lower precision not automatically imply twice the throughput?
+- Why can device memory stay flat while admission and latency change?
+- Which metric separates a full KV pool from a weight-loading failure?
+- Why doesn't lower precision double throughput?
 
 ## Bounded incident or tradeoff
 
-Before execution the instructor supplies an intentionally impossible budget on paper (for example KV alone exceeds available device memory). Reject it and propose a bounded context/concurrency change. Live failure injection is optional and restricted to an approved learner-only server; use explicit input-limit rejection rather than deliberate device exhaustion.
+Reject the instructor's impossible paper budget (for example, a KV cache larger than device memory) and propose a bounded context or concurrency limit. Live failure injection is optional: approved learner-only server, input-limit rejection only.
 
 ## Declarative delivery
 
-Save a reviewed serving-configuration diff for the recommended context and concurrency limits, tied to the actual owning mechanism. Include support evidence and uncertainty; do not apply a model/dtype change without qualification.
+Save a reviewed serving-configuration diff with your context and concurrency limits, through the mechanism that owns it. Apply no unqualified model or dtype change.
 
 ## Restoration and cleanup
 
-Return any approved serving changes to the saved baseline through its owner, perform the first-response check, stop the load client and record allocated resources. Keep the endpoint for subsequent work.
+Revert to the saved baseline through its owner, rerun the first-response check, stop the load client and note allocated resources. Keep the endpoint.
 
 ## Evidence and acceptance
 
-Budget with bytes/GiB, compatibility table, topology/device chain, raw results for all attempted conditions, before/after configuration and explanation of at least one discrepancy. Runtime acceptance requires measured data; hypothetical arithmetic alone is analytical completion.
+- Memory budget in bytes and GiB, with one estimate-versus-measurement gap explained.
+- Dtype table and topology/device chain.
+- Raw results for every attempted condition, with before/after configuration.
+
+Runtime acceptance needs measured data; arithmetic alone is [analytical](../../../README.md#check-runtime-readiness) completion.
 
 ## Provenance and instructor route
 
-Derived from [Lab 5.5 memory background/benchmarking](../../inference-and-data/labs/vllm-inference.md), [GPU setup](gpu-cluster-setup.md), [topology](topograph-nvlink-topology.md) and the supplied the original memory-workshop design (retained locally).
-
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-02)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-02)

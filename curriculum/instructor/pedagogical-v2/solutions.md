@@ -26,6 +26,8 @@ A fixed preallocated GPU-memory footprint can coexist with changing cache occupa
 
 Check the compatibility matrix includes unsupported/unknown entries, not only the executed format. Inventory should distinguish advertised devices from physical capacity and show actual CPU/GPU/NIC locality. No device access: assess arithmetic, hypothetical topology and proposed metrics, not hardware inventory.
 
+Provenance: derived from [Lab 5.5 memory background/benchmarking](../../modules/inference-and-data/labs/vllm-inference.md), [GPU setup](../../modules/gpu-systems/labs/gpu-cluster-setup.md) and [topology](../../modules/gpu-systems/labs/topograph-nvlink-topology.md).
+
 ## AI-LAB-03
 
 With one allocatable whole GPU, two whole-device jobs should serialize under a valid setup. Learners must locate the actual waiting stage; a policy can keep a job unadmitted, while a Pod may be admitted yet unschedulable. The impossible selector fault is placement, so quota increases are irrelevant. Borrowing and priority semantics must be read from the installed policy, not assumed.
