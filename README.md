@@ -1,5 +1,9 @@
 # k0rdent AI Infrastructure Training
 
+## [Start the course online →](https://mirantis-ps.github.io/k0rdent-ai-training/)
+
+Read the lessons, follow the labs and search the course on the published site. Use the setup instructions below when you are ready to run the labs.
+
 Learn to provision a k0rdent environment, serve a model privately, manage GPU capacity, measure performance and recover a service. The course is for engineers comfortable with Kubernetes and Linux.
 
 ## Start here
