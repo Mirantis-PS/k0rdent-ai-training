@@ -688,4 +688,4 @@ In this lab, you:
 
 ## Next Lab
 
-Continue to [Lab 1.6: Deploy KOF (Observability & FinOps)](lab-1.6-deploy-kof.md)
+Continue to [Lab 1.6: Deploy KOF (Observability & FinOps)](../../operations/labs/deploy-kof.md)

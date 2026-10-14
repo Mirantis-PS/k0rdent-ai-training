@@ -22,7 +22,7 @@ FOUNDATION (Completed)                        ML PLATFORMS
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) | **Lab 5.10 - MLflow** | Choose: [Lab 5.11 - FIPS](lab-5.11-nvidia-fips.md) or [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) |
+| [Lab 5.9 - Kubeflow](kubeflow-ml-platform.md) | **Lab 5.10 - MLflow** | Choose: [Lab 5.11 - FIPS](../../compliance/labs/nvidia-fips.md) or [Lab 5.13 - TensorRT-LLM](../../advanced-inference/labs/tensorrt-llm.md) |
 
 ---
 
@@ -1238,6 +1238,6 @@ model = mlflow.pytorch.load_model("models:/mnist-classifier@champion")
 
 Choose your next elective track:
 
-- **Compliance Track:** [Lab 5.11 - FIPS Compliance](lab-5.11-nvidia-fips.md)
-- **Advanced Track:** [Lab 5.13 - TensorRT-LLM Optimization](lab-5.13-tensorrt-llm.md)
-- **Or proceed to:** [Week 6 - Multi-tenancy](../../week-6-multitenancy/labs/lab-6.6-capstone.md)
+- **Compliance Track:** [Lab 5.11 - FIPS Compliance](../../compliance/labs/nvidia-fips.md)
+- **Advanced Track:** [Lab 5.13 - TensorRT-LLM Optimization](../../advanced-inference/labs/tensorrt-llm.md)
+- **Or proceed to:** [Week 6 - Multi-tenancy](../../../modules/capstone/labs/capstone.md)

@@ -26,7 +26,7 @@ FOUNDATION (Completed)                        ADVANCED
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.14 - Slurm on Kubernetes](lab-5.14-slurm-operator-hpc.md) | **Lab 5.15 - RDMA Multi-Cloud** | [Lab 5.16 - Distributed Training](lab-5.16-distributed-training.md) |
+| [Lab 5.14 - Slurm on Kubernetes](../../../extensions/hpc/labs/slurm-operator-hpc.md) | **Lab 5.15 - RDMA Multi-Cloud** | [Lab 5.16 - Distributed Training](distributed-training.md) |
 
 ---
 
@@ -1150,4 +1150,4 @@ This lab demonstrates k0rdent's core value for GPU infrastructure:
 
 ## Next Lab
 
-Proceed to [Lab 5.16 - Multi-Node Distributed Training](lab-5.16-distributed-training.md)
+Proceed to [Lab 5.16 - Multi-Node Distributed Training](distributed-training.md)

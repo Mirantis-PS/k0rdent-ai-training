@@ -31,7 +31,7 @@ After this lab:
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) | **Lab 5.16 - Distributed Training** | [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Week 6](../../week-6-multitenancy/labs/lab-6.6-capstone.md) |
+| [Lab 5.15 - RDMA Multi-Cloud](rdma-multi-cloud.md) | **Lab 5.16 - Distributed Training** | [Lab 5.9 - Kubeflow](../../../extensions/ml-platforms/labs/kubeflow-ml-platform.md) or [Week 6](../../capstone/labs/capstone.md) |
 
 ---
 
@@ -334,7 +334,7 @@ The stock `nvcr.io/nvidia/pytorch:24.12-py3` image does **not** run under MPI Op
 
 1. **Create the shared worker bootstrap + env shim**
 
-   Use the committed [adapter ConfigMap](../../examples/distributed-training/mpi-adapters.yaml),
+   Use the committed [adapter ConfigMap](../../../examples/distributed-training/mpi-adapters.yaml),
    generated from the adjacent worker, launcher and rank-mapping scripts. The worker
    starts sshd and installs the framework dependencies before accepting the launcher;
    the launcher fails after a bounded readiness wait. `/opt/mpi` avoids shadowing

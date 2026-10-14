@@ -20,7 +20,7 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md) | **Lab 5.4 - NVIDIA Run:ai** | [Lab 5.5 - vLLM Inference](lab-5.5-vllm-inference.md) |
+| [Lab 5.3 - KAI Scheduler](../../../modules/gpu-allocation/labs/kai-scheduler.md) | **Lab 5.4 - NVIDIA Run:ai** | [Lab 5.5 - vLLM Inference](../../../modules/inference-and-data/labs/vllm-inference.md) |
 
 ---
 
@@ -67,7 +67,7 @@ Deploy and operate NVIDIA Run:ai for enterprise GPU orchestration on a k0rdent-m
 - A working ingress controller validated for your Run:ai release
 - Run:ai control plane URL and admin credentials (provided by instructor)
 
-> **Note:** This lab uses the NVIDIA Run:ai **commercial platform** (v2.24). Run:ai requires a license from NVIDIA. In a training environment, your instructor provides access to a shared Run:ai control plane. For the open-source KAI Scheduler alternative, see [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md).
+> **Note:** This lab uses the NVIDIA Run:ai **commercial platform** (v2.24). Run:ai requires a license from NVIDIA. In a training environment, your instructor provides access to a shared Run:ai control plane. For the open-source KAI Scheduler alternative, see [Lab 5.3 - KAI Scheduler](../../../modules/gpu-allocation/labs/kai-scheduler.md).
 
 ## Background
 
@@ -926,6 +926,6 @@ runai workload delete <workload-name> -p <project-name>
 
 ## Next Lab
 
-Proceed to [Lab 5.5 - vLLM Inference Service](lab-5.5-vllm-inference.md)
+Proceed to [Lab 5.5 - vLLM Inference Service](../../../modules/inference-and-data/labs/vllm-inference.md)
 
-For the open-source KAI Scheduler alternative to Run:ai, see [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md).
+For the open-source KAI Scheduler alternative to Run:ai, see [Lab 5.3 - KAI Scheduler](../../../modules/gpu-allocation/labs/kai-scheduler.md).

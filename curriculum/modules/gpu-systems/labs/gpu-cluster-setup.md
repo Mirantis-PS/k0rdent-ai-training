@@ -20,7 +20,7 @@ YOU ARE HERE                                              Advanced (5.13-5.16)
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Week 5 Overview](../README.md) | **Lab 5.1 - GPU Cluster Setup** | [Lab 5.2 - Service Catalog](lab-5.2-service-catalog.md) |
+| [Week 5 Overview](../../../references/source-guides/week-5-ai-workloads/README.md) | **Lab 5.1 - GPU Cluster Setup** | [Lab 5.2 - Service Catalog](../../ai-service-delivery/labs/service-catalog.md) |
 
 ---
 
@@ -66,7 +66,7 @@ Deploy and configure an advanced GPU scheduler for AI workloads on Kubernetes, e
 - k0rdent management cluster access (via `lab-connect.sh`)
 - AWS credentials configured in the management cluster
 - kubectl access with cluster-admin privileges
-- Familiarity with k0rdent ClusterDeployment (from [Lab 1.5](../../week-1-foundations/labs/lab-1.5-provision-managed-cluster.md))
+- Familiarity with k0rdent ClusterDeployment (from [Lab 1.5](../../platform-bootstrap/labs/provision-managed-cluster.md))
 
 > **k0rdent context:** This lab deploys a GPU cluster using the same `ClusterDeployment` pattern students learned in Week 1 Lab 1.5. The only difference is using a GPU instance type (`g5.12xlarge`) for the worker node.
 
@@ -1249,4 +1249,4 @@ The management cluster ships a newer `kubectl` than the managed `gpu-cluster`'s 
 
 ## Next Lab
 
-Proceed to [Lab 5.2 - Service Catalog Blueprints](lab-5.2-service-catalog.md)
+Proceed to [Lab 5.2 - Service Catalog Blueprints](../../ai-service-delivery/labs/service-catalog.md)

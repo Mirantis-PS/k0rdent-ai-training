@@ -21,7 +21,7 @@ FOUNDATION       NETWORKING   STORAGE   OPERATIONS         TEMPLATES        SCHE
 
 | Previous | Current | Next |
 |----------|---------|------|
-| Lab 4.8 — ClusterTemplate Flavors *(planned)* | **Lab 4.9 — Dynamic Resource Allocation (DRA)** | [Lab 4.10 — BYOIP / PCI / MACsec](lab-4.10-byoip-pci-macsec.md) |
+| Lab 4.8 — ClusterTemplate Flavors *(planned)* | **Lab 4.9 — Dynamic Resource Allocation (DRA)** | [Lab 4.10 — BYOIP / PCI / MACsec](byoip-pci-macsec.md) |
 
 ---
 
@@ -420,4 +420,4 @@ A k0s upgrade resets `extraArgs` if the new `ClusterTemplate` doesn't carry them
 
 ## Next Lab
 
-[Lab 4.10 — Case Study: AI Cloud Provider Interconnect Patterns](lab-4.10-byoip-pci-macsec.md) — once tenants can claim GPUs by capability, the next layer is **how those GPUs reach external networks**: BYOIP allocations, dedicated interconnect with BGP, and MACsec link encryption.
+[Lab 4.10 — Case Study: AI Cloud Provider Interconnect Patterns](byoip-pci-macsec.md) — once tenants can claim GPUs by capability, the next layer is **how those GPUs reach external networks**: BYOIP allocations, dedicated interconnect with BGP, and MACsec link encryption.

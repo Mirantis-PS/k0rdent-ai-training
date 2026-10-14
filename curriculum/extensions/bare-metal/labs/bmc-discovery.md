@@ -308,4 +308,4 @@ curl -k -u admin:password \
 
 ## Next Lab
 
-Proceed to [Lab 2.3 - Troubleshooting BMC Connectivity](lab-2.3-troubleshooting-bmc.md)
+Proceed to [Lab 2.3 - Troubleshooting BMC Connectivity](troubleshooting-bmc.md)

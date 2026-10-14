@@ -694,4 +694,4 @@ In this lab, you:
 
 ## Next Lab
 
-Continue to [Lab 1.5: Provision Your First Managed Cluster](lab-1.5-provision-managed-cluster.md)
+Continue to [Lab 1.5: Provision Your First Managed Cluster](../../platform-bootstrap/labs/provision-managed-cluster.md)

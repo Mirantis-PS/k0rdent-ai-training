@@ -26,7 +26,7 @@ FOUNDATION (Completed)                        ADVANCED OPTIMIZATION
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) | **Lab 5.13 - TensorRT-LLM** | [Lab 5.14 - Slurm on Kubernetes](lab-5.14-slurm-operator-hpc.md) |
+| [Lab 5.8 - Vector Database](../../ml-platforms/labs/vector-database.md) | **Lab 5.13 - TensorRT-LLM** | [Lab 5.14 - Slurm on Kubernetes](../../hpc/labs/slurm-operator-hpc.md) |
 
 ---
 
@@ -876,7 +876,7 @@ On k0s-based k0rdent clusters (k0s bundles containerd 1.7.x), the NVIDIA GPU Ope
 
 Cause: the toolkit writes the nvidia runtimes to `/etc/containerd/conf.d/99-nvidia.toml` and bridges it into k0s via a nested import; containerd merges that file **last**, and its `runtimes` map (nvidia only) drops k0s's `runc` entry while `default_runtime_name` stays `runc`. A plain `k0sworker`/containerd restart does **not** fix it — the merged config itself is wrong.
 
-Fix (on the GPU worker node): add a `runc` runtime back to `/etc/containerd/conf.d/99-nvidia.toml` so the merged `runtimes` map keeps both `runc` and the nvidia runtimes, then `systemctl restart k0sworker`. Verify the merge with `containerd --config /etc/k0s/containerd.toml config dump | grep -A2 runtimes.runc`. This is a **cluster-setup** concern (see [Lab 5.1](lab-5.1-gpu-cluster-setup.md) / [Lab 5.12](lab-5.12-cluster-templates.md)); confirm `kubectl get nodes -l nvidia.com/gpu.present=true` shows `nvidia.com/gpu` allocatable **before** starting this lab.
+Fix (on the GPU worker node): add a `runc` runtime back to `/etc/containerd/conf.d/99-nvidia.toml` so the merged `runtimes` map keeps both `runc` and the nvidia runtimes, then `systemctl restart k0sworker`. Verify the merge with `containerd --config /etc/k0s/containerd.toml config dump | grep -A2 runtimes.runc`. This is a **cluster-setup** concern (see [Lab 5.1](../../../modules/gpu-systems/labs/gpu-cluster-setup.md) / [Lab 5.12](../../../modules/ai-service-delivery/labs/cluster-templates.md)); confirm `kubectl get nodes -l nvidia.com/gpu.present=true` shows `nvidia.com/gpu` allocatable **before** starting this lab.
 
 ### Quantization Fails
 
@@ -958,4 +958,4 @@ nvidia-smi --query-gpu=compute_cap --format=csv,noheader
 
 ## Next Lab
 
-Proceed to [Lab 5.14 - Slurm on Kubernetes](lab-5.14-slurm-operator-hpc.md)
+Proceed to [Lab 5.14 - Slurm on Kubernetes](../../hpc/labs/slurm-operator-hpc.md)

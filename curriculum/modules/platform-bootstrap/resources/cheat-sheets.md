@@ -242,7 +242,7 @@ kubectl patch managements.k0rdent.mirantis.com kcm \
 
 ### Rollback
 
-Use the [Lab 1.8 recovery procedure](../labs/lab-1.8-upgrade-k0rdent.md#part-4-rollback-procedures-5-min):
+Use the [Lab 1.8 recovery procedure](../../operations/labs/upgrade-k0rdent.md#part-4-rollback-procedures-5-min):
 prepare a clean compatible installation, reconnect backup storage, and restore the
 successful pre-upgrade backup with a resource modifier for `Management.spec.release`.
 A direct release-field patch alone does not restore upgraded CRDs or stored data.

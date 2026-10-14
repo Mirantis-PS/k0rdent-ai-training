@@ -20,7 +20,7 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.1 - GPU Cluster Setup](lab-5.1-gpu-cluster-setup.md) | **Lab 5.2 - Service Catalog** | [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md) |
+| [Lab 5.1 - GPU Cluster Setup](../../gpu-systems/labs/gpu-cluster-setup.md) | **Lab 5.2 - Service Catalog** | [Lab 5.3 - KAI Scheduler](../../gpu-allocation/labs/kai-scheduler.md) |
 
 ---
 
@@ -399,7 +399,7 @@ Confirm the live Deployment has the requested replica count. `helm get values`
 alone cannot prove a chart used a value. Restore the original replica count when
 finished. For sensitive service values, reference a Secret using that service's
 `valuesFrom`, and keep its namespace/distribution consistent with the installed KSM
-provider. For a persistent MLflow workflow use [Lab 5.10](lab-5.10-mlflow-experiment-tracking.md),
+provider. For a persistent MLflow workflow use [Lab 5.10](../../../extensions/ml-platforms/labs/mlflow-experiment-tracking.md),
 which provisions its database/object store explicitly. The community MLflow chart
 does not turn unrelated PostgreSQL/S3 subchart toggles into those services.
 
@@ -636,4 +636,4 @@ kubectl get multiclusterservice,servicetemplatechains -n kcm-system
 
 ## Next Lab
 
-Proceed to [Lab 5.3 - KAI Scheduler](lab-5.3-kai-scheduler.md)
+Proceed to [Lab 5.3 - KAI Scheduler](../../gpu-allocation/labs/kai-scheduler.md)

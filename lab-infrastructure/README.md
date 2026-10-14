@@ -4,7 +4,7 @@ Terraform-based infrastructure provisioning for k0rdent AI training labs.
 
 ## Script Reference
 
-> **Taking the training?** Don't start here — start at [Week 1: Foundations](../curriculum/week-1-foundations/README.md). Lab 1.1 walks you through provisioning step by step using these scripts, including credential setup and verification. This page is a technical reference.
+> **Taking the training?** Don't start here — start at [Week 1: Foundations](../curriculum/references/source-guides/week-1-foundations/README.md). Lab 1.1 walks you through provisioning step by step using these scripts, including credential setup and verification. This page is a technical reference.
 
 ### Prerequisites
 

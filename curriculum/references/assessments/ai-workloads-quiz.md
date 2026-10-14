@@ -58,5 +58,5 @@ Submit sanitized evidence for all five outcomes: a successful GPU workload, a
 supported gang-capacity test, an inference request with latency/throughput settings,
 a service configuration verified in the live manifest, and a diagnosed/recovered
 GPU failure. Record the commit, versions, hardware and cleanup using the
-[lab contract](resources/lab-contract.md). The quiz score and practical completion
+[lab contract](../../modules/gpu-systems/resources/lab-contract.md). The quiz score and practical completion
 are separate: an 80% quiz result does not certify an unexecuted workload.

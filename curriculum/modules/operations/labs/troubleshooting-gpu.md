@@ -20,7 +20,7 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.5 - vLLM Inference](lab-5.5-vllm-inference.md) | **Lab 5.6 - Troubleshooting** | [Lab 5.7 - Jupyter Notebooks](lab-5.7-jupyter-notebooks.md) |
+| [Lab 5.5 - vLLM Inference](../../inference-and-data/labs/vllm-inference.md) | **Lab 5.6 - Troubleshooting** | [Lab 5.7 - Jupyter Notebooks](../../../extensions/ml-platforms/labs/jupyter-notebooks.md) |
 
 ---
 
@@ -937,18 +937,18 @@ You have completed the **Foundation Track**! Choose your next learning path:
 
 ### ML Platforms Track (Recommended)
 Build end-to-end ML workflows:
-- [Lab 5.9 - Kubeflow ML Platform](lab-5.9-kubeflow-ml-platform.md) - Pipelines, training operators, Katib
-- [Lab 5.10 - MLflow Experiment Tracking](lab-5.10-mlflow-experiment-tracking.md) - Model registry, artifacts
-- [Lab 5.11 - Run:AI GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) - Quotas, fractional GPU
-- [Lab 5.12 - Slurm Operator for HPC](lab-5.14-slurm-operator-hpc.md) - Traditional HPC integration
+- [Lab 5.9 - Kubeflow ML Platform](../../../extensions/ml-platforms/labs/kubeflow-ml-platform.md) - Pipelines, training operators, Katib
+- [Lab 5.10 - MLflow Experiment Tracking](../../../extensions/ml-platforms/labs/mlflow-experiment-tracking.md) - Model registry, artifacts
+- [Lab 5.11 - Run:AI GPU Orchestration](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md) - Quotas, fractional GPU
+- [Lab 5.12 - Slurm Operator for HPC](../../../extensions/hpc/labs/slurm-operator-hpc.md) - Traditional HPC integration
 
 ### Compliance & Templates Track (If Required)
 For regulated environments:
-- [Lab 5.7 - FIPS Compliance](lab-5.11-nvidia-fips.md) - FIPS 140-2/3 compliance for GPU infrastructure
-- [Lab 5.8 - Cluster Templates for AI](lab-5.12-cluster-templates.md) - k0rdent ClusterTemplates
+- [Lab 5.7 - FIPS Compliance](../../../extensions/compliance/labs/nvidia-fips.md) - FIPS 140-2/3 compliance for GPU infrastructure
+- [Lab 5.8 - Cluster Templates for AI](../../ai-service-delivery/labs/cluster-templates.md) - k0rdent ClusterTemplates
 
 ### Advanced Optimization Track (Optional)
 For maximum performance:
-- [Lab 5.13 - TensorRT-LLM Optimization](lab-5.13-tensorrt-llm.md) - Advanced inference
-- [Lab 5.14 - Multi-Cloud RDMA](lab-5.15-rdma-multi-cloud.md) - EFA vs InfiniBand
-- [Lab 5.15 - Distributed Training](lab-5.16-distributed-training.md) - Multi-node training
+- [Lab 5.13 - TensorRT-LLM Optimization](../../../extensions/advanced-inference/labs/tensorrt-llm.md) - Advanced inference
+- [Lab 5.14 - Multi-Cloud RDMA](../../distributed-ai/labs/rdma-multi-cloud.md) - EFA vs InfiniBand
+- [Lab 5.15 - Distributed Training](../../distributed-ai/labs/distributed-training.md) - Multi-node training

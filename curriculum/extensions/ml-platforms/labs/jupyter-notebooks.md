@@ -20,7 +20,7 @@ FOUNDATION (Required)                                    CHOOSE YOUR PATH
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.6 - Troubleshooting GPU](lab-5.6-troubleshooting-gpu.md) | **Lab 5.7 - Jupyter Notebooks** | [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) |
+| [Lab 5.6 - Troubleshooting GPU](../../../modules/operations/labs/troubleshooting-gpu.md) | **Lab 5.7 - Jupyter Notebooks** | [Lab 5.8 - Vector Database](vector-database.md) |
 
 ---
 
@@ -635,7 +635,7 @@ kubectl delete pvc -n jupyter --all
 kubectl get pods -n jupyter
 ```
 
-> **Cost reminder:** GPU workloads consume resources even when idle. See the [labs README cleanup guide](README.md#cleanup).
+> **Cost reminder:** GPU workloads consume resources even when idle. See the [labs README cleanup guide](../../../references/source-guides/week-5-ai-workloads/labs/README.md#cleanup).
 
 ## Key Takeaways
 
@@ -651,4 +651,4 @@ kubectl get pods -n jupyter
 
 ## Next Lab
 
-Proceed to [Lab 5.5 - Service Catalog Blueprints](lab-5.2-service-catalog.md)
+Proceed to [Lab 5.5 - Service Catalog Blueprints](../../../modules/ai-service-delivery/labs/service-catalog.md)

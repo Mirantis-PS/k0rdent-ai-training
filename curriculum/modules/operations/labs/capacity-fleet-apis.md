@@ -12,7 +12,7 @@
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 6.2 — Breakfix API](lab-6.2-breakfix-api.md) | **Lab 6.3 — Capacity & Fleet APIs** | (Lab 6.4 — Data sanitization + at-rest crypto — TBD) |
+| [Lab 6.2 — Breakfix API](breakfix-api.md) | **Lab 6.3 — Capacity & Fleet APIs** | (Lab 6.4 — Data sanitization + at-rest crypto — TBD) |
 
 ---
 

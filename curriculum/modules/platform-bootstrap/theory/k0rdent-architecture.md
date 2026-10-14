@@ -112,7 +112,7 @@ k0rdent addresses these challenges through:
 
 Before breaking k0rdent down piece by piece, it helps to see the whole system at once. The diagram below maps everything covered in this module and the next: who drives the platform (left), what runs inside the management cluster (centre), the child clusters it provisions (below), and the infrastructure it provisions them onto (right).
 
-![k0rdent architecture overview. Platform roles and interfaces on the left submit a desired state definition to a central management cluster containing KCM, KSM, KOF, Templates, and Security/Access. The management cluster provisions the child clusters shown below it and the target infrastructure on the right, spanning AWS, Azure, GCP, vSphere, OpenStack, and bare metal. A six-step simplified flow runs along the bottom.](../../images/k0rdent-architecture.png)
+![k0rdent architecture overview. Platform roles and interfaces on the left submit a desired state definition to a central management cluster containing KCM, KSM, KOF, Templates, and Security/Access. The management cluster provisions the child clusters shown below it and the target infrastructure on the right, spanning AWS, Azure, GCP, vSphere, OpenStack, and bare metal. A six-step simplified flow runs along the bottom.](../../../images/k0rdent-architecture.png)
 
 **In words:** Reading the diagram from left to right:
 
@@ -156,7 +156,7 @@ Workload Clusters are the clusters where applications run. They:
 - Can span multiple cloud providers
 
 **Hosted Control Plane Mode:**
-In addition to the standard model where workload cluster control planes run on dedicated VMs, k0rdent supports a **Hosted Control Plane** mode via k0smotron. In this mode, the control plane runs as pods on the management cluster itself — only worker nodes are provisioned as VMs. This reduces cost and speeds up provisioning, but creates a shared failure domain. See [Theory 1.2 — k0smotron](1.2-k0rdent-components.md) for details.
+In addition to the standard model where workload cluster control planes run on dedicated VMs, k0rdent supports a **Hosted Control Plane** mode via k0smotron. In this mode, the control plane runs as pods on the management cluster itself — only worker nodes are provisioned as VMs. This reduces cost and speeds up provisioning, but creates a shared failure domain. See [Theory 1.2 — k0smotron](k0rdent-components.md) for details.
 
 ### API-First Design
 
@@ -405,4 +405,4 @@ k0rdent is built on top of CAPI, providing an opinionated, production-ready impl
 
 ## Next
 
-Apply this architecture in [Lab 1.1: Provision k0rdent Management Cluster](../labs/lab-1.1-provision-k0rdent.md). Then continue to [1.2 k0rdent Components Deep Dive](1.2-k0rdent-components.md) on Day 2.
+Apply this architecture in [Lab 1.1: Provision k0rdent Management Cluster](../labs/provision-k0rdent.md). Then continue to [1.2 k0rdent Components Deep Dive](k0rdent-components.md) on Day 2.

@@ -759,6 +759,6 @@ You now have a solid foundation in k0rdent Enterprise for managing multi-cluster
 
 ## Next
 
-Continue to [Lab 1.9: Kubernetes API Audit Logging](lab-1.9-api-audit-logging.md) before teardown, then complete the [Week 1 Quiz](../week-1-quiz.md).
+Continue to [Lab 1.9: Kubernetes API Audit Logging](api-audit-logging.md) before teardown, then complete the [Week 1 Quiz](../../../references/assessments/foundations-quiz.md).
 
-Then proceed to [Week 2: Bare Metal as a Service](../../week-2-bmaas/README.md) to learn how to manage bare metal infrastructure with k0rdent.
+Then proceed to [Week 2: Bare Metal as a Service](../../../references/source-guides/week-2-bmaas/README.md) to learn how to manage bare metal infrastructure with k0rdent.

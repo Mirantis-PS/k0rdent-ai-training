@@ -86,7 +86,7 @@ def check(path):
     return errors
 
 def main():
-    paths = [Path(p) for p in sys.argv[1:]] or [ROOT/'curriculum/week-1-foundations', ROOT/'curriculum/week-5-ai-workloads', ROOT/'curriculum/examples']
+    paths = [Path(p) for p in sys.argv[1:]] or [ROOT/'curriculum/modules', ROOT/'curriculum/extensions', ROOT/'curriculum/references', ROOT/'curriculum/overview', ROOT/'curriculum/examples', ROOT/'curriculum/appendix', ROOT/'curriculum/README.md', ROOT/'README.md']
     files = sorted({f for p in paths if p.exists() for f in (p.rglob('*') if p.is_dir() else [p]) if f.is_file()})
     errors = [error for f in files for error in check(f)]
     for error in errors:

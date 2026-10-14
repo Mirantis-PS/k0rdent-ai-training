@@ -26,7 +26,7 @@ FOUNDATION (Completed)                        ADVANCED
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) | **Lab 5.14 - Slurm on Kubernetes** | [Lab 5.15 - RDMA Multi-Cloud](lab-5.15-rdma-multi-cloud.md) |
+| [Lab 5.13 - TensorRT-LLM](../../advanced-inference/labs/tensorrt-llm.md) | **Lab 5.14 - Slurm on Kubernetes** | [Lab 5.15 - RDMA Multi-Cloud](../../../modules/distributed-ai/labs/rdma-multi-cloud.md) |
 
 ---
 

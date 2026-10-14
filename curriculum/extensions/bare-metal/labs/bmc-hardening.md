@@ -12,7 +12,7 @@
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 2.3 — Troubleshooting BMC](lab-2.3-troubleshooting-bmc.md) | **Lab 2.4 — BMC Hardening** | (Lab 2.5 — Secure Boot + TPM — TBD) |
+| [Lab 2.3 — Troubleshooting BMC](troubleshooting-bmc.md) | **Lab 2.4 — BMC Hardening** | (Lab 2.5 — Secure Boot + TPM — TBD) |
 
 ---
 

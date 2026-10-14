@@ -313,5 +313,5 @@ helm --kubeconfig "$WORKLOAD_KUBECONFIG" uninstall envoy-gateway -n envoy-gatewa
 - [ ] Gateway and route conditions pass; external HTTP serves the application.
 - [ ] Explain dependencies, conflicting release ownership, and selector blast radius.
 
-Continue to [Lab 1.8: Upgrade k0rdent Enterprise](lab-1.8-upgrade-k0rdent.md), then
-[Lab 1.9: API audit logging](lab-1.9-api-audit-logging.md) before teardown.
+Continue to [Lab 1.8: Upgrade k0rdent Enterprise](../../operations/labs/upgrade-k0rdent.md), then
+[Lab 1.9: API audit logging](../../operations/labs/api-audit-logging.md) before teardown.

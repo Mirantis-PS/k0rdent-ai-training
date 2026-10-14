@@ -913,4 +913,4 @@ In this lab, you:
 
 ## Next Lab
 
-Continue to [Lab 1.3: Configure AWS Provider](lab-1.3-configure-aws-provider.md)
+Continue to [Lab 1.3: Configure AWS Provider](configure-aws-provider.md)

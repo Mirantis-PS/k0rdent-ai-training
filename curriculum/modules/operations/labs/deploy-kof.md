@@ -449,7 +449,7 @@ kubectl get clusterdeployment managed-cluster-01 -n kcm-system --show-labels
 
 #### Step 2: Create Cluster Configuration
 
-> **Networking prerequisite:** The initial internal endpoints below bootstrap the collector configuration. After the child collectors are installed, complete the [authenticated cross-VPC ingest exercise](../../examples/telemetry/cross-cluster-ingest.md). Internal `.svc` endpoints do not work across these separate VPCs; the lab is complete only when a child log and metric arrive centrally.
+> **Networking prerequisite:** The initial internal endpoints below bootstrap the collector configuration. After the child collectors are installed, complete the [authenticated cross-VPC ingest exercise](../../../examples/telemetry/cross-cluster-ingest.md). Internal `.svc` endpoints do not work across these separate VPCs; the lab is complete only when a child log and metric arrive centrally.
 
 The child cluster needs to know where to send telemetry. Create a ConfigMap with the storage endpoints:
 
@@ -687,7 +687,7 @@ When CAPA (Cluster API for AWS) provisions managed clusters, it creates a **new 
 
 ##### Option A: Authenticated TLS ingest (baseline)
 
-Complete the [KOF 1.6 cross-cluster ingest procedure](../../examples/telemetry/cross-cluster-ingest.md).
+Complete the [KOF 1.6 cross-cluster ingest procedure](../../../examples/telemetry/cross-cluster-ingest.md).
 It provides one NLB-backed proxy with mutual TLS, a client Secret in the workload
 cluster, and a generated KOF values override preserving the existing mounts. It
 forwards metrics and logs to their private storage Services. Do not expose the
@@ -1057,4 +1057,4 @@ KOF adds roughly 25-30 pods to the management cluster (plus the collector pods o
 
 ## Next Lab
 
-Continue to [Lab 1.7: Multi-Cluster Service Deployment](lab-1.7-multicluster-services.md)
+Continue to [Lab 1.7: Multi-Cluster Service Deployment](../../ai-service-delivery/labs/multicluster-services.md)

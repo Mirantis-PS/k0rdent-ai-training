@@ -20,7 +20,7 @@
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.17 — OTel Telemetry Export](lab-5.17-otel-telemetry-export.md) | **Lab 5.18 — topograph / NVLink Topology** | [Lab 5.19 — MIG Partitioning](lab-5.19-mig-partitioning.md) |
+| [Lab 5.17 — OTel Telemetry Export](../../operations/labs/otel-telemetry-export.md) | **Lab 5.18 — topograph / NVLink Topology** | [Lab 5.19 — MIG Partitioning](../../gpu-allocation/labs/mig-partitioning.md) |
 
 ---
 
@@ -287,7 +287,7 @@ kubectl get nodes -l nvidia.com/gpu.present=true
 kubectl label node <gpu-worker-name> training.k0rdent.io/accelerator-domain=training-domain-a
 ```
 
-The [topology fixture](../../examples/topology/benchmark-topology.yaml) selects this
+The [topology fixture](../../../examples/topology/benchmark-topology.yaml) selects this
 value. Two pods can run on the single four-GPU worker. This proves the affinity
 wiring, not NVLink availability or a bandwidth improvement.
 
@@ -366,4 +366,4 @@ kubectl label node <gpu-worker-name> training.k0rdent.io/accelerator-domain-
 
 ## Next Lab
 
-[Week 6 — Multi-Tenancy](../../week-6-multitenancy/) — once your single-tenant fabric is observable and steerable, the next layer is making it safe to share across tenants.
+[Week 6 — Multi-Tenancy](../../../references/original-course.md#week-6-multitenancy) — once your single-tenant fabric is observable and steerable, the next layer is making it safe to share across tenants.

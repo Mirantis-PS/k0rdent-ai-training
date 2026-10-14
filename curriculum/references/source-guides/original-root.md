@@ -13,7 +13,7 @@ cd k0rdent-ai-training
 # Full list: curriculum/overview/prerequisites.md
 
 # 3. Start Week 1
-# Follow: curriculum/week-1-foundations/README.md
+# Follow: curriculum/references/source-guides/week-1-foundations/README.md
 ```
 
 **That's it.** The Week 1 README walks you through the week day by day — theory first, then Lab 1.1, which provisions, connects, and verifies your k0rdent management cluster.
@@ -64,7 +64,7 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 - Basic understanding of virtualization concepts
 - Experience with Infrastructure as Code (Terraform, Helm)
 
-See [Prerequisites](curriculum/overview/prerequisites.md) for the full account, budget, quota, and workstation requirements (AWS account with admin-level IAM, macOS/Linux or WSL2, ~$25-50 Week 1 budget).
+See [Prerequisites](../../overview/prerequisites.md) for the full account, budget, quota, and workstation requirements (AWS account with admin-level IAM, macOS/Linux or WSL2, ~$25-50 Week 1 budget).
 
 **Software Versions** (each week's README carries the authoritative version table for its labs):
 
@@ -109,23 +109,23 @@ k0rdent-ai-training/
 
 | Document | Purpose |
 |----------|---------|
-| [Week 1: Foundations](curriculum/week-1-foundations/README.md) | **Start here** - day-by-day schedule (theory + labs) |
-| [Lab 1.1: Provision k0rdent](curriculum/week-1-foundations/labs/lab-1.1-provision-k0rdent.md) | First hands-on lab (Day 1, after Theory 1.1) |
-| [Week 1 Theory](curriculum/week-1-foundations/theory/) | Architecture, components, providers |
-| [Lab Infrastructure Reference](lab-infrastructure/README.md) | Script & cost reference (used by Lab 1.1 — not a starting point) |
-| [Troubleshooting Guide](lab-infrastructure/docs/troubleshooting.md) | Common issues and solutions |
-| [Program Overview](curriculum/overview/training-program-overview.md) | Complete syllabus |
+| [Week 1: Foundations](week-1-foundations/README.md) | **Start here** - day-by-day schedule (theory + labs) |
+| [Lab 1.1: Provision k0rdent](../../modules/platform-bootstrap/labs/provision-k0rdent.md) | First hands-on lab (Day 1, after Theory 1.1) |
+| [Week 1 Theory](../original-course.md#week-1-foundations) | Architecture, components, providers |
+| [Lab Infrastructure Reference](../../../lab-infrastructure/README.md) | Script & cost reference (used by Lab 1.1 — not a starting point) |
+| [Troubleshooting Guide](../../../lab-infrastructure/docs/troubleshooting.md) | Common issues and solutions |
+| [Program Overview](training-program-overview.md) | Complete syllabus |
 
 ## Curriculum by Week
 
 | Week | README | Committed content |
 |------|--------|-------------------|
-| 1 — Foundations | [README](curriculum/week-1-foundations/README.md) | 3 theory + 9 labs (see per-lab validation notes) |
-| 2 — BMaaS | [README](curriculum/week-2-bmaas/README.md) | 5 labs |
-| 3 — VMaaS | [README](curriculum/week-3-vmaas/README.md) | 1 lab |
-| 4 — KaaS | [README](curriculum/week-4-kaas/README.md) | 4 labs (4.1, 4.4, 4.9, 4.10) — in development; no hard Week 5 dependency |
-| 5 — AI Workloads | [README](curriculum/week-5-ai-workloads/README.md) | 5 theory + 19 labs (mixed validation status; see Week 5 contract) |
-| 6 — Multi-Tenancy | [README](curriculum/week-6-multitenancy/README.md) | 4 labs (incl. capstone) |
+| 1 — Foundations | [README](week-1-foundations/README.md) | 3 theory + 9 labs (see per-lab validation notes) |
+| 2 — BMaaS | [README](week-2-bmaas/README.md) | 5 labs |
+| 3 — VMaaS | [README](week-3-vmaas/README.md) | 1 lab |
+| 4 — KaaS | [README](week-4-kaas/README.md) | 4 labs (4.1, 4.4, 4.9, 4.10) — in development; no hard Week 5 dependency |
+| 5 — AI Workloads | [README](week-5-ai-workloads/README.md) | 5 theory + 19 labs (mixed validation status; see Week 5 contract) |
+| 6 — Multi-Tenancy | [README](week-6-multitenancy/README.md) | 4 labs (incl. capstone) |
 
 ## What Gets Installed (Week 1)
 

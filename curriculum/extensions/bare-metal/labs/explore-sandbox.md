@@ -168,4 +168,4 @@ Record any observations, questions, or issues encountered:
 
 ## Next Lab
 
-Proceed to [Lab 2.2 - BMC Discovery with Redfish](lab-2.2-bmc-discovery.md)
+Proceed to [Lab 2.2 - BMC Discovery with Redfish](bmc-discovery.md)

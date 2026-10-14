@@ -19,7 +19,7 @@ hook or CI step. Failures report the file, the line the block starts on, and the
 parser error:
 
 ```
-FAIL curriculum/week-5-ai-workloads/theory/5.4-distributed-training.md:36
+FAIL curriculum/modules/distributed-ai/theory/distributed-training.md:36
      Parse error on line 5: ...r/>8-12 bytes/param (Adam)] Expecting 'SQE', ... got 'PS'
 ```
 
@@ -63,7 +63,7 @@ npx -y @mermaid-js/mermaid-cli -i ../curriculum/path/to/file.md -o /tmp/out.md -
 
 ## `check-curriculum.py`
 
-Checks Week 1/5 YAML and Python fences, complete YAML shell heredocs, local file
+Checks module, extension and reference YAML and Python fences, complete YAML shell heredocs, local file
 links and committed example YAML/Python/Bash files. Standalone fixtures additionally
 reject nonpositive topology maxSkew. This complements the existing link and Mermaid
 tools; it does not replace Helm rendering, versioned CRD admission, or live GPU tests.
@@ -72,5 +72,5 @@ tools; it does not replace Helm rendering, versioned CRD admission, or live GPU 
 python3 -m pip install PyYAML==6.0.2
 python3 scripts/check-curriculum.py
 # A specific changed directory/file is also accepted:
-python3 scripts/check-curriculum.py curriculum/week-5-ai-workloads
+python3 scripts/check-curriculum.py curriculum/modules/inference-and-data
 ```

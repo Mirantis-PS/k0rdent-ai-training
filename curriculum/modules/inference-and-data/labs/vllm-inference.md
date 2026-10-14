@@ -20,7 +20,7 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.4 - Run:ai GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) | **Lab 5.5 - vLLM Inference** | [Lab 5.6 - Troubleshooting GPU](lab-5.6-troubleshooting-gpu.md) |
+| [Lab 5.4 - Run:ai GPU Orchestration](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md) | **Lab 5.5 - vLLM Inference** | [Lab 5.6 - Troubleshooting GPU](../../operations/labs/troubleshooting-gpu.md) |
 
 ---
 
@@ -1451,7 +1451,7 @@ spec:
 | `lws` (LeaderWorkerSet) | 0.7.0 | Multi-node distributed inference (pipeline parallelism across nodes) |
 | `kuberay` | 1.3.2 | Ray Serve + vLLM backend for advanced serving patterns |
 | `ollama` | 1.40.0 | Simpler LLM inference (good for development/testing) |
-| `nvidia` (GPU Operator) | 25.10.0 | GPU enablement (required — see [Lab Setup README](README.md)) |
+| `nvidia` (GPU Operator) | 25.10.0 | GPU enablement (required — see [Lab Setup README](../../../references/source-guides/week-5-ai-workloads/labs/README.md)) |
 
 > **Note:** There is no standalone `vllm` ServiceTemplate in the k0rdent catalog. The recommended production path is KServe + vLLM ServingRuntime. For direct vLLM deployment, use the raw Kubernetes manifests from this lab or create a [BYO ServiceTemplate](https://docs.k0rdent.io/latest/reference/template/template-byo/).
 
@@ -1604,4 +1604,4 @@ kubectl exec deployment/vllm-qwen -n vllm-inference -- nvidia-smi
 
 ## Next Lab
 
-Proceed to [Lab 5.6 - Troubleshooting GPU Scheduling](lab-5.6-troubleshooting-gpu.md)
+Proceed to [Lab 5.6 - Troubleshooting GPU Scheduling](../../operations/labs/troubleshooting-gpu.md)

@@ -20,7 +20,7 @@
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.18 — topograph / NVLink Topology](lab-5.18-topograph-nvlink-topology.md) | **Lab 5.19 — MIG Partitioning** | [Week 6 — Multi-Tenancy](../../week-6-multitenancy/) |
+| [Lab 5.18 — topograph / NVLink Topology](../../gpu-systems/labs/topograph-nvlink-topology.md) | **Lab 5.19 — MIG Partitioning** | [Week 6 — Multi-Tenancy](../../../references/original-course.md#week-6-multitenancy) |
 
 ---
 
@@ -42,8 +42,8 @@
 > Provision it when you are ready to work through the lab in one pass, and run the
 > [Cleanup](#cleanup) steps the moment you finish. Set a calendar reminder.
 
-> **🔓 Licensing: nothing to buy.** Unlike [Lab 5.4](lab-5.4-runai-gpu-orchestration.md)
-> (Run:ai commercial license) and [Lab 5.11](lab-5.11-nvidia-fips.md) (NVIDIA AI
+> **🔓 Licensing: nothing to buy.** Unlike [Lab 5.4](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md)
+> (Run:ai commercial license) and [Lab 5.11](../../../extensions/compliance/labs/nvidia-fips.md) (NVIDIA AI
 > Enterprise entitlement), every component here is free: MIG is a GPU/driver
 > feature, and the GPU Operator, `mig-parted`, DCGM, and the DRA driver are all
 > Apache-2.0. No NGC API key is required. The only cost is AWS compute.
@@ -93,14 +93,14 @@ By the end you will be able to:
 
 ## Prerequisites
 
-- **[Lab 5.1](lab-5.1-gpu-cluster-setup.md)** — GPU Operator on k0s, including the
+- **[Lab 5.1](../../gpu-systems/labs/gpu-cluster-setup.md)** — GPU Operator on k0s, including the
   containerd path values and the time-slicing task. MIG is the contrast case to
   Lab 5.1 Task 6; do that first or this lab loses its point.
-- **[Lab 5.3](lab-5.3-kai-scheduler.md)** — KAI fractional GPUs. Task 5 here is a
+- **[Lab 5.3](kai-scheduler.md)** — KAI fractional GPUs. Task 5 here is a
   direct answer to Lab 5.3's warning that KAI does *not* enforce memory limits.
 - Working k0rdent management cluster (Lab 1.1) and experience with
   `ClusterDeployment` (Lab 1.5).
-- **[Lab 1.3](../../week-1-foundations/labs/lab-1.3-configure-aws-provider.md) —
+- **[Lab 1.3](../../platform-bootstrap/labs/configure-aws-provider.md) —
   AWS provider credential.** `lab-provision.sh` does **not** create this for you.
   Without it the `ClusterDeployment` in Task 1 stalls at
   `InfrastructureReady: Condition not yet reported` with no obvious cause.
@@ -168,7 +168,7 @@ slices, another left whole for training. Tenants then request the resource name
 their slice size produces — they never choose a partitioning.
 
 This lab configures MIG directly on the workload cluster so you can watch the
-mechanism. Once you understand it, [Lab 5.12](lab-5.12-cluster-templates.md) shows
+mechanism. Once you understand it, [Lab 5.12](../../ai-service-delivery/labs/cluster-templates.md) shows
 how to ship the same settings through a `ServiceTemplate`, remembering that GPU
 Operator values must be nested under a top-level `gpu-operator:` key when
 delivered that way.
@@ -177,7 +177,7 @@ delivered that way.
 
 ## Part 1: What MIG Actually Partitions
 
-Theory reference: [5.1 GPU Scheduling §5.4](../theory/5.1-gpu-scheduling.md#54-multi-instance-gpu-mig).
+Theory reference: [5.1 GPU Scheduling §5.4](../theory/gpu-scheduling.md#54-multi-instance-gpu-mig).
 The essentials you need at the keyboard:
 
 ### The two-level model
@@ -635,7 +635,7 @@ kubectl label node "$NODE" nvidia.com/mig.config=all-balanced --overwrite
 >
 > If you want a different mix, write your own `mig-parted` ConfigMap using the
 > A100-40GB examples in
-> [theory 5.1 §5.4](../theory/5.1-gpu-scheduling.md#mig-configuration) and point
+> [theory 5.1 §5.4](../theory/gpu-scheduling.md#mig-configuration) and point
 > `migManager.config.name` at it — but note the predefined layouts are `all-*`
 > only, so a custom name will not resolve against the default ConfigMap.
 
@@ -865,7 +865,7 @@ kubectl delete pod mig-neighbour mig-hog mig-small mig-medium --ignore-not-found
 
 ### Task 6: Allocate MIG Slices Through DRA (40 min)
 
-Week 4 [Lab 4.9](../../week-4-kaas/labs/lab-4.9-dynamic-resource-allocation.md)
+Week 4 [Lab 4.9](../../../extensions/advanced-kubernetes/labs/dynamic-resource-allocation.md)
 motivates DRA with the example *"I need a MIG slice `2g.20gb`"*. This task finally
 exercises that claim.
 
@@ -1113,7 +1113,7 @@ Only the slice running the pod shows non-zero framebuffer use.
 
 #### 7.3 Wire it onward
 
-[Lab 5.17](lab-5.17-otel-telemetry-export.md) covers exporting these through KOF's
+[Lab 5.17](../../operations/labs/otel-telemetry-export.md) covers exporting these through KOF's
 OTel pipeline. The `GPU_I_ID` / `GPU_I_PROFILE` labels are what make the exported
 series meterable per tenant.
 
@@ -1313,12 +1313,12 @@ Empty output means you are clear.
 - [Dynamic Resource Allocation](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) — GA in 1.34
 
 ### This curriculum
-- [Theory 5.1 §5.4 — Multi-Instance GPU](../theory/5.1-gpu-scheduling.md#54-multi-instance-gpu-mig)
-- [Lab 5.1 Task 6 — Time-slicing](lab-5.1-gpu-cluster-setup.md) — the contrast case
-- [Lab 5.3 — KAI fractional GPUs](lab-5.3-kai-scheduler.md) — fractions without memory enforcement
-- [Lab 5.4 — Run:ai](lab-5.4-runai-gpu-orchestration.md) — why MIG and fractions cannot share a node
-- [Lab 4.9 — DRA for GPUs](../../week-4-kaas/labs/lab-4.9-dynamic-resource-allocation.md) — the DRA groundwork
-- [Lab 5.17 — OTel export](lab-5.17-otel-telemetry-export.md) — shipping per-slice metrics onward
+- [Theory 5.1 §5.4 — Multi-Instance GPU](../theory/gpu-scheduling.md#54-multi-instance-gpu-mig)
+- [Lab 5.1 Task 6 — Time-slicing](../../gpu-systems/labs/gpu-cluster-setup.md) — the contrast case
+- [Lab 5.3 — KAI fractional GPUs](kai-scheduler.md) — fractions without memory enforcement
+- [Lab 5.4 — Run:ai](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md) — why MIG and fractions cannot share a node
+- [Lab 4.9 — DRA for GPUs](../../../extensions/advanced-kubernetes/labs/dynamic-resource-allocation.md) — the DRA groundwork
+- [Lab 5.17 — OTel export](../../operations/labs/otel-telemetry-export.md) — shipping per-slice metrics onward
 
 ---
 
@@ -1335,5 +1335,5 @@ you can now answer for a customer:
 | Memory-enforced fractions without MIG-capable hardware | Run:ai (Lab 5.4) |
 | Attribute-based selection, mixed fleets | DRA (Lab 4.9 + Task 6 here) |
 
-**Recommended next:** [Week 6 — Multi-Tenancy](../../week-6-multitenancy/), where
+**Recommended next:** [Week 6 — Multi-Tenancy](../../../references/original-course.md#week-6-multitenancy), where
 partitioned GPUs become the substrate for tenant quotas and RBAC.

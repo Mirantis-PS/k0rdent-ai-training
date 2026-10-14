@@ -40,21 +40,21 @@ By the end of this week, you will be able to:
 
 ## Theory Content
 
-- [1.1 k0rdent Enterprise Architecture](theory/1.1-k0rdent-architecture.md)
-- [1.2 k0rdent Components Deep Dive](theory/1.2-k0rdent-components.md)
-- [1.3 Infrastructure Providers and CAPI](theory/1.3-infrastructure-providers.md)
+- [1.1 k0rdent Enterprise Architecture](../../../modules/platform-bootstrap/theory/k0rdent-architecture.md)
+- [1.2 k0rdent Components Deep Dive](../../../modules/platform-bootstrap/theory/k0rdent-components.md)
+- [1.3 Infrastructure Providers and CAPI](../../../modules/platform-bootstrap/theory/infrastructure-providers.md)
 
 ## Lab Exercises
 
-- [Lab 1.1 - Provision k0rdent Management Cluster](labs/lab-1.1-provision-k0rdent.md)
-- [Lab 1.2 - Explore k0rdent UI](labs/lab-1.2-explore-k0rdent-ui.md)
-- [Lab 1.3 - Configure AWS Provider](labs/lab-1.3-configure-aws-provider.md)
-- [Lab 1.4 - Production Configuration](labs/lab-1.4-production-configuration.md)
-- [Lab 1.5 - Provision Your First Managed Cluster](labs/lab-1.5-provision-managed-cluster.md)
-- [Lab 1.6 - Deploy KOF (Observability & FinOps)](labs/lab-1.6-deploy-kof.md)
-- [Lab 1.7 - Multi-Cluster Services](labs/lab-1.7-multicluster-services.md)
-- [Lab 1.8 - Upgrade k0rdent Enterprise](labs/lab-1.8-upgrade-k0rdent.md)
-- [Lab 1.9 - Kubernetes API Audit Logging](labs/lab-1.9-api-audit-logging.md) *(supplemental — add 1.5 hours; retain clusters after Lab 1.8 until audit evidence is captured)*
+- [Lab 1.1 - Provision k0rdent Management Cluster](../../../modules/platform-bootstrap/labs/provision-k0rdent.md)
+- [Lab 1.2 - Explore k0rdent UI](../../../modules/platform-bootstrap/labs/explore-k0rdent-ui.md)
+- [Lab 1.3 - Configure AWS Provider](../../../modules/platform-bootstrap/labs/configure-aws-provider.md)
+- [Lab 1.4 - Production Configuration](../../../modules/operations/labs/production-configuration.md)
+- [Lab 1.5 - Provision Your First Managed Cluster](../../../modules/platform-bootstrap/labs/provision-managed-cluster.md)
+- [Lab 1.6 - Deploy KOF (Observability & FinOps)](../../../modules/operations/labs/deploy-kof.md)
+- [Lab 1.7 - Multi-Cluster Services](../../../modules/ai-service-delivery/labs/multicluster-services.md)
+- [Lab 1.8 - Upgrade k0rdent Enterprise](../../../modules/operations/labs/upgrade-k0rdent.md)
+- [Lab 1.9 - Kubernetes API Audit Logging](../../../modules/operations/labs/api-audit-logging.md) *(supplemental — add 1.5 hours; retain clusters after Lab 1.8 until audit evidence is captured)*
 
 ## Version Compatibility
 
@@ -143,12 +143,12 @@ These are the repo-pinned versions. Live evidence is recorded in individual labs
 ## Resources
 
 - [k0rdent Enterprise Documentation](https://docs.mirantis.com/k0rdent-enterprise/latest/)
-- [Reference Links](resources/reference-links.md)
-- [Cheat Sheets](resources/cheat-sheets.md)
+- [Reference Links](../../../modules/platform-bootstrap/resources/reference-links.md)
+- [Cheat Sheets](../../../modules/platform-bootstrap/resources/cheat-sheets.md)
 
 ## Assessment
 
-Complete the [Week 1 Quiz](week-1-quiz.md) after finishing all labs. The quiz is a self-assessment (45-60 minutes).
+Complete the [Week 1 Quiz](../../assessments/foundations-quiz.md) after finishing all labs. The quiz is a self-assessment (45-60 minutes).
 
 **Target Score:** 80%
 

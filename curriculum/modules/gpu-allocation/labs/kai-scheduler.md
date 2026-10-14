@@ -20,7 +20,7 @@ FOUNDATION (Required)                              CHOOSE YOUR PATH
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.2 - Service Catalog](lab-5.2-service-catalog.md) | **Lab 5.3 - KAI Scheduler** | [Lab 5.4 - Run:ai GPU Orchestration](lab-5.4-runai-gpu-orchestration.md) |
+| [Lab 5.2 - Service Catalog](../../ai-service-delivery/labs/service-catalog.md) | **Lab 5.3 - KAI Scheduler** | [Lab 5.4 - Run:ai GPU Orchestration](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md) |
 
 ---
 
@@ -65,7 +65,7 @@ Deploy the NVIDIA KAI Scheduler — the open-source GPU scheduling engine extrac
 - `kubectl` and `helm` (v3.14+) installed
 - Understanding of Kubernetes scheduling concepts
 
-> **Run:ai vs KAI:** This lab covers the **open-source KAI Scheduler** (`v0.14.0` as of April 2026). For the full commercial platform with web UI, CLI, Departments/Projects, and memory-enforced fractional GPUs, see [Lab 5.4 - NVIDIA Run:ai](lab-5.4-runai-gpu-orchestration.md).
+> **Run:ai vs KAI:** This lab covers the **open-source KAI Scheduler** (`v0.14.0` as of April 2026). For the full commercial platform with web UI, CLI, Departments/Projects, and memory-enforced fractional GPUs, see [Lab 5.4 - NVIDIA Run:ai](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md).
 
 ## Background
 
@@ -1055,5 +1055,5 @@ kubectl apply -f workload.yaml -n default
 
 ## Related Labs
 
-- [Lab 5.4 - NVIDIA Run:ai (Commercial)](lab-5.4-runai-gpu-orchestration.md) — Full commercial platform with web UI, CLI, and memory-enforced fractions
-- [Lab 5.1 - GPU Cluster Setup](lab-5.1-gpu-cluster-setup.md) — GPU Operator deployment and basic scheduling
+- [Lab 5.4 - NVIDIA Run:ai (Commercial)](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md) — Full commercial platform with web UI, CLI, and memory-enforced fractions
+- [Lab 5.1 - GPU Cluster Setup](../../gpu-systems/labs/gpu-cluster-setup.md) — GPU Operator deployment and basic scheduling

@@ -14,7 +14,7 @@
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 6.3 — Capacity & Fleet APIs](lab-6.3-capacity-fleet-apis.md) | **Lab 6.4 — Sanitization + At-Rest Crypto** | (Lab 6.5 — OIDC Federation — TBD) |
+| [Lab 6.3 — Capacity & Fleet APIs](capacity-fleet-apis.md) | **Lab 6.4 — Sanitization + At-Rest Crypto** | (Lab 6.5 — OIDC Federation — TBD) |
 
 ```
 Tenant N releases node

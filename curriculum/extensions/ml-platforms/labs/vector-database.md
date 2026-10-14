@@ -20,7 +20,7 @@ FOUNDATION (Required)                                    CHOOSE YOUR PATH
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.7 - Jupyter Notebooks](lab-5.7-jupyter-notebooks.md) | **Lab 5.8 - Vector Database** | [Choose Your Path](#next-lab) |
+| [Lab 5.7 - Jupyter Notebooks](jupyter-notebooks.md) | **Lab 5.8 - Vector Database** | [Choose Your Path](#next-lab) |
 
 ---
 
@@ -645,4 +645,4 @@ print(utility.load_state("documents"))
 
 ## Next Lab
 
-Proceed to [Lab 5.4 - Jupyter Notebook Stack](lab-5.7-jupyter-notebooks.md)
+Proceed to [Lab 5.4 - Jupyter Notebook Stack](jupyter-notebooks.md)

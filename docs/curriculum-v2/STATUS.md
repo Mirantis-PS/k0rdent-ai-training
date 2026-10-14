@@ -48,3 +48,7 @@ Owner explicitly authorized P0/P1 and local commits only. Actual checkout: /User
 P0 complete: 144-file digest inventory, 42-lab contract inventory, 28/28 historical labs located, prerequisite/lifecycle record and passing baseline curriculum/Mermaid checks under curriculum/migration/. P1 pending. P2–P5 unchanged. No runtime, cloud, push, PR or merge actions.
 
 Decision: work on the requested branch in the clean checkout. Preserve numbered labels inside source bodies as provenance; change canonical paths and navigation only.
+
+### P1 relocation and path repair
+
+P0 commit: 7df48c77ce41749e8979317ee1ccb529701d87d8. Pure relocation commit: 34aa897055b8ec1bd78383fd80a5ca95eb284612; 64 renames, 100% similarity, zero inserted/deleted lines. All 144 destination digests matched baseline before commit. Repaired local links/images, inline source paths and repository paths independently. The relocated-source checker passes (87 checked paths, zero errors); diff whitespace passes. Historical entry-point stubs and original-course index retain discoverability. Module navigation and final validation remain in progress. Existing source prerequisites and compatibility discrepancies are recorded in curriculum/migration/PREREQUISITES.md.

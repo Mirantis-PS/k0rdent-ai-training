@@ -39,7 +39,7 @@ YOUR MACHINE
                            +--------------------+
 ```
 
-See the [Week 5 lab contract](../resources/lab-contract.md) before choosing hardware.
+See the [Week 5 lab contract](../../../../modules/gpu-systems/resources/lab-contract.md) before choosing hardware.
 A single GPU worker does not satisfy a multi-node, FIPS, RDMA, or real NVLink-domain exercise.
 
 ### Two GPU Lab Options
@@ -345,14 +345,14 @@ Complete these labs in order:
 
 | Lab | Title | Duration | Key Topics |
 |-----|-------|----------|------------|
-| [5.1](lab-5.1-gpu-cluster-setup.md) | GPU Cluster Setup | 3.5h | GPU cluster provisioning, GPU Operator, k0s containerd paths |
-| [5.2](lab-5.2-service-catalog.md) | Service Catalog | 2h | k0rdent ServiceTemplates, MultiClusterService, catalog deployment |
-| [5.3](lab-5.3-kai-scheduler.md) | KAI Scheduler | 2.5h | Open-source GPU scheduling, gang scheduling, priority queues |
-| [5.4](lab-5.4-runai-gpu-orchestration.md) | Run:AI Orchestration | 3h | Enterprise GPU management, quotas, fractional GPUs |
-| [5.5](lab-5.5-vllm-inference.md) | vLLM Inference | 4h | LLM serving, PagedAttention, GPU utilization |
-| [5.6](lab-5.6-troubleshooting-gpu.md) | Troubleshooting GPU | 2h | Diagnostics, GPU memory, driver issues, OOM errors |
-| [5.7](lab-5.7-jupyter-notebooks.md) | Jupyter Notebooks | 1.5h | JupyterHub, GPU server profiles |
-| [5.8](lab-5.8-vector-database.md) | Vector Database | 2h | Milvus, embeddings, similarity search, RAG |
+| [5.1](../../../../modules/gpu-systems/labs/gpu-cluster-setup.md) | GPU Cluster Setup | 3.5h | GPU cluster provisioning, GPU Operator, k0s containerd paths |
+| [5.2](../../../../modules/ai-service-delivery/labs/service-catalog.md) | Service Catalog | 2h | k0rdent ServiceTemplates, MultiClusterService, catalog deployment |
+| [5.3](../../../../modules/gpu-allocation/labs/kai-scheduler.md) | KAI Scheduler | 2.5h | Open-source GPU scheduling, gang scheduling, priority queues |
+| [5.4](../../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md) | Run:AI Orchestration | 3h | Enterprise GPU management, quotas, fractional GPUs |
+| [5.5](../../../../modules/inference-and-data/labs/vllm-inference.md) | vLLM Inference | 4h | LLM serving, PagedAttention, GPU utilization |
+| [5.6](../../../../modules/operations/labs/troubleshooting-gpu.md) | Troubleshooting GPU | 2h | Diagnostics, GPU memory, driver issues, OOM errors |
+| [5.7](../../../../extensions/ml-platforms/labs/jupyter-notebooks.md) | Jupyter Notebooks | 1.5h | JupyterHub, GPU server profiles |
+| [5.8](../../../../extensions/ml-platforms/labs/vector-database.md) | Vector Database | 2h | Milvus, embeddings, similarity search, RAG |
 
 ### Elective Tracks (Choose Your Path)
 
@@ -362,37 +362,37 @@ After completing the foundation track, choose one or more paths:
 
 | Lab | Title | Duration |
 |-----|-------|----------|
-| [5.9](lab-5.9-kubeflow-ml-platform.md) | Kubeflow ML Platform | 3h |
-| [5.10](lab-5.10-mlflow-experiment-tracking.md) | MLflow Experiment Tracking | 2.5h |
+| [5.9](../../../../extensions/ml-platforms/labs/kubeflow-ml-platform.md) | Kubeflow ML Platform | 3h |
+| [5.10](../../../../extensions/ml-platforms/labs/mlflow-experiment-tracking.md) | MLflow Experiment Tracking | 2.5h |
 
 **Compliance & Templates**
 
 | Lab | Title | Duration |
 |-----|-------|----------|
-| [5.11](lab-5.11-nvidia-fips.md) | NVIDIA FIPS Configuration | 2h |
-| [5.12](lab-5.12-cluster-templates.md) | Cluster Templates for AI | 2h |
+| [5.11](../../../../extensions/compliance/labs/nvidia-fips.md) | NVIDIA FIPS Configuration | 2h |
+| [5.12](../../../../modules/ai-service-delivery/labs/cluster-templates.md) | Cluster Templates for AI | 2h |
 
 **Advanced (Requires p4d.24xlarge worker)**
 
 | Lab | Title | Duration |
 |-----|-------|----------|
-| [5.13](lab-5.13-tensorrt-llm.md) | TensorRT-LLM Optimization | 3.5h |
-| [5.14](lab-5.14-slurm-operator-hpc.md) | Slurm Operator for HPC | 3h |
-| [5.15](lab-5.15-rdma-multi-cloud.md) | RDMA Multi-Cloud | 4h |
-| [5.16](lab-5.16-distributed-training.md) | Distributed Training | 4.5h |
+| [5.13](../../../../extensions/advanced-inference/labs/tensorrt-llm.md) | TensorRT-LLM Optimization | 3.5h |
+| [5.14](../../../../extensions/hpc/labs/slurm-operator-hpc.md) | Slurm Operator for HPC | 3h |
+| [5.15](../../../../modules/distributed-ai/labs/rdma-multi-cloud.md) | RDMA Multi-Cloud | 4h |
+| [5.16](../../../../modules/distributed-ai/labs/distributed-training.md) | Distributed Training | 4.5h |
 
 **Operations & Telemetry**
 
 | Lab | Title | Duration |
 |-----|-------|----------|
-| [5.17](lab-5.17-otel-telemetry-export.md) | KOF → External OTel Export | 2.5h |
-| [5.18](lab-5.18-topograph-nvlink-topology.md) | topograph / NVLink Topology | 2h |
+| [5.17](../../../../modules/operations/labs/otel-telemetry-export.md) | KOF → External OTel Export | 2.5h |
+| [5.18](../../../../modules/gpu-systems/labs/topograph-nvlink-topology.md) | topograph / NVLink Topology | 2h |
 
 **GPU Partitioning (Requires p4d.24xlarge worker)**
 
 | Lab | Title | Duration |
 |-----|-------|----------|
-| [5.19](lab-5.19-mig-partitioning.md) | MIG Partitioning | 3.2h |
+| [5.19](../../../../modules/gpu-allocation/labs/mig-partitioning.md) | MIG Partitioning | 3.2h |
 
 > **Why 5.19 needs p4d:** MIG exists only on A30/A100/H100/H200/B200-class GPUs.
 > The A10G in `g5.12xlarge` has no MIG support at any driver version, so this lab
@@ -516,9 +516,9 @@ kubectl get clusterdeployment -n kcm-system -w
 
 ## References
 
-- [Lab Infrastructure README](../../../lab-infrastructure/README.md)
+- [Lab Infrastructure README](../../../../../lab-infrastructure/README.md)
 - [Week 1 Foundations](../../week-1-foundations/README.md)
-- [Lab 1.7 - MultiClusterService](../../week-1-foundations/labs/lab-1.7-multicluster-services.md) (ServiceTemplate pattern)
+- [Lab 1.7 - MultiClusterService](../../../../modules/ai-service-delivery/labs/multicluster-services.md) (ServiceTemplate pattern)
 - [k0rdent Service Catalog](https://catalog.k0rdent.io/)
 - [NVIDIA GPU Operator - k0rdent Partner Validation](https://docs.nvidia.com/datacenter/cloud-native/partner-validated/latest/k0rdent.html)
 - [NVIDIA GPU Operator Documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/)

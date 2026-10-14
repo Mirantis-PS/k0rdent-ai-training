@@ -22,7 +22,7 @@ FOUNDATION (Completed)                        COMPLIANCE & TEMPLATES
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.11 - NVIDIA FIPS](lab-5.11-nvidia-fips.md) | **Lab 5.12 - Cluster Templates** | Choose: [Lab 5.9 - Kubeflow](lab-5.9-kubeflow-ml-platform.md) or [Lab 5.13 - TensorRT-LLM](lab-5.13-tensorrt-llm.md) |
+| [Lab 5.11 - NVIDIA FIPS](../../../extensions/compliance/labs/nvidia-fips.md) | **Lab 5.12 - Cluster Templates** | Choose: [Lab 5.9 - Kubeflow](../../../extensions/ml-platforms/labs/kubeflow-ml-platform.md) or [Lab 5.13 - TensorRT-LLM](../../../extensions/advanced-inference/labs/tensorrt-llm.md) |
 
 ---
 
@@ -331,7 +331,7 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
    kubectl get credentials -n kcm-system
    ```
 
-   You should see `aws-cluster-identity-cred` in the list. If not, refer to [Lab 1.3](../../week-1-foundations/labs/lab-1.3-configure-aws-provider.md).
+   You should see `aws-cluster-identity-cred` in the list. If not, refer to [Lab 1.3](../../platform-bootstrap/labs/configure-aws-provider.md).
 
 2. **Create a development ClusterDeployment**
 
@@ -392,11 +392,11 @@ Deploy a lightweight GPU cluster for ML development and experimentation.
 
    > **⚠️ Why the `gpu-operator:` nesting?** The catalog's `gpu-operator-25-3-0` ServiceTemplate is an **umbrella chart** that pulls the upstream NVIDIA `gpu-operator` chart as a subchart named `gpu-operator`. Helm passes values to a subchart only when they are nested under the subchart's name, so every value you want the GPU Operator to see must sit under a top-level `gpu-operator:` key. If you write `toolkit.env` at the top level (as you would for a direct `helm install` of the upstream chart), k0rdent applies it to the wrapper, which has no such value, and it is **silently dropped** — the toolkit then falls back to the default `/run/containerd` path and crash-loops with `containerd.sock: no such file or directory`. This nesting applies to **every** value you pass to this ServiceTemplate (here and in Tasks 4-5).
 
-   > **Why `toolkit.env` at all?** k0s stores its containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, not the standard `/etc/containerd/` and `/run/containerd/containerd.sock`. The GPU Operator toolkit must be told these paths or it crashes. This is the same override used in [Lab 5.1](lab-5.1-gpu-cluster-setup.md) — but note Lab 5.1 installs the upstream chart directly with `helm --set toolkit.env[...]`, so there the keys are top-level; here they must be nested under `gpu-operator:`.
+   > **Why `toolkit.env` at all?** k0s stores its containerd config at `/etc/k0s/containerd.d/` and socket at `/run/k0s/containerd.sock`, not the standard `/etc/containerd/` and `/run/containerd/containerd.sock`. The GPU Operator toolkit must be told these paths or it crashes. This is the same override used in [Lab 5.1](../../gpu-systems/labs/gpu-cluster-setup.md) — but note Lab 5.1 installs the upstream chart directly with `helm --set toolkit.env[...]`, so there the keys are top-level; here they must be nested under `gpu-operator:`.
 
-   > **Note:** `sshKeyName` is optional. If omitted, CAPA creates instances without SSH keys -- k0rdent manages nodes via CAPI. Include it only if you need direct SSH access to GPU worker nodes for debugging. If included, the key must exist in the target region (see [Lab 1.3, Part 6](../../week-1-foundations/labs/lab-1.3-configure-aws-provider.md)).
+   > **Note:** `sshKeyName` is optional. If omitted, CAPA creates instances without SSH keys -- k0rdent manages nodes via CAPI. Include it only if you need direct SSH access to GPU worker nodes for debugging. If included, the key must exist in the target region (see [Lab 1.3, Part 6](../../platform-bootstrap/labs/configure-aws-provider.md)).
 
-   > **k0rdent context:** The `serviceSpec` section deploys services to the workload cluster after provisioning. The GPU Operator ServiceTemplate (`gpu-operator-25-3-0`) is installed from the [k0rdent catalog](https://catalog.k0rdent.io/). This follows the same pattern as deploying ingress-nginx or kyverno from [Lab 1.7](../../week-1-foundations/labs/lab-1.7-multicluster-services.md).
+   > **k0rdent context:** The `serviceSpec` section deploys services to the workload cluster after provisioning. The GPU Operator ServiceTemplate (`gpu-operator-25-3-0`) is installed from the [k0rdent catalog](https://catalog.k0rdent.io/). This follows the same pattern as deploying ingress-nginx or kyverno from [Lab 1.7](multicluster-services.md).
 
 3. **Apply the ClusterDeployment**
 
@@ -654,7 +654,7 @@ k0rdent's `serviceSpec` on ClusterDeployment automates post-provisioning service
    kubectl apply -f ai-common-services.yaml
    ```
 
-   > **k0rdent context:** `MultiClusterService` targets clusters by label. Since both `ml-dev` and `ml-training` have `k0rdent.mirantis.com/workload-type: ai` in their `clusterLabels`, both clusters receive the GPU Operator and ingress-nginx automatically. Any future cluster with that label will also receive these services. This is the same pattern used in [Lab 5.2](lab-5.2-service-catalog.md) for deploying services from the k0rdent catalog.
+   > **k0rdent context:** `MultiClusterService` targets clusters by label. Since both `ml-dev` and `ml-training` have `k0rdent.mirantis.com/workload-type: ai` in their `clusterLabels`, both clusters receive the GPU Operator and ingress-nginx automatically. Any future cluster with that label will also receive these services. This is the same pattern used in [Lab 5.2](service-catalog.md) for deploying services from the k0rdent catalog.
 
 3. **Verify services deployed to training cluster**
 
@@ -992,10 +992,10 @@ kubectl describe multiclusterservice ai-common-services -n kcm-system
 After completing this lab, you can proceed to:
 
 **ML Platform Track** (Recommended):
-- [Lab 5.9 - Kubeflow ML Platform](lab-5.9-kubeflow-ml-platform.md) - End-to-end ML workflows
+- [Lab 5.9 - Kubeflow ML Platform](../../../extensions/ml-platforms/labs/kubeflow-ml-platform.md) - End-to-end ML workflows
 
 **Advanced Optimization Track**:
-- [Lab 5.13 - TensorRT-LLM Optimization](lab-5.13-tensorrt-llm.md) - Advanced inference
+- [Lab 5.13 - TensorRT-LLM Optimization](../../../extensions/advanced-inference/labs/tensorrt-llm.md) - Advanced inference
 
 **Or return to:**
-- [Week 5 Overview](../README.md) - See all available labs
+- [Week 5 Overview](../../../references/source-guides/week-5-ai-workloads/README.md) - See all available labs

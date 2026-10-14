@@ -515,7 +515,7 @@ resources. Consequences worth designing around:
 | Fault Isolation | Yes | No |
 | License | None | None |
 
-> **Hands-on:** [Lab 5.19 - MIG Partitioning](../labs/lab-5.19-mig-partitioning.md)
+> **Hands-on:** [Lab 5.19 - MIG Partitioning](../labs/mig-partitioning.md)
 > applies all of the above on `p4d.24xlarge`: enabling MIG, both device-plugin
 > strategies, proving memory isolation, allocating slices through DRA, and
 > reverting.

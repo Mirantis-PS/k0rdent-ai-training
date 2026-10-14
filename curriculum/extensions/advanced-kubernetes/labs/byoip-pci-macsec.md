@@ -22,7 +22,7 @@ FOUNDATION ➔ 4.1 ➔ 4.2 ➔ 4.3 ➔ 4.4 Cilium+Multus ➔ 4.5 Storage ➔ 4.6
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 4.9 — Dynamic Resource Allocation](lab-4.9-dynamic-resource-allocation.md) | **Lab 4.10 — BYOIP, PCI, MACsec** | Lab 4.11 — NFSv4 + Parallel FS *(planned)* |
+| [Lab 4.9 — Dynamic Resource Allocation](dynamic-resource-allocation.md) | **Lab 4.10 — BYOIP, PCI, MACsec** | Lab 4.11 — NFSv4 + Parallel FS *(planned)* |
 
 ---
 

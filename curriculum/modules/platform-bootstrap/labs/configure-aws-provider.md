@@ -104,7 +104,7 @@ Each provider includes:
 
 ### Required Permissions (Illustrative)
 
-> **Training vs Production:** The policy below uses broad permissions (`ec2:*`, `elasticloadbalancing:*`) for simplicity in this training environment. For production deployments, use a scoped-down policy -- see [Theory 1.3: Infrastructure Providers](../theory/1.3-infrastructure-providers.md) for a least-privilege reference policy.
+> **Training vs Production:** The policy below uses broad permissions (`ec2:*`, `elasticloadbalancing:*`) for simplicity in this training environment. For production deployments, use a scoped-down policy -- see [Theory 1.3: Infrastructure Providers](../theory/infrastructure-providers.md) for a least-privilege reference policy.
 
 The policy below is an **illustrative subset** -- it shows the shape of what CAPA needs, not the complete list. The authoritative, complete CAPA policy is generated with `clusterawsadm bootstrap iam print-policy`. **You don't create or attach anything here:** this lab environment's actual IAM permissions are already provisioned via Terraform (`lab-infrastructure/terraform/modules/iam`).
 
@@ -564,4 +564,4 @@ In this lab, you:
 
 ## Next Lab
 
-Continue to [Lab 1.4: Production Configuration](lab-1.4-production-configuration.md)
+Continue to [Lab 1.4: Production Configuration](../../operations/labs/production-configuration.md)

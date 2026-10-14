@@ -22,7 +22,7 @@ FOUNDATION (Completed)                        ML PLATFORMS
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) | **Lab 5.9 - Kubeflow** | [Lab 5.10 - MLflow](lab-5.10-mlflow-experiment-tracking.md) |
+| [Lab 5.8 - Vector Database](vector-database.md) | **Lab 5.9 - Kubeflow** | [Lab 5.10 - MLflow](mlflow-experiment-tracking.md) |
 
 ---
 
@@ -98,7 +98,7 @@ Kubeflow is an open-source ML platform for Kubernetes that makes deploying ML wo
 > | Katib (HPO) | KubeRay + Ray Tune |
 > | Experiment Tracking | `mlflow-1-8-1` |
 >
-> This lab installs Kubeflow components directly. For catalog-native ML platforms, see [Lab 5.10 (MLflow)](lab-5.10-mlflow-experiment-tracking.md).
+> This lab installs Kubeflow components directly. For catalog-native ML platforms, see [Lab 5.10 (MLflow)](mlflow-experiment-tracking.md).
 
 ---
 
@@ -106,7 +106,7 @@ Kubeflow is an open-source ML platform for Kubernetes that makes deploying ML wo
 
 ### Task 1: Access the k0rdent-Managed Cluster (10 min)
 
-This lab runs on a workload cluster provisioned via k0rdent `ClusterDeployment` (see [Lab 5.12](lab-5.12-cluster-templates.md)).
+This lab runs on a workload cluster provisioned via k0rdent `ClusterDeployment` (see [Lab 5.12](../../../modules/ai-service-delivery/labs/cluster-templates.md)).
 
 1. **Extract kubeconfig from the k0rdent management cluster**
 
@@ -955,4 +955,4 @@ kubectl describe pod ml-workspace-0 -n kubeflow
 
 ## Next Lab
 
-Proceed to [Lab 5.10 - MLflow Experiment Tracking](lab-5.10-mlflow-experiment-tracking.md)
+Proceed to [Lab 5.10 - MLflow Experiment Tracking](mlflow-experiment-tracking.md)

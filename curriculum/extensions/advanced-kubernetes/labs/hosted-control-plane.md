@@ -65,7 +65,7 @@ YOU ARE HERE
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Week 3 (VMaaS)](../../week-3-vmaas/) | **Lab 4.1 — Hosted Control Plane** | [Lab 4.4 — Cilium + Multus](lab-4.4-cilium-multus.md) (4.2/4.3 in development — see the [Week 4 lab map](../README.md)) |
+| [Week 3 (VMaaS)](../../../references/original-course.md#week-3-vmaas) | **Lab 4.1 — Hosted Control Plane** | [Lab 4.4 — Cilium + Multus](cilium-multus.md) (4.2/4.3 in development — see the [Week 4 lab map](../../../references/source-guides/week-4-kaas/README.md)) |
 
 ---
 
@@ -407,7 +407,7 @@ EOF
 > supported* alternative — when you want the pinned version baked into a
 > catalog flavor rather than per-deployment — is a **forked ClusterTemplate**;
 > a turnkey helper is provided at
-> [`lab-infrastructure/scripts/lab-4.1-fork-hosted-cp-template.sh`](../../../lab-infrastructure/scripts/lab-4.1-fork-hosted-cp-template.sh),
+> [`lab-infrastructure/scripts/lab-4.1-fork-hosted-cp-template.sh`](../../../../lab-infrastructure/scripts/lab-4.1-fork-hosted-cp-template.sh),
 > and Lab 4.8 generalizes this into flavor design.
 
 > **AWS identity permissions.** Your `aws-cluster-identity` credential must allow
@@ -733,7 +733,7 @@ Strong answers cite:
 
 ## Next Lab
 
-[Lab 4.4 — Cilium + Multus](lab-4.4-cilium-multus.md) — customizes the CNI and adds secondary networks on a k0rdent-managed cluster, building on the template-fork pattern from this lab. (Lab 4.2 — Multi-Provider GPU Cluster — is in development; see the [Week 4 lab map](../README.md).)
+[Lab 4.4 — Cilium + Multus](cilium-multus.md) — customizes the CNI and adds secondary networks on a k0rdent-managed cluster, building on the template-fork pattern from this lab. (Lab 4.2 — Multi-Provider GPU Cluster — is in development; see the [Week 4 lab map](../../../references/source-guides/week-4-kaas/README.md).)
 
 ---
 
@@ -743,5 +743,5 @@ Strong answers cite:
 - k0rdent — [`ClusterTemplate` catalog reference](https://github.com/k0rdent/docs/blob/main/docs/quickstarts/quickstart-2-remote.md)
 - k0smotron — [Project documentation](https://docs.k0smotron.io/) (architecture under `K0smotronControlPlane`)
 - Theory 4.1 — KaaS Architecture, §3.3 Two Template Families (in development, not yet committed)
-- Lab 1.5 — [Provision Your First Managed Cluster](../../week-1-foundations/labs/lab-1.5-provision-managed-cluster.md) (embedded-cp baseline)
-- Lab Infrastructure — [`lab-infrastructure/terraform/environments/student-lab/outputs.tf`](../../../lab-infrastructure/terraform/environments/student-lab/outputs.tf) (network outputs reused here)
+- Lab 1.5 — [Provision Your First Managed Cluster](../../../modules/platform-bootstrap/labs/provision-managed-cluster.md) (embedded-cp baseline)
+- Lab Infrastructure — [`lab-infrastructure/terraform/environments/student-lab/outputs.tf`](../../../../lab-infrastructure/terraform/environments/student-lab/outputs.tf) (network outputs reused here)

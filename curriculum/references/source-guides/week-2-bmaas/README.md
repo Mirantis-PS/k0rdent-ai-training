@@ -6,8 +6,8 @@ Week 2 moves from the k0rdent management plane into bare metal operations: explo
 
 | Lab | Title | Duration | Type |
 |-----|-------|----------|------|
-| 2.1 | [Explore k0rdent Sandbox](labs/lab-2.1-explore-sandbox.md) | 3 hours | Exploration / Familiarization |
-| 2.2 | [BMC Discovery with Redfish](labs/lab-2.2-bmc-discovery.md) | 4 hours | Hands-on Technical |
-| 2.3 | [Troubleshooting BMC Connectivity](labs/lab-2.3-troubleshooting-bmc.md) | 2.5 hours | Troubleshooting / Problem Solving |
+| 2.1 | [Explore k0rdent Sandbox](../../../extensions/bare-metal/labs/explore-sandbox.md) | 3 hours | Exploration / Familiarization |
+| 2.2 | [BMC Discovery with Redfish](../../../extensions/bare-metal/labs/bmc-discovery.md) | 4 hours | Hands-on Technical |
+| 2.3 | [Troubleshooting BMC Connectivity](../../../extensions/bare-metal/labs/troubleshooting-bmc.md) | 2.5 hours | Troubleshooting / Problem Solving |
 
 **Status:** This week's materials are under active development; lab content and prerequisites may change.

@@ -2,7 +2,7 @@
 
 **Track:** Foundations / Production · **Tier:** Recommended · **Duration:** 1.5 hours
 
-[Previous: Lab 1.8](lab-1.8-upgrade-k0rdent.md) · [Week 1](../README.md)
+[Previous: Lab 1.8](upgrade-k0rdent.md) · [Week 1](../../../references/source-guides/week-1-foundations/README.md)
 
 ## Objective and prerequisites
 
@@ -14,7 +14,7 @@ path before changing the API server. Record the live acceptance evidence below o
 
 ## Part 1: Audit policy design
 
-Use the committed [audit-policy.yaml](../../examples/telemetry/audit-policy.yaml).
+Use the committed [audit-policy.yaml](../../../examples/telemetry/audit-policy.yaml).
 Secrets and ConfigMaps are recorded at Metadata; RBAC changes include their bodies;
 service-account token issuance is Metadata. `RequestResponse` on
 `serviceaccounts/token` would include `responseObject.status.token`.
@@ -199,10 +199,10 @@ kubectl -n kof get opentelemetrycollector kof-collectors-daemon -o json | jq '
 
 Confirm the audit path, receiver and logs exporter are present. Do not replace
 KOF's pipelines or add a parallel collector. To extend forwarding externally, use
-[Lab 5.17](../../week-5-ai-workloads/labs/lab-5.17-otel-telemetry-export.md).
+[Lab 5.17](otel-telemetry-export.md).
 
 On the **storage** cluster, retain the current Helm values and add the checked
-[retention override](../../examples/telemetry/retention-values.yaml):
+[retention override](../../../examples/telemetry/retention-values.yaml):
 
 ```bash
 helm get values kof-storage -n kof -o yaml > /tmp/kof-storage-current.yaml

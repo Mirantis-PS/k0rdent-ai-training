@@ -24,7 +24,7 @@ FOUNDATION ➔ … ➔ 5.15 RDMA ➔ 5.16 Dist Train
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.16 — Distributed Training](lab-5.16-distributed-training.md) | **Lab 5.17 — KOF → External OTel Export** | [Lab 5.18 — topograph / NVLink Topology API](lab-5.18-topograph-nvlink-topology.md) |
+| [Lab 5.16 — Distributed Training](../../distributed-ai/labs/distributed-training.md) | **Lab 5.17 — KOF → External OTel Export** | [Lab 5.18 — topograph / NVLink Topology API](../../gpu-systems/labs/topograph-nvlink-topology.md) |
 
 ---
 
@@ -88,7 +88,7 @@ By completing this lab, you will be able to:
 ## Prerequisites
 
 - **Lab 1.6 — KOF deployed** (required). The collection layer must already exist on every cluster that has the `k0rdent.mirantis.com/kof-cluster-role: child` label.
-- **[Lab 5.1 — GPU Cluster Setup](lab-5.1-gpu-cluster-setup.md)** (required). Installs the NVIDIA GPU Operator with `dcgm`/`dcgmExporter` enabled; DCGM metrics then flow through KOF.
+- **[Lab 5.1 — GPU Cluster Setup](../../gpu-systems/labs/gpu-cluster-setup.md)** (required). Installs the NVIDIA GPU Operator with `dcgm`/`dcgmExporter` enabled; DCGM metrics then flow through KOF.
 - An external OTLP receiver. Acceptable test targets:
   - Local Jaeger (`jaegertracing/all-in-one`, OTLP receiver enabled)
   - Honeycomb free tier (OTLP endpoint + API key)
@@ -175,7 +175,7 @@ This is the pipeline you will extend — not replace.
 
 ## Part 3: Generate an external exporter from the installed collector
 
-Use the committed [values generator](../../examples/telemetry/prepare-kof-values.py).
+Use the committed [values generator](../../../examples/telemetry/prepare-kof-values.py).
 It reads the **actual daemon CR** to reuse existing receivers/processors, adds
 separate external pipelines, and preserves chart-input mount lists. It refuses an
 undefined receiver or an endpoint without HTTPS. A deep merge preserves unrelated
@@ -329,4 +329,4 @@ and cluster to establish end-to-end acceptance.
 
 ## Next Lab
 
-[Lab 5.18 — topograph + NVLink Domain API](lab-5.18-topograph-nvlink-topology.md) — once you can *report* fabric state via KOF, you need to *expose* fabric topology via an API so an external scheduler can use it.
+[Lab 5.18 — topograph + NVLink Domain API](../../gpu-systems/labs/topograph-nvlink-topology.md) — once you can *report* fabric state via KOF, you need to *expose* fabric topology via an API so an external scheduler can use it.

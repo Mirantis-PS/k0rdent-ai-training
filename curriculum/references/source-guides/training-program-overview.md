@@ -6,7 +6,7 @@ This curriculum prepares engineers to implement Mirantis k0rdent for customers, 
 
 > **Scope:** This training covers **k0rdent Enterprise** exclusively (Mirantis commercial distribution). Open-source k0rdent documentation (`docs.k0rdent.io`) may differ in features and CRD versions. **k0rdent AI** is introduced in Week 5.
 
-> **Reference:** See [`mirantis-k0rdent-enterprise-reference.md`](../mirantis-k0rdent-enterprise-reference.md) for the canonical fact sheet (CRDs, KCM/KSM/KOF components, version pins, voice patterns) used throughout this curriculum.
+> **Reference:** See [`mirantis-k0rdent-enterprise-reference.md`](../../mirantis-k0rdent-enterprise-reference.md) for the canonical fact sheet (CRDs, KCM/KSM/KOF components, version pins, voice patterns) used throughout this curriculum.
 
 ## Program Structure
 
@@ -77,11 +77,11 @@ Week 1          Week 2          Week 3          Week 4          Week 5          
 
 | Week | Topic | Duration | Focus Areas | README |
 |------|-------|----------|-------------|--------|
-| 1 | Foundations | ~15-17h active + 5.5h theory (~23-25h scheduled incl. waits) | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services | [week-1-foundations](../week-1-foundations/README.md) |
-| 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration | [week-2-bmaas](../week-2-bmaas/README.md) |
-| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV | [week-3-vmaas](../week-3-vmaas/README.md) |
+| 1 | Foundations | ~15-17h active + 5.5h theory (~23-25h scheduled incl. waits) | k0rdent architecture, CAPI providers, RBAC, KOF observability, multi-cluster services | [week-1-foundations](week-1-foundations/README.md) |
+| 2 | BMaaS | 15h | Metal3, Ironic, OS provisioning, disk configuration | [week-2-bmaas](week-2-bmaas/README.md) |
+| 3 | VMaaS | 15h | KubeVirt, GPU passthrough, NVLink fabric, SR-IOV | [week-3-vmaas](week-3-vmaas/README.md) |
 | 4 | KaaS *(in development)* | ~15h (planned) | Cluster API, GPU Operator, hosted control planes (k0smotron), CNI/CSI for AI, autoscaling, day-2 ops | (no README yet) |
-| 5 | AI Workloads | ~15-21h guided path (~50h if all elective tracks are attempted) | GPU schedulers, model serving, service catalog, ML platforms | [week-5-ai-workloads](../week-5-ai-workloads/README.md) |
+| 5 | AI Workloads | ~15-21h guided path (~50h if all elective tracks are attempted) | GPU schedulers, model serving, service catalog, ML platforms | [week-5-ai-workloads](week-5-ai-workloads/README.md) |
 | 6 | Multi-Tenancy | 15h | Isolation, RBAC, identity federation, capstone project | (no README yet) |
 
 > Week 4 is under development — four labs exist (4.1, 4.4, 4.9, 4.10) with a lab-index README; schedule pending (see note above). Scheduled totals: ~83-91 hours across the available weeks; ~98-106 once Week 4 ships.
@@ -143,9 +143,9 @@ Quizzes ship with answer keys and are self-scored (see each week's quiz for its 
 
 ## Getting Started
 
-1. Review [Prerequisites](prerequisites.md)
-2. Follow the [Week 1: Foundations](../week-1-foundations/README.md) day-by-day schedule
-3. Your first hands-on stop is [Lab 1.1: Provision k0rdent](../week-1-foundations/labs/lab-1.1-provision-k0rdent.md) (Day 1, after Theory 1.1)
+1. Review [Prerequisites](../../overview/prerequisites.md)
+2. Follow the [Week 1: Foundations](week-1-foundations/README.md) day-by-day schedule
+3. Your first hands-on stop is [Lab 1.1: Provision k0rdent](../../modules/platform-bootstrap/labs/provision-k0rdent.md) (Day 1, after Theory 1.1)
 
 ## Resources
 
@@ -158,4 +158,4 @@ Quizzes ship with answer keys and are self-scored (see each week's quiz for its 
 
 ## Glossary
 
-See the [full glossary](../appendix/glossary.md) for definitions of BMaaS, VMaaS, KaaS, MaaS, CAPI, NVLink, MIG, and other terms used throughout this curriculum.
+See the [full glossary](../../appendix/glossary.md) for definitions of BMaaS, VMaaS, KaaS, MaaS, CAPI, NVLink, MIG, and other terms used throughout this curriculum.

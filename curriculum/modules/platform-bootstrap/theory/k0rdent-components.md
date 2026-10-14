@@ -892,4 +892,4 @@ kubectl explain clusterdeployment.status.conditions
 
 ## Next
 
-Apply the component model in [Lab 1.2: Explore k0rdent UI and Configuration](../labs/lab-1.2-explore-k0rdent-ui.md), then continue to [1.3 Infrastructure Providers and CAPI](1.3-infrastructure-providers.md).
+Apply the component model in [Lab 1.2: Explore k0rdent UI and Configuration](../labs/explore-k0rdent-ui.md), then continue to [1.3 Infrastructure Providers and CAPI](infrastructure-providers.md).

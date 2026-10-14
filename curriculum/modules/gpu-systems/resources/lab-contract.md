@@ -1,6 +1,6 @@
 # Week 5 lab contract and validation evidence
 
-Use the [Week 5 index](../README.md) as the single duration/track table. The core
+Use the [Week 5 index](../../../references/source-guides/week-5-ai-workloads/README.md) as the single duration/track table. The core
 path is 5.1 → 5.2 → 5.3 → 5.5 → 5.6; choose electives based on available hardware.
 Run:AI is a licensed alternative/elective, not a prerequisite for the open KAI path.
 

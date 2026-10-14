@@ -22,7 +22,7 @@ FOUNDATION (Completed)                        COMPLIANCE & TEMPLATES
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.8 - Vector Database](lab-5.8-vector-database.md) | **Lab 5.11 - FIPS Compliance** | [Lab 5.12 - Cluster Templates](lab-5.12-cluster-templates.md) |
+| [Lab 5.8 - Vector Database](../../ml-platforms/labs/vector-database.md) | **Lab 5.11 - FIPS Compliance** | [Lab 5.12 - Cluster Templates](../../../modules/ai-service-delivery/labs/cluster-templates.md) |
 
 ---
 
@@ -796,4 +796,4 @@ openssl list -providers
 
 ## Next Lab
 
-Proceed to [Lab 5.12 - Cluster Templates for AI Workloads](lab-5.12-cluster-templates.md)
+Proceed to [Lab 5.12 - Cluster Templates for AI Workloads](../../../modules/ai-service-delivery/labs/cluster-templates.md)

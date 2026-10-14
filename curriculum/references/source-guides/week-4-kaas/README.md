@@ -11,9 +11,9 @@ lifecycle in the meantime.
 
 | Lab | Topic | Status |
 |-----|-------|--------|
-| [Lab 4.1 — Hosted Control Plane](labs/lab-4.1-hosted-control-plane.md) | k0smotron hosted CP, template forking | Validated live (k0rdent Enterprise 1.3.1) |
-| [Lab 4.4 — Cilium + Multus](labs/lab-4.4-cilium-multus.md) | CNI customization, secondary networks | Validated live (Enterprise 1.3.2) |
-| [Lab 4.9 — Dynamic Resource Allocation](labs/lab-4.9-dynamic-resource-allocation.md) | DRA for GPU workloads | Doc-verified |
-| [Lab 4.10 — BYOIP / PCI / MACsec](labs/lab-4.10-byoip-pci-macsec.md) | Advanced networking | Doc-verified |
+| [Lab 4.1 — Hosted Control Plane](../../../extensions/advanced-kubernetes/labs/hosted-control-plane.md) | k0smotron hosted CP, template forking | Validated live (k0rdent Enterprise 1.3.1) |
+| [Lab 4.4 — Cilium + Multus](../../../extensions/advanced-kubernetes/labs/cilium-multus.md) | CNI customization, secondary networks | Validated live (Enterprise 1.3.2) |
+| [Lab 4.9 — Dynamic Resource Allocation](../../../extensions/advanced-kubernetes/labs/dynamic-resource-allocation.md) | DRA for GPU workloads | Doc-verified |
+| [Lab 4.10 — BYOIP / PCI / MACsec](../../../extensions/advanced-kubernetes/labs/byoip-pci-macsec.md) | Advanced networking | Doc-verified |
 
 Labs 4.2, 4.3 and 4.5–4.8 are in development.

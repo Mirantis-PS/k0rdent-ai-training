@@ -63,11 +63,11 @@ By the end of this week, engineers will be able to:
 
 ## Theory Content (5.25 hours)
 
-Theory files are in the [theory/](theory/) directory.
+Theory files are in the [theory/](../../original-course.md#week-5-ai-workloads) directory.
 
 ### 5.1 GPU Scheduling (1.5 hours)
 
-**File:** [theory/5.1-gpu-scheduling.md](theory/5.1-gpu-scheduling.md)
+**File:** [theory/5.1-gpu-scheduling.md](../../../modules/gpu-allocation/theory/gpu-scheduling.md)
 
 Topics:
 - Kubernetes default scheduler limitations for GPUs
@@ -79,7 +79,7 @@ Topics:
 
 ### 5.2 LLM Inference Architecture (1 hour)
 
-**File:** [theory/5.2-llm-inference-architecture.md](theory/5.2-llm-inference-architecture.md)
+**File:** [theory/5.2-llm-inference-architecture.md](../../../modules/inference-and-data/theory/llm-inference-architecture.md)
 
 Topics:
 - Inference serving patterns
@@ -90,47 +90,47 @@ Topics:
 
 ### 5.3 GPU Communication
 
-**File:** [theory/5.3-gpu-communication.md](theory/5.3-gpu-communication.md)
+**File:** [theory/5.3-gpu-communication.md](../../../modules/distributed-ai/theory/gpu-communication.md)
 
 ### 5.4 Distributed Training
 
-**File:** [theory/5.4-distributed-training.md](theory/5.4-distributed-training.md)
+**File:** [theory/5.4-distributed-training.md](../../../modules/distributed-ai/theory/distributed-training.md)
 
 ### 5.5 ML Platforms
 
-**File:** [theory/5.5-ml-platforms.md](theory/5.5-ml-platforms.md)
+**File:** [theory/5.5-ml-platforms.md](../../../extensions/ml-platforms/theory/ml-platforms.md)
 
 ---
 
 ## Lab Exercises (52.7 hours across all tracks)
 
-All lab files are in the [labs/](labs/) directory.
+All lab files are in the [labs/](../../original-course.md#week-5-ai-workloads) directory.
 
 | Lab | Title | Track | Duration | File |
 |-----|-------|-------|----------|------|
-| 5.1 | GPU Cluster Setup | Foundation | 3.5h | [lab-5.1-gpu-cluster-setup.md](labs/lab-5.1-gpu-cluster-setup.md) |
-| 5.2 | Service Catalog | Foundation | 2h | [lab-5.2-service-catalog.md](labs/lab-5.2-service-catalog.md) |
-| 5.3 | KAI Scheduler | Foundation | 2.5h | [lab-5.3-kai-scheduler.md](labs/lab-5.3-kai-scheduler.md) |
-| 5.4 | Run:AI Orchestration | Licensed elective | 3h | [lab-5.4-runai-gpu-orchestration.md](labs/lab-5.4-runai-gpu-orchestration.md) |
-| 5.5 | vLLM Inference | Foundation | 4h | [lab-5.5-vllm-inference.md](labs/lab-5.5-vllm-inference.md) |
-| 5.6 | Troubleshooting GPU | Foundation | 2h | [lab-5.6-troubleshooting-gpu.md](labs/lab-5.6-troubleshooting-gpu.md) |
-| 5.7 | Jupyter Notebooks | Tools elective | 1.5h | [lab-5.7-jupyter-notebooks.md](labs/lab-5.7-jupyter-notebooks.md) |
-| 5.8 | Vector Database | Tools elective | 2h | [lab-5.8-vector-database.md](labs/lab-5.8-vector-database.md) |
-| 5.9 | Kubeflow ML Platform | ML Platforms | 3h | [lab-5.9-kubeflow-ml-platform.md](labs/lab-5.9-kubeflow-ml-platform.md) |
-| 5.10 | MLflow Experiment Tracking | ML Platforms | 2.5h | [lab-5.10-mlflow-experiment-tracking.md](labs/lab-5.10-mlflow-experiment-tracking.md) |
-| 5.11 | NVIDIA FIPS Configuration | Compliance | 2h | [lab-5.11-nvidia-fips.md](labs/lab-5.11-nvidia-fips.md) |
-| 5.12 | Cluster Templates for AI | Compliance | 2h | [lab-5.12-cluster-templates.md](labs/lab-5.12-cluster-templates.md) |
-| 5.13 | TensorRT-LLM Optimization | Advanced | 3.5h | [lab-5.13-tensorrt-llm.md](labs/lab-5.13-tensorrt-llm.md) |
-| 5.14 | Slurm Operator for HPC | Advanced | 3h | [lab-5.14-slurm-operator-hpc.md](labs/lab-5.14-slurm-operator-hpc.md) |
-| 5.15 | RDMA Multi-Cloud | Advanced | 4h | [lab-5.15-rdma-multi-cloud.md](labs/lab-5.15-rdma-multi-cloud.md) |
-| 5.16 | Distributed Training | Advanced | 4.5h | [lab-5.16-distributed-training.md](labs/lab-5.16-distributed-training.md) |
-| 5.17 | External Telemetry Export | Operations elective | 2.5h | [lab-5.17-otel-telemetry-export.md](labs/lab-5.17-otel-telemetry-export.md) |
-| 5.18 | Topology and NVLink Domains | Operations elective | 2h | [lab-5.18-topograph-nvlink-topology.md](labs/lab-5.18-topograph-nvlink-topology.md) |
-| 5.19 | MIG Partitioning | GPU Partitioning | 3.2h | [lab-5.19-mig-partitioning.md](labs/lab-5.19-mig-partitioning.md) |
+| 5.1 | GPU Cluster Setup | Foundation | 3.5h | [lab-5.1-gpu-cluster-setup.md](../../../modules/gpu-systems/labs/gpu-cluster-setup.md) |
+| 5.2 | Service Catalog | Foundation | 2h | [lab-5.2-service-catalog.md](../../../modules/ai-service-delivery/labs/service-catalog.md) |
+| 5.3 | KAI Scheduler | Foundation | 2.5h | [lab-5.3-kai-scheduler.md](../../../modules/gpu-allocation/labs/kai-scheduler.md) |
+| 5.4 | Run:AI Orchestration | Licensed elective | 3h | [lab-5.4-runai-gpu-orchestration.md](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md) |
+| 5.5 | vLLM Inference | Foundation | 4h | [lab-5.5-vllm-inference.md](../../../modules/inference-and-data/labs/vllm-inference.md) |
+| 5.6 | Troubleshooting GPU | Foundation | 2h | [lab-5.6-troubleshooting-gpu.md](../../../modules/operations/labs/troubleshooting-gpu.md) |
+| 5.7 | Jupyter Notebooks | Tools elective | 1.5h | [lab-5.7-jupyter-notebooks.md](../../../extensions/ml-platforms/labs/jupyter-notebooks.md) |
+| 5.8 | Vector Database | Tools elective | 2h | [lab-5.8-vector-database.md](../../../extensions/ml-platforms/labs/vector-database.md) |
+| 5.9 | Kubeflow ML Platform | ML Platforms | 3h | [lab-5.9-kubeflow-ml-platform.md](../../../extensions/ml-platforms/labs/kubeflow-ml-platform.md) |
+| 5.10 | MLflow Experiment Tracking | ML Platforms | 2.5h | [lab-5.10-mlflow-experiment-tracking.md](../../../extensions/ml-platforms/labs/mlflow-experiment-tracking.md) |
+| 5.11 | NVIDIA FIPS Configuration | Compliance | 2h | [lab-5.11-nvidia-fips.md](../../../extensions/compliance/labs/nvidia-fips.md) |
+| 5.12 | Cluster Templates for AI | Compliance | 2h | [lab-5.12-cluster-templates.md](../../../modules/ai-service-delivery/labs/cluster-templates.md) |
+| 5.13 | TensorRT-LLM Optimization | Advanced | 3.5h | [lab-5.13-tensorrt-llm.md](../../../extensions/advanced-inference/labs/tensorrt-llm.md) |
+| 5.14 | Slurm Operator for HPC | Advanced | 3h | [lab-5.14-slurm-operator-hpc.md](../../../extensions/hpc/labs/slurm-operator-hpc.md) |
+| 5.15 | RDMA Multi-Cloud | Advanced | 4h | [lab-5.15-rdma-multi-cloud.md](../../../modules/distributed-ai/labs/rdma-multi-cloud.md) |
+| 5.16 | Distributed Training | Advanced | 4.5h | [lab-5.16-distributed-training.md](../../../modules/distributed-ai/labs/distributed-training.md) |
+| 5.17 | External Telemetry Export | Operations elective | 2.5h | [lab-5.17-otel-telemetry-export.md](../../../modules/operations/labs/otel-telemetry-export.md) |
+| 5.18 | Topology and NVLink Domains | Operations elective | 2h | [lab-5.18-topograph-nvlink-topology.md](../../../modules/gpu-systems/labs/topograph-nvlink-topology.md) |
+| 5.19 | MIG Partitioning | GPU Partitioning | 3.2h | [lab-5.19-mig-partitioning.md](../../../modules/gpu-allocation/labs/mig-partitioning.md) |
 
 > Lab 5.19 requires `p4d.24xlarge` (A100); the standard `g5.12xlarge` worker uses A10G GPUs, which do not support MIG. Lab 5.19 is pending validation.
 
-The [lab contract](resources/lab-contract.md) defines environments and validation
+The [lab contract](../../../modules/gpu-systems/resources/lab-contract.md) defines environments and validation
 requirements. These are planning estimates, not guaranteed completion times.
 
 ### Key Software References
@@ -186,14 +186,14 @@ requirements. These are planning estimates, not guaranteed completion times.
 - Why MIG reconfiguration is a node-level operation, and what it invalidates
 - Which GPUs support MIG (and which never will), plus MIG vs vGPU licensing
 
-**Passing Score:** 80%. Complete the [Week 5 assessment and practical rubric](week-5-quiz.md).
+**Passing Score:** 80%. Complete the [Week 5 assessment and practical rubric](../../assessments/ai-workloads-quiz.md).
 
 ---
 
 ## Full Curriculum
 
 This file covers Week 5 only. The complete 6-week curriculum document is at
-[`curriculum/overview/training-program-overview.md`](../overview/training-program-overview.md)
+[`curriculum/references/source-guides/training-program-overview.md`](../training-program-overview.md)
 (referenced from the top-level README).
 
 The linked overview exists; this README is the authoritative Week 5 path and duration index.

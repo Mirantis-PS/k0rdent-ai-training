@@ -32,9 +32,9 @@ FOUNDATION (start here)        NETWORKING       STORAGE         OPERATIONS      
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 4.1 — Hosted Control Plane](lab-4.1-hosted-control-plane.md) (4.2/4.3 in development) | **Lab 4.4 — Cilium + Multus** | [Lab 4.9 — Dynamic Resource Allocation](lab-4.9-dynamic-resource-allocation.md) (4.5-4.8 in development) |
+| [Lab 4.1 — Hosted Control Plane](hosted-control-plane.md) (4.2/4.3 in development) | **Lab 4.4 — Cilium + Multus** | [Lab 4.9 — Dynamic Resource Allocation](dynamic-resource-allocation.md) (4.5-4.8 in development) |
 
-> **Downstream consumer:** [Lab 5.18 — topograph / NVLink Topology](../../week-5-ai-workloads/labs/lab-5.18-topograph-nvlink-topology.md)
+> **Downstream consumer:** [Lab 5.18 — topograph / NVLink Topology](../../../modules/gpu-systems/labs/topograph-nvlink-topology.md)
 > lists this lab as a required prerequisite — the secondary network you build
 > in Parts 5-7 is the pattern AI clusters use to separate RDMA/storage traffic
 > from the primary pod network.
@@ -852,10 +852,10 @@ must run before the API server answers) still requires a template fork.
 
 ## Next Lab
 
-[Lab 4.9 — Dynamic Resource Allocation](lab-4.9-dynamic-resource-allocation.md)
+[Lab 4.9 — Dynamic Resource Allocation](dynamic-resource-allocation.md)
 (Labs 4.5-4.8 are in development.) If you are following the Week 5 AI track,
 this lab's secondary-network pattern is consumed by
-[Lab 5.18 — topograph / NVLink Topology](../../week-5-ai-workloads/labs/lab-5.18-topograph-nvlink-topology.md).
+[Lab 5.18 — topograph / NVLink Topology](../../../modules/gpu-systems/labs/topograph-nvlink-topology.md).
 
 ---
 
@@ -867,5 +867,5 @@ this lab's secondary-network pattern is consumed by
 - k0rdent kcm — [`aws-standalone-cp` chart source](https://github.com/k0rdent/kcm/tree/main/templates/cluster/aws-standalone-cp) (`k0s.network` passthrough, added in chart `1-0-14`)
 - Multus CNI — [quickstart (thick plugin)](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/quickstart.md)
 - whereabouts — [IPAM CNI](https://github.com/k8snetworkplumbingwg/whereabouts)
-- Lab 1.7 — [Multi-Cluster Services](../../week-1-foundations/labs/lab-1.7-multicluster-services.md) (ServiceTemplate/MCS mechanics reused here)
-- Lab 4.1 — [Hosted Control Plane](lab-4.1-hosted-control-plane.md) (template-fork pattern referenced in Part 1)
+- Lab 1.7 — [Multi-Cluster Services](../../../modules/ai-service-delivery/labs/multicluster-services.md) (ServiceTemplate/MCS mechanics reused here)
+- Lab 4.1 — [Hosted Control Plane](hosted-control-plane.md) (template-fork pattern referenced in Part 1)

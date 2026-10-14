@@ -851,4 +851,4 @@ Before the next lab, ensure you have:
 
 ## Next
 
-Proceed to [Lab 1.3: Configure AWS Infrastructure Provider](../labs/lab-1.3-configure-aws-provider.md)
+Proceed to [Lab 1.3: Configure AWS Infrastructure Provider](../labs/configure-aws-provider.md)

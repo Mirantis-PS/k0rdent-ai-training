@@ -289,7 +289,7 @@ spec:
     - backendRefs: [{ name: kcm-k0rdent-ui, port: 3000 }]
 ```
 
-The generated UI password lands in `/opt/k0rdent-lab/config/lab-info.env` on the node. For the full scripts, see [`lab-infrastructure/terraform/modules/k0rdent-mgmt/templates/mgmt-cloud-init.yaml`](../../../lab-infrastructure/terraform/modules/k0rdent-mgmt/templates/mgmt-cloud-init.yaml).
+The generated UI password lands in `/opt/k0rdent-lab/config/lab-info.env` on the node. For the full scripts, see [`lab-infrastructure/terraform/modules/k0rdent-mgmt/templates/mgmt-cloud-init.yaml`](../../../../lab-infrastructure/terraform/modules/k0rdent-mgmt/templates/mgmt-cloud-init.yaml).
 
 ## Part 4: Connect to the Management Cluster (~2 min)
 
@@ -654,7 +654,7 @@ ls /opt/k0rdent-lab/.init-complete && echo "Done!"
 - **SSH connection:** Ensure correct key permissions (`chmod 600 config/keys/*.pem`)
 - **Pods not starting:** Check with `kubectl describe pod <name> -n kcm-system`
 
-For comprehensive troubleshooting, see the [Troubleshooting Guide](../../../lab-infrastructure/docs/troubleshooting.md).
+For comprehensive troubleshooting, see the [Troubleshooting Guide](../../../../lab-infrastructure/docs/troubleshooting.md).
 
 ## Clean Up
 
@@ -666,7 +666,7 @@ When finished with the lab, you can destroy the environment:
 
 > **Important:** Only destroy if you're done with **all labs in the curriculum**. The management cluster is reused in every subsequent week — Week 5 GPU labs create GPU clusters via ClusterDeployment on this same management cluster. If you need to stop for the day, leave the management cluster running and use `lab-connect.sh` to reconnect later.
 
-> **Cost reality check:** The management instance carries a `TTLHours` tag (default 8), but it is **informational only** — there is no reaper, and nothing auto-terminates the instance. You are billed continuously until you stop or destroy the environment yourself. Pause and final teardown guidance lives at the end of [Lab 1.8](lab-1.8-upgrade-k0rdent.md) (pausing = `aws ec2 stop-instances`; note the NAT gateway, EIP, and EBS volumes still bill while instances are stopped).
+> **Cost reality check:** The management instance carries a `TTLHours` tag (default 8), but it is **informational only** — there is no reaper, and nothing auto-terminates the instance. You are billed continuously until you stop or destroy the environment yourself. Pause and final teardown guidance lives at the end of [Lab 1.8](../../operations/labs/upgrade-k0rdent.md) (pausing = `aws ec2 stop-instances`; note the NAT gateway, EIP, and EBS volumes still bill while instances are stopped).
 
 ## Summary
 
@@ -693,4 +693,4 @@ Your lab environment includes these helpful aliases:
 
 ## Next Lab
 
-Continue to [Lab 1.2: Explore k0rdent UI](lab-1.2-explore-k0rdent-ui.md)
+Continue to [Lab 1.2: Explore k0rdent UI](explore-k0rdent-ui.md)

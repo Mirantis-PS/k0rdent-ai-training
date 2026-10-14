@@ -13,7 +13,7 @@
 - **k0rdent Enterprise:** v1.3.2 (current released)
 - **CRD API group:** `k0rdent.mirantis.com`
 - **Stable CRD version:** `v1beta1`
-- **Curriculum overview** lists validated component versions for k0s (`v1.32.4+k0s.0`), KubeVirt (`v1.6.3`), GPU Operator (`v25.10.0`), Cluster API (`v1.11`), Metal3 CAPM3 (`v1.8.0`), etc. — see `curriculum/overview/training-program-overview.md`.
+- **Curriculum overview** lists validated component versions for k0s (`v1.32.4+k0s.0`), KubeVirt (`v1.6.3`), GPU Operator (`v25.10.0`), Cluster API (`v1.11`), Metal3 CAPM3 (`v1.8.0`), etc. — see `curriculum/references/source-guides/training-program-overview.md`.
 
 ## Architecture — three Mirantis-shipped components
 
