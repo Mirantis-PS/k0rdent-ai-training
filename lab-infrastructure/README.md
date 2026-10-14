@@ -108,12 +108,33 @@ Connect to lab instances.
 ```
 
 ### lab-destroy.sh
+
+Restore SSH and complete managed-cluster cleanup first where possible. When SSH is unavailable, the script checks CAPA-tagged resources through the AWS API. Missing ownership remains a warning; failed queries stop cleanup. `--force` acknowledges orphan-risk warnings but keeps the final destroy confirmation. `--auto-approve` skips both confirmations. Neither flag removes non-Terraform resources automatically or converts an incomplete API scan into success. The Classic ELB sweep does not cover every load-balancer type.
 Destroy lab environments.
 
 ```bash
 ./scripts/lab-destroy.sh <your-name> --auto-approve
 ./scripts/lab-destroy.sh <your-name> --auto-approve --delete-bucket
 ```
+
+### lab-reap.sh
+
+Report tagged infrastructure that may have been retained after a lab. This scanner never deletes resources.
+
+```bash
+./scripts/lab-reap.sh                          # all enabled regions
+./scripts/lab-reap.sh --region eu-central-1    # one region
+./scripts/lab-reap.sh --owner <your-name> --json
+./scripts/lab-reap.sh --max-age-days 14
+```
+
+Scope: EC2 instances, NAT gateways, Elastic IPs, VPCs and EBS volumes tagged `Project=k0rdent-training`. CAPA resources without that tag, load balancers, snapshots and other resource types require separate inventory. Missing `Owner` tags are reported as unknown; an owner filter cannot attribute them.
+
+`orphaned` means NAT/EIP/volume candidates exist without a nonterminated instance for that owner in the region. `stale` means the oldest observed NAT/instance exceeds the age threshold. These are review signals, not permission to delete. Resources intentionally retained for another lab may be flagged. Historical NAT/instance rate constants are rough estimates only, exclude several billed resource types and must not be used as a current quote.
+
+Exit codes: **0** = no candidates flagged in the scanned scope; **2** = candidates need review; **1** = invalid input or incomplete scan. AWS API failures abort the scan rather than reporting a clean inventory. `--delete` and `--force` are rejected by the scanner.
+
+Use the course cleanup sequence and `lab-destroy.sh` for authorized, scoped teardown. A scan cannot prove an entire AWS account is empty.
 
 ## Directory Structure
 
@@ -127,7 +148,8 @@ lab-infrastructure/
 │   ├── lab-provision.sh       # Provision student environment
 │   ├── lab-status.sh          # Check status
 │   ├── lab-connect.sh         # Connect to instances
-│   └── lab-destroy.sh         # Destroy environment
+│   ├── lab-destroy.sh         # Destroy environment
+│   └── lab-reap.sh            # Find environments still billing after abandonment
 ├── terraform/
 │   ├── modules/
 │   │   ├── networking/        # VPC, subnets, NAT, security groups

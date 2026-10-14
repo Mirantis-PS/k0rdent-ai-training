@@ -36,7 +36,11 @@ Arguments:
 
 Options:
   --region <region>           AWS region (auto-detected from saved config)
-  --auto-approve              Skip confirmation prompts
+  --auto-approve              Skip confirmation prompts (implies --force)
+  --force                     Proceed past pre-destroy cleanup warnings without
+                              prompting, but still confirm the destroy itself.
+                              Needed when the management node is stopped or
+                              terminated, so SSH-based cleanup cannot run.
   --delete-bucket             Also delete the student's S3 bucket
   --help                      Show this help message
 
@@ -44,6 +48,7 @@ Examples:
   $0 john-doe
   $0 john-doe --auto-approve
   $0 john-doe --auto-approve --delete-bucket
+  $0 john-doe --force            # node already down; skip SSH cleanup gates
 
 EOF
     exit 1
@@ -81,10 +86,16 @@ get_state_output() {
         | jq -r ".outputs.${output_name}.value // empty" 2>/dev/null
 }
 
-# Loud warning + explicit confirmation when pre-destroy cleanup cannot be
-# performed or confirmed. Resources created OUTSIDE Terraform (managed-cluster
-# VPCs from CAPA, CCM-created load balancers) would be orphaned and keep
-# billing -- never skip silently.
+# Loud warning when pre-destroy cleanup cannot be performed or confirmed.
+# Resources created OUTSIDE Terraform (managed-cluster VPCs from CAPA,
+# CCM-created load balancers) would be orphaned and keep billing -- the warning
+# is therefore ALWAYS printed in full, even when a flag lets us skip the prompt.
+#
+# The prompt itself is skipped under --force / --auto-approve. Without that,
+# the common "my node is already stopped or terminated" case was unrecoverable:
+# SSH cleanup fails, this gate is reached, and a non-interactive run hits EOF on
+# `read` -- which looks identical to the user declining, so the script exited
+# without destroying anything and the environment billed indefinitely.
 confirm_orphan_risk() {
     local reason="$1"
 
@@ -100,13 +111,135 @@ confirm_orphan_risk() {
     echo -e "${RED}============================================================${NC}"
     echo ""
 
+    if [[ "$FORCE" == "true" || "$AUTO_APPROVE" == "true" ]]; then
+        local via="--force"
+        [[ "$FORCE" == "true" ]] || via="--auto-approve"
+        log_warn "Proceeding without prompting (${via}) -- verify in the AWS console afterwards"
+        return 0
+    fi
+
+    # Not a terminal and no flag given: `read` would hit EOF immediately and be
+    # indistinguishable from a decline. Fail loudly with the way out instead.
+    if [[ ! -t 0 ]]; then
+        log_error "Cannot prompt: stdin is not a terminal (piped, cron, or CI run)."
+        log_error "Re-run interactively, or pass --force to proceed past this check."
+        exit 1
+    fi
+
     local reply=""
     read -r -p "Proceed with destroy anyway? (y/N): " reply || reply=""
     if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-        log_warn "Destruction cancelled. Fix the issue above and re-run."
+        log_warn "Destruction cancelled. Fix the issue above, or re-run with --force."
         exit 1
     fi
     log_warn "Proceeding at your own risk -- check the AWS console for orphans afterwards"
+}
+
+# Look for the CAPA cluster tag used by the existing lab orphan checks:
+#   sigs.k8s.io/cluster-api-provider-aws/cluster/<cluster-name>
+# The management cluster instead carries kubernetes.io/cluster/k0rdent-mgmt-<id>,
+# so the two are distinguishable purely by tag-key prefix. Lab 1.8's
+# orphan-check section documents these same filters.
+CAPA_CLUSTER_TAG_PREFIX="sigs.k8s.io/cluster-api-provider-aws/cluster/"
+
+# List managed-cluster (CAPA) resources in $REGION as
+#   "<attribution>|<type> <id> (cluster <name>)"
+# where <attribution> is "mine" when the resource also carries
+# Owner=<engineer-id>, and "unknown" otherwise. No output only describes
+# these queried resource types and tags, not all managed-cluster resources.
+#
+# The attribution split matters in a shared AWS account. CAPA tags the resources
+# it creates with its own cluster tag and does NOT necessarily propagate the
+# lab's Owner tag, so a region-wide scan legitimately turns up other students'
+# managed clusters. Reporting those as yours is both wrong and alarming -- and
+# must remain an unresolved ownership warning.
+#
+# Tag keys are matched CLIENT-SIDE rather than via a `tag-key` filter wildcard,
+# because prefix wildcards on tag-key are not dependable across every EC2
+# describe API. Listing and filtering in jq is unambiguous.
+detect_managed_cluster_resources() {
+    local engineer_id="$1"
+    local jq_prog='
+        def capa_cluster($tags):
+            ($tags // []) | map(select(.Key | startswith($p)) | .Key[($p | length):]) | first;
+        def owner($tags): ($tags // []) | map(select(.Key == "Owner") | .Value) | first;
+        .[]?
+        | select(capa_cluster(.tags) != null)
+        | (if owner(.tags) == $me then "mine" else "unknown" end)
+          + "|" + $kind + " " + .id + " (cluster " + capa_cluster(.tags) + ")"
+    '
+
+    local vpcs nats instances
+    # An incomplete query must never look like an empty inventory.
+    vpcs=$(aws ec2 describe-vpcs --region "$REGION" --query 'Vpcs[].{id:VpcId,tags:Tags}' --output json) || return 1
+    nats=$(aws ec2 describe-nat-gateways --region "$REGION" --filter "Name=state,Values=pending,available" --query 'NatGateways[].{id:NatGatewayId,tags:Tags}' --output json) || return 1
+    instances=$(aws ec2 describe-instances --region "$REGION" --filters "Name=instance-state-name,Values=pending,running,stopping,stopped" --query 'Reservations[].Instances[].{id:InstanceId,tags:Tags}' --output json) || return 1
+    jq -r --arg p "$CAPA_CLUSTER_TAG_PREFIX" --arg me "$engineer_id" --arg kind "vpc" "$jq_prog" <<< "$vpcs" || return 1
+    jq -r --arg p "$CAPA_CLUSTER_TAG_PREFIX" --arg me "$engineer_id" --arg kind "nat-gateway" "$jq_prog" <<< "$nats" || return 1
+    jq -r --arg p "$CAPA_CLUSTER_TAG_PREFIX" --arg me "$engineer_id" --arg kind "instance" "$jq_prog" <<< "$instances" || return 1
+}
+
+# Called when SSH-based managed-cluster cleanup could not run. Falls back to the
+# AWS API to tell three situations apart:
+#
+#   - Nothing found. The overwhelmingly common case: a student who never reached
+#     Lab 1.5 has no ClusterDeployments at all. Proceed silently -- this
+#     previously raised a scary orphan warning and, non-interactively, aborted
+#     the whole destroy.
+#   - Resources attributable to this engineer-id. Warn with the resource IDs and
+#     gate, because these really would be orphaned.
+#   - Resources without matching ownership: warn and gate continuation.
+#     Missing Owner tags do not establish another owner.
+handle_unreachable_managed_clusters() {
+    local reason="$1"
+    local engineer_id="$2"
+
+    local found mine others
+    if ! found=$(detect_managed_cluster_resources "$engineer_id"); then
+        log_error "CAPA scan failed; cleanup cannot be verified. Restore API access and retry."
+        return 1
+    fi
+
+    if [[ -z "$found" ]]; then
+        log_info "${reason}."
+        log_success "No CAPA-tagged VPCs, NAT gateways or instances found in ${REGION}; other resource types require separate checks."
+        return 0
+    fi
+
+    mine=$(grep '^mine|' <<< "$found" | cut -d'|' -f2- || true)
+    others=$(grep '^unknown|' <<< "$found" | cut -d'|' -f2- || true)
+
+    if [[ -n "$others" ]]; then
+        log_warn "CAPA resources without a matching Owner tag have unresolved ownership:"
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && log_warn "    $line"
+        done <<< "$others"
+        log_warn "They may belong to this lab or another student. Do not infer ownership."
+    fi
+    if [[ -n "$mine" ]]; then
+        log_warn "CAPA resources tagged Owner=${engineer_id} remain:"
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && log_warn "    $line"
+        done <<< "$mine"
+    fi
+    confirm_orphan_risk "$reason; remaining CAPA resources require ownership and cleanup review"
+}
+
+# SSH-based CCM LoadBalancer cleanup is the graceful path: deleting the Gateway
+# lets the CCM deregister and remove the ELB itself. When SSH is unavailable it
+# is NOT fatal -- cleanup_orphan_aws_resources() runs straight after and sweeps
+# orphan Classic ELBs plus their k8s-elb-* security groups, scoped to the lab
+# VPC. So downgrade this from a hard gate to a warning.
+#
+# Caveat: that sweep covers Classic ELBs (elb v1) only, which is what the
+# unannotated in-tree CCM creates by default and therefore what this lab
+# produces. An NLB (elbv2), which needs an explicit annotation, would not be
+# swept and would have to be removed by hand.
+note_lb_cleanup_deferred() {
+    local reason="$1"
+    log_warn "${reason}."
+    log_warn "  Deferring to the VPC-scoped orphan sweep below (Classic ELBs + k8s-elb SGs)."
+    log_warn "  If you configured an NLB instead, check for it in the AWS console afterwards."
 }
 
 # Ensure the SSH keys for the management node exist locally, retrieving them
@@ -153,12 +286,12 @@ cleanup_managed_clusters() {
     mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
 
     if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
-        confirm_orphan_risk "Could not get bastion/management IPs from state -- managed clusters cannot be cleaned up"
+        handle_unreachable_managed_clusters "Could not get bastion/management IPs from state -- managed clusters cannot be cleaned up over SSH" "$engineer_id"
         return 0
     fi
 
     if ! ensure_ssh_keys "$engineer_id" "$bucket"; then
-        confirm_orphan_risk "SSH keys not available -- managed clusters cannot be cleaned up"
+        handle_unreachable_managed_clusters "SSH keys not available -- managed clusters cannot be cleaned up over SSH" "$engineer_id"
         return 0
     fi
 
@@ -188,7 +321,7 @@ cleanup_managed_clusters() {
          echo "All ClusterDeployments deleted"'; then
         log_success "Managed cluster cleanup complete"
     else
-        confirm_orphan_risk "Could not confirm deletion of all ClusterDeployments (SSH failed or deletion timed out)"
+        handle_unreachable_managed_clusters "Could not confirm deletion of all ClusterDeployments (SSH failed or deletion timed out)" "$engineer_id"
     fi
 }
 
@@ -208,7 +341,7 @@ cleanup_load_balancers() {
     mgmt_ip=$(get_state_output "$bucket" "primary_node_private_ip")
 
     if [[ -z "$bastion_ip" || -z "$mgmt_ip" ]]; then
-        confirm_orphan_risk "Could not get IPs from state -- CCM LoadBalancers cannot be cleaned up"
+        note_lb_cleanup_deferred "Could not get IPs from state -- CCM LoadBalancers cannot be cleaned up over SSH"
         return 0
     fi
 
@@ -217,7 +350,7 @@ cleanup_load_balancers() {
     local bastion_key="$CONFIG_DIR/keys/${engineer_id}-bastion.pem"
 
     if ! ensure_ssh_keys "$engineer_id" "$bucket"; then
-        confirm_orphan_risk "SSH keys not available -- CCM LoadBalancers cannot be cleaned up"
+        note_lb_cleanup_deferred "SSH keys not available -- CCM LoadBalancers cannot be cleaned up over SSH"
         return 0
     fi
 
@@ -242,9 +375,9 @@ cleanup_load_balancers() {
              echo -n "."
              sleep 5
          done' 2>/dev/null \
-        || confirm_orphan_risk "Could not SSH to clean up CCM LoadBalancers (instance may already be down)"
+        || note_lb_cleanup_deferred "Could not SSH to clean up CCM LoadBalancers (instance may already be down)"
 
-    log_success "LoadBalancer cleanup complete"
+    log_info "LoadBalancer cleanup attempted; verify all load balancer types separately."
 }
 
 # Sweep for orphan AWS resources that K8s didn't clean up (e.g. Classic ELBs
@@ -252,11 +385,33 @@ cleanup_load_balancers() {
 # k8s-elb-* security groups). Filtered strictly to the lab VPC.
 cleanup_orphan_aws_resources() {
     local bucket="$1"
+    local engineer_id="$2"
 
     local vpc_id
     vpc_id=$(get_state_output "$bucket" "vpc_id")
+
+    # Fall back to a tag lookup when the output is gone. This is the retry case
+    # and it is exactly when the sweep matters most: a previous destroy removed
+    # the outputs (and most resources) but failed on DeleteVpc, so the VPC and an
+    # orphan k8s-elb SG survive with no vpc_id output left to find them by.
+    # Skipping here made the retry unable to ever clear the blocker.
     if [[ -z "$vpc_id" ]]; then
-        log_warn "No vpc_id in state. Skipping orphan AWS resource sweep."
+        vpc_id=$(aws ec2 describe-vpcs --region "$REGION" \
+            --filters "Name=tag:Owner,Values=${engineer_id}" \
+                      "Name=tag:Project,Values=k0rdent-training" \
+            --query 'Vpcs[].VpcId' --output text) || return 1
+        [[ "$vpc_id" == "None" ]] && vpc_id=""
+        if [[ "$vpc_id" =~ [[:space:]] ]]; then
+            log_error "Multiple VPCs match Owner/Project; refusing ambiguous cleanup."
+            return 1
+        fi
+        if [[ -n "$vpc_id" ]]; then
+            log_info "vpc_id absent from state; found ${vpc_id} by tag instead."
+        fi
+    fi
+
+    if [[ -z "$vpc_id" ]]; then
+        log_info "No lab VPC found in state or by tag. Nothing to sweep."
         return 0
     fi
 
@@ -268,14 +423,14 @@ cleanup_orphan_aws_resources() {
     local orphan_lbs
     orphan_lbs=$(aws elb describe-load-balancers --region "$REGION" \
         --query "LoadBalancerDescriptions[?VPCId=='${vpc_id}'].LoadBalancerName" \
-        --output text 2>/dev/null || true)
+        --output text) || return 1
 
     local found_any=0
     if [[ -n "$orphan_lbs" && "$orphan_lbs" != "None" ]]; then
         found_any=1
         for lb in $orphan_lbs; do
             log_info "  Deleting orphan Classic ELB: $lb"
-            aws elb delete-load-balancer --region "$REGION" --load-balancer-name "$lb" 2>&1 || true
+            aws elb delete-load-balancer --region "$REGION" --load-balancer-name "$lb" || return 1
         done
         # Brief wait for ENIs to release before subnet delete
         sleep 15
@@ -286,13 +441,42 @@ cleanup_orphan_aws_resources() {
     local orphan_sgs
     orphan_sgs=$(aws ec2 describe-security-groups --region "$REGION" \
         --filters "Name=vpc-id,Values=${vpc_id}" "Name=group-name,Values=k8s-elb-*" \
-        --query 'SecurityGroups[].GroupId' --output text 2>/dev/null || true)
+        --query 'SecurityGroups[].GroupId' --output text) || return 1
 
+    # Retry rather than single-shot. Deleting a Classic ELB does not release its
+    # ENIs immediately, so the first delete-security-group attempt frequently
+    # fails with DependencyViolation. That matters more than it looks: this SG is
+    # created by AWS and is NOT in Terraform state, so nothing else will ever
+    # remove it -- and AWS refuses to delete a VPC while a non-default security
+    # group remains. A single failed attempt therefore left `terraform destroy`
+    # grinding for ~20 minutes before failing on DeleteVpc, stranding the VPC.
     if [[ -n "$orphan_sgs" && "$orphan_sgs" != "None" ]]; then
         found_any=1
         for sg in $orphan_sgs; do
             log_info "  Deleting orphan k8s-elb SG: $sg"
-            aws ec2 delete-security-group --region "$REGION" --group-id "$sg" 2>&1 || true
+            local attempt deleted="false"
+            for attempt in $(seq 1 18); do   # up to ~3 min per SG
+                if aws ec2 delete-security-group --region "$REGION" --group-id "$sg" 2>/dev/null; then
+                    deleted="true"
+                    break
+                fi
+                # Only a successful query with no result proves absence.
+                local remaining
+                remaining=$(aws ec2 describe-security-groups --region "$REGION" --filters "Name=group-id,Values=${sg}" --query 'SecurityGroups[].GroupId' --output text) || return 1
+                if [[ -z "$remaining" || "$remaining" == "None" ]]; then
+                    deleted="true"
+                    break
+                fi
+                [[ "$attempt" == "1" ]] && log_info "    waiting for ENIs to release..."
+                sleep 10
+            done
+            if [[ "$deleted" == "true" ]]; then
+                log_success "  Deleted orphan k8s-elb SG: $sg"
+            else
+                log_warn "  Could not delete $sg after ~3 min; 'terraform destroy' will"
+                log_warn "  likely fail on DeleteVpc. Resolve the dependency and retry."
+                return 1
+            fi
         done
     fi
 
@@ -371,7 +555,7 @@ destroy_lab() {
             --filters "Name=tag:Owner,Values=${engineer_id}" \
                       "Name=tag:Project,Values=k0rdent-training" \
                       "Name=instance-state-name,Values=pending,running,stopping,stopped" \
-            --query 'Reservations[].Instances[].InstanceId' --output text 2>/dev/null || true)
+            --query 'Reservations[].Instances[].InstanceId' --output text) || return 1
         if [[ -n "$stray_instances" ]]; then
             log_error "BUT live EC2 instances tagged Owner=${engineer_id} exist in ${REGION}: ${stray_instances}"
             log_error "State and reality disagree (wrong --region or bucket?). These resources are STILL BILLING."
@@ -389,7 +573,7 @@ destroy_lab() {
     # infrastructure.
     cleanup_managed_clusters "$engineer_id" "$bucket"
     cleanup_load_balancers "$engineer_id" "$bucket"
-    cleanup_orphan_aws_resources "$bucket"
+    cleanup_orphan_aws_resources "$bucket" "$engineer_id"
 
     local destroy_args=""
     [[ "$AUTO_APPROVE" == "true" ]] && destroy_args="-auto-approve"
@@ -409,7 +593,8 @@ destroy_lab() {
         delete_versioned_bucket "$bucket"
     fi
 
-    log_success "All resources for $engineer_id destroyed!"
+    log_success "Terraform-managed teardown completed for $engineer_id."
+    log_warn "Verify retained and non-Terraform resources separately; warnings above remain actionable."
 }
 
 # Load config if exists
@@ -420,6 +605,7 @@ fi
 # Default values
 REGION=""
 AUTO_APPROVE="false"
+FORCE="false"
 DELETE_BUCKET="false"
 IDENTIFIER=""
 
@@ -432,6 +618,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --auto-approve)
             AUTO_APPROVE="true"
+            shift
+            ;;
+        --force)
+            FORCE="true"
             shift
             ;;
         --delete-bucket)

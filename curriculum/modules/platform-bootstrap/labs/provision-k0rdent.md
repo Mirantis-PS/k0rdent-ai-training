@@ -32,6 +32,7 @@
   - [Explore Other Namespaces](#explore-other-namespaces)
 - [Validation Checklist](#validation-checklist)
 - [Troubleshooting](#troubleshooting)
+  - [Bastion SSH recovery](#bastion-ssh-stops-working-after-it-previously-worked)
   - [k0rdent Installation Issues](#k0rdent-installation-issues)
 - [Clean Up](#clean-up)
 - [Summary](#summary)
@@ -630,6 +631,32 @@ eval "$(aws configure export-credentials --format env --profile your-profile-nam
 ```
 
 > **Note:** The exported credentials are temporary session tokens. If your session expires, run the `aws sso login` and `eval` commands again.
+
+### Bastion SSH stops working after it previously worked
+
+**Symptoms:** a previously working connection times out, sometimes during banner exchange. A changed client public IP is one possible cause; also check instance state, routing and security groups.
+
+From the repository root, compare your current address with the saved ranges:
+
+```bash
+curl -fsS --max-time 5 https://checkip.amazonaws.com
+grep SSH_CIDRS lab-infrastructure/config/lab-config.env
+# macOS: nc -z -G 10 <bastion-public-ip> 22
+# Linux: nc -z -w 10 <bastion-public-ip> 22
+```
+
+The provisioner keeps the previous ranges and adds a freshly detected address by default. Use `--ssh-cidr auto` to replace saved ranges with only the current address, or provide an explicit approved CIDR for a VPN/office egress. Old generated `ALLOWED_SSH_CIDRS` values are migrated to saved ranges; an explicitly exported `ALLOWED_SSH_CIDRS` remains an override. Review old ranges periodically.
+
+```bash
+# Review the Terraform plan first; this is a full provisioning command.
+./lab-infrastructure/scripts/lab-provision.sh <your-engineer-id> \
+  --region <your-region> --ssh-cidr auto --plan-only
+# If the plan contains only the intended changes, apply interactively.
+./lab-infrastructure/scripts/lab-provision.sh <your-engineer-id> \
+  --region <your-region> --ssh-cidr auto
+```
+
+A full Terraform apply can change more than a security-group rule. Preserve the lab feature flags you used originally and inspect the plan. If address detection fails with no saved range, provisioning stops; pass an explicit approved CIDR instead. Restore SSH before normal teardown where possible. If access cannot be restored, the [destroy command](../../../../lab-infrastructure/README.md#lab-destroysh) reports cleanup uncertainty; bypassing a warning does not prove all resources were removed.
 
 ### k0rdent Installation Issues
 

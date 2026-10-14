@@ -726,7 +726,7 @@ If you created the optional Azure cluster in Lab 1.5, verify its resource group 
 
 The **management cluster stays** — it is reused later in the program (Week 5 GPU labs create GPU clusters via `ClusterDeployment` on this same management cluster).
 
-> **If you're continuing the program: do NOT run `lab-destroy.sh`.** Pause the environment instead by stopping its EC2 instances — this is the supported way to pause between weeks:
+> **Before pausing or destroying, finish the [audit lab](api-audit-logging.md) and save its evidence.** Retain management state only if you need it for the next lab and accept the ongoing resource charges. For a short pause, stopping instances is one option:
 >
 > ```bash
 > # From your local machine: find the management node and bastion instance IDs
@@ -743,7 +743,16 @@ The **management cluster stays** — it is reused later in the program (Week 5 G
 >
 > To resume: `aws ec2 start-instances --instance-ids <mgmt-instance-id> <bastion-instance-id>`, wait a couple of minutes, then reconnect with `./scripts/lab-connect.sh <your-engineer-id>`. The k0s cluster comes back up on its own — the management node keeps its stable private IP and the bastion keeps its Elastic IP, so your kubeconfig and SSH access still work.
 
-> **If you're NOT continuing the program:** once the managed-cluster teardown above is complete and the AWS orphan checks come back empty, run `./scripts/lab-destroy.sh` to remove the management environment.
+> **For a longer gap or when finished:** after audit evidence and managed-cluster cleanup, destroy the management environment if you no longer need its state. Rebuilding requires repeating prerequisites; it is not an instant resume. Restore stopped instances and SSH before normal cleanup where possible.
+
+From the repository root:
+
+```bash
+./lab-infrastructure/scripts/lab-destroy.sh <your-engineer-id> --region <your-region>
+./lab-infrastructure/scripts/lab-reap.sh --region <your-region> --owner <your-engineer-id> --json
+```
+
+The scanner is report-only. Exit 2 means resources need review; exit 1 means the scan is incomplete. Exit 0 is not proof that untagged CAPA resources, load balancers, snapshots or resources in unscanned regions are gone. Repeat the managed-cluster checks above and inspect retained resources separately. `--force` bypasses orphan-risk prompts but still asks for destroy confirmation; `--auto-approve` skips both prompts. Neither option resolves unknown ownership or performs missing cleanup, and API scan failures still stop execution.
 
 ## Week 1 Complete!
 
