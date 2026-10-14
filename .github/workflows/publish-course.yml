@@ -1,0 +1,106 @@
+name: Publish course
+
+on:
+  push:
+    branches: [curriculum-v2-pedagogy]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: course-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Install pinned site dependencies
+        run: |
+          python -m pip install mkdocs==1.6.1 mkdocs-material==9.7.0
+          mkdir -p build/mermaid
+          npm pack mermaid@11.16.0 --ignore-scripts --pack-destination build/mermaid
+          tar -xzf build/mermaid/mermaid-11.16.0.tgz -C build/mermaid package/dist/mermaid.min.js
+      - name: Stage tracked course content
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import shutil
+          import subprocess
+          import unicodedata
+
+          ROOT = Path.cwd()
+          DOCS = ROOT / "build/course-docs"
+          DOCS.mkdir(parents=True, exist_ok=True)
+          tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0")
+          selected = [p for p in tracked if p == "README.md" or p.startswith(("curriculum/", "lab-infrastructure/"))]
+          # Only remove the generated workspace, never the course or local evidence.
+          shutil.rmtree(DOCS)
+          DOCS.mkdir()
+          for name in selected:
+              source = ROOT / name
+              if not source.is_file() or source.is_symlink() or "/tests/" in name:
+                  continue
+              target = DOCS / ("repository.md" if name == "README.md" else name)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, target)
+              if target.suffix == ".md":
+                  # Preserve GitHub-style heading IDs in the generated copy only.
+                  lines, fence, counts = [], None, {}
+                  for line in target.read_text().splitlines():
+                      marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+                      if marker:
+                          if fence is None:
+                              fence = marker[1][0]
+                          elif fence == marker[1][0]:
+                              fence = None
+                      heading = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line) if fence is None else None
+                      if heading:
+                          title = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", heading[2])
+                          title = re.sub(r"<[^>]+>", "", title).lower()
+                          slug = "".join(c for c in title if c in "_- " or unicodedata.category(c)[0] in "LNM").replace(" ", "-")
+                          count = counts.get(slug, 0)
+                          counts[slug] = count + 1
+                          anchor = slug + (f"-{count}" if count else "")
+                          line = heading[1] + " " + heading[2] + " {#" + anchor + "}"
+                      lines.append(line)
+                  target.write_text("\n".join(lines) + "\n")
+
+          # Preserve the published presentation without editing course sources.
+          (DOCS / "index.md").write_text("---\nhide:\n  - toc\n---\n# Build and operate AI infrastructure\n\n**k0rdent AI Infrastructure Training**\n\nFollow a practical path from your first management cluster to a private model service, shared GPU capacity, measured performance and incident recovery.\n\n[Start the course](curriculum/README.md){ .md-button .md-button--primary }\n[Check prerequisites](curriculum/overview/prerequisites.md){ .md-button }\n\n!!! info \"Course readiness\"\n    GPU qualification and product-specific integration remain subject to the readiness checks in the course guide.\n\n## Your learning path\n\n<div class=\"grid cards\" markdown>\n\n-   **01 · Build the platform**\n\n    ---\n\n    Provision management, connect your provider, create a workload cluster and establish observability, services and audit.\n\n    [Begin platform setup](curriculum/modules/platform-bootstrap/labs/provision-k0rdent.md)\n\n-   **02 · Understand the GPU system**\n\n    ---\n\n    Trace a private response, estimate memory, test concurrency and distinguish queueing from device allocation.\n\n    [Review GPU readiness](curriculum/README.md#check-runtime-readiness)\n\n-   **03 · Measure and deliver**\n\n    ---\n\n    Prove two-worker communication, separate storage and cache effects, then package a reproducible service.\n\n    [Explore the AI workshops](curriculum/README.md#run-the-ai-workshops)\n\n-   **04 · Diagnose and hand over**\n\n    ---\n\n    Restore an unfamiliar incident and defend your decisions against changed customer requirements.\n\n    [View the capstone](curriculum/modules/capstone/labs/customer-handover.md)\n\n</div>\n\n## Keep your place\n\nUse the course checklist and the previous/next links inside each lab. Concept capsules sit beside the workshops that use them. Search finds details across the course; optional specializations and instructor solutions have separate navigation.\n\n[Browse specializations](curriculum/extensions/README.md) · [Infrastructure troubleshooting](lab-infrastructure/docs/troubleshooting.md) · [Instructor guide](curriculum/instructor/README.md)\n")
+          assets = DOCS / "assets"
+          assets.mkdir()
+          (assets / "preview.css").write_text(":root { --md-primary-fg-color: #182f51; --md-accent-fg-color: #087f8c; }\nbody { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; }\n.md-typeset { line-height: 1.7; }\n.md-typeset h1 { font-weight: 750; color: var(--md-default-fg-color); letter-spacing: -.025em; }\n.md-typeset h2 { font-weight: 650; }\n.md-typeset .grid.cards > ul > li { border-radius: .6rem; padding: 1.1rem; }\n.md-typeset pre { border-radius: .35rem; }\n.md-typeset .course-diagram { overflow-x: auto; background: transparent; }\n.md-typeset .course-diagram svg { max-width: 100%; height: auto; }\n.md-header__topic { font-weight: 650; }\n")
+          (assets / "preview.js").write_text("document.addEventListener('DOMContentLoaded', async () => {\n  if (!window.mermaid) return;\n  const nodes = Array.from(document.querySelectorAll('.course-diagram'));\n  for (const node of nodes) node.textContent = node.textContent;\n  mermaid.initialize({startOnLoad: false, securityLevel: 'strict', maxTextSize: 100000, theme: document.body.dataset.mdColorScheme === 'slate' ? 'dark' : 'default'});\n  try { await mermaid.run({nodes}); }\n  catch (error) { console.error('Course diagram rendering failed: ' + String(error)); }\n});\n")
+          shutil.copy2("build/mermaid/package/dist/mermaid.min.js", assets / "mermaid.min.js")
+      - name: Build and validate links
+        run: python -m mkdocs build --strict
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/course-site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy course
+        id: deployment
+        uses: actions/deploy-pages@v4

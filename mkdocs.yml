@@ -1,0 +1,198 @@
+# The workflow stages tracked course files in build/course-docs before building.
+site_name: k0rdent AI Training
+site_description: A practical course for AI infrastructure engineers
+docs_dir: build/course-docs
+site_dir: build/course-site
+use_directory_urls: true
+theme:
+  name: material
+  font: false
+  palette:
+  - scheme: default
+    primary: indigo
+    accent: teal
+    toggle:
+      icon: material/weather-night
+      name: Dark mode
+  - scheme: slate
+    primary: indigo
+    accent: teal
+    toggle:
+      icon: material/weather-sunny
+      name: Light mode
+  features:
+  - navigation.tabs
+  - navigation.sections
+  - navigation.top
+  - navigation.tracking
+  - toc.follow
+  - search.suggest
+  - search.highlight
+  - content.code.copy
+plugins:
+- search
+nav:
+- Start here:
+  - Welcome: index.md
+  - Course checklist: curriculum/README.md
+  - Prerequisites: curriculum/overview/prerequisites.md
+  - Repository quick start: repository.md
+- Course:
+  - Platform foundations:
+    - Overview: curriculum/modules/platform-bootstrap/lessons/request-to-platform.md
+    - 1. Provision management: curriculum/modules/platform-bootstrap/labs/provision-k0rdent.md
+    - 2. Explore the UI: curriculum/modules/platform-bootstrap/labs/explore-k0rdent-ui.md
+    - 3. Configure AWS: curriculum/modules/platform-bootstrap/labs/configure-aws-provider.md
+    - 4. Production configuration: curriculum/modules/operations/labs/production-configuration.md
+    - 5. Create a managed cluster: curriculum/modules/platform-bootstrap/labs/provision-managed-cluster.md
+    - 6. Deploy observability: curriculum/modules/operations/labs/deploy-kof.md
+    - 7. Deliver services: curriculum/modules/ai-service-delivery/labs/multicluster-services.md
+    - 8. Upgrade management: curriculum/modules/operations/labs/upgrade-k0rdent.md
+    - 9. Capture audit evidence: curriculum/modules/operations/labs/api-audit-logging.md
+  - GPU environment:
+    - Readiness and compatibility: curriculum/modules/gpu-systems/resources/lab-contract.md
+    - 10. GPU cluster setup: curriculum/modules/gpu-systems/labs/gpu-cluster-setup.md
+    - 11. Service catalog: curriculum/modules/ai-service-delivery/labs/service-catalog.md
+    - 12. KAI scheduler: curriculum/modules/gpu-allocation/labs/kai-scheduler.md
+  - AI workshops:
+    - 13. First private response:
+      - Concept capsule: curriculum/modules/platform-bootstrap/lessons/request-to-platform.md
+      - First private response: curriculum/modules/platform-bootstrap/labs/first-private-response.md
+    - 14. Memory and concurrency:
+      - Concept capsule: curriculum/modules/gpu-systems/lessons/memory-and-topology.md
+      - Memory and concurrency: curriculum/modules/gpu-systems/labs/memory-concurrency.md
+    - 15. Two teams and a queue:
+      - Concept capsule: curriculum/modules/gpu-allocation/lessons/admission-and-isolation.md
+      - Two teams and a queue: curriculum/modules/gpu-allocation/labs/two-team-queue.md
+    - 16. Two-worker proof:
+      - Concept capsule: curriculum/modules/distributed-ai/lessons/communication-and-parallelism.md
+      - Two-worker proof: curriculum/modules/distributed-ai/labs/two-worker-proof.md
+    - 17. Storage and cache:
+      - Concept capsule: curriculum/modules/inference-and-data/lessons/data-and-service-performance.md
+      - Storage and cache: curriculum/modules/inference-and-data/labs/storage-cache.md
+    - 18. Performance decision:
+      - Performance decision: curriculum/modules/inference-and-data/labs/performance-decision.md
+    - 19. Declarative release:
+      - Concept capsule: curriculum/modules/ai-service-delivery/lessons/reconcilable-ai-service.md
+      - Declarative release: curriculum/modules/ai-service-delivery/labs/declarative-release.md
+    - 20. Diagnose and restore:
+      - Concept capsule: curriculum/modules/operations/lessons/evidence-led-operations.md
+      - Diagnose and restore: curriculum/modules/operations/labs/diagnose-restore.md
+    - 21. Customer handover:
+      - Customer handover: curriculum/modules/capstone/labs/customer-handover.md
+- Specializations:
+  - Choose a specialization: curriculum/extensions/README.md
+  - Advanced Inference:
+    - Overview: curriculum/extensions/advanced-inference/README.md
+    - TensorRT-LLM Inference Optimization: curriculum/extensions/advanced-inference/labs/tensorrt-llm.md
+  - Advanced Kubernetes:
+    - Overview: curriculum/extensions/advanced-kubernetes/README.md
+    - 'Case Study: AI Cloud Provider Interconnect Patterns': curriculum/extensions/advanced-kubernetes/labs/byoip-pci-macsec.md
+    - Custom CNI — Cilium as Primary CNI + Multus Secondary Networks: curriculum/extensions/advanced-kubernetes/labs/cilium-multus.md
+    - Dynamic Resource Allocation (DRA) for GPUs: curriculum/extensions/advanced-kubernetes/labs/dynamic-resource-allocation.md
+    - Hosted Control Plane (k0smotron-Backed `aws-hosted-cp` Template): curriculum/extensions/advanced-kubernetes/labs/hosted-control-plane.md
+  - Bare Metal:
+    - Overview: curriculum/extensions/bare-metal/README.md
+    - BMC Discovery with Redfish: curriculum/extensions/bare-metal/labs/bmc-discovery.md
+    - BMC Hardening: curriculum/extensions/bare-metal/labs/bmc-hardening.md
+    - Explore k0rdent Sandbox: curriculum/extensions/bare-metal/labs/explore-sandbox.md
+    - Hardware Root of Trust, Secure Boot, and TPM 2.0: curriculum/extensions/bare-metal/labs/secure-boot-tpm.md
+    - Troubleshooting BMC Connectivity: curriculum/extensions/bare-metal/labs/troubleshooting-bmc.md
+  - Compliance:
+    - Overview: curriculum/extensions/compliance/README.md
+    - FIPS Compliance for GPU Infrastructure: curriculum/extensions/compliance/labs/nvidia-fips.md
+  - Hpc:
+    - Overview: curriculum/extensions/hpc/README.md
+    - Slurm on Kubernetes for HPC Workloads: curriculum/extensions/hpc/labs/slurm-operator-hpc.md
+  - Licensed Orchestration:
+    - Overview: curriculum/extensions/licensed-orchestration/README.md
+    - NVIDIA Run:ai GPU Orchestration: curriculum/extensions/licensed-orchestration/labs/runai-gpu-orchestration.md
+  - Ml Platforms:
+    - Overview: curriculum/extensions/ml-platforms/README.md
+    - Jupyter Notebook Stack: curriculum/extensions/ml-platforms/labs/jupyter-notebooks.md
+    - Kubeflow ML Platform: curriculum/extensions/ml-platforms/labs/kubeflow-ml-platform.md
+    - MLflow Experiment Tracking: curriculum/extensions/ml-platforms/labs/mlflow-experiment-tracking.md
+    - Vector Database Deployment: curriculum/extensions/ml-platforms/labs/vector-database.md
+    - 5.5 ML Platform Architecture: curriculum/extensions/ml-platforms/theory/ml-platforms.md
+  - Virtualization:
+    - Overview: curriculum/extensions/virtualization/README.md
+    - Create AI VM with 8-GPU Passthrough: curriculum/extensions/virtualization/labs/ai-vm-8gpu.md
+- Reference:
+  - Compatibility notes: curriculum/references/compatibility.md
+  - Evidence and runtime gates: curriculum/references/pedagogy/evidence-contract.md
+  - Technical sources: curriculum/references/pedagogy/sources.md
+  - Glossary: curriculum/appendix/glossary.md
+  - Infrastructure commands: lab-infrastructure/README.md
+  - Troubleshooting: lab-infrastructure/docs/troubleshooting.md
+  - Infrastructure architecture: lab-infrastructure/docs/architecture-design.md
+  - Assessments:
+    - Foundations: curriculum/references/assessments/foundations-quiz.md
+    - AI workloads: curriculum/references/assessments/ai-workloads-quiz.md
+  - Supporting labs and theory:
+    - Topic index: curriculum/modules/README.md
+    - AI service delivery: curriculum/modules/ai-service-delivery/README.md
+    - Cluster Templates for AI Workloads: curriculum/modules/ai-service-delivery/labs/cluster-templates.md
+    - Capstone: curriculum/modules/capstone/README.md
+    - 'CAPSTONE: End-to-End Tenant Onboarding': curriculum/modules/capstone/labs/capstone.md
+    - Distributed AI: curriculum/modules/distributed-ai/README.md
+    - Multi-Node Distributed Training: curriculum/modules/distributed-ai/labs/distributed-training.md
+    - 'Multi-Cloud RDMA Deep Dive: AWS EFA vs Azure InfiniBand': curriculum/modules/distributed-ai/labs/rdma-multi-cloud.md
+    - 5.4 Distributed Training Patterns: curriculum/modules/distributed-ai/theory/distributed-training.md
+    - 5.3 GPU Communication and Interconnect Architecture: curriculum/modules/distributed-ai/theory/gpu-communication.md
+    - GPU allocation: curriculum/modules/gpu-allocation/README.md
+    - Multi-Instance GPU (MIG) Partitioning: curriculum/modules/gpu-allocation/labs/mig-partitioning.md
+    - 5.1 GPU Scheduling for AI Workloads: curriculum/modules/gpu-allocation/theory/gpu-scheduling.md
+    - GPU systems: curriculum/modules/gpu-systems/README.md
+    - Network Topology + NVLink Domain Discovery: curriculum/modules/gpu-systems/labs/topograph-nvlink-topology.md
+    - Inference and data: curriculum/modules/inference-and-data/README.md
+    - Deploy vLLM Inference Service: curriculum/modules/inference-and-data/labs/vllm-inference.md
+    - 5.2 LLM Inference Architecture: curriculum/modules/inference-and-data/theory/llm-inference-architecture.md
+    - Operations: curriculum/modules/operations/README.md
+    - Breakfix API Design & Implementation: curriculum/modules/operations/labs/breakfix-api.md
+    - Capacity & Fleet Management APIs: curriculum/modules/operations/labs/capacity-fleet-apis.md
+    - Extending KOF's OTel Pipeline for External Telemetry Export: curriculum/modules/operations/labs/otel-telemetry-export.md
+    - Data Sanitization + At-Rest Encryption: curriculum/modules/operations/labs/sanitization-at-rest-crypto.md
+    - Troubleshooting GPU Scheduling: curriculum/modules/operations/labs/troubleshooting-gpu.md
+    - Platform bootstrap: curriculum/modules/platform-bootstrap/README.md
+    - Week 1 Cheat Sheets: curriculum/modules/platform-bootstrap/resources/cheat-sheets.md
+    - Week 1 Reference Links: curriculum/modules/platform-bootstrap/resources/reference-links.md
+    - 1.3 Infrastructure Providers and Cluster API: curriculum/modules/platform-bootstrap/theory/infrastructure-providers.md
+    - 1.1 k0rdent Enterprise Architecture: curriculum/modules/platform-bootstrap/theory/k0rdent-architecture.md
+    - 1.2 k0rdent Components Deep Dive: curriculum/modules/platform-bootstrap/theory/k0rdent-components.md
+  - Telemetry ingest example: curriculum/examples/telemetry/cross-cluster-ingest.md
+- Instructor:
+  - Teaching guide: curriculum/instructor/README.md
+  - Solutions: curriculum/instructor/pedagogical-v2/solutions.md
+  - Fault bank: curriculum/instructor/pedagogical-v2/fault-bank.md
+  - Assessment rubric: curriculum/instructor/pedagogical-v2/rubric.md
+extra_css:
+- assets/preview.css
+extra_javascript:
+- assets/mermaid.min.js
+- assets/preview.js
+validation:
+  nav:
+    omitted_files: info
+  links:
+    not_found: warn
+    anchors: warn
+markdown_extensions:
+- admonition
+- attr_list
+- md_in_html
+- tables
+- toc:
+    permalink: true
+- pymdownx.details
+- pymdownx.highlight
+- pymdownx.inlinehilite
+- pymdownx.snippets
+- pymdownx.tasklist:
+    custom_checkbox: true
+- pymdownx.superfences:
+    custom_fences:
+    - name: mermaid
+      class: course-diagram
+      format: !!python/name:pymdownx.superfences.fence_code_format
+
+site_url: https://mirantis-ps.github.io/k0rdent-ai-training/
