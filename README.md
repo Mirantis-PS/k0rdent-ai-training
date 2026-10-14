@@ -38,3 +38,7 @@ The AI workshops are an educational draft with explicit execution prerequisites.
 | Diagnose provisioning problems | [Troubleshooting](lab-infrastructure/docs/troubleshooting.md) |
 
 The published repository contains the course, instructor material and lab execution assets. Authoring history, maintenance tooling and automated tests are kept locally.
+
+## Updating the course
+
+Submit changes through a pull request targeting `curriculum-v2-pedagogy`. The course build and link checks must pass before merging. After the pull request is merged, GitHub Actions rebuilds and publishes the updated course automatically.
