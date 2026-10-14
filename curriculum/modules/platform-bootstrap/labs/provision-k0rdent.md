@@ -1,5 +1,8 @@
 # Lab 1.1: Provision k0rdent Management Cluster
 
+> **Course step 1 of 21.** [Prepare](../../../README.md#prepare) · [Course checklist](../../../README.md) · [Next step](explore-k0rdent-ui.md). Follow this sequence when older lab-number references differ.
+
+
 **Duration:** ~1.5 hours (active: ~1h; unattended provisioning wait: ~15-20 min)
 **Type:** Hands-on Lab
 

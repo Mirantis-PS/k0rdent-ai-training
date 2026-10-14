@@ -24,4 +24,4 @@ Compare a copied Deployment, a catalog-backed service, and a template plus propa
 
 ## Source bridge
 
-Reuse [catalog](../labs/service-catalog.md), [templates](../labs/cluster-templates.md), [multicluster services](../labs/multicluster-services.md), and the [prerequisite record](../../../migration/PREREQUISITES.md).
+Reuse [catalog](../labs/service-catalog.md), [templates](../labs/cluster-templates.md), [multicluster services](../labs/multicluster-services.md), and the [prerequisite record](../../../../docs/curriculum-v2/migration/PREREQUISITES.md).

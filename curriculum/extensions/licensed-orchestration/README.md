@@ -6,6 +6,6 @@ Optional source material, preserved whole. Run:AI requires the documented licens
 |---|---|
 | 5.4 | [Lab 5.4 - NVIDIA Run:ai GPU Orchestration](labs/runai-gpu-orchestration.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [prerequisite record](../../migration/PREREQUISITES.md) for historical label mismatches.
+Review each lab’s entry state, compatibility and cleanup before execution. See the [prerequisite record](../../../docs/curriculum-v2/migration/PREREQUISITES.md) for historical label mismatches.
 
-[Extensions](../README.md) · [Core learning path](../../learning-paths/core.md) · [Original course](../../references/original-course.md)
+[Extensions](../README.md) · [Core learning path](../../README.md) · [Original course](../../../docs/archive/curriculum/original-course.md)

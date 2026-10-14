@@ -10,6 +10,6 @@ Optional source material, preserved whole. Jupyter, vector databases, Kubeflow a
 | 5.9 | [Lab 5.9 - Kubeflow ML Platform](labs/kubeflow-ml-platform.md) |
 | Reference | [5.5 ML Platform Architecture](theory/ml-platforms.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [prerequisite record](../../migration/PREREQUISITES.md) for historical label mismatches.
+Review each lab’s entry state, compatibility and cleanup before execution. See the [prerequisite record](../../../docs/curriculum-v2/migration/PREREQUISITES.md) for historical label mismatches.
 
-[Extensions](../README.md) · [Core learning path](../../learning-paths/core.md) · [Original course](../../references/original-course.md)
+[Extensions](../README.md) · [Core learning path](../../README.md) · [Original course](../../../docs/archive/curriculum/original-course.md)

@@ -1,5 +1,8 @@
 # Lab 1.2: Explore k0rdent UI and Configuration
 
+> **Course step 2 of 21.** [Previous step](provision-k0rdent.md) · [Course checklist](../../../README.md) · [Next step](configure-aws-provider.md). Follow this sequence when older lab-number references differ.
+
+
 **Duration:** 2.5-hour session: ~75 minutes of core exercises, with the remaining time for configuration analysis and production-design discussion.
 **Type:** Hands-on Lab
 

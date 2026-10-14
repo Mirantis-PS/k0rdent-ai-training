@@ -10,6 +10,15 @@ ROOT = Path(__file__).resolve().parents[1]
 index = json.loads((ROOT / "docs/curriculum-v2/p2-index.json").read_text())
 errors = []
 required = ["Prerequisites and input state", "Objectives and problem", "Concept capsule", "Hypothesis", "Procedure and checkpoints", "Interpretation", "Bounded incident or tradeoff", "Declarative delivery", "Restoration and cleanup", "Evidence and acceptance", "Provenance and instructor route"]
+# One learner route; historical guides belong outside the curriculum.
+tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0")
+for filename in tracked:
+    if re.match(r"curriculum/(?:week-[^/]+|learning-paths|migration)/", filename):
+        errors.append(f"Obsolete learner navigation path: {filename}")
+course = (ROOT / "curriculum/README.md").read_text()
+for lab in index["labs"]:
+    if lab["path"].removeprefix("curriculum/") not in course:
+        errors.append(f"Course guide does not link {lab['id']}")
 ids = [lab["id"] for lab in index["labs"]]
 if len(ids) != 9 or len(set(ids)) != 9:
     errors.append("Expected nine unique lab IDs")

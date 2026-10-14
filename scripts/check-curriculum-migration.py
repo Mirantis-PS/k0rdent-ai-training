@@ -70,7 +70,7 @@ def code_blocks(text):
 
 
 def main():
-    inventory = json.loads((ROOT/'curriculum/migration/source-inventory.json').read_text())
+    inventory = json.loads((ROOT/'docs/curriculum-v2/migration/source-inventory.json').read_text())
     rows, errors = inventory['files'], []
     baseline = inventory['source_commit']
     original = set(git('ls-tree', '-r', '--name-only', '-z', baseline).decode().split('\0')) - {''}
@@ -88,12 +88,12 @@ def main():
         src, dst = row['source_path'], row['destination_path']
         try:
             old = git('show', f'{baseline}:{src}')
-            moved = git('show', f"{row['relocation_commit']}:{dst}")
+            moved = git('show', f"{row['relocation_commit']}:{row.get('relocation_path', dst)}")
             current = (ROOT/dst).read_bytes()
             if sha(old) != row['source_digest'] or moved != old:
                 errors.append(f'{dst}: source/relocation digest mismatch')
             if sha(current) != row['current_digest']:
-                errors.append(f'{dst}: differs from reviewed P1 digest')
+                errors.append(f'{dst}: differs from reviewed destination digest')
             if src.endswith('.md') and src != 'scripts/README.md':
                 # Runtime snippets must be identical except explicit repository-path repairs.
                 expected = old.decode()

@@ -1,5 +1,8 @@
 # AI-LAB-04 — Two-worker proof
 
+> **Course step 16 of 21.** [Previous step](../../gpu-allocation/labs/two-team-queue.md) · [Course checklist](../../../README.md) · [Next step](../../inference-and-data/labs/storage-cache.md). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** two real single-GPU workers; cross-node proof uses two nodes. **Guidance:** medium; fixed fixture, learner explains transport.
 
 ## Prerequisites and input state
@@ -65,4 +68,4 @@ Both rank logs, actual node/device allocation, collective values, parameter agre
 
 Derived from [Lab 5.16](distributed-training.md), [Lab 5.15](rdma-multi-cloud.md) and [training theory](../theory/distributed-training.md). The miniature fixture deliberately reduces dependencies while retaining real NCCL and training. See [primary API sources](../../../references/pedagogy/sources.md).
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-04)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-04)

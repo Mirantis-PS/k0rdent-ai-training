@@ -998,4 +998,4 @@ After completing this lab, you can proceed to:
 - [Lab 5.13 - TensorRT-LLM Optimization](../../../extensions/advanced-inference/labs/tensorrt-llm.md) - Advanced inference
 
 **Or return to:**
-- [Week 5 Overview](../../../references/source-guides/week-5-ai-workloads/README.md) - See all available labs
+- [Week 5 Overview](../../../../docs/archive/curriculum/source-guides/ai-workloads/README.md) - See all available labs

@@ -1,5 +1,8 @@
 # Lab 5.2 - Service Catalog Blueprints
 
+> **Course step 11 of 21.** [Previous step](../../gpu-systems/labs/gpu-cluster-setup.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-allocation/labs/kai-scheduler.md). Follow this sequence when older lab-number references differ.
+
+
 ---
 
 ## Lab Navigation

@@ -1,8 +1,11 @@
 # Lab 1.9 — Kubernetes API Audit Logging
 
+> **Course step 9 of 21.** [Previous step](upgrade-k0rdent.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-systems/labs/gpu-cluster-setup.md). Follow this sequence when older lab-number references differ.
+
+
 **Track:** Foundations / Production · **Tier:** Recommended · **Duration:** 1.5 hours
 
-[Previous: Lab 1.8](upgrade-k0rdent.md) · [Week 1](../../../references/source-guides/week-1-foundations/README.md)
+[Previous: Lab 1.8](upgrade-k0rdent.md) · [Week 1](../../../../docs/archive/curriculum/source-guides/foundations/README.md)
 
 ## Objective and prerequisites
 

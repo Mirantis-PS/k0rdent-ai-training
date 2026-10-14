@@ -1,5 +1,8 @@
 # Lab 5.3 - KAI Scheduler (Open-Source GPU Scheduling)
 
+> **Course step 12 of 21.** [Previous step](../../ai-service-delivery/labs/service-catalog.md) · [Course checklist](../../../README.md) · [Next step](../../platform-bootstrap/labs/first-private-response.md). Follow this sequence when older lab-number references differ.
+
+
 ---
 
 ## Lab Navigation

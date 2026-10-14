@@ -8,7 +8,7 @@ Updated 2026-10-14. **P0/P1 complete; P2 educational draft complete and static-c
 - Source branch: chore/remove-tooling-references
 - Source SHA: 05b142690db65b79b0a48339568bc5d9df7c8269
 - P1 branch retained: refactor/curriculum-v2-structure
-- Current work branch: codex/curriculum-v2-pedagogy
+- Current work branch: curriculum-v2-pedagogy (renamed at owner request; old remote name removed)
 - P2 base SHA: 314353e3010c6811e3811eea2ceff53a8b49d188
 - P2 content commit: f2fafb3 (43 files; seven lessons, nine labs, instructor materials, evidence and coverage)
 - Source working tree: clean; no pre-existing tracked/untracked edits. Ignored local notes, credential/config files, QA material and other worktrees preserved.
@@ -18,7 +18,7 @@ Updated 2026-10-14. **P0/P1 complete; P2 educational draft complete and static-c
 - Navigation/coverage commit: 1be482b01491c03c04020a1c66df5733523c2374
 - P1 final reporting commit: 314353e3010c6811e3811eea2ceff53a8b49d188
 - P2 evidence/reporting commit: the commit containing this update; resolve with git log -1 -- docs/curriculum-v2/STATUS.md.
-- Push / PR / merge: none.
+- Publishing: branch pushed at owner request; no PR or merge. Earlier milestone entries retain their historical publishing state.
 - Cloud resources provisioned or changed: none. Existing remote resources were not inspected.
 - Labs executed: none; local static checks and example unit tests only.
 - Product k0rdent AI sources: still awaited from owner.
@@ -27,9 +27,9 @@ Updated 2026-10-14. **P0/P1 complete; P2 educational draft complete and static-c
 
 | Phase | Scope | Authorization | Actual state | Evidence |
 |---|---|---|---|---|
-| P0 | Baseline and source inventory | Authorized | Complete | [144-file inventory](../../curriculum/migration/source-inventory.json), [42-lab contracts](../../curriculum/migration/lab-contract-inventory.json), [prerequisites](../../curriculum/migration/PREREQUISITES.md) |
-| P1 | Conservative reorganization | Authorized | Complete; static-checked | [Validation report](../../curriculum/migration/VALIDATION.md), [learning path](../../curriculum/learning-paths/core.md), four milestone commits above and final reporting commit |
-| P2 | Full pedagogical enrichment | Explicitly authorized by owner; local commits only | Educational draft complete; static-checked; not runtime-validated | [Learner path](../../curriculum/learning-paths/pedagogical-v2.md), [40-row teaching trace](P2-COVERAGE.md), [validation and blockers](P2-VALIDATION.md) |
+| P0 | Baseline and source inventory | Authorized | Complete | [144-file inventory](migration/source-inventory.json), [42-lab contracts](migration/lab-contract-inventory.json), [prerequisites](migration/PREREQUISITES.md) |
+| P1 | Conservative reorganization | Authorized | Complete; static-checked | [Validation report](migration/VALIDATION.md), [learning path](../../curriculum/README.md), four milestone commits above and final reporting commit |
+| P2 | Full pedagogical enrichment | Explicitly authorized by owner; local commits only | Educational draft complete; static-checked; not runtime-validated | [Learner path](../../curriculum/README.md), [40-row teaching trace](P2-COVERAGE.md), [validation and blockers](P2-VALIDATION.md) |
 | P3 | Product integration | Authorization and authoritative sources required | Source-dependent work blocked | Distribution/version, native/integrated/optional boundaries and interfaces remain unsourced |
 | P4 | Affordable GPU qualification | Authorization, hardware access and budget required | Live work blocked | GPU-1/GPU-2 candidates and test obligations retained; current four-GPU source baseline unchanged |
 | P5 | Independent pilot/review | Authorization and independent learner required | Pending | New capstone, measured active time/cost and independent reproduction remain required |
@@ -38,13 +38,13 @@ Updated 2026-10-14. **P0/P1 complete; P2 educational draft complete and static-c
 
 Keep the course centered on k0rdent/k0rdent AI, preserve all source material, organize by competency, retain English learning material and aim for majority active learning. Current module folders do not alter lab lifecycle. The source management upgrade and KAI version transition remain in order. No mandatory BMaaS → VMaaS → KaaS chain is added.
 
-P1 preserves historical labels and claims inside source bodies, with path and heading-link repairs only. Original schedules and broader capstone are source references, not new course promises. The learning path records older prerequisite-label conflicts and the audit-before-teardown rule. Scope and rationale are in [PREREQUISITES.md](../../curriculum/migration/PREREQUISITES.md).
+P1 preserves historical labels and claims inside source bodies, with path and heading-link repairs only. Original schedules and broader capstone are source references, not new course promises. The learning path records older prerequisite-label conflicts and the audit-before-teardown rule. Scope and rationale are in [PREREQUISITES.md](migration/PREREQUISITES.md).
 
 Open for later phases: active study-hour budget; GPU spending ceiling, regions/quotas/concurrency; exact k0rdent AI distribution/docs; supported model/runtime/dtype; specialized hardware access; certification modality and pilot learner. None prevented the completed structural work. Current operational compatibility, external web links, remote CI and live GPU behavior have not been revalidated.
 
 ## Next action
 
-Owner review of the P2 educational draft. P3 requires target k0rdent AI distribution/version and authoritative sources; P4 requires authorized hardware/budget and runtime qualification; P5 requires an independent learner. Publishing, paid execution and merging remain unrequested. A proposed PR description is saved locally at [PR-DESCRIPTION.md](../../curriculum/migration/PR-DESCRIPTION.md); no PR was opened.
+Owner review of the P2 educational draft. P3 requires target k0rdent AI distribution/version and authoritative sources; P4 requires authorized hardware/budget and runtime qualification; P5 requires an independent learner. Publishing, paid execution and merging remain unrequested. A proposed PR description is saved locally at [PR-DESCRIPTION.md](migration/PR-DESCRIPTION.md); no PR was opened.
 
 ## Historical milestone log
 
@@ -54,13 +54,13 @@ The entries below describe status at each milestone, not the current phase table
 
 Owner explicitly authorized P0/P1 and local commits only. Actual checkout: /Users/moustaphagueye/k0rdent-ai-training. Source SHA: 05b142690db65b79b0a48339568bc5d9df7c8269; clean tracked/untracked working tree on chore/remove-tooling-references. Created refactor/curriculum-v2-structure without replacing a branch. Origin matches Mirantis-PS; no fetch required. Ignored local files and other worktrees retained. No prior repository AGENTS file; inherited parent file contains only empty memory context. Installed the supplied section as AGENTS.md.
 
-P0 complete: 144-file digest inventory, 42-lab contract inventory, 28/28 historical labs located, prerequisite/lifecycle record and passing baseline curriculum/Mermaid checks under curriculum/migration/. P1 pending. P2–P5 unchanged. No runtime, cloud, push, PR or merge actions.
+P0 complete: 144-file digest inventory, 42-lab contract inventory, 28/28 historical labs located, prerequisite/lifecycle record and passing baseline curriculum/Mermaid checks under docs/curriculum-v2/migration/. P1 pending. P2–P5 unchanged. No runtime, cloud, push, PR or merge actions.
 
 Decision: work on the requested branch in the clean checkout. Preserve numbered labels inside source bodies as provenance; change canonical paths and navigation only.
 
 ### P1 relocation and path repair
 
-P0 commit: 7df48c77ce41749e8979317ee1ccb529701d87d8. Pure relocation commit: 34aa897055b8ec1bd78383fd80a5ca95eb284612; 64 renames, 100% similarity, zero inserted/deleted lines. All 144 destination digests matched baseline before commit. Repaired local links/images, inline source paths and repository paths independently. The relocated-source checker passes (87 checked paths, zero errors); diff whitespace passes. Historical entry-point stubs and original-course index retain discoverability. Module navigation and final validation remain in progress. Existing source prerequisites and compatibility discrepancies are recorded in curriculum/migration/PREREQUISITES.md.
+P0 commit: 7df48c77ce41749e8979317ee1ccb529701d87d8. Pure relocation commit: 34aa897055b8ec1bd78383fd80a5ca95eb284612; 64 renames, 100% similarity, zero inserted/deleted lines. All 144 destination digests matched baseline before commit. Repaired local links/images, inline source paths and repository paths independently. The relocated-source checker passes (87 checked paths, zero errors); diff whitespace passes. Historical entry-point stubs and original-course index retain discoverability. Module navigation and final validation remain in progress. Existing source prerequisites and compatibility discrepancies are recorded in docs/curriculum-v2/migration/PREREQUISITES.md.
 
 ### P1 navigation milestone
 
@@ -73,3 +73,11 @@ Checks passed: 144 preserved sources; 1,569 unchanged source code fences apart f
 Owner explicitly authorized course enrichment, preservation and local commits, with no push or PR. Created codex/curriculum-v2-pedagogy from the clean P1 result. Added seven concept lessons, eight progressive workshops and one independent capstone, separate instructor solutions, nine bounded faults, rubric, session/result templates, primary source ledger and all 40 introduction/practice/revisit mappings. New NCCL/DDP fixture is a GPU-only candidate; CPU tests check its input guards only. Original source bodies, operational infrastructure and existing examples remain unchanged.
 
 Static preservation, links/code syntax, 55 Mermaid diagrams, five new guard tests and 14 existing tests pass; details and exact gates are in P2-VALIDATION.md. Product-native ownership/interfaces, affordable GPU-1 qualification, real GPU-2 execution, specialized hardware and independent pilot remain unproven. No cloud or GPU operation, push or PR occurred.
+
+### Learner navigation cleanup — 2026-10-14
+
+Owner requested removal of week folders and a clear README-to-execution route. Consolidated the two learning paths into curriculum/README.md with preparation, exact platform order, runtime readiness, AI workshop sequence, evidence and cleanup. Root README now points directly there. Removed six week redirect READMEs and two redundant navigation stubs; archived the old paths and source syllabi under docs/archive/curriculum with semantic directory names. Moved migration evidence to docs/curriculum-v2/migration and the authoring product reference outside the learner curriculum. Rebased links and source inventory while retaining the original relocation path/digest evidence. Source lab procedures and runtime pins are unchanged.
+
+Ignored local week-directory notes were moved intact under .git/local-course-notes-* rather than deleted or published. No week directories remain in the working curriculum. Navigation is ready to follow; the GPU/product execution blockers above remain real and are visible before provisioning. No live qualification was performed.
+
+The 21 selected platform/GPU/workshop documents now carry previous/checklist/next links. Local checks pass: 144 original sources and 1,569 executable fences preserved, all tracked local links/anchors valid, 55 Mermaid diagrams, 125 curriculum files and 18 archive/instructor/navigation files checked, and 9 lab/40 coverage contracts. New navigation checks reject tracked week/learning-path/migration folders under curriculum and require all nine workshops in the course guide. Operational scripts, Terraform, workflows and example code have no changes.

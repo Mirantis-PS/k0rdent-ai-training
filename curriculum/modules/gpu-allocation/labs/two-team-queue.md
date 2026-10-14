@@ -1,5 +1,8 @@
 # AI-LAB-03 — Two teams and a queue
 
+> **Course step 15 of 21.** [Previous step](../../gpu-systems/labs/memory-concurrency.md) · [Course checklist](../../../README.md) · [Next step](../../distributed-ai/labs/two-worker-proof.md). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 serial baseline; GPU-2 for concurrent whole-device proof. **Guidance:** medium; source steps and diagnostic choices.
 
 ## Prerequisites and input state
@@ -51,4 +54,4 @@ Timeline for both jobs, queue/placement diagnosis, sharing comparison, DRA diagr
 
 Derived from [Lab 5.3](kai-scheduler.md), [Lab 5.19](mig-partitioning.md), [Lab 5.1 Tasks 2–6](../../gpu-systems/labs/gpu-cluster-setup.md) and the preserved [licensed orchestration elective](../../../extensions/licensed-orchestration/labs/runai-gpu-orchestration.md).
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-03)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-03)

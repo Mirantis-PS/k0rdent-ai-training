@@ -1,5 +1,8 @@
 # AI-LAB-02 — Memory and concurrency
 
+> **Course step 14 of 21.** [Previous step](../../platform-bootstrap/labs/first-private-response.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-allocation/labs/two-team-queue.md). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate. **Guidance:** high; bounded matrix.
 
 ## Prerequisites and input state
@@ -50,4 +53,4 @@ Budget with bytes/GiB, compatibility table, topology/device chain, raw results f
 
 Derived from [Lab 5.5 memory background/benchmarking](../../inference-and-data/labs/vllm-inference.md), [GPU setup](gpu-cluster-setup.md), [topology](topograph-nvlink-topology.md) and the supplied [workshop design](../../../../docs/curriculum-v2/reference/exemple-atelier-memoire-inference.md).
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-02)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-02)

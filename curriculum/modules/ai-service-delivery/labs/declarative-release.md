@@ -1,5 +1,8 @@
 # AI-LAB-07 — Declarative release and rollback
 
+> **Course step 19 of 21.** [Previous step](../../inference-and-data/labs/performance-decision.md) · [Course checklist](../../../README.md) · [Next step](../../operations/labs/diagnose-restore.md). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** CPU review; GPU-1 candidate for service proof. **Guidance:** low; choose and justify a delivery route.
 
 ## Prerequisites and input state
@@ -51,4 +54,4 @@ Release folder, actual schema/source references, before/after/rollback observati
 
 Derived from [Lab 5.2](service-catalog.md), [Lab 5.12](cluster-templates.md), [Lab 1.7](multicluster-services.md), [upgrade](../../operations/labs/upgrade-k0rdent.md) and [audit](../../operations/labs/api-audit-logging.md).
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-07)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-07)

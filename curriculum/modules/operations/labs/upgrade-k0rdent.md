@@ -1,5 +1,8 @@
 # Lab 1.8: Upgrade k0rdent Enterprise
 
+> **Course step 8 of 21.** [Previous step](../../ai-service-delivery/labs/multicluster-services.md) · [Course checklist](../../../README.md) · [Next step](api-audit-logging.md). Follow this sequence when older lab-number references differ.
+
+
 **Duration:** 1.5 hours (active: ~45min, waiting on upgrade rollout + end-of-week teardown: ~45min)
 **Type:** Hands-on Lab
 
@@ -761,4 +764,4 @@ You now have a solid foundation in k0rdent Enterprise for managing multi-cluster
 
 Continue to [Lab 1.9: Kubernetes API Audit Logging](api-audit-logging.md) before teardown, then complete the [Week 1 Quiz](../../../references/assessments/foundations-quiz.md).
 
-Then proceed to [Week 2: Bare Metal as a Service](../../../references/source-guides/week-2-bmaas/README.md) to learn how to manage bare metal infrastructure with k0rdent.
+Then proceed to [Week 2: Bare Metal as a Service](../../../../docs/archive/curriculum/source-guides/bare-metal/README.md) to learn how to manage bare metal infrastructure with k0rdent.

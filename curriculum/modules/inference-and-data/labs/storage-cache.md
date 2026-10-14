@@ -1,5 +1,8 @@
 # AI-LAB-05 — Storage and cache are different experiments
 
+> **Course step 17 of 21.** [Previous step](../../distributed-ai/labs/two-worker-proof.md) · [Course checklist](../../../README.md) · [Next step](performance-decision.md). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate; storage analysis on CPU. **Guidance:** medium-low; learner chooses controls.
 
 ## Prerequisites and input state
@@ -50,4 +53,4 @@ Four-path table, cold/warm definitions and timelines, prefix comparison with exa
 
 Derived from [Lab 5.5](vllm-inference.md), [Lab 5.16 checkpoint tasks](../../distributed-ai/labs/distributed-training.md) and [ML platform sources](../../../extensions/ml-platforms/README.md).
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-05)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-05)

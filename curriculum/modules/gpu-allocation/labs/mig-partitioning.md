@@ -20,7 +20,7 @@
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Lab 5.18 — topograph / NVLink Topology](../../gpu-systems/labs/topograph-nvlink-topology.md) | **Lab 5.19 — MIG Partitioning** | [Week 6 — Multi-Tenancy](../../../references/original-course.md#week-6-multitenancy) |
+| [Lab 5.18 — topograph / NVLink Topology](../../gpu-systems/labs/topograph-nvlink-topology.md) | **Lab 5.19 — MIG Partitioning** | [Week 6 — Multi-Tenancy](../../../../docs/archive/curriculum/original-course.md#week-6-multitenancy) |
 
 ---
 
@@ -1335,5 +1335,5 @@ you can now answer for a customer:
 | Memory-enforced fractions without MIG-capable hardware | Run:ai (Lab 5.4) |
 | Attribute-based selection, mixed fleets | DRA (Lab 4.9 + Task 6 here) |
 
-**Recommended next:** [Week 6 — Multi-Tenancy](../../../references/original-course.md#week-6-multitenancy), where
+**Recommended next:** [Week 6 — Multi-Tenancy](../../../../docs/archive/curriculum/original-course.md#week-6-multitenancy), where
 partitioned GPUs become the substrate for tenant quotas and RBAC.

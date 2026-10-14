@@ -1,5 +1,8 @@
 # Lab 1.4: Production Configuration and RBAC
 
+> **Course step 4 of 21.** [Previous step](../../platform-bootstrap/labs/configure-aws-provider.md) · [Course checklist](../../../README.md) · [Next step](../../platform-bootstrap/labs/provision-managed-cluster.md). Follow this sequence when older lab-number references differ.
+
+
 **Duration:** 3.5 hours
 **Type:** Hands-on Lab
 

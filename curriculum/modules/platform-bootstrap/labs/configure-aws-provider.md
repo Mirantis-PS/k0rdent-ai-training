@@ -1,5 +1,8 @@
 # Lab 1.3: Configure AWS Infrastructure Provider
 
+> **Course step 3 of 21.** [Previous step](explore-k0rdent-ui.md) · [Course checklist](../../../README.md) · [Next step](../../operations/labs/production-configuration.md). Follow this sequence when older lab-number references differ.
+
+
 **Duration:** ~1 hour active work (keep a small buffer for credential troubleshooting)
 **Type:** Hands-on Lab
 

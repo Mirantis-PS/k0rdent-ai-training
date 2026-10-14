@@ -1,34 +1,37 @@
 # k0rdent AI Infrastructure Training
 
-**P2 educational draft available:** [guided learner path](curriculum/learning-paths/pedagogical-v2.md), with new labs, concept lessons and separate instructor guidance. Product-source integration, GPU execution and independent pilot remain gated.
+Learn to provision a k0rdent environment, serve a model privately, manage GPU capacity, measure performance and recover a service. The course is for engineers comfortable with Kubernetes and Linux.
 
-A hands-on curriculum for infrastructure engineers learning to deploy, understand and operate AI services with k0rdent. The material is organized into competency domains, with a separate learning path that preserves lab prerequisites and resource lifecycle.
+## Start here
 
-**Start with the [learning path](curriculum/learning-paths/core.md)** after reviewing the [infrastructure prerequisites](curriculum/overview/prerequisites.md). Browse the [eight curriculum domains](curriculum/README.md) or [optional extensions](curriculum/extensions/README.md).
+1. **Get the course.** Clone your own fork/copy with the curriculum-v2-pedagogy branch, or use this checkout for reading:
 
-## Current scope
+   ```bash
+   git clone --branch curriculum-v2-pedagogy https://github.com/Mirantis-PS/k0rdent-ai-training.git
+   cd k0rdent-ai-training
+   ```
 
-This branch adds the P2 educational draft on top of completed P0/P1 preservation and reorganization: seven concept lessons, nine learner labs including a new capstone, instructor solutions, a fault bank and assessment evidence. Existing lab bodies and known-good settings are retained. Authoritative k0rdent AI product integration, affordable GPU qualification and an independent pilot remain P3–P5; no live execution is claimed.
+2. **Prepare your workstation and account.** Open the [course guide — prepare](curriculum/README.md#prepare). It lists tools, access and the environment you need before provisioning.
+3. **Start the first lab.** Follow [Provision the management cluster](curriculum/modules/platform-bootstrap/labs/provision-k0rdent.md), then return to the [ordered course guide](curriculum/README.md#build-the-platform) for the next step.
+4. **Continue through the AI workshops.** The same guide gives the [GPU entry checks and workshop sequence](curriculum/README.md#run-the-ai-workshops), what to retain between labs, and [how to finish or pause](curriculum/README.md#finish-or-pause).
 
-The preserved GPU baseline uses one four-GPU worker; a cheaper one-GPU variant is not yet qualified. Follow each lab’s compatibility, access and cleanup requirements. Course duration and active-learning percentage will be measured during the pilot.
+**Use the course guide as your checklist.** You do not need to read every folder or follow the historical lab numbering. Bare metal, virtualization and other specializations are optional.
 
-## Find material
+## What you can run
 
-- [Curriculum modules](curriculum/README.md) and [core learning path](curriculum/learning-paths/core.md)
-- [Original course index](curriculum/references/original-course.md), including all 42 historical labs
-- [Original root guide](curriculum/references/source-guides/original-root.md), preserving its full syllabus and reference information
-- [Infrastructure scripts and Terraform](lab-infrastructure/README.md)
-- [Troubleshooting reference](lab-infrastructure/docs/troubleshooting.md)
-- [Migration evidence](curriculum/migration/README.md), [coverage matrix](docs/curriculum-v2/COVERAGE-MATRIX.md), and [execution status](docs/curriculum-v2/STATUS.md)
+The platform labs contain the existing AWS provisioning procedures. Running them requires your own authorized AWS environment and incurs infrastructure costs; there is no hosted lab portal.
 
-## Repository layout
+The AI workshops are an educational draft with explicit execution prerequisites. The existing GPU baseline uses a four-A10G worker. A cheaper single-GPU profile and the two-worker exercise have not been qualified for this revision. Product-specific k0rdent AI integration still needs authoritative distribution/version sources. Use the [readiness table](curriculum/README.md#check-runtime-readiness) before allocating GPUs; a documented procedure is not a claim that this revision has been live-tested.
 
-- curriculum/modules/: eight competency domains
-- curriculum/learning-paths/: prerequisite-aware navigation
-- curriculum/extensions/: optional preserved specializations
-- curriculum/references/: historical source guides and assessments
-- curriculum/migration/: inventory, provenance and validation evidence
-- lab-infrastructure/: existing operational scripts and Terraform
-- docs/curriculum-v2/: specification, backlog and execution record
+## Where to go
 
-Historical week entry points redirect to the preserved guides and current navigation. Each lab has one canonical body.
+| You need to… | Open |
+|---|---|
+| Take or resume the course | [Course guide](curriculum/README.md) |
+| Teach or assess it | [Instructor guide](curriculum/instructor/README.md) |
+| Choose an optional specialization | [Extensions](curriculum/extensions/README.md) |
+| Look up infrastructure commands | [Infrastructure reference](lab-infrastructure/README.md) |
+| Diagnose provisioning problems | [Troubleshooting](lab-infrastructure/docs/troubleshooting.md) |
+| Maintain the course or inspect its history | [Maintainer guide](docs/README.md) |
+
+The curriculum contains learning material and exercise assets. Historical syllabi and migration records live under docs; they are not additional learner steps.

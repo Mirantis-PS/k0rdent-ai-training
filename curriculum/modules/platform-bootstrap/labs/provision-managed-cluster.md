@@ -1,5 +1,8 @@
 # Lab 1.5: Provision Your First Managed Cluster
 
+> **Course step 5 of 21.** [Previous step](../../operations/labs/production-configuration.md) · [Course checklist](../../../README.md) · [Next step](../../operations/labs/deploy-kof.md). Follow this sequence when older lab-number references differ.
+
+
 **Duration:** 2.5 hours (~1 hour active + ~30-40 min unattended provisioning wait; the remainder is buffer and the optional Azure path)
 **Type:** Hands-on Lab
 

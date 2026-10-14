@@ -1,5 +1,8 @@
 # Lab 1.6: Deploy k0rdent Observability & FinOps (KOF)
 
+> **Course step 6 of 21.** [Previous step](../../platform-bootstrap/labs/provision-managed-cluster.md) · [Course checklist](../../../README.md) · [Next step](../../ai-service-delivery/labs/multicluster-services.md). Follow this sequence when older lab-number references differ.
+
+
 **Duration:** Full path ~3.5-4 hours / Core path ~2.5 hours (roughly 1h of that is waiting for Helm installs)
 **Type:** Hands-on Lab
 

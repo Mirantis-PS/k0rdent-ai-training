@@ -1,5 +1,8 @@
 # AI-LAB-08 — Diagnose and restore
 
+> **Course step 20 of 21.** [Previous step](../../ai-service-delivery/labs/declarative-release.md) · [Course checklist](../../../README.md) · [Next step](../../capstone/labs/customer-handover.md). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate; supplied evidence analysis if unavailable. **Guidance:** low; symptom and boundaries only.
 
 ## Prerequisites and input state
@@ -50,4 +53,4 @@ Incident timeline, competing hypotheses, distinguishing observations, minimal fi
 
 Derived from [Lab 5.6](troubleshooting-gpu.md), [break/fix API](breakfix-api.md), [KOF](deploy-kof.md), [telemetry](otel-telemetry-export.md) and [audit](api-audit-logging.md).
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-08)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-08)

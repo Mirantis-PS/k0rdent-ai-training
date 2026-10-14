@@ -1,5 +1,8 @@
 # AI-LAB-01 — First private response
 
+> **Course step 13 of 21.** [Previous step](../../gpu-allocation/labs/kai-scheduler.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-systems/labs/memory-concurrency.md). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate; CPU analysis only. **Guidance:** high; command scaffold.
 
 ## Prerequisites and input state
@@ -72,4 +75,4 @@ Accept the reasoning exercise independently. Runtime acceptance additionally req
 
 Derived from [Lab 1.1](provision-k0rdent.md), [Lab 1.5](provision-managed-cluster.md), [Lab 5.1](../../gpu-systems/labs/gpu-cluster-setup.md), [Lab 5.2](../../ai-service-delivery/labs/service-catalog.md) and [Lab 5.5 Tasks 1–4](../../inference-and-data/labs/vllm-inference.md). Original provisioning and serving bodies remain intact.
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-01)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-01)

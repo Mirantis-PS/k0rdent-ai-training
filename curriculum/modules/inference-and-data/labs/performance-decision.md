@@ -1,5 +1,8 @@
 # AI-LAB-06 — A measured performance decision
 
+> **Course step 18 of 21.** [Previous step](storage-cache.md) · [Course checklist](../../../README.md) · [Next step](../../ai-service-delivery/labs/declarative-release.md). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate; GPU-2 comparison reuses AI-LAB-04. **Guidance:** low; protocol scaffold, independent conclusion.
 
 ## Prerequisites and input state
@@ -59,4 +62,4 @@ Raw results, repeat table/plot, workload/SLO, errors, measured versus estimated 
 
 Derived from [Lab 5.5 benchmarking](vllm-inference.md), [KOF](../../operations/labs/deploy-kof.md), [telemetry](../../operations/labs/otel-telemetry-export.md), and [vLLM0.14.0 CLI](https://docs.vllm.ai/en/v0.14.0/cli/bench/serve/).
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-06)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-06)

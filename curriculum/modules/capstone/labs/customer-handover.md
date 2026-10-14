@@ -1,5 +1,8 @@
 # AI-CAP-01 — Customer handover under changed demand
 
+> **Course step 21 of 21.** [Previous step](../../operations/labs/diagnose-restore.md) · [Course checklist](../../../README.md) · [Finish or pause](../../../README.md#finish-or-pause). Follow this sequence when older lab-number references differ.
+
+
 **Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate plus required linked GPU-2 proof. **Guidance:** independent; no command recipe.
 
 ## Prerequisites and input state
@@ -52,4 +55,4 @@ Score reasoning and actual execution separately. Full runtime completion needs p
 
 New capstone derived from the continuous customer scenario and [legacy capstone](capstone.md), with all original broader-program material retained. This AI-specific assessment does not replace specialized endorsements.
 
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../learning-paths/pedagogical-v2.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-cap-01)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-cap-01)

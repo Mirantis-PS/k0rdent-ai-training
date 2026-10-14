@@ -1,5 +1,8 @@
 # Lab 5.1 - GPU Cluster Setup
 
+> **Course step 10 of 21.** [Previous step](../../operations/labs/api-audit-logging.md) · [Course checklist](../../../README.md) · [Next step](../../ai-service-delivery/labs/service-catalog.md). Follow this sequence when older lab-number references differ.
+
+
 ---
 
 ## Lab Navigation
@@ -20,7 +23,7 @@ YOU ARE HERE                                              Advanced (5.13-5.16)
 
 | Previous | Current | Next |
 |----------|---------|------|
-| [Week 5 Overview](../../../references/source-guides/week-5-ai-workloads/README.md) | **Lab 5.1 - GPU Cluster Setup** | [Lab 5.2 - Service Catalog](../../ai-service-delivery/labs/service-catalog.md) |
+| [Week 5 Overview](../../../../docs/archive/curriculum/source-guides/ai-workloads/README.md) | **Lab 5.1 - GPU Cluster Setup** | [Lab 5.2 - Service Catalog](../../ai-service-delivery/labs/service-catalog.md) |
 
 ---
 

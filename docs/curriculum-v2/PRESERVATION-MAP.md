@@ -1,6 +1,6 @@
 # Source preservation and candidate mapping
 
-**Historical map reconciled against source 05b142690db65b79b0a48339568bc5d9df7c8269: all 28 IDs located.** The complete 144-file inventory is in curriculum/migration/source-inventory.json. These 28 historical lab identifiers come from the earlier design. Verify actual source paths, titles, existence and additional files at the chosen SHA. All files are to be preserved, even when not listed here. Resolve mismatches explicitly rather than silently manufacturing or dropping labs.
+**Historical map reconciled against source 05b142690db65b79b0a48339568bc5d9df7c8269: all 28 IDs located.** The complete 144-file inventory is in docs/curriculum-v2/migration/source-inventory.json. These 28 historical lab identifiers come from the earlier design. Verify actual source paths, titles, existence and additional files at the chosen SHA. All files are to be preserved, even when not listed here. Resolve mismatches explicitly rather than silently manufacturing or dropping labs.
 
 ## P1: preserve each lab whole
 

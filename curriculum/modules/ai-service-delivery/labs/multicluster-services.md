@@ -1,5 +1,8 @@
 # Lab 1.7: Multi-Cluster Service Deployment
 
+> **Course step 7 of 21.** [Previous step](../../operations/labs/deploy-kof.md) · [Course checklist](../../../README.md) · [Next step](../../operations/labs/upgrade-k0rdent.md). Follow this sequence when older lab-number references differ.
+
+
 **Duration:** 2 hours · **Type:** Hands-on lab
 
 ## Objectives and prerequisites

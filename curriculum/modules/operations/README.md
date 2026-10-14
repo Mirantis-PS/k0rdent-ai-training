@@ -1,14 +1,16 @@
 # Operations
 
-Retain security, KOF, upgrade, audit, troubleshooting, telemetry and fleet operations.
+Follow the [course guide](../../README.md) for execution order, prerequisites and cleanup. Use this page to find material by topic.
 
-**P1 status:** source material relocated and navigation added. Lab procedures and their historical validation statements are retained; no live execution is claimed for this revision.
+## Workshops
 
-## Entry state and lifecycle
+- [AI-LAB-08 — Diagnose and restore](labs/diagnose-restore.md)
 
-Foundation operations labs are early dependencies, not an end-of-course block. Preserve the child until audit acceptance; use receiver and hardware gates for electives. Use the [core learning path](../../learning-paths/core.md) and [prerequisite record](../../migration/PREREQUISITES.md); directory order does not define execution order.
+- [Concept lesson](lessons/evidence-led-operations.md)
 
-## Preserved material
+## Supporting labs and references
+
+These source labs supply the detailed procedures used by the course. Keep their hardware/version gates; the workshop links explain which parts to use. Historical IDs are reference labels.
 
 | Historical ID | Canonical document |
 |---|---|
@@ -22,10 +24,5 @@ Foundation operations labs are early dependencies, not an end-of-course block. P
 | 6.3 | [Lab 6.3 — Capacity & Fleet Management APIs](labs/capacity-fleet-apis.md) |
 | 6.4 | [Lab 6.4 — Data Sanitization + At-Rest Encryption](labs/sanitization-at-rest-crypto.md) |
 
-## P2 educational draft
 
-- [AI-LAB-08 — Diagnose and restore](labs/diagnose-restore.md)
-
-Use the [P2 learner path](../../learning-paths/pedagogical-v2.md) for the new sequence, concept capsules and evidence contract. Original source bodies above are preserved. P3 product sources, P4 GPU qualification and P5 independent pilot remain pending; these additions do not claim runtime validation.
-
-[All modules](../../README.md) · [Original course index](../../references/original-course.md)
+[All topics](../README.md) · [Optional extensions](../../extensions/README.md)

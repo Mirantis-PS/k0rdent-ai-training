@@ -11,4 +11,4 @@ Choose extensions by customer need, prerequisites, licensing and hardware access
 - [Advanced inference](advanced-inference/README.md): TensorRT-LLM keeps its separate driver/container/GPU compatibility path.
 - [HPC](hpc/README.md): Slurm keeps its multi-node, host support and RWX storage prerequisites.
 
-[Curriculum](../README.md) · [Core learning path](../learning-paths/core.md)
+[Return to the course guide](../README.md)
