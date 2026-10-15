@@ -1,4 +1,4 @@
-# AI-LAB-07 — Declarative release and rollback
+# AI-LAB-07: Declarative release and rollback
 
 > **Course step 19 of 21.** [Previous step](../../inference-and-data/labs/performance-decision.md) · [Course checklist](../../../README.md) · [Next step](../../operations/labs/diagnose-restore.md)
 

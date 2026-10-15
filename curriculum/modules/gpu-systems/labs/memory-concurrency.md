@@ -1,4 +1,4 @@
-# AI-LAB-02 — Memory and concurrency
+# AI-LAB-02: Memory and concurrency
 
 > **Course step 14 of 21.** [Previous step](../../platform-bootstrap/labs/first-private-response.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-allocation/labs/two-team-queue.md)
 

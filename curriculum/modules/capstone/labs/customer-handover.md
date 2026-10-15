@@ -1,4 +1,4 @@
-# AI-CAP-01 — Customer handover under changed demand
+# AI-CAP-01: Customer handover under changed demand
 
 > **Course step 21 of 21.** [Previous step](../../operations/labs/diagnose-restore.md) · [Course checklist](../../../README.md) · [Finish or pause](../../../README.md#finish-or-pause)
 
@@ -25,7 +25,7 @@ Before changing anything, predict the limiting resource under the new demand and
 
 ## Procedure and checkpoints
 
-Team A now needs longer approved-document context; team B wants a predictable batch window. The instructor sets input, concurrency and SLO values within the qualified profile, a storage or queue constraint and one unfamiliar fault. You get a requirement card, not a solution.
+Team A now needs longer approved-document context; team B wants a predictable batch window. On a requirement card, the instructor sets input, concurrency and SLO values within the qualified profile, a storage or queue constraint and one unfamiliar fault.
 
 Plan and execute, within bounds:
 

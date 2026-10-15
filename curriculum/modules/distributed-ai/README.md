@@ -4,7 +4,7 @@ Topic index; the [course guide](../../README.md) sets the order, prerequisites a
 
 ## Workshops
 
-- [AI-LAB-04 — Two-worker proof](labs/two-worker-proof.md)
+- [AI-LAB-04: Two-worker proof](labs/two-worker-proof.md)
 
 Concept lesson: [Communication before scale](lessons/communication-and-parallelism.md)
 

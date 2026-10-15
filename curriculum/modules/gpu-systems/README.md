@@ -4,7 +4,7 @@ Topic index; the [course guide](../../README.md) sets the order, prerequisites a
 
 ## Workshops
 
-- [AI-LAB-02 — Memory and concurrency](labs/memory-concurrency.md)
+- [AI-LAB-02: Memory and concurrency](labs/memory-concurrency.md)
 
 Concept lesson: [Memory and topology for an operator](lessons/memory-and-topology.md)
 

@@ -4,7 +4,7 @@ Topic index; the [course guide](../../README.md) sets the order, prerequisites a
 
 ## Workshops
 
-- [AI-LAB-07 — Declarative release and rollback](labs/declarative-release.md)
+- [AI-LAB-07: Declarative release and rollback](labs/declarative-release.md)
 
 Concept lesson: [A service another engineer can reproduce](lessons/reconcilable-ai-service.md)
 

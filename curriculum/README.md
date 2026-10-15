@@ -1,6 +1,6 @@
 # Course guide
 
-**Start here and work down the tables.** Tick a step only when its checks pass and its changes are restored. When you return to an environment, check the previous step's exit state instead of provisioning a new one.
+Start here and work down the tables. Tick a step only when its checks pass and its changes are restored. When you return to an environment, check the previous step's exit state instead of provisioning a new one.
 
 Team A needs a private interactive assistant over approved documents; team B needs batch experiments and occasional training. You deliver a repeatable service, explain its resource needs, share scarce GPUs and recover from a new incident.
 

@@ -1,4 +1,4 @@
-# AI-LAB-06 — A measured performance decision
+# AI-LAB-06: A measured performance decision
 
 > **Course step 18 of 21.** [Previous step](storage-cache.md) · [Course checklist](../../../README.md) · [Next step](../../ai-service-delivery/labs/declarative-release.md)
 

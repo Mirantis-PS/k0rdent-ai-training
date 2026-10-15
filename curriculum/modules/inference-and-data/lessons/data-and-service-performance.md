@@ -8,7 +8,7 @@ Weights move from a registry, object store or mounted directory into host and de
 
 S3-style object storage speaks object APIs, not POSIX by default. Local NVMe makes a fast disposable cache but needs explicit refill and capacity management. NFS and shared storage give shared paths with their own contention and failure modes. Parallel filesystems target aggregate concurrent IO and need operational investment. Choose by durability, access pattern, working set and measured contention. Slow CPU preprocessing or loaders can starve a GPU, and checkpoint bursts can hit other tenants. GDS is a supported direct-storage path to qualify separately, not a flag that speeds up any storage.
 
-MLflow tracks experiments and artifacts; a model registry tracks versions and lifecycle metadata. Jupyter is an interactive workspace, a vector database serves retrieval and Kubeflow supplies workflow components. Decide which customer need justifies each, and keep artifact identity from development to serving: a notebook's latest file isn't a release.
+MLflow tracks experiments and artifacts; a model registry tracks versions and lifecycle metadata. Jupyter is an interactive workspace, a vector database serves retrieval and Kubeflow supplies workflow components. Decide which customer need justifies each, and keep artifact identity from development to serving instead of deploying whatever file a notebook saved last.
 
 ## Prefill and decode
 

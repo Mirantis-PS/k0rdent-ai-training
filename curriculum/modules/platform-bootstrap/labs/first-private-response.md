@@ -1,4 +1,4 @@
-# AI-LAB-01 — First private response
+# AI-LAB-01: First private response
 
 > **Course step 13 of 21.** [Previous step](../../gpu-allocation/labs/kai-scheduler.md) · [Course checklist](../../../README.md) · [Next step](../../gpu-systems/labs/memory-concurrency.md)
 

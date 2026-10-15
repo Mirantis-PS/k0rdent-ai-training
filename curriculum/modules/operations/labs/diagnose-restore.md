@@ -1,4 +1,4 @@
-# AI-LAB-08 — Diagnose and restore
+# AI-LAB-08: Diagnose and restore
 
 > **Course step 20 of 21.** [Previous step](../../ai-service-delivery/labs/declarative-release.md) · [Course checklist](../../../README.md) · [Next step](../../capstone/labs/customer-handover.md)
 

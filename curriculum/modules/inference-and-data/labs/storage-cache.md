@@ -1,4 +1,4 @@
-# AI-LAB-05 — Storage and cache are different experiments
+# AI-LAB-05: Storage and cache are different experiments
 
 > **Course step 17 of 21.** [Previous step](../../distributed-ai/labs/two-worker-proof.md) · [Course checklist](../../../README.md) · [Next step](performance-decision.md)
 

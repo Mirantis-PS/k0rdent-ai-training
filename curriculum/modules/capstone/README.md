@@ -4,7 +4,7 @@ Topic index; the [course guide](../../README.md) sets the order, prerequisites a
 
 ## Workshops
 
-- [AI-CAP-01 — Customer handover under changed demand](labs/customer-handover.md)
+- [AI-CAP-01: Customer handover under changed demand](labs/customer-handover.md)
 
 ## Supporting labs and references
 

@@ -4,7 +4,7 @@ Lesson ID: AI-CON-07 · Before AI-LAB-08 · Revisit during the capstone.
 
 ## Build a timeline across layers
 
-Start from the user's symptom and timestamp, not a favorite tuning flag. Trace desired-state reconciliation, admission, Pod placement, startup and model loading, and request execution. Correlate KOF/Prometheus observations with Pod events and application logs. DCGM can expose device memory, activity and power through a configured exporter, but check per-process attribution and sharing-mode limits; GPU activity alone proves neither useful work nor the cause of latency.
+Start from the user's symptom and its timestamp, then trace desired-state reconciliation, admission, Pod placement, startup and model loading, and request execution. Correlate KOF/Prometheus observations with Pod events and application logs. DCGM can expose device memory, activity and power through a configured exporter, but check per-process attribution and sharing-mode limits; GPU activity alone proves neither useful work nor the cause of latency.
 
 For distributed work, add rank startup, rendezvous, collective timings, transport logs and network errors; for serving, request rate, queueing, prefill/decode, cache occupancy and errors; for storage, bytes/time, loader wait and checkpoint intervals. Keep a short before/during/after window, and don't merge unsynchronized clocks into a false causal sequence.
 

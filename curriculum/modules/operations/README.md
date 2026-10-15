@@ -4,7 +4,7 @@ Topic index; the [course guide](../../README.md) sets the order, prerequisites a
 
 ## Workshops
 
-- [AI-LAB-08 — Diagnose and restore](labs/diagnose-restore.md)
+- [AI-LAB-08: Diagnose and restore](labs/diagnose-restore.md)
 
 Concept lesson: [Operate from evidence](lessons/evidence-led-operations.md)
 

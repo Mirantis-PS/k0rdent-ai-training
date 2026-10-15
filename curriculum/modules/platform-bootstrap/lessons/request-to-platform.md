@@ -10,7 +10,7 @@ Training changes parameters by computing gradients and applying an optimizer. Fu
 
 ## Just enough model anatomy
 
-A tokenizer maps text to token IDs, which don't reliably match words; an embedding maps IDs to vectors. Transformer attention combines information across tokens using learned parameters. Context length counts input and generated tokens within model and runtime limits, and more context means more cache and prefill work at the same parameter count. A vector database indexes embeddings for retrieval; it is not the model's KV cache. That is why a RAG workload can stress both storage and inference without any training.
+A tokenizer maps text to token IDs, which don't reliably match words; an embedding maps IDs to vectors. Transformer attention combines information across tokens using learned parameters. Context length counts input and generated tokens within model and runtime limits, and more context means more cache and prefill work at the same parameter count. A vector database indexes embeddings for retrieval and is separate from the model's KV cache, so a RAG workload can stress both storage and inference without any training.
 
 ## Trace two control paths
 

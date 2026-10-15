@@ -4,7 +4,7 @@ Instructor-only during diagnosis. Before injection, record the lab namespace, ow
 
 | ID | Entry state and isolated injection | Symptoms and useful discriminator | Minimum correction and restoration | Bound |
 |---|---|---|---|---|
-| F01 | Healthy private service; wrong Service name in learner’s local forward command | Forward fails; real Service/Pod remains healthy | Correct only local name; prove response; close forward | One attempt, 2 min |
+| F01 | Healthy private service; wrong Service name in learner's local forward command | Forward fails; real Service/Pod remains healthy | Correct only local name; prove response; close forward | One attempt, 2 min |
 | F02 | Saved learner serving config; request exceeds approved context limit | Input rejection versus CUDA allocation error; inspect response and server log | Reduce input within configured limit; replay valid request | One invalid request; no load burst |
 | F03 | Disposable finite job; impossible node selector in copied template | Pod scheduling event, allocatable GPU exists, queue may already admit | Restore template selector; replace only disposable job; verify finish/delete | Pending 2 min; job deadline 5 min |
 | F04 | Isolated test queue with saved policy; request exceeds learner entitlement | Admission wait/status before placement, unlike F03 | Restore/request valid entitlement through owner; verify finite job and policy restoration | 2 min wait; no shared quota change |

@@ -4,7 +4,7 @@ Lesson ID: AI-CON-06 · Before AI-LAB-07 · Revisit in AI-CAP-01.
 
 ## Find the owner before changing the object
 
-Reconciliation can overwrite a live edit, so trace the workload's owner references and the management configuration that generated it. A service catalog entry packages a deployable service; a ClusterTemplate describes cluster provisioning inputs; MultiClusterService propagates service configuration to selected clusters; GitOps reconciles declared state from an identified source. The roles complement each other. The preserved k0rdent labs show particular versions; P3 must map the actual k0rdent AI distribution to supported interfaces and lifecycle owners.
+Reconciliation can overwrite a live edit, so trace the workload's owner references and the management configuration that generated it. A service catalog entry packages a deployable service; a ClusterTemplate describes cluster provisioning inputs; MultiClusterService propagates service configuration to selected clusters; GitOps reconciles declared state from an identified source. The preserved k0rdent labs show particular versions; P3 must map the actual k0rdent AI distribution to supported interfaces and lifecycle owners.
 
 Record model revision, immutable image identity, serving arguments, resource requests, scheduling policy, storage references, private access and observability, with credentials as references to separately managed secrets. A declarative submission is complete when an engineer can tell where to change it, what reconciles it, how readiness shows and how to restore the previous state.
 

@@ -1,4 +1,4 @@
-# AI-LAB-04 — Two-worker proof
+# AI-LAB-04: Two-worker proof
 
 > **Course step 16 of 21.** [Previous step](../../gpu-allocation/labs/two-team-queue.md) · [Course checklist](../../../README.md) · [Next step](../../inference-and-data/labs/storage-cache.md)
 

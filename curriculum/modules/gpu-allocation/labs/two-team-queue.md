@@ -1,4 +1,4 @@
-# AI-LAB-03 — Two teams and a queue
+# AI-LAB-03: Two teams and a queue
 
 > **Course step 15 of 21.** [Previous step](../../gpu-systems/labs/memory-concurrency.md) · [Course checklist](../../../README.md) · [Next step](../../distributed-ai/labs/two-worker-proof.md)
 

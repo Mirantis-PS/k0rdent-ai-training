@@ -4,7 +4,7 @@ Topic index; the [course guide](../../README.md) sets the order, prerequisites a
 
 ## Workshops
 
-- [AI-LAB-01 — First private response](labs/first-private-response.md)
+- [AI-LAB-01: First private response](labs/first-private-response.md)
 
 Concept lesson: [Request to platform](lessons/request-to-platform.md)
 
