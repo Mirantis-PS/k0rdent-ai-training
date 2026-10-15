@@ -1,11 +1,11 @@
 # Advanced inference extension
 
-Optional source material, preserved whole. TensorRT-LLM keeps its separate driver/container/GPU compatibility path. These are historical source claims, not new runtime results. BMaaS, VMaaS and KaaS are not mandatory installation stages for the core path.
+Optional and preserved whole; results are historical, not re-run. TensorRT-LLM keeps its own driver, container and GPU compatibility path.
 
 | Historical ID | Canonical document |
 |---|---|
 | 5.13 | [Lab 5.13 - TensorRT-LLM Inference Optimization](labs/tensorrt-llm.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
+Before running a lab, check its entry state, compatibility and cleanup; the [compatibility notes](../../references/compatibility.md) list historical label mismatches.
 
 [Extensions](../README.md) · [Core learning path](../../README.md)

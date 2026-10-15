@@ -1,16 +1,16 @@
 # Operations
 
-Follow the [course guide](../../README.md) for execution order, prerequisites and cleanup. Use this page to find material by topic.
+Topic index; the [course guide](../../README.md) sets the order, prerequisites and cleanup.
 
 ## Workshops
 
-- [AI-LAB-08 — Diagnose and restore](labs/diagnose-restore.md)
+- [AI-LAB-08: Diagnose and restore](labs/diagnose-restore.md)
 
-- [Concept lesson](lessons/evidence-led-operations.md)
+Concept lesson: [Operate from evidence](lessons/evidence-led-operations.md)
 
 ## Supporting labs and references
 
-These source labs supply the detailed procedures used by the course. Keep their hardware/version gates; the workshop links explain which parts to use. Historical IDs are reference labels.
+Source procedures the workshops draw on; keep their hardware and version gates.
 
 | Historical ID | Canonical document |
 |---|---|
@@ -23,6 +23,5 @@ These source labs supply the detailed procedures used by the course. Keep their 
 | 6.2 | [Lab 6.2 — Breakfix API Design & Implementation](labs/breakfix-api.md) |
 | 6.3 | [Lab 6.3 — Capacity & Fleet Management APIs](labs/capacity-fleet-apis.md) |
 | 6.4 | [Lab 6.4 — Data Sanitization + At-Rest Encryption](labs/sanitization-at-rest-crypto.md) |
-
 
 [All topics](../README.md) · [Optional extensions](../../extensions/README.md)

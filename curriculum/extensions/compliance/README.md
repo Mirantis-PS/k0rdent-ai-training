@@ -1,11 +1,11 @@
 # Compliance extension
 
-Optional source material, preserved whole. The FIPS exercise retains its image/crypto gates; a stock-host smoke result is not compliance certification. These are historical source claims, not new runtime results. BMaaS, VMaaS and KaaS are not mandatory installation stages for the core path.
+Optional and preserved whole; results are historical, not re-run. The FIPS exercise keeps its image and crypto gates; a stock-host smoke test isn't compliance certification.
 
 | Historical ID | Canonical document |
 |---|---|
 | 5.11 | [Lab 5.11 - FIPS Compliance for GPU Infrastructure](labs/nvidia-fips.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
+Before running a lab, check its entry state, compatibility and cleanup; the [compatibility notes](../../references/compatibility.md) list historical label mismatches.
 
 [Extensions](../README.md) · [Core learning path](../../README.md)

@@ -1,6 +1,6 @@
 # ML platforms extension
 
-Optional source material, preserved whole. Jupyter, vector databases, Kubeflow and MLflow keep their complete labs and storage/operator requirements. These are historical source claims, not new runtime results. BMaaS, VMaaS and KaaS are not mandatory installation stages for the core path.
+Optional and preserved whole; results are historical, not re-run. The Jupyter, vector database, Kubeflow and MLflow labs keep their storage and operator requirements.
 
 | Historical ID | Canonical document |
 |---|---|
@@ -10,6 +10,6 @@ Optional source material, preserved whole. Jupyter, vector databases, Kubeflow a
 | 5.9 | [Lab 5.9 - Kubeflow ML Platform](labs/kubeflow-ml-platform.md) |
 | Reference | [5.5 ML Platform Architecture](theory/ml-platforms.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
+Before running a lab, check its entry state, compatibility and cleanup; the [compatibility notes](../../references/compatibility.md) list historical label mismatches.
 
 [Extensions](../README.md) · [Core learning path](../../README.md)

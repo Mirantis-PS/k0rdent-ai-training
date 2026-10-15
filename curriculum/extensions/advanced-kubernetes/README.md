@@ -1,6 +1,6 @@
 # Advanced Kubernetes extension
 
-Optional source material, preserved whole. Hosted control planes, networking and DRA retain their individual prerequisites and mixed historical validation states. These are historical source claims, not new runtime results. BMaaS, VMaaS and KaaS are not mandatory installation stages for the core path.
+Optional and preserved whole; results are historical, not re-run. Hosted control planes, networking and DRA keep their own prerequisites and mixed historical validation states.
 
 | Historical ID | Canonical document |
 |---|---|
@@ -9,6 +9,6 @@ Optional source material, preserved whole. Hosted control planes, networking and
 | 4.4 | [Lab 4.4: Custom CNI — Cilium as Primary CNI + Multus Secondary Networks](labs/cilium-multus.md) |
 | 4.9 | [Lab 4.9 — Dynamic Resource Allocation (DRA) for GPUs](labs/dynamic-resource-allocation.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
+Before running a lab, check its entry state, compatibility and cleanup; the [compatibility notes](../../references/compatibility.md) list historical label mismatches.
 
 [Extensions](../README.md) · [Core learning path](../../README.md)

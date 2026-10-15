@@ -1,11 +1,11 @@
 # Virtualization extension
 
-Optional source material, preserved whole. The existing eight-GPU passthrough lab retains its specialized hardware prerequisites; additional original labs remain unwritten. These are historical source claims, not new runtime results. BMaaS, VMaaS and KaaS are not mandatory installation stages for the core path.
+Optional and preserved whole; results are historical, not re-run. The eight-GPU passthrough lab needs specialized hardware; further labs are unwritten.
 
 | Historical ID | Canonical document |
 |---|---|
 | 3.3 | [Lab 3.3 - Create AI VM with 8-GPU Passthrough](labs/ai-vm-8gpu.md) |
 
-Review each lab’s entry state, compatibility and cleanup before execution. See the [compatibility and lifecycle notes](../../references/compatibility.md) for historical label mismatches.
+Before running a lab, check its entry state, compatibility and cleanup; the [compatibility notes](../../references/compatibility.md) list historical label mismatches.
 
 [Extensions](../README.md) · [Core learning path](../../README.md)

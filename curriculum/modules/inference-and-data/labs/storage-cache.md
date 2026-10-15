@@ -1,56 +1,64 @@
-# AI-LAB-05 — Storage and cache are different experiments
+# AI-LAB-05: Storage and cache are different experiments
 
-> **Course step 17 of 21.** [Previous step](../../distributed-ai/labs/two-worker-proof.md) · [Course checklist](../../../README.md) · [Next step](performance-decision.md). Follow this sequence when older lab-number references differ.
+> **Course step 17 of 21.** [Previous step](../../distributed-ai/labs/two-worker-proof.md) · [Course checklist](../../../README.md) · [Next step](performance-decision.md)
 
-
-**Status:** educational draft; no GPU execution claimed. **Profile:** GPU-1 candidate; storage analysis on CPU. **Guidance:** medium-low; learner chooses controls.
+**Status:** [draft](../../../README.md#check-runtime-readiness) · **Profile:** GPU-1 candidate; storage analysis on CPU · **Guidance:** medium-low, you choose the controls
 
 ## Prerequisites and input state
 
-Restored AI-LAB-01 service and approved storage paths. Instructor provides an isolated cache directory/volume and immutable model revision. Never flush host page caches, delete a shared model cache or clear another tenant’s KV state.
+- Restored AI-LAB-01 service and approved storage paths.
+- An isolated cache directory or volume and an immutable model revision from the instructor.
+
+Never flush host page caches, delete a shared model cache or clear another tenant's KV state.
 
 ## Objectives and problem
 
-Separate model loading, dataset feeding, checkpoint writes and inference KV/prefix reuse. Recommend storage for team A/B from observable behavior.
+Separate model loading, dataset feeding, checkpoint writes and KV/prefix reuse, then recommend storage for teams A and B from observed behavior.
 
 ## Concept capsule
 
-Read the data paths and prefill/decode sections of [Data and service performance](../lessons/data-and-service-performance.md). Draw four distinct paths before measuring.
+Read the data-path and prefill/decode sections of [Data and service performance](../lessons/data-and-service-performance.md) and draw the four paths before measuring.
 
 ## Hypothesis
 
-Predict which phases a warm weight-file cache should shorten and which phases identical prompt prefixes might shorten. State how you will distinguish a repeated file read from a reused KV prefix.
+Predict which phases a warm weight-file cache shortens, which identical prompt prefixes shorten, and how you will tell a repeated file read from a reused KV prefix.
 
 ## Procedure and checkpoints
 
-1. Create a four-row data-path table: weights, dataset, checkpoint, KV. For each record origin, durability, access pattern, owner, cache, bottleneck metric and cleanup. Compare object storage, local NVMe, NFS/shared and parallel storage; do not deploy every option.
-2. Design a cold/warm startup pair using an instructor-approved disposable model cache. Define cold precisely: empty dedicated model-file cache does not mean a cold registry, OS cache or network. Through the owning desired state, start the same image/model with the empty cache, capture scheduling/image-pull/download/load/readiness timestamps, then restart with retained cache. Record downloaded bytes when available and separate every phase. Repeat three pairs if within the budget; otherwise report sample limitation.
-3. Return to a healthy warm server. Prepare two non-sensitive prompt sets with equal token lengths: repeated identical token prefixes versus unrelated prefixes. Freeze suffix/output length, concurrency, model and tokenizer. Run each against documented prefix-cache configuration; isolate runs through the approved learner server restart or supported cache reset. Record cache eligibility/state, TTFT, output rate and errors. Do not assume the first request hits cache or that similar text shares tokens.
-4. Inspect the preserved training checkpoint/data-loader sections. Propose an experiment that records loader wait, CPU activity, GPU idle intervals and checkpoint bytes/time together. Use an isolated finite dataset/checkpoint workload only if approved. Without it, submit the plan and interpret the hypothetical symptom: GPU idle rises exactly during checkpoint writes while serving latency also rises. Name another possible cause and a discriminating metric.
-5. Decide which registry/MLflow artifact metadata, notebook workspace, vector index or Kubeflow workflow the customer actually needs. Trace how an immutable artifact becomes the served revision. Explain why GDS requires its own supported path and is not proven by a faster warm read.
+1. Tabulate the four data paths (weights, dataset, checkpoint, KV): origin, durability, access pattern, owner, cache, bottleneck metric, cleanup. Compare object, local NVMe, NFS/shared and parallel storage without deploying each.
+2. Time a cold/warm startup pair on an instructor-approved disposable model cache: through the owning desired state, start the same image and model with the cache empty, then kept, timing scheduling, image pull, download, load and readiness separately and recording downloaded bytes. An empty model-file cache says nothing about the registry, OS cache or network. Run three pairs if the budget allows.
+3. On a healthy warm server, compare two non-sensitive prompt sets of equal token length, one sharing identical token prefixes and one not, with suffix and output length, concurrency, model and tokenizer frozen. Isolate runs by approved restart or supported cache reset, and record cache eligibility and state, TTFT, output rate and errors. Don't assume the first request hits or that similar text shares tokens.
+4. From the [5.16](../../distributed-ai/labs/distributed-training.md) checkpoint and data-loader sections, design an experiment recording loader wait, CPU activity, GPU idle and checkpoint bytes and time together; run it only on an approved isolated workload. Otherwise interpret this symptom: GPU idle rises during checkpoint writes as serving latency rises. Name another cause and a metric that separates them.
+5. Choose which of artifact registry/MLflow, notebooks, vector index or Kubeflow the customer needs ([ML platform options](../../../extensions/ml-platforms/README.md)) and trace an immutable artifact to the served revision. Why doesn't a faster warm read prove GDS?
 
 ## Interpretation
 
-Which cache improved startup versus TTFT? What confounders remained? Could prompt-prefix routing improve hit rate while worsening queue imbalance? Why is a vector database not a KV cache? What would a shared storage outage affect after weights are already loaded?
+- Which cache improved startup, which TTFT, and what confounders remain?
+- Could prefix-aware routing raise the hit rate but unbalance queues?
+- Why is a vector database not a KV cache?
+- What does a shared storage outage affect once weights are loaded?
 
 ## Bounded incident or tradeoff
 
-Set a nonexistent path only in a disposable learner cache/storage configuration, bounded by the readiness deadline. Observe mount/load failure and restore the approved path. If no isolated writable route exists, perform the failure analysis on the proposed diff instead of mutating shared storage.
+Set a nonexistent path in a disposable learner storage configuration, within the readiness deadline, observe the failure and restore the path. Without an isolated writable route, analyze it on the proposed diff.
 
 ## Declarative delivery
 
-Document storage class/path references, artifact revision and cache lifecycle in the owned service configuration. Include eviction/refill, capacity, permissions and durable-data boundaries. Product-managed storage claims remain unresolved pending P3.
+Record storage class and path references, artifact revision and cache lifecycle (eviction, refill, capacity, permissions, durable-data boundaries) in the owned service configuration. Product-managed storage claims wait on P3.
 
 ## Restoration and cleanup
 
-Restore baseline storage/cache configuration and verify first response. Delete only the dedicated disposable cache after confirming its owner and that no workload references it. Retain no unowned volumes. Do not delete model artifacts or training checkpoints shared by others.
+Restore baseline storage and cache configuration and verify the first response. Delete only the disposable cache once its owner confirms nothing uses it; leave no unowned volumes and touch no shared artifacts or checkpoints.
 
 ## Evidence and acceptance
 
-Four-path table, cold/warm definitions and timelines, prefix comparison with exact workload, storage recommendation and restoration. Separate live startup/prefix observations from proposed loader/checkpoint/GDS experiments.
+- Four-path table.
+- Cold/warm definitions and timelines.
+- Prefix comparison with the exact workload.
+- Storage recommendation and restoration.
+
+Label live startup and prefix observations apart from proposed loader, checkpoint and GDS experiments.
 
 ## Provenance and instructor route
 
-Derived from [Lab 5.5](vllm-inference.md), [Lab 5.16 checkpoint tasks](../../distributed-ai/labs/distributed-training.md) and [ML platform sources](../../../extensions/ml-platforms/README.md).
-
-[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Learner path](../../../README.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-05)
+[Evidence contract](../../../references/pedagogy/evidence-contract.md) · [Instructor solutions](../../../instructor/pedagogical-v2/solutions.md#ai-lab-05)
