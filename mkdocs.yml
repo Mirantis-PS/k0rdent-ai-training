@@ -1,5 +1,5 @@
 # The workflow stages tracked course files in build/course-docs before building.
-site_name: k0rdent AI Training
+site_name: k0rdent + AI Workloads Training
 site_description: A practical course for AI infrastructure engineers
 docs_dir: build/course-docs
 site_dir: build/course-site

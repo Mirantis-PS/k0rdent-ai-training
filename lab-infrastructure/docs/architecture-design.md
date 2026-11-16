@@ -1,4 +1,6 @@
-# k0rdent AI Training Lab Infrastructure - Architecture Design
+# k0rdent + AI Workloads Training Lab Infrastructure - Architecture Design
+
+> **Not the k0rdent AI product.** This course teaches how to run AI workloads on k0rdent. k0rdent AI is a separate product, and the course does not install or demonstrate it.
 
 **Version:** 2.0
 **Date:** December 2025
@@ -30,15 +32,15 @@
 
 ### Mission
 
-Train engineers to confidently deploy **k0rdent AI** for customers in professional services engagements through hands-on lab experience that mirrors real deployments.
+Train engineers to confidently deploy **AI workloads on k0rdent** for customers in professional services engagements through hands-on lab experience that mirrors real deployments.
 
 ### Purpose
 
-This document defines the architecture for a k0rdent AI training lab platform where engineers provision and manage actual k0rdent clusters, experiencing the full lifecycle of deployment, configuration, and workload management across bare metal, virtual machines, and Kubernetes.
+This document defines the architecture for a training lab platform for AI workloads on k0rdent where engineers provision and manage actual k0rdent clusters, experiencing the full lifecycle of deployment, configuration, and workload management across bare metal, virtual machines, and Kubernetes.
 
 ### Scope
 
-- **Training Focus:** k0rdent AI deployment for professional services
+- **Training Focus:** Deploying AI workloads on k0rdent for professional services
 - **Cloud Provider:** AWS (single VPC, on-demand instances)
 - **State Management:** GitOps via Flux CD with personal forks
 - **Isolation:** Fully isolated per-engineer environments
@@ -52,7 +54,7 @@ This document defines the architecture for a k0rdent AI training lab platform wh
 | Management Cluster | 3-node k0s on EC2 per engineer | Mirrors production k0rdent deployments |
 | Installation | Semi-automated scripts + manual final install | Engineers learn the process |
 | Week Progression | Same cluster adds capabilities | Build expertise incrementally |
-| CAPI Providers | Metal3 → KubeVirt → CAPA | Cover all k0rdent AI deployment targets |
+| CAPI Providers | Metal3 → KubeVirt → CAPA | Cover all k0rdent deployment targets |
 | Networking | Single VPC subnet | Simplicity without sacrificing learning |
 | State Persistence | GitOps (Flux CD) | Declarative rebuild, self-service recovery |
 | Secrets | SOPS + age encrypted in git | Industry-standard GitOps pattern |
@@ -195,7 +197,7 @@ This document defines the architecture for a k0rdent AI training lab platform wh
 1. **Engineers Own Their Clusters**: Each engineer provisions and manages their own k0rdent management cluster
 2. **Progressive Learning**: Same cluster evolves, adding capabilities each week
 3. **GitOps-First**: All cluster state is declarative and stored in git
-4. **Production-Like**: Architecture mirrors real k0rdent AI deployments
+4. **Production-Like**: Architecture mirrors real k0rdent deployments running AI workloads
 5. **Self-Service Recovery**: Engineers can reset to any known-good state via git
 
 ---
@@ -462,7 +464,7 @@ variable "bare_metal_sim" {
 
 ### 5.4 Week 5: GPU-Enabled Child Clusters (AI Workloads)
 
-**Purpose:** Deploy k0rdent AI workloads on GPU infrastructure
+**Purpose:** Deploy AI workloads with k0rdent on GPU infrastructure
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -491,24 +493,24 @@ variable "bare_metal_sim" {
 │  │                                                            │ │
 │  └───────────────────────────────────────────────────────────┘ │
 │                                                                 │
-│  This is the core "k0rdent AI" experience:                     │
+│  This is the core AI-workloads-on-k0rdent experience:          │
 │  └── Engineers learn to deploy AI infrastructure for customers │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**k0rdent AI Workflow:**
+**AI Workload Workflow:**
 1. Engineer creates GPU cluster definition in git
 2. k0rdent provisions cluster on shared GPU pool via CAPA
 3. GPU Operator automatically configures drivers
 4. Engineer deploys AI workloads (vLLM, Run:AI, etc.)
-5. Experience mirrors customer k0rdent AI deployments
+5. Experience mirrors customer AI workload deployments on k0rdent
 
 ---
 
 ### 5.5 Week 6: Multi-Tenant Capstone
 
-**Purpose:** Full k0rdent AI deployment with multi-tenancy
+**Purpose:** Full AI workload deployment on k0rdent with multi-tenancy
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1290,7 +1292,7 @@ locals {
 - [ ] Create week5-gpu cluster and workload definitions
 - [ ] Configure GPU Operator installation
 - [ ] Test vLLM, Run:AI deployments
-- [ ] Document k0rdent AI workload deployment
+- [ ] Document AI workload deployment on k0rdent
 
 ### Phase 6: Capstone & Polish (Week 3)
 
@@ -1455,4 +1457,4 @@ Before implementation:
 
 ---
 
-*Document version 2.0 - Updated for k0rdent AI training with GitOps state management*
+*Document version 2.0 - Updated for AI workload training on k0rdent with GitOps state management*

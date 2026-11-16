@@ -1,5 +1,5 @@
 # k0rdent Management Cluster Module
-# Creates a 3-node k0s cluster for k0rdent AI management
+# Creates a 3-node k0s cluster for k0rdent management
 
 terraform {
   required_version = ">= 1.5.0"

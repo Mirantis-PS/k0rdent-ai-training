@@ -1,6 +1,6 @@
-# k0rdent AI Training Lab Infrastructure
+# k0rdent + AI Workloads Training Lab Infrastructure
 
-Terraform-based infrastructure provisioning for k0rdent AI training labs.
+Terraform-based infrastructure provisioning for the k0rdent + AI Workloads Training labs.
 
 ## Script Reference
 

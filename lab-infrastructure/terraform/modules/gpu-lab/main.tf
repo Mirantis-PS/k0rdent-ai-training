@@ -1,5 +1,5 @@
 # GPU Lab Environment Module
-# Creates shared GPU instances for k0rdent AI training labs
+# Creates shared GPU instances for the AI workload training labs
 # Supports p3.8xlarge (4x V100) for standard labs and p4d.24xlarge (8x A100) for advanced labs
 
 terraform {
