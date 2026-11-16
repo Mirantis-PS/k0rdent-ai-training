@@ -1,4 +1,6 @@
-# k0rdent AI Infrastructure Training
+# k0rdent + AI Workloads Training
+
+> **Not the k0rdent AI product.** This course teaches how to run AI workloads on k0rdent. k0rdent AI is a separate product, and the course does not install or demonstrate it.
 
 ## [Start the course online →](https://mirantis-ps.github.io/k0rdent-ai-training/)
 
